@@ -18,8 +18,8 @@ const LoginForm: React.FC<LoginFormProps> = ({
   const [password, setPassword] = useState('');
   const navigation = useNavigation();
   const handleSubmit = () => {
-    onSubmit(email, password);
-    navigation.navigate('Home' as never);
+      navigation.navigate('Step' as never);
+      onSubmit(email, password);
   };
 
   return (

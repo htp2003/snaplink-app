@@ -21,10 +21,10 @@ const getResponsiveSize = (size: number) => {
 };
 
 const images = [
-  require('../assets/slider1.png'),
-  require('../assets/slider2.png'),
-  require('../assets/slider3.png'),
-  require('../assets/slider4.png'),
+  require('../../assets/slider1.png'),
+  require('../../assets/slider2.png'),
+  require('../../assets/slider3.png'),
+  require('../../assets/slider4.png'),
 ];
 
 const LayoutPage = () => {

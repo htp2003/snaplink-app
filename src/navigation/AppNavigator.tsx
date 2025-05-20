@@ -9,6 +9,7 @@ import BookingScreen from '../screens/BookingScreen';
 import LayoutPage from '../screens/LayoutPage';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
+import StepContainer from '../components/Step/StepContainer';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -21,6 +22,7 @@ const AppNavigator = () => {
           headerShown: false,
         }}
       >
+        <Stack.Screen name="Step" component={StepContainer} />
         <Stack.Screen name="Home" component={HomeScreen} />
         <Stack.Screen name="Booking" component={BookingScreen} />
         <Stack.Screen name="Layout" component={LayoutPage} />

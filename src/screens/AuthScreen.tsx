@@ -9,8 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +24,7 @@ const LoginScreen = () => {
 
   const renderLoginForm = () => (
     <View style={styles.formContainer}>
+      <StatusBar backgroundColor="#000" barStyle="light-content" />
       <View style={styles.inputContainer}>
         <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
         <TextInput
@@ -56,6 +59,7 @@ const LoginScreen = () => {
 
   const renderRegisterForm = () => (
     <View style={styles.formContainer}>
+      <StatusBar backgroundColor="#000" barStyle="light-content" />
       <View style={styles.inputContainer}>
         <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
         <TextInput

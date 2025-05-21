@@ -1,6 +1,6 @@
 import StepIndicator from 'react-native-step-indicator';
 import { useState } from 'react';
-import { View, Dimensions } from 'react-native';
+import { View, Dimensions, StatusBar } from 'react-native';
 import Step1 from './Step1';
 import Step2 from './Step2';
 import Step3 from './Step3';
@@ -42,6 +42,7 @@ const StepContainer = () => {
 
     return (
         <ImageBackground source={bgSource} style={{ flex: 1 }} resizeMode="cover">
+            <StatusBar backgroundColor="#000" barStyle="light-content" />
             <View style={{ flex: 1 }}>
                 <View style={{ marginTop: stepIndicatorMarginTop, marginBottom: stepIndicatorMarginBottom }}>
                     <StepIndicator

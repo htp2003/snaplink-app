@@ -38,7 +38,7 @@ const LayoutPage = () => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar backgroundColor="#000" barStyle="light-content" />
       <ScrollView
         horizontal
         pagingEnabled

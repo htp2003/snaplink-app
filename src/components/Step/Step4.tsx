@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { RootStackNavigationProp } from '../../navigation/types';
 
 const stylesList = [
     "Portrait", "Landscape", "Street", "Fashion", "Wedding",
@@ -8,9 +9,9 @@ const stylesList = [
 ];
 
 const Step4 = ({ onSelectRole }: { onSelectRole?: (styles: string[]) => void }) => {
+    const navigation = useNavigation<RootStackNavigationProp>();
     const [selectedStyles, setSelectedStyles] = useState<string[]>([]);
     const [error, setError] = useState('');
-    const navigation = useNavigation();
 
     const handleSelect = (style: string) => {
         if (selectedStyles.includes(style)) {
@@ -26,7 +27,7 @@ const Step4 = ({ onSelectRole }: { onSelectRole?: (styles: string[]) => void }) 
             setError('Please select exactly 3 styles before completing.');
             return;
         }
-        navigation.navigate('Home' as never);
+        navigation.navigate('Main', { screen: 'Home' });
     };
 
     return (

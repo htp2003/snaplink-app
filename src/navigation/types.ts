@@ -1,4 +1,3 @@
-
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 export type RootStackParamList = {
@@ -10,6 +9,8 @@ export type RootStackParamList = {
     Login: undefined;
     Register: undefined;
     ProfileCardDetail: undefined;
+    ViewAllPhotographers: undefined;
+    ViewAllLocations: undefined;
   };
 
   export type TabParamList = {

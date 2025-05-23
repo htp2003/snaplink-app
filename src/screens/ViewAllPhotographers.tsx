@@ -1,0 +1,67 @@
+import React from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../navigation/types';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import ProfileCard from '../components/ProifileCard/ProfileCard';
+import { getResponsiveSize } from '../utils/responsive';
+import { useProfiles } from '../hooks/useProfiles';
+import { useFavorites } from '../hooks/useFavorites';
+
+type Props = NativeStackScreenProps<RootStackParamList, 'ViewAllPhotographers'>;
+
+export default function ViewAllPhotographers({ navigation }: Props) {
+  const { profiles, loading } = useProfiles();
+  const { isFavorite, toggleFavorite } = useFavorites();
+
+  return (
+    <SafeAreaView className='flex-1 bg-black'>
+      <StatusBar backgroundColor="#000" barStyle="light-content" />
+      
+      {/* Header with back button and title */}
+      <View className="flex-row items-center px-4 py-3">
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="white" />
+        </TouchableOpacity>
+        <Text className="text-white text-xl font-bold ml-4">All Photographers</Text>
+      </View>
+      
+      {/* Main Content - Scrollable */}
+      <ScrollView 
+        className='flex-1 px-4' 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: getResponsiveSize(20) }}
+      >
+        {loading ? (
+          <View className="flex-1 justify-center items-center pt-10">
+            <Text className="text-white">Loading...</Text>
+          </View>
+        ) : (
+          <View className="flex-1">
+            {profiles.map((profile) => (
+              <View 
+                key={profile.id}
+                style={{ marginBottom: getResponsiveSize(20) }}
+              >
+                <ProfileCard 
+                  name={profile.name}
+                  avatar={profile.avatar}
+                  images={profile.images}
+                  styles={profile.styles}
+                  onBooking={() => navigation.navigate('Booking')}
+                  isFavorite={isFavorite(profile.id)}
+                  onFavoriteToggle={() => toggleFavorite({
+                    id: profile.id,
+                    type: 'profile',
+                    data: profile
+                  })}
+                />
+              </View>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </SafeAreaView>
+  );
+}

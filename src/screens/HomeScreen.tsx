@@ -1,54 +1,92 @@
 import React from 'react';
-import { View, Text, Button, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, StatusBar, ScrollView } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import NotificationIcon from '../components/Notification/NotificationIcon';
-import { StatusBar } from 'react-native';
-import ProfileCard from '../components/ProifileCard/ProfileCard';
+import { Ionicons } from '@expo/vector-icons';
+import { getResponsiveSize } from '../utils/responsive';
+import ForyouContent from './ForyouContent';
+import FavoriteContent from './FavoriteContent';
 
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function HomeScreen({ navigation }: Props) {
   const [tab, setTab] = React.useState<'ForYou' | 'Favorite'>('ForYou');
+  
   return (
     <SafeAreaView className='flex-1 bg-black'>
       <StatusBar backgroundColor="#000" barStyle="light-content" />
-      <View className='flex-1 mx-4 rounded-2xl bg-[#181926] shadow-lg'>
-        <View className="flex-row items-center px-4 py-3">
-          {/* Notification Icon */}
-          <NotificationIcon />
+      
+      {/* Header with Notification and Title */}
+      <View className="flex-row items-center px-4 py-3">
+        {/* Notification Icon */}
+        <NotificationIcon />
 
-          {/* Tabs */}
-          <View className='flex-1 flex-row justify-center space-x-2'>
-            <TouchableOpacity onPress={() => setTab('ForYou')} className={`px-6 py-2 pb-4  ${tab === 'ForYou' ? 'border-b-4 rounded-b-sm   border-[#32FAE9]' : ''}`}>
-              <Text className={`text-xl ${tab === 'ForYou' ? 'text-white font-extrabold' : 'text-gray-400'}`}>For You</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setTab('Favorite')} className={`px-6 py-2 pb-4 ${tab === 'Favorite' ? 'border-b-4 rounded-b-sm   border-[#32FAE9]' : ''}`}>
-              <Text className={`text-xl ${tab === 'Favorite' ? 'text-white font-extrabold' : 'text-gray-400'}`}>Favorite</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Tabs */}
+        <View className='flex-1 flex-row justify-center' style={{ gap: getResponsiveSize(8) }}>
+          <TouchableOpacity 
+            onPress={() => setTab('ForYou')} 
+            style={{
+              paddingHorizontal: getResponsiveSize(16),
+              paddingTop: getResponsiveSize(8),
+              paddingBottom: getResponsiveSize(12),
+              borderBottomWidth: tab === 'ForYou' ? 4 : 0,
+              borderBottomColor: '#32FAE9',
+              borderBottomLeftRadius: 2,
+              borderBottomRightRadius: 2
+            }}
+          >
+            <Text 
+              style={{
+                fontSize: getResponsiveSize(18),
+                color: tab === 'ForYou' ? 'white' : '#9ca3af',
+                fontWeight: tab === 'ForYou' ? '800' : '400'
+              }}
+            >
+              For You
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setTab('Favorite')} 
+            style={{
+              paddingHorizontal: getResponsiveSize(16),
+              paddingTop: getResponsiveSize(8),
+              paddingBottom: getResponsiveSize(12),
+              borderBottomWidth: tab === 'Favorite' ? 4 : 0,
+              borderBottomColor: '#32FAE9',
+              borderBottomLeftRadius: 2,
+              borderBottomRightRadius: 2
+            }}
+          >
+            <Text 
+              style={{
+                fontSize: getResponsiveSize(18),
+                color: tab === 'Favorite' ? 'white' : '#9ca3af',
+                fontWeight: tab === 'Favorite' ? '800' : '400'
+              }}
+            >
+              Favorite
+            </Text>
+          </TouchableOpacity>
         </View>
-        <ProfileCard name="David Silva"
-          avatar={require('../../assets/slider1.png')}
-          images={[
-            require('../../assets/slider1.png'),
-            require('../../assets/slider2.png'),
-            require('../../assets/slider3.png'),
-            require('../../assets/slider4.png'),
-          ]}
-          styles={['Portrait', 'Landscape', 'Street']}
-          onBooking={() => navigation.navigate('Booking')}
-          
-        />
+        
+        {/* Search Icon */}
+        <TouchableOpacity>
+          <Ionicons name="search" size={getResponsiveSize(24)} color="white" />
+        </TouchableOpacity>
       </View>
+      
+      {/* Main Content - Scrollable */}
+      <ScrollView className='flex-1 px-4'
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: getResponsiveSize(90) }}
+      >
+        {tab === 'ForYou' ? <ForyouContent /> : <FavoriteContent />}
+      </ScrollView>
 
-
- 
-
-
-
+      
 
     </SafeAreaView>
   );

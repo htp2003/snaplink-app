@@ -14,6 +14,8 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import StepContainer from '../components/Step/StepContainer';
 import ProfileCardDetail from '../screens/ProfileCardDetail';
+import ViewAllPhotographers from '../screens/ViewAllPhotographers';
+import ViewAllLocations from '../screens/ViewAllLocations';
 
 
 
@@ -46,6 +48,8 @@ const AppNavigator = () => {
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="ProfileCardDetail" component={ProfileCardDetail} />
+        <Stack.Screen name="ViewAllPhotographers" component={ViewAllPhotographers} />
+        <Stack.Screen name="ViewAllLocations" component={ViewAllLocations} />
       </Stack.Navigator>
     </NavigationContainer>
   );

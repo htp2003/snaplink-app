@@ -16,7 +16,8 @@ import StepContainer from '../components/Step/StepContainer';
 import ProfileCardDetail from '../screens/ProfileCardDetail';
 import ViewAllPhotographers from '../screens/ViewAllPhotographers';
 import ViewAllLocations from '../screens/ViewAllLocations';
-
+import ProfileScreen from '../screens/ProfileScreen';
+import EditProfileScreen from '../screens/EditProfileScreen';
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -27,7 +28,7 @@ const BottomTabs = () => {
     <Tab.Navigator screenOptions={customTabScreenOptions}>
   <Tab.Screen name="Home" component={HomeScreen}/>
   <Tab.Screen name="Booking" component={BookingScreen} />
-
+  <Tab.Screen name="Profile" component={ProfileScreen} />
 </Tab.Navigator>
   )
 }
@@ -50,6 +51,8 @@ const AppNavigator = () => {
         <Stack.Screen name="ProfileCardDetail" component={ProfileCardDetail} />
         <Stack.Screen name="ViewAllPhotographers" component={ViewAllPhotographers} />
         <Stack.Screen name="ViewAllLocations" component={ViewAllLocations} />
+        <Stack.Screen name="ProfilePhoto" component={ProfileScreen} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

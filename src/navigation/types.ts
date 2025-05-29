@@ -13,6 +13,8 @@ export type RootStackParamList = {
     ViewAllLocations: undefined;
     ProfilePhoto: undefined;
     EditProfile: undefined;
+    Subscription: undefined;
+    SubscriptionManagement: undefined;
   };
 
   export type TabParamList = {

@@ -5,9 +5,14 @@ import React, { useState, useEffect } from 'react'
 export interface Profile {
     id: string;
     name: string;
-    avatar: string;
-    images: string[];
+    avatar: any; 
+    images: any[];
     styles: string[];
+    favorited?: string;
+    booked?: string;
+    description?: string;
+    rating?: number;
+    photos?: any[]; 
 }
 
 export function useProfiles() {

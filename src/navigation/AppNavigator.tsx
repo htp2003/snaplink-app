@@ -22,6 +22,7 @@ import ViewAllLocations from '../screens/ViewAllLocations';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
+
 const BottomTabs = () => {
   return (
     <Tab.Navigator screenOptions={customTabScreenOptions}>

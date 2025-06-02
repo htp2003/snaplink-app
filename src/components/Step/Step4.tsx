@@ -27,7 +27,9 @@ const Step4 = ({ onSelectRole }: { onSelectRole?: (styles: string[]) => void }) 
             setError('Please select exactly 3 styles before completing.');
             return;
         }
-        navigation.navigate('Main', { screen: 'Home' });
+        if (onSelectRole) {
+            onSelectRole(selectedStyles);
+        }
     };
 
     return (

@@ -2,11 +2,11 @@ import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
-import ProfileCard from '../components/ProifileCard/ProfileCard';
-import LocationCard from '../components/LocationCard/LocationCard';
-import { getResponsiveSize } from '../utils/responsive';
-import { useFavorites } from '../hooks/useFavorites';
+import { RootStackParamList } from '../../navigation/types';
+import ProfileCard from '../../components/ProifileCard/ProfileCard';
+import LocationCard from '../../components/LocationCard/LocationCard';
+import { getResponsiveSize } from '../../utils/responsive';
+import { useFavorites } from '../../hooks/useFavorites';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 

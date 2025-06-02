@@ -5,15 +5,15 @@ export const customTabBarStyle: ViewStyle = {
   position: 'absolute', 
   marginHorizontal: 16,
   bottom: 30,
-  borderRadius: 30, // Bo tròn hơn
+  borderRadius: 30, 
   height: 60,
   borderTopWidth: 0,
   elevation: 8,
   shadowColor: '#000',
-  shadowOpacity: 0.2, // Tăng độ mờ
+  shadowOpacity: 0.2, 
   shadowOffset: { width: 0, height: 4 },
   shadowRadius: 16,
-  paddingHorizontal: 10, // Thêm padding ngang
+  paddingHorizontal: 10, 
 };
 
 export const customTabScreenOptions = {

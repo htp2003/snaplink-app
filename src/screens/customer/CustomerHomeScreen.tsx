@@ -1,18 +1,23 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Dimensions, StatusBar, ScrollView } from 'react-native';
+import { CompositeScreenProps } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { RootStackParamList, CustomerTabParamList } from '../../navigation/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import NotificationIcon from '../components/Notification/NotificationIcon';
+import NotificationIcon from '../../components/Notification/NotificationIcon';
 import { Ionicons } from '@expo/vector-icons';
-import { getResponsiveSize } from '../utils/responsive';
+import { getResponsiveSize } from '../../utils/responsive';
 import ForyouContent from './ForyouContent';
 import FavoriteContent from './FavoriteContent';
 
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<CustomerTabParamList, 'CustomerHomeScreen'>,
+  NativeStackScreenProps<RootStackParamList>
+>;
 
-export default function HomeScreen({ navigation }: Props) {
+export default function CustomerHomeScreen({ navigation }: Props) {
   const [tab, setTab] = React.useState<'ForYou' | 'Favorite'>('ForYou');
   
   return (

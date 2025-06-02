@@ -1,10 +1,13 @@
 import StepIndicator from 'react-native-step-indicator';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Dimensions, StatusBar } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { RootStackNavigationProp } from '../../navigation/types';
 import Step1 from './Step1';
 import Step2 from './Step2';
 import Step3 from './Step3';
 import Step4 from './Step4';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ImageBackground } from 'react-native';
 
@@ -24,6 +27,7 @@ const StepContainer = () => {
     const { height } = Dimensions.get('window');
     const stepIndicatorMarginTop = height * 0.15;
     const stepIndicatorMarginBottom = height * 0.18;
+    const navigation = useNavigation<RootStackNavigationProp>();
 
     const bgSource = currentPosition === 0 ? null : getBg(selectedRole);
 
@@ -77,7 +81,31 @@ const StepContainer = () => {
                     setCurrentPosition(3);
                     setMaxStep((prev) => Math.max(prev, 3));
                 }} />}
-                {currentPosition === 3 && <Step4 onSelectRole={() => setCurrentPosition(4)} />}
+                {currentPosition === 3 && <Step4 onSelectRole={(styles) => {
+                    // Lưu role vào AsyncStorage trước khi chuyển hướng
+                    const saveRoleAndNavigate = async () => {
+                        try {
+                            await AsyncStorage.setItem('userRole', selectedRole || '');
+                            // Lưu thêm styles nếu cần
+                            if (styles && styles.length > 0) {
+                                await AsyncStorage.setItem('userStyles', JSON.stringify(styles));
+                            }
+                            
+                            // Chuyển hướng tới stack tương ứng dựa trên role
+                            if (selectedRole === 'customer') {
+                                navigation.navigate('CustomerMain');
+                            } else if (selectedRole === 'photographer') {
+                                navigation.navigate('PhotographerMain');
+                            } else if (selectedRole === 'location') {
+                                navigation.navigate('VenueOwnerMain');
+                            }
+                        } catch (error) {
+                            console.error('Error saving role to AsyncStorage:', error);
+                        }
+                    };
+                    
+                    saveRoleAndNavigate();
+                }} />}
             </View>
         </ImageBackground>
     );

@@ -1,18 +1,18 @@
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+import { RootStackParamList } from '../../navigation/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import LocationCard from '../components/LocationCard/LocationCard';
-import { getResponsiveSize } from '../utils/responsive';
-import { useLocations } from '../hooks/useLocations';
-import { useFavorites } from '../hooks/useFavorites';
+import ProfileCard from '../../components/ProifileCard/ProfileCard';
+import { getResponsiveSize } from '../../utils/responsive';
+import { useProfiles } from '../../hooks/useProfiles';
+import { useFavorites } from '../../hooks/useFavorites';
 
-type Props = NativeStackScreenProps<RootStackParamList, 'ViewAllLocations'>;
+type Props = NativeStackScreenProps<RootStackParamList, 'ViewAllPhotographers'>;
 
-export default function ViewAllLocations({ navigation }: Props) {
-  const { locations, loading } = useLocations();
+export default function ViewAllPhotographers({ navigation }: Props) {
+  const { profiles, loading } = useProfiles();
   const { isFavorite, toggleFavorite } = useFavorites();
 
   return (
@@ -24,7 +24,7 @@ export default function ViewAllLocations({ navigation }: Props) {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="white" />
         </TouchableOpacity>
-        <Text className="text-white text-xl font-bold ml-4">All Locations</Text>
+        <Text className="text-white text-xl font-bold ml-4">All Photographers</Text>
       </View>
       
       {/* Main Content - Scrollable */}
@@ -39,22 +39,22 @@ export default function ViewAllLocations({ navigation }: Props) {
           </View>
         ) : (
           <View className="flex-1">
-            {locations.map((location) => (
+            {profiles.map((profile) => (
               <View 
-                key={location.id}
+                key={profile.id}
                 style={{ marginBottom: getResponsiveSize(20) }}
               >
-                <LocationCard 
-                  name={location.name}
-                  avatar={location.avatar}
-                  images={location.images}
-                  styles={location.styles}
+                <ProfileCard 
+                  name={profile.name}
+                  avatar={profile.avatar}
+                  images={profile.images}
+                  styles={profile.styles}
                   onBooking={() => navigation.navigate('Booking')}
-                  isFavorite={isFavorite(location.id)}
+                  isFavorite={isFavorite(profile.id)}
                   onFavoriteToggle={() => toggleFavorite({
-                    id: location.id,
-                    type: 'location',
-                    data: location
+                    id: profile.id,
+                    type: 'profile',
+                    data: profile
                   })}
                 />
               </View>

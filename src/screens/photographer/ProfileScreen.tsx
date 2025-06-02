@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { RootStackNavigationProp } from '../navigation/types';
-import { getResponsiveSize } from '../utils/responsive';
-import { useProfile } from '../context/ProfileContext';
+import { RootStackNavigationProp } from '../../navigation/types';
+import { getResponsiveSize } from '../../utils/responsive';
+import { useProfile } from '../../context/ProfileContext';
 
 const ProfileScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();

@@ -4,10 +4,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
-import { getResponsiveSize } from '../utils/responsive';
-import { useFavorites, FavoriteItem } from '../hooks/useFavorites';
-import { Profile } from '../hooks/useProfiles';
+import { RootStackParamList } from '../../navigation/types';
+import { getResponsiveSize } from '../../utils/responsive';
+import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
+import { Profile } from '../../hooks/useProfiles';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -39,7 +39,7 @@ export default function ProfileCardDetail() {
       rating: 5,
       title: 'Tuyệt vời!',
       body: 'Nhiếp ảnh gia rất chuyên nghiệp và thân thiện.',
-      avatar: require('../../assets/slider2.png'),
+      avatar: require('../../../assets/slider2.png'),
       name: 'Nguyễn Văn A',
       date: '28/05/2025'
     },
@@ -48,7 +48,7 @@ export default function ProfileCardDetail() {
       rating: 4,
       title: 'Hài lòng',
       body: 'Ảnh đẹp, giao ảnh nhanh.',
-      avatar: require('../../assets/slider1.png'),
+      avatar: require('../../../assets/slider1.png'),
       name: 'Trần Thị B',
       date: '25/05/2025'
     }
@@ -58,14 +58,14 @@ export default function ProfileCardDetail() {
   const photographerData: Profile = {
     id: '1',
     name: 'David Silva',
-    avatar: require('../../assets/slider2.png'),
+    avatar: require('../../../assets/slider2.png'),
     images: [
-      require('../../assets/slider1.png'),
-      require('../../assets/slider2.png'),
-      require('../../assets/slider3.png'),
-      require('../../assets/slider4.png'),
-      require('../../assets/slider1.png'),
-      require('../../assets/slider2.png'),
+      require('../../../assets/slider1.png'),
+      require('../../../assets/slider2.png'),
+      require('../../../assets/slider3.png'),
+      require('../../../assets/slider4.png'),
+      require('../../../assets/slider1.png'),
+      require('../../../assets/slider2.png'),
     ],
     styles: ['Portrait', 'Landscape'],
     favorited: '150k',
@@ -73,12 +73,12 @@ export default function ProfileCardDetail() {
     description: 'Professional photographer specializing in landscape and portrait photography with over 10 years of experience.',
     rating: 4.8,
     photos: [ // Thêm trường photos để tương thích với code cũ
-      require('../../assets/slider1.png'),
-      require('../../assets/slider2.png'),
-      require('../../assets/slider3.png'),
-      require('../../assets/slider4.png'),
-      require('../../assets/slider1.png'),
-      require('../../assets/slider2.png'),
+      require('../../../assets/slider1.png'),
+      require('../../../assets/slider2.png'),
+      require('../../../assets/slider3.png'),
+      require('../../../assets/slider4.png'),
+      require('../../../assets/slider1.png'),
+      require('../../../assets/slider2.png'),
     ]
   };
 

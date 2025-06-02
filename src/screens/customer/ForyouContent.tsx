@@ -1,18 +1,18 @@
 import React from 'react';
 import { View, Text } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../navigation/types";
+import { RootStackParamList } from "../../navigation/types";
 import { useNavigation } from '@react-navigation/native';
-import { useProfiles } from '../hooks/useProfiles';
-import { useLocations } from '../hooks/useLocations';
+import { useProfiles } from '../../hooks/useProfiles';
+import { useLocations } from '../../hooks/useLocations';
 
 import { TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ScrollView } from 'react-native';
-import ProfileCard from '../components/ProifileCard/ProfileCard';
-import { getResponsiveSize } from '../utils/responsive';
-import LocationCard from '../components/LocationCard/LocationCard';
-import { useFavorites } from '../hooks/useFavorites';
+import ProfileCard from '../../components/ProifileCard/ProfileCard';
+import { getResponsiveSize } from '../../utils/responsive';
+import LocationCard from '../../components/LocationCard/LocationCard';
+import { useFavorites } from '../../hooks/useFavorites';
 
 
 

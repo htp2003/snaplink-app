@@ -5,7 +5,7 @@ import { RootStackNavigationProp } from '../../navigation/types';
 
 const stylesList = [
     "Portrait", "Landscape", "Street", "Fashion", "Wedding",
-    "Food", "Product", "Event", "Travel"
+    "Food", "Product", "Event", "Travel",
 ];
 
 const Step4 = ({ onSelectRole }: { onSelectRole?: (styles: string[]) => void }) => {
@@ -24,107 +24,88 @@ const Step4 = ({ onSelectRole }: { onSelectRole?: (styles: string[]) => void }) 
 
     const handleComplete = () => {
         if (selectedStyles.length < 3) {
-            setError('Please select exactly 3 styles before completing.');
+            setError('Hãy chọn đủ 3 phong cách trước khi hoàn tất.');
             return;
         }
-        if (onSelectRole) {
-            onSelectRole(selectedStyles);
-        }
+        if (onSelectRole) onSelectRole(selectedStyles);
     };
 
     return (
-        <View style={styles.container}>
-            <Text style={styles.title}>Select up to 3 styles</Text>
-            <View style={styles.grid}>
+        <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: 8, marginTop: 20 }}>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111', textAlign: 'center', marginBottom: 18, letterSpacing: 0.5 }}>
+                Chọn 3 phong cách bạn thích
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10, marginTop: 10 }}>
                 {stylesList.map((style) => {
-                    const isSelected = selectedStyles.includes(style);
-                    const isDisabled = !isSelected && selectedStyles.length >= 3;
+                    const selected = selectedStyles.includes(style);
+                    const disabled = !selected && selectedStyles.length >= 3;
                     return (
                         <TouchableOpacity
                             key={style}
-                            style={[
-                                styles.styleButton,
-                                isSelected && styles.selectedButton,
-                                isDisabled && styles.disabledButton
-                            ]}
+                            activeOpacity={0.8}
                             onPress={() => handleSelect(style)}
-                            disabled={isDisabled}
+                            disabled={disabled}
+                            style={{
+                                width: 150,
+                                height: 60,
+                                margin: 8,
+                                backgroundColor: selected ? '#e5e7eb' : '#fff',
+                                borderRadius: 16,
+                                borderWidth: 2.5,
+                                borderColor: selected ? '#111' : '#bbb',
+                                shadowColor: selected ? '#111' : '#000',
+                                shadowOffset: { width: 0, height: selected ? 6 : 4 },
+                                shadowOpacity: selected ? 0.18 : 0.09,
+                                shadowRadius: selected ? 12 : 8,
+                                elevation: selected ? 4 : 2,
+                                justifyContent: 'center',
+                                alignItems: 'center',
+                                flexDirection: 'row',
+                                opacity: disabled ? 0.4 : 1,
+                                position: 'relative',
+                            }}
                         >
-                            <Text style={[
-                                styles.styleText,
-                                isSelected && styles.selectedText,
-                                isDisabled && styles.disabledText
-                            ]}>
+                            <Text style={{ fontSize: 18, fontWeight: 'bold', color: selected ? '#111' : '#333', letterSpacing: 0.5 }}>
                                 {style}
                             </Text>
+                            {selected && (
+                                <View style={{ marginLeft: 10, width: 26, height: 26, borderRadius: 13, backgroundColor: '#111', justifyContent: 'center', alignItems: 'center' }}>
+                                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16 }}>✓</Text>
+                                </View>
+                            )}
                         </TouchableOpacity>
                     );
                 })}
             </View>
+            {error ? (
+                <Text style={{ color: 'red', fontSize: 14, textAlign: 'center', marginBottom: 12 }}>{error}</Text>
+            ) : null}
             <TouchableOpacity
-                style={styles.completeButton}
+                style={{
+                    backgroundColor: selectedStyles.length === 3 ? '#111' : '#bbb',
+                    borderRadius: 16,
+                    paddingVertical: 16,
+                    paddingHorizontal: 56,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    shadowColor: '#222',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.18,
+                    shadowRadius: 8,
+                    elevation: 4,
+                    marginTop: 18,
+                    opacity: selectedStyles.length === 3 ? 1 : 0.6,
+                }}
                 onPress={handleComplete}
+                disabled={selectedStyles.length !== 3}
             >
-                <Text style={styles.completeButtonText}>Finish</Text>
+                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }}>
+                    Hoàn tất
+                </Text>
             </TouchableOpacity>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
         </View>
     );
 };
 
-const styles = StyleSheet.create({
-    container: { flex: 1, alignItems: 'center', },
-    title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, color: '#fff', },
-    grid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'center'
-    },
-    styleButton: {
-        backgroundColor: '#eee',
-        margin: 8,
-        paddingHorizontal: 24,
-        paddingVertical: 16,
-        borderRadius: 16,
-        minWidth: 100,
-        alignItems: 'center',
-    },
-    selectedButton: {
-        backgroundColor: '#16AABF',
-    },
-    disabledButton: {
-        backgroundColor: '#ccc',
-    },
-    styleText: {
-        color: '#222',
-        fontSize: 18,
-    },
-    selectedText: {
-        color: '#fff',
-        fontWeight: 'bold',
-    },
-    disabledText: {
-        color: '#888',
-    },
-    completeButton: {
-        marginTop: 32,
-        backgroundColor: '#16AABF',
-        paddingVertical: 16,
-        paddingHorizontal: 48,
-        borderRadius: 24,
-        alignItems: 'center',
-    },
-    completeButtonText: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    errorText: {
-        color: 'red',
-        fontSize: 16,
-        marginTop: 16,
-        textAlign: 'center',
-    },
-});
 
 export default Step4;

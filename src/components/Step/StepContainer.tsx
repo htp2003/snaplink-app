@@ -8,12 +8,11 @@ import Step2 from './Step2';
 import Step3 from './Step3';
 import Step4 from './Step4';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import { ImageBackground } from 'react-native';
-
+import { LinearGradient } from 'expo-linear-gradient';
 
 const getBg = (role: string | null) => {
-    if (role === 'customer') return require('../../../assets/slider1.png');
+    
     if (role === 'photographer') return require('../../../assets/slider2.png');
     if (role === 'location') return require('../../../assets/slider3.png');
     return null;
@@ -26,7 +25,7 @@ const StepContainer = () => {
     const [selectedRole, setSelectedRole] = useState<string | null>(null);
     const { height } = Dimensions.get('window');
     const stepIndicatorMarginTop = height * 0.15;
-    const stepIndicatorMarginBottom = height * 0.18;
+    // const stepIndicatorMarginBottom = height * 0;
     const navigation = useNavigation<RootStackNavigationProp>();
 
     const bgSource = currentPosition === 0 ? null : getBg(selectedRole);
@@ -45,16 +44,22 @@ const StepContainer = () => {
     }
 
     return (
-        <ImageBackground source={bgSource} style={{ flex: 1 }} resizeMode="cover">
-            <StatusBar backgroundColor="#000" barStyle="light-content" />
-            <View style={{ flex: 1 }}>
-                <View style={{ marginTop: stepIndicatorMarginTop, marginBottom: stepIndicatorMarginBottom }}>
-                    <StepIndicator
-                        customStyles={customStyles}
-                        currentPosition={currentPosition}
-                        stepCount={4}
-                        onPress={handleStepPress}
-                    />
+        <LinearGradient
+            colors={['#fff', '#d1d5db', '#222']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={{ flex: 1 }}
+        >
+                <StatusBar backgroundColor="#000" barStyle="light-content" />
+                <View style={{ flex: 1 }}>
+                    <View style={{ marginTop: stepIndicatorMarginTop}}>
+                        <StepIndicator
+                            customStyles={customStyles}
+                            currentPosition={currentPosition}
+                            stepCount={4}
+                            labels={['Vai trò', 'Giới tính', 'Tuổi', 'Phong cách']}
+                            onPress={handleStepPress}
+                        />
                 </View>
                 {/* Render step content ở đây */}
                 {currentPosition === 0 && (
@@ -107,31 +112,32 @@ const StepContainer = () => {
                     saveRoleAndNavigate();
                 }} />}
             </View>
-        </ImageBackground>
+        
+        </LinearGradient>
     );
 };
 
 const customStyles = {
-    stepIndicatorSize: 30,
-    currentStepIndicatorSize: 40,
-    separatorStrokeWidth: 2,
-    currentStepStrokeWidth: 3,
-    stepStrokeCurrentColor: '#fe7013',
-    stepStrokeWidth: 3,
-    stepStrokeFinishedColor: '#fe7013',
-    stepStrokeUnFinishedColor: '#aaaaaa',
-    separatorFinishedColor: '#fe7013',
-    separatorUnFinishedColor: '#aaaaaa',
-    stepIndicatorFinishedColor: '#fe7013',
-    stepIndicatorUnFinishedColor: '#ffffff',
-    stepIndicatorCurrentColor: '#ffffff',
-    stepIndicatorLabelFontSize: 15,
-    currentStepIndicatorLabelFontSize: 15,
-    stepIndicatorLabelCurrentColor: '#fe7013',
-    stepIndicatorLabelFinishedColor: '#ffffff',
-    stepIndicatorLabelUnFinishedColor: '#aaaaaa',
-    labelColor: '#999999',
-    labelSize: 13,
-    currentStepLabelColor: '#fe7013'
+  stepIndicatorSize: 36,
+  currentStepIndicatorSize: 44,
+  separatorStrokeWidth: 3,
+  currentStepStrokeWidth: 4,
+  stepStrokeCurrentColor: '#111',
+  stepStrokeWidth: 3,
+  stepStrokeFinishedColor: '#222',
+  stepStrokeUnFinishedColor: '#bbb',
+  separatorFinishedColor: '#222',
+  separatorUnFinishedColor: '#eee',
+  stepIndicatorFinishedColor: '#222',
+  stepIndicatorUnFinishedColor: '#fff',
+  stepIndicatorCurrentColor: '#111',
+  stepIndicatorLabelFontSize: 16,
+  currentStepIndicatorLabelFontSize: 18,
+  stepIndicatorLabelCurrentColor: '#fff',
+  stepIndicatorLabelFinishedColor: '#fff',
+  stepIndicatorLabelUnFinishedColor: '#bbb',
+  labelColor: '#888',
+  labelSize: 14,
+  currentStepLabelColor: '#111',
 };
 export default StepContainer;

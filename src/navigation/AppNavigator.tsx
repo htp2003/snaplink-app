@@ -57,7 +57,7 @@ const AppNavigator = () => {
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="Subscription" component={SubscriptionScreen} />
         <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} />
-
+        
 
 
         {/* Các màn hình dành riêng cho VenueOwner */}

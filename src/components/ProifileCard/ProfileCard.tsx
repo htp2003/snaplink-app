@@ -118,7 +118,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
                 className="bg-blue-500 px-8 py-3 rounded-full mb-3"
                 onPress={onBooking}
             >
-                <Text className="text-white font-semibold text-base">Booking</Text>
+                <Text className="text-white font-semibold text-base">Booking now</Text>
             </TouchableOpacity>
         </TouchableOpacity>
     );

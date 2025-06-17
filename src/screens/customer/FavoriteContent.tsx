@@ -61,7 +61,6 @@ export default function FavoriteContent() {
                 avatar={item.data.avatar}
                 images={item.data.images}
                 styles={item.data.styles}
-                onBooking={() => navigation.navigate('Booking')}
                 isFavorite={true}
                 onFavoriteToggle={() => toggleFavorite(item)}
               />

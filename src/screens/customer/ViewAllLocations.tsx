@@ -49,7 +49,6 @@ export default function ViewAllLocations({ navigation }: Props) {
                   avatar={location.avatar}
                   images={location.images}
                   styles={location.styles}
-                  onBooking={() => navigation.navigate('Booking')}
                   isFavorite={isFavorite(location.id)}
                   onFavoriteToggle={() => toggleFavorite({
                     id: location.id,

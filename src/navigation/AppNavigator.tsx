@@ -20,13 +20,13 @@ import ProfileScreen from '../screens/photographer/ProfileScreen';
 import EditProfileScreen from '../screens/photographer/EditProfileScreen';
 import SubscriptionScreen from '../screens/photographer/SubscriptionScreen';
 import SubscriptionManagementScreen from '../screens/photographer/SubscriptionManagementScreen';
-import BookingScreen from '../screens/BookingScreen';
+import BookingScreen from '../screens/customer/BookingScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
   return (
-    <NavigationContainer>
+
       <Stack.Navigator
         initialRouteName="Layout"
         screenOptions={{
@@ -51,7 +51,7 @@ const AppNavigator = () => {
         <Stack.Screen name="ViewAllPhotographers" component={ViewAllPhotographers} />
         <Stack.Screen name="ViewAllLocations" component={ViewAllLocations} />
         <Stack.Screen name="ProfilePhoto" component={ProfileScreen} />
-        {/* <Stack.Screen name="Booking" component={BookingScreen} /> */}
+        <Stack.Screen name="Booking" component={BookingScreen} />
 
         {/* Các màn hình dành riêng cho Photographer */}
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
@@ -63,7 +63,7 @@ const AppNavigator = () => {
         {/* Các màn hình dành riêng cho VenueOwner */}
         
       </Stack.Navigator>
-    </NavigationContainer>
+
   );
 };
 

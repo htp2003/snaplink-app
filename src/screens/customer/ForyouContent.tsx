@@ -106,7 +106,6 @@ export default function ForyouContent() {
                 avatar={location.avatar}
                 images={location.images}
                 styles={location.styles}
-                onBooking={() => navigation.navigate('Booking')}
                 isFavorite={isFavorite(location.id)}
                 onFavoriteToggle={() => toggleFavorite({
                   id: location.id,

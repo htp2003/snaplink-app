@@ -50,7 +50,7 @@ export function useProfiles() {
                             require('../../assets/slider4.png'),
                             require('../../assets/slider1.png'),
                         ],
-                        styles: ['Street', 'Portrait']
+                        styles: ['Street', 'Portrait', 'Landscape']
                     },
                     {
                         id: '3',
@@ -62,7 +62,7 @@ export function useProfiles() {
                             require('../../assets/slider1.png'),
                             require('../../assets/slider2.png'),
                         ],
-                        styles: ['Fashion', 'Portrait']
+                        styles: ['Fashion', 'Portrait', 'Landscape']
                     }
                 ]
                 setProfiles(mockProfiles)

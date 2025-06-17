@@ -17,6 +17,7 @@ export type RootStackParamList = {
     Profile: undefined;
     PhotographerHomeScreen: undefined;
     FavoritedBottomSheet: undefined;
+    OrderManagementScreen: undefined;
     // Customer  screens
     ProfileCardDetail: undefined;
     ViewAllPhotographers: undefined;
@@ -35,6 +36,7 @@ export type CustomerTabParamList = {
 export type PhotographerTabParamList = {
     PhotographerHomeScreen: undefined;
     Profile: undefined;
+    OrderManagementScreen: undefined;
 }
 
 export type VenueOwnerTabParamList = {

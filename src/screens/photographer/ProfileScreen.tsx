@@ -5,14 +5,15 @@ import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '../../navigation/types';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useProfile } from '../../context/ProfileContext';
-import FavoritedModal from '../../components/FavoritedModal'; // Import modal mới
+import FavoritedModal from '../../components/FavoritedModal';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ProfileScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('Photos');
   const { profileData, hasActiveSubscription } = useProfile();
-  const [isModalVisible, setIsModalVisible] = useState(false); // Đổi tên cho rõ ràng
-  const tabs = ['Photos', 'Reviews'];
+  const [isModalVisible, setIsModalVisible] = useState(false);
   
   const favoritedUsers = [
     { id: '1', name: 'John Doe', avatar: 'https://example.com/avatar1.jpg' },
@@ -40,128 +41,191 @@ const ProfileScreen = () => {
 
   return (
     <>
-      <ScrollView className="flex-1 bg-black">
+      <ScrollView 
+        className="flex-1 bg-black"
+        contentContainerStyle={{ 
+          paddingBottom: 120 + insets.bottom
+        }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Profile Header */}
-        <View style={{ padding: getResponsiveSize(20) }} className="items-center">
-          <Text style={{ fontSize: getResponsiveSize(24) }} className="font-bold text-white mb-1 mt-10">{`${profileData.firstName} ${profileData.lastName}`}</Text>
-          <Text style={{ fontSize: getResponsiveSize(16) }} className="text-gray-300 mb-5">{`${profileData.email}`}</Text>
+        <View style={{ paddingTop: getResponsiveSize(50), paddingHorizontal: getResponsiveSize(20) }} className="items-center">
+          {/* Avatar Section */}
+          <View className="items-center mb-5">
+            <View style={{ 
+              width: getResponsiveSize(85), 
+              height: getResponsiveSize(85),
+              borderRadius: getResponsiveSize(42.5),
+              overflow: 'hidden',
+              borderWidth: 2,
+              borderColor: '#32FAE9'
+            }} className="bg-gray-700 mb-3">
+              {profileData.avatar ? (
+                <Image 
+                  source={{ uri: profileData.avatar }}
+                  style={{ width: '100%', height: '100%' }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View className="w-full h-full items-center justify-center">
+                  <Ionicons name="person" size={getResponsiveSize(35)} color="#32FAE9" />
+                </View>
+              )}
+            </View>
+            
+            <Text style={{ fontSize: getResponsiveSize(22) }} className="font-bold text-white mb-1">
+              {`${profileData.firstName} ${profileData.lastName}`}
+            </Text>
+            <Text style={{ fontSize: getResponsiveSize(14) }} className="text-gray-400">
+              {`${profileData.email}`}
+            </Text>
+          </View>
           
-          <View className="flex-row justify-around w-full">
-            <View className="items-center">
-              <View style={{ 
-                width: getResponsiveSize(60), 
-                height: getResponsiveSize(60),
-                borderRadius: getResponsiveSize(30),
-                overflow: 'hidden'
-              }} className="bg-gray-400">
-                {profileData.avatar ? (
-                  <Image 
-                    source={{ uri: profileData.avatar }}
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View className="w-full h-full items-center justify-center">
-                    <Ionicons name="person" size={getResponsiveSize(30)} color="white" />
-                  </View>
-                )}
-              </View>
-            </View>
+          {/* Stats Section */}
+          <View className="flex-row justify-around w-full mb-6">
             <TouchableOpacity 
-                className="items-center"
-                onPress={handleFavoritedPress}
+              className="items-center px-3"
+              onPress={handleFavoritedPress}
             >
-                <Text style={{ fontSize: getResponsiveSize(18) }} className="font-bold text-white">150k</Text>
-                <Text style={{ fontSize: getResponsiveSize(14) }} className="text-gray-500 font-semibold">Favorited</Text>
-              </TouchableOpacity>
-            <View className="items-center">
-              <Text style={{ fontSize: getResponsiveSize(18) }} className="font-bold text-white">150k</Text>
-              <Text style={{ fontSize: getResponsiveSize(14) }} className="text-gray-500 font-semibold">Booked</Text>
+              <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">150k</Text>
+              <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">Favorited</Text>
+            </TouchableOpacity>
+            
+            <View className="items-center px-3">
+              <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">150k</Text>
+              <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">Booked</Text>
             </View>
-            <View className="items-center">
-              <Text style={{ fontSize: getResponsiveSize(18) }} className="font-bold text-white">4.8/5</Text>
-              <Text style={{ fontSize: getResponsiveSize(14) }} className="text-gray-500 font-semibold">Rating</Text>
+            
+            <View className="items-center px-3">
+              <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">4.8</Text>
+              <View className="flex-row items-center">
+                <Ionicons name="star" size={getResponsiveSize(14)} color="#FFD700" />
+                <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium ml-1">Rating</Text>
+              </View>
             </View>
           </View>
         </View>
 
         {/* Categories Section */}
-        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-5">
+        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-6">
+          <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white font-semibold mb-3">Specialties</Text>
           <View className="flex-row justify-between">
             <TouchableOpacity style={{ 
-              width: getResponsiveSize(110),
-              height: getResponsiveSize(40),
-              borderRadius: getResponsiveSize(20)
-            }} className="bg-white/10 items-center justify-center">
-              <Text style={{ fontSize: getResponsiveSize(14) }} className="text-white">Portrait</Text>
+              flex: 0.32,
+              height: getResponsiveSize(38),
+              borderRadius: getResponsiveSize(19),
+              backgroundColor: 'rgba(50, 250, 233, 0.15)',
+              borderWidth: 1,
+              borderColor: '#32FAE9'
+            }} className="items-center justify-center">
+              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-[#32FAE9] font-medium">Portrait</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={{ 
-              width: getResponsiveSize(110),
-              height: getResponsiveSize(40),
-              borderRadius: getResponsiveSize(20),
-              borderWidth: getResponsiveSize(1),
-            }} className="bg-white/10 items-center justify-center">
-              <Text style={{ fontSize: getResponsiveSize(14) }} className="text-white">Wedding</Text>
+              flex: 0.32,
+              height: getResponsiveSize(38),
+              borderRadius: getResponsiveSize(19),
+              backgroundColor: 'rgba(255, 255, 255, 0.1)'
+            }} className="items-center justify-center">
+              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-white font-medium">Wedding</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={{ 
-              width: getResponsiveSize(110),
-              height: getResponsiveSize(40),
-              borderRadius: getResponsiveSize(20)
-            }} className="bg-white/10 items-center justify-center">
-              <Text style={{ fontSize: getResponsiveSize(14) }} className="text-white">Fashion</Text>
+              flex: 0.32,
+              height: getResponsiveSize(38),
+              borderRadius: getResponsiveSize(19),
+              backgroundColor: 'rgba(255, 255, 255, 0.1)'
+            }} className="items-center justify-center">
+              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-white font-medium">Fashion</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* About Section */}
-        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-5">
-          <Text style={{ fontSize: getResponsiveSize(12) }} className="text-white text-wrap mb-5">{`${profileData.about}`}</Text>
+        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-6">
+          <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white font-semibold mb-2">About</Text>
+          <Text style={{ fontSize: getResponsiveSize(14), lineHeight: getResponsiveSize(20) }} className="text-gray-300">
+            {profileData.about}
+          </Text>
         </View>
 
         {/* Action Buttons */}
-        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="flex-row justify-between mb-8">
-          <TouchableOpacity onPress={() => navigation.navigate('EditProfile')} style={{ 
-            paddingVertical: getResponsiveSize(10),
-            paddingHorizontal: getResponsiveSize(20),
-            borderRadius: getResponsiveSize(20)
-          }} className="flex-row items-center bg-[#32FAE9]">
-            <Ionicons name="create-outline" size={getResponsiveSize(24)} color="black" />
-            <Text style={{ fontSize: getResponsiveSize(12) }} className="text-black ml-2 font-bold">Edit Profile</Text>
-          </TouchableOpacity>
-          <View className="flex-row gap-2">
-            {hasActiveSubscription() ? (
+        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-6">
+          <View className="flex-row gap-2 mb-3">
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('EditProfile')} 
+              style={{ 
+                flex: 1,
+                paddingVertical: getResponsiveSize(12),
+                borderRadius: getResponsiveSize(20)
+              }} 
+              className="flex-row items-center justify-center bg-[#32FAE9]"
+            >
+              <Ionicons name="create-outline" size={getResponsiveSize(18)} color="black" />
+              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-black ml-1 font-bold">Edit Profile</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={{ 
+                paddingVertical: getResponsiveSize(12),
+                paddingHorizontal: getResponsiveSize(16),
+                borderRadius: getResponsiveSize(20),
+                borderWidth: 1.5,
+                borderColor: '#32FAE9'
+              }} 
+              className="items-center justify-center"
+            >
+              <Ionicons name="share-outline" size={getResponsiveSize(18)} color="#32FAE9" />
+            </TouchableOpacity>
+          </View>
+          
+          {/* Subscription Section */}
+          <View style={{
+            backgroundColor: hasActiveSubscription() ? 'rgba(50, 250, 233, 0.1)' : 'rgba(90, 143, 242, 0.1)',
+            borderRadius: getResponsiveSize(12),
+            borderWidth: 1,
+            borderColor: hasActiveSubscription() ? '#32FAE9' : '#5A8FF2',
+            padding: getResponsiveSize(14)
+          }}>
+            <View className="flex-row items-center justify-between">
+              <View className="flex-1">
+                <Text style={{ fontSize: getResponsiveSize(14) }} className="text-white font-semibold mb-1">
+                  {hasActiveSubscription() ? 'Premium Plan' : 'Upgrade to Premium'}
+                </Text>
+                <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400">
+                  {hasActiveSubscription() ? 'Manage your subscription' : 'Unlock premium features'}
+                </Text>
+              </View>
+              
               <TouchableOpacity 
-                onPress={() => navigation.navigate('SubscriptionManagement')}
+                onPress={() => navigation.navigate(hasActiveSubscription() ? 'SubscriptionManagement' : 'Subscription')}
                 style={{ 
-                  paddingVertical: getResponsiveSize(10),
-                  paddingHorizontal: getResponsiveSize(20),
-                  borderRadius: getResponsiveSize(20)
+                  paddingVertical: getResponsiveSize(8),
+                  paddingHorizontal: getResponsiveSize(16),
+                  borderRadius: getResponsiveSize(16),
+                  backgroundColor: hasActiveSubscription() ? '#32FAE9' : '#5A8FF2'
                 }} 
-                className="flex-row items-center bg-[#32FAE9]"
               >
-                <Ionicons name="settings-outline" size={getResponsiveSize(24)} color="black" />
-                <Text style={{ fontSize: getResponsiveSize(12) }} className="text-black ml-2 font-bold">Manage Plan</Text>
+                <View className="flex-row items-center">
+                  <Ionicons 
+                    name={hasActiveSubscription() ? "settings-outline" : "star"} 
+                    size={getResponsiveSize(16)} 
+                    color={hasActiveSubscription() ? "black" : "white"} 
+                  />
+                  <Text style={{ 
+                    fontSize: getResponsiveSize(11), 
+                    color: hasActiveSubscription() ? "black" : "white"
+                  }} className="ml-1 font-bold">
+                    {hasActiveSubscription() ? 'Manage' : 'Upgrade'}
+                  </Text>
+                </View>
               </TouchableOpacity>
-            ) : (
-              <TouchableOpacity 
-                onPress={() => navigation.navigate('Subscription')}
-                style={{ 
-                  paddingVertical: getResponsiveSize(10),
-                  paddingHorizontal: getResponsiveSize(20),
-                  borderRadius: getResponsiveSize(20)
-                }} 
-                className="flex-row items-center bg-[#32FAE9]"
-              >
-                <Ionicons name="star" size={getResponsiveSize(24)} color="black" />
-                <Text style={{ fontSize: getResponsiveSize(12) }} className="text-black ml-2 font-bold">Upgrade</Text>
-              </TouchableOpacity>
-            )}
+            </View>
           </View>
         </View>
 
-        <View className="flex-row mt-6 border-b border-gray-800">
+        {/* Tab Navigation */}
+        <View className="flex-row border-b border-gray-800 mx-4">
           <TouchableOpacity 
             className="flex-1 items-center py-3"
             style={{ borderBottomWidth: activeTab === 'Photos' ? 2 : 0, borderBottomColor: '#32FAE9' }}
@@ -169,10 +233,18 @@ const ProfileScreen = () => {
           >
             <Ionicons 
               name="images-outline" 
-              size={getResponsiveSize(24)} 
-              color={activeTab === 'Photos' ? '#32FAE9' : 'white'} 
+              size={getResponsiveSize(22)} 
+              color={activeTab === 'Photos' ? '#32FAE9' : '#666'} 
             />
+            <Text style={{ 
+              fontSize: getResponsiveSize(11), 
+              color: activeTab === 'Photos' ? '#32FAE9' : '#666',
+              marginTop: getResponsiveSize(3)
+            }} className="font-medium">
+              Photos
+            </Text>
           </TouchableOpacity>
+          
           <TouchableOpacity 
             className="flex-1 items-center py-3"
             style={{ borderBottomWidth: activeTab === 'Reviews' ? 2 : 0, borderBottomColor: '#32FAE9' }}
@@ -180,44 +252,77 @@ const ProfileScreen = () => {
           >
             <Ionicons 
               name="star-outline" 
-              size={getResponsiveSize(24)} 
-              color={activeTab === 'Reviews' ? '#32FAE9' : 'white'} 
+              size={getResponsiveSize(22)} 
+              color={activeTab === 'Reviews' ? '#32FAE9' : '#666'} 
             />
+            <Text style={{ 
+              fontSize: getResponsiveSize(11), 
+              color: activeTab === 'Reviews' ? '#32FAE9' : '#666',
+              marginTop: getResponsiveSize(3)
+            }} className="font-medium">
+              Reviews
+            </Text>
           </TouchableOpacity>
         </View>
           
-        {/* Photos Grid */}
+        {/* Photos Tab Content */}
         {activeTab === 'Photos' && (
-          <View className="items-center">
-            <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white mb-2.5 mt-5">No photo yet</Text>
-            <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white text-center mb-5">Share photos on your page</Text>
+          <View className="items-center py-8">
+            <View style={{
+              width: getResponsiveSize(65),
+              height: getResponsiveSize(65),
+              borderRadius: getResponsiveSize(32.5),
+              backgroundColor: 'rgba(90, 143, 242, 0.2)',
+              marginBottom: getResponsiveSize(16)
+            }} className="items-center justify-center">
+              <Ionicons name="images-outline" size={getResponsiveSize(32)} color="#5A8FF2" />
+            </View>
+            
+            <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white font-semibold mb-2">No photos yet</Text>
+            <Text style={{ fontSize: getResponsiveSize(13) }} className="text-gray-400 text-center mb-6 px-8">
+              Share your best work with the community
+            </Text>
+            
             <TouchableOpacity 
               onPress={handleUploadPress}
               style={{ 
-                paddingVertical: getResponsiveSize(10),
-                paddingHorizontal: getResponsiveSize(20),
+                paddingVertical: getResponsiveSize(12),
+                paddingHorizontal: getResponsiveSize(24),
                 borderRadius: getResponsiveSize(20)
               }} 
               className="flex-row items-center bg-[#5A8FF2]"
             >
-              <Ionicons name="cloud-upload-outline" size={getResponsiveSize(24)} color="#fff" />
-              <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white ml-2">Upload</Text> 
+              <Ionicons name="cloud-upload-outline" size={getResponsiveSize(18)} color="#fff" />
+              <Text style={{ fontSize: getResponsiveSize(14) }} className="text-white ml-2 font-medium">Upload Photos</Text> 
             </TouchableOpacity>           
           </View>
         )}
           
         {/* Reviews Tab Content */}
         {activeTab === 'Reviews' && (
-          <View className="items-center justify-center py-10">
-            <Ionicons name="star-outline" size={getResponsiveSize(50)} color="#32FAE9" />
-            <Text className="text-gray-400 text-center mt-2 px-10">
-              You have no reviews yet.
+          <View className="items-center py-8">
+            <View style={{
+              width: getResponsiveSize(65),
+              height: getResponsiveSize(65),
+              borderRadius: getResponsiveSize(32.5),
+              backgroundColor: 'rgba(50, 250, 233, 0.2)',
+              marginBottom: getResponsiveSize(16)
+            }} className="items-center justify-center">
+              <Ionicons name="star-outline" size={getResponsiveSize(32)} color="#32FAE9" />
+            </View>
+            
+            <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white font-semibold mb-2">No reviews yet</Text>
+            <Text style={{ fontSize: getResponsiveSize(13) }} className="text-gray-400 text-center px-8">
+              Your reviews from clients will appear here
             </Text>
           </View>
         )}
+        
+        {/* Bottom Spacing */}
+        <View style={{ height: getResponsiveSize(30) }} />
       </ScrollView>
 
-      {/* Modal riêng biệt */}
+      {/* Modal */}
       <FavoritedModal 
         visible={isModalVisible}
         favoritedUsers={favoritedUsers}

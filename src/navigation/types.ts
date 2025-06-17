@@ -14,7 +14,9 @@ export type RootStackParamList = {
     EditProfile: undefined;
     Subscription: undefined;
     SubscriptionManagement: undefined;
-    
+    Profile: undefined;
+    PhotographerHomeScreen: undefined;
+    FavoritedBottomSheet: undefined;
     // Customer  screens
     ProfileCardDetail: undefined;
     ViewAllPhotographers: undefined;

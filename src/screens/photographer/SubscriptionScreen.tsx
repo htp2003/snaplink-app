@@ -67,7 +67,7 @@ const SubscriptionScreen = () => {
       });
 
       // Navigate to profile screen after successful subscription
-      navigation.navigate('ProfilePhoto');
+      navigation.navigate('PhotographerMain', {screen: 'Profile'});
     } catch (error) {
       console.error('Error activating subscription:', error);
     } finally {

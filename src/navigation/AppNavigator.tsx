@@ -26,7 +26,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
   return (
-    <NavigationContainer>
+
       <Stack.Navigator
         initialRouteName="Layout"
         screenOptions={{
@@ -63,7 +63,7 @@ const AppNavigator = () => {
         {/* Các màn hình dành riêng cho VenueOwner */}
         
       </Stack.Navigator>
-    </NavigationContainer>
+
   );
 };
 

@@ -8,6 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 
 type ProfileCardProps = {
+    id: string;
     name: string;
     avatar: any;
     images: any[];
@@ -18,6 +19,7 @@ type ProfileCardProps = {
 }
 
 const ProfileCard: React.FC<ProfileCardProps> = ({
+    id,
     name,
     avatar,
     images,
@@ -32,7 +34,7 @@ const ProfileCard: React.FC<ProfileCardProps> = ({
 
     const navigation = useNavigation<RootStackNavigationProp>();
     const handlePress = () => {
-        navigation.navigate('ProfileCardDetail');
+        navigation.navigate('ProfileCardDetail', { profileId: id });
     }
 
     return (

@@ -19,11 +19,12 @@ export type RootStackParamList = {
     FavoritedBottomSheet: undefined;
     OrderManagementScreen: undefined;
     // Customer  screens
-    ProfileCardDetail: undefined;
+    ProfileCardDetail: { profileId: string };
     ViewAllPhotographers: undefined;
     ViewAllLocations: undefined;
     ProfilePhoto: undefined;
     Booking: undefined;
+   
 
 };
 

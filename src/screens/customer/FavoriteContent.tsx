@@ -7,12 +7,21 @@ import ProfileCard from '../../components/ProifileCard/ProfileCard';
 import LocationCard from '../../components/LocationCard/LocationCard';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites } from '../../hooks/useFavorites';
-
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function FavoriteContent() {
   const navigation = useNavigation<NavigationProp>();
-  const { favorites, loading, toggleFavorite } = useFavorites();
+  const { favorites, loading, toggleFavorite, refetch } = useFavorites();
+
+
+  // Đồng bộ lại danh sách favorites mỗi khi màn hình được focus
+  useFocusEffect(
+    useCallback(() => {
+      refetch();
+    }, [])
+  );
 
   if (loading) {
     return (
@@ -47,6 +56,7 @@ export default function FavoriteContent() {
           >
             {item.type === 'profile' ? (
               <ProfileCard 
+                id={item.id}
                 name={item.data.name}
                 avatar={item.data.avatar}
                 images={item.data.images}

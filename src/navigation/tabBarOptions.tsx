@@ -6,7 +6,7 @@ import { StackCardInterpolationProps } from '@react-navigation/stack';
 // ===== BASIC TAB BAR STYLES =====
 
 export const customTabBarStyle: ViewStyle = {
-  backgroundColor: 'rgba(0, 0, 0, 0.9)', // Background đen trong suốt
+  backgroundColor: 'rgba(95, 96, 96, 0.8)', // Background đen trong suốt
   position: 'absolute', 
   marginHorizontal: 16,
   bottom: 30,

@@ -1,25 +1,44 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CustomerTabParamList } from './types';
 import { customTabScreenOptions } from './tabBarOptions';
 
-// Customer Screens
+// Placeholder screens - Cần tạo các màn hình này sau
 import CustomerHomeScreen from '../screens/customer/CustomerHomeScreen';
-import BookingScreen from '../screens/customer/BookingScreen';
-// import ProfileScreen from '../screens/photographer/ProfileScreen';
-import ProfileCardDetail from '../screens/customer/ProfileCardDetail';
-import ViewAllPhotographers from '../screens/customer/ViewAllPhotographers';
-import ViewAllLocations from '../screens/customer/ViewAllLocations';
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import ProfileScreen from '../screens/customer/ProfileScreen';
 
 const Tab = createBottomTabNavigator<CustomerTabParamList>();
 
 const CustomerStack = () => {
   return (
-    <Tab.Navigator screenOptions={customTabScreenOptions}>
-      <Tab.Screen name="CustomerHomeScreen" component={CustomerHomeScreen} />
-      {/* <Tab.Screen name="Booking" component={BookingScreen} /> */}
-      {/* <Tab.Screen name="Profile" component={ProfileScreen} /> */}
+    <Tab.Navigator
+      screenOptions={{
+        ...customTabScreenOptions,
+        tabBarHideOnKeyboard: true,
+      }}
+      safeAreaInsets={{ bottom: 0 }}
+    >
+      <Tab.Screen name="CustomerHomeScreen" component={CustomerHomeScreen} options={{
+        tabBarLabel: 'Trang Chủ',
+        tabBarIcon: ({ focused, color, size }) => (
+          <Icon
+            name="home"
+            size={focused ? 26 : 24}
+            color={color}
+          />
+        ),
+      }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{
+        tabBarLabel: 'Hồ sơ',
+        tabBarIcon: ({ focused, color, size }) => (
+          <Icon
+            name="person"
+            size={focused ? 26 : 24}
+            color={color}
+          />
+        ),
+      }} />
     </Tab.Navigator>
   );
 };

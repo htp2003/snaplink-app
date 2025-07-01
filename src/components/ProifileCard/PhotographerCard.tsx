@@ -2,54 +2,53 @@ import React from "react";
 import { View, Image, Text, TouchableOpacity, Dimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
-import { Ionicons } from "@expo/vector-icons";
 import { getResponsiveSize } from "../../utils/responsive";
+import { Ionicons } from "@expo/vector-icons";
 
-type LocationCardProps = {
+type PhotographerCardProps = {
     id: string;
-    locationId?: number;
-    name: string;
+    fullName: string;
     avatar: any;
     images: any[];
     styles: string[];
-    address?: string;
-    description?: string;
+    rating?: number;
     hourlyRate?: number;
-    capacity?: number;
     availabilityStatus?: string;
-    onBooking?: () => void;
+    yearsExperience?: number;
+    onBooking: () => void;
     onFavoriteToggle: () => void;
     isFavorite: boolean;
 }
 
-const LocationCard: React.FC<LocationCardProps> = ({
+const PhotographerCard: React.FC<PhotographerCardProps> = ({
     id,
-    locationId,
-    name,
+    fullName,
     avatar,
     images,
     styles,
-    address,
-    description,
+    rating,
     hourlyRate,
-    capacity,
     availabilityStatus,
+    yearsExperience,
     onBooking,
     onFavoriteToggle,
     isFavorite
 }) => {
-    const avatarSize = getResponsiveSize(80);
+    // Tính toán kích thước responsive cho các thành phần
+    const avatarSize = getResponsiveSize(80); // Kích thước avatar
+    const cardPadding = getResponsiveSize(16); // Padding cho card
+
     const navigation = useNavigation<RootStackNavigationProp>();
-    
     const handlePress = () => {
-        navigation.navigate('LocationCardDetail', { locationId: id });
+        navigation.navigate('PhotographerCardDetail', { photographerId: id });
     }
 
-    // Helper function để format price
+    // Helper function để format currency
     const formatPrice = (price?: number) => {
         if (!price) return 'Contact for price';
         return `$${price.toLocaleString()}/hr`;
     };
+    console.log('hourlyRate:', hourlyRate, 'formatPrice:', formatPrice(hourlyRate));
 
     // Helper function để render availability status
     const getAvailabilityColor = (status?: string) => {
@@ -65,31 +64,59 @@ const LocationCard: React.FC<LocationCardProps> = ({
         }
     };
 
-    // Helper function to get image source
-    const getImageSource = (img: any) => {
-        if (typeof img === 'string') {
-            return { uri: img };
+    // Helper function để render rating stars
+    const renderRating = (rating?: number) => {
+        if (!rating) return null;
+        
+        const stars = [];
+        const fullStars = Math.floor(rating);
+        const hasHalfStar = rating % 1 !== 0;
+        
+        for (let i = 0; i < fullStars; i++) {
+            stars.push(
+                <Ionicons key={i} name="star" size={getResponsiveSize(14)} color="#FFD700" />
+            );
         }
-        return img;
+        
+        if (hasHalfStar) {
+            stars.push(
+                <Ionicons key="half" name="star-half" size={getResponsiveSize(14)} color="#FFD700" />
+            );
+        }
+        
+        const emptyStars = 5 - Math.ceil(rating);
+        for (let i = 0; i < emptyStars; i++) {
+            stars.push(
+                <Ionicons key={`empty-${i}`} name="star-outline" size={getResponsiveSize(14)} color="#6B7280" />
+            );
+        }
+        
+        return (
+            <View className="flex-row items-center">
+                {stars}
+                <Text className="text-white/80 text-xs ml-1">
+                    ({rating.toFixed(1)})
+                </Text>
+            </View>
+        );
     };
 
-    // Handle images from API
+    // Xử lý images từ API
     const displayImages = images.length > 0 ? images : [
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300',
-        'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=300',
-        'https://images.unsplash.com/photo-1540518614846-7eded47c9eb8?w=300',
-        'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=300',
+        // Default placeholder images nếu không có ảnh từ API
+        
     ];
 
     return (
         <TouchableOpacity onPress={handlePress} className="rounded-2xl items-center mt-4 relative border border-[#32FAE9]/20 bg-gray-900/50">
+            {/* Container cho cụm ảnh và avatar */}
             <View className="w-full">
-                {/* 4 images */}
+                {/* 4 images small */}
                 <View className="w-full flex-row flex-wrap justify-between gap-1 p-2">
                     {displayImages.slice(0, 4).map((img, index) => (
                         <Image
                             key={index}
-                            source={getImageSource(img)}
+                            source={typeof img === 'string' ? { uri: img } : img}
                             className="w-[49%] aspect-square rounded-lg"
                             resizeMode="cover"
                             onError={() => console.log(`Failed to load image ${index}`)}
@@ -137,7 +164,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
                     />
                 </TouchableOpacity>
 
-                {/* Avatar - Location icon */}
+                {/* Avatar đè lên 2 ảnh dưới */}
                 <View
                     style={{
                         position: 'absolute',
@@ -150,19 +177,31 @@ const LocationCard: React.FC<LocationCardProps> = ({
                     }}
                 >
                     <View className="relative">
-                        <View
+                        <Image
+                            source={typeof avatar === 'string' ? { uri: avatar } : avatar}
                             style={{
                                 width: avatarSize,
                                 height: avatarSize,
                                 borderRadius: avatarSize / 2,
                                 borderWidth: 3,
-                                borderColor: '#232449',
-                                backgroundColor: '#1a1a2e',
-                                justifyContent: 'center',
-                                alignItems: 'center'
+                                borderColor: '#232449'
+                            }}
+                            onError={() => console.log('Failed to load avatar')}
+                        />
+                        {/* Verification badge */}
+                        <View 
+                            style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                right: 0,
+                                backgroundColor: '#10B981',
+                                borderRadius: getResponsiveSize(10),
+                                padding: getResponsiveSize(2),
+                                borderWidth: 2,
+                                borderColor: '#232449'
                             }}
                         >
-                            <Ionicons name="location" size={getResponsiveSize(40)} color="#32FAE9" />
+                            <Ionicons name="checkmark" size={getResponsiveSize(12)} color="white" />
                         </View>
                     </View>
                 </View>
@@ -171,27 +210,25 @@ const LocationCard: React.FC<LocationCardProps> = ({
             <View style={{ height: avatarSize / 2 + 20 }} />
 
             {/* Name */}
-            <Text className="text-white text-xl font-bold text-center mb-1" numberOfLines={2}>
-                {name}
-            </Text>
+            <Text className="text-white text-xl font-bold text-center mb-1">{fullName}</Text>
 
-            {/* Address */}
-            {address && (
-                <Text className="text-gray-400 text-sm text-center mb-3 px-2" numberOfLines={2}>
-                    {address}
-                </Text>
+            {/* Rating */}
+            {rating && (
+                <View className="mb-2">
+                    {renderRating(rating)}
+                </View>
             )}
 
-            {/* Capacity and Rate */}
+            {/* Experience and Rate */}
             <View className="flex-row items-center justify-center mb-3 space-x-4">
-                {capacity && (
+                {/* {yearsExperience && (
                     <View className="flex-row items-center">
-                        <Ionicons name="people-outline" size={getResponsiveSize(14)} color="#32FAE9" />
+                        <Ionicons name="time-outline" size={getResponsiveSize(14)} color="#32FAE9" />
                         <Text className="text-white/80 text-sm ml-1">
-                            {capacity} people
+                            {yearsExperience} years
                         </Text>
                     </View>
-                )}
+                )} */}
                 {hourlyRate !== undefined && hourlyRate !== null && (
                     <View className="flex-row items-center">
                         <Ionicons name="cash-outline" size={getResponsiveSize(14)} color="#32FAE9" />
@@ -202,7 +239,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
                 )}
             </View>
 
-            {/* Amenities/Styles */}
+            {/* Styles */}
             <View className="flex-row justify-center flex-wrap gap-2 mb-5 px-2">
                 {styles.length > 0 ? (
                     styles.slice(0, 3).map((style, idx) => (
@@ -214,7 +251,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
                         </TouchableOpacity>
                     ))
                 ) : (
-                    <Text className="text-white/60 text-sm">No amenities listed</Text>
+                    <Text className="text-white/60 text-sm">No specialties listed</Text>
                 )}
                 {styles.length > 3 && (
                     <TouchableOpacity className="bg-white/10 px-3 py-1 rounded-full">
@@ -226,22 +263,20 @@ const LocationCard: React.FC<LocationCardProps> = ({
             </View>
 
             {/* Booking button */}
-            {onBooking && (
-                <TouchableOpacity
-                    className="bg-green-500 px-8 py-3 rounded-full mb-3 shadow-lg"
-                    onPress={onBooking}
-                    disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
-                    style={{
-                        opacity: availabilityStatus?.toLowerCase() === 'unavailable' ? 0.5 : 1
-                    }}
-                >
-                    <Text className="text-white font-semibold text-base">
-                        {availabilityStatus?.toLowerCase() === 'unavailable' ? 'Unavailable' : 'Book Location'}
-                    </Text>
-                </TouchableOpacity>
-            )}
+            <TouchableOpacity
+                className="bg-blue-500 px-8 py-3 rounded-full mb-3 shadow-lg"
+                onPress={onBooking}
+                disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
+                style={{
+                    opacity: availabilityStatus?.toLowerCase() === 'unavailable' ? 0.5 : 1
+                }}
+            >
+                <Text className="text-white font-semibold text-base">
+                    {availabilityStatus?.toLowerCase() === 'unavailable' ? 'Unavailable' : 'Book now'}
+                </Text>
+            </TouchableOpacity>
         </TouchableOpacity>
     );
 }
 
-export default LocationCard;
+export default PhotographerCard;

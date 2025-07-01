@@ -6,7 +6,7 @@ import { getResponsiveSize } from '../../utils/responsive';
 
 type Props = {
   id: string;
-  name: string;
+  fullName: string;
   avatar: any;
   styles: string[];
   isFavorite: boolean;
@@ -15,7 +15,7 @@ type Props = {
 };
 
 const ProfileMiniCard: React.FC<Props> = ({
-  name, avatar, styles, isFavorite, onFavoriteToggle, onPress
+  fullName, avatar, styles, isFavorite, onFavoriteToggle, onPress
 }) => (
   <TouchableOpacity
     style={{
@@ -38,7 +38,7 @@ const ProfileMiniCard: React.FC<Props> = ({
       }}
     />
     <View style={{ flex: 1 }}>
-      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: getResponsiveSize(15) }}>{name}</Text>
+      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: getResponsiveSize(15) }}>{fullName}</Text>
       <Text style={{ color: '#aaa', fontSize: getResponsiveSize(12) }}>{styles.join(', ')}</Text>
     </View>
     <TouchableOpacity onPress={onFavoriteToggle}>

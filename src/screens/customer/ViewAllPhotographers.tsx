@@ -4,9 +4,9 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import ProfileCard from '../../components/ProifileCard/ProfileCard';
+import ProfileCard from '../../components/ProifileCard/PhotographerCard';
 import { getResponsiveSize } from '../../utils/responsive';
-import { useProfiles } from '../../hooks/useProfiles';
+import { useProfiles } from '../../hooks/usePhotographers';
 import { useFavorites } from '../../hooks/useFavorites';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ViewAllPhotographers'>;
@@ -45,6 +45,7 @@ export default function ViewAllPhotographers({ navigation }: Props) {
                 style={{ marginBottom: getResponsiveSize(20) }}
               >
                 <ProfileCard 
+                  id={profile.id}
                   name={profile.name}
                   avatar={profile.avatar}
                   images={profile.images}

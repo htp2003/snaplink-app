@@ -1,15 +1,15 @@
 import { useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { Profile } from "./useProfiles";
-import { Location } from "./useLocations";
+import { PhotographerData } from "./usePhotographers";
+import { LocationData } from "./useLocations";
 
 const FAVORITES_STORAGE_KEY = "snaplink_favorites";
 
 export interface FavoriteItem {
   id: string;
-  type: "profile" | "location";
-  data: Profile | Location;
+  type: "photographer" | "location";
+  data: PhotographerData | LocationData;
 }
 
 export function useFavorites() {
@@ -20,6 +20,15 @@ export function useFavorites() {
   useEffect(() => {
     loadFavorites();
   }, []);
+
+  // Create unique key by combining type and id
+  const createUniqueKey = (type: string, id: string) => `${type}-${id}`;
+  
+  // Parse unique key back to type and id
+  const parseUniqueKey = (key: string) => {
+    const [type, id] = key.split('-');
+    return { type, id };
+  };
 
   // Load favorites from AsyncStorage
   const loadFavorites = async () => {
@@ -54,29 +63,72 @@ export function useFavorites() {
 
   // Add an item to favorites
   const addFavorite = async (item: FavoriteItem) => {
-    const newFavorites = [...favorites, item];
-    setFavorites(newFavorites);
-    await saveFavorites(newFavorites);
+    // Check if already exists to prevent duplicates
+    const uniqueKey = createUniqueKey(item.type, item.id);
+    const exists = favorites.some(fav => createUniqueKey(fav.type, fav.id) === uniqueKey);
+    
+    if (!exists) {
+      const newFavorites = [...favorites, item];
+      setFavorites(newFavorites);
+      await saveFavorites(newFavorites);
+      console.log(`Added ${item.type} ${item.id} to favorites`);
+    }
   };
 
   // Remove an item from favorites
-  const removeFavorite = async (id: string) => {
-    const newFavorites = favorites.filter((item) => item.id !== id);
+  const removeFavorite = async (id: string, type?: "photographer" | "location") => {
+    let newFavorites: FavoriteItem[];
+    
+    if (type) {
+      // Remove specific type-id combination
+      const uniqueKey = createUniqueKey(type, id);
+      newFavorites = favorites.filter(item => createUniqueKey(item.type, item.id) !== uniqueKey);
+    } else {
+      // Backward compatibility: remove by id only (will remove all matching ids regardless of type)
+      newFavorites = favorites.filter((item) => item.id !== id);
+    }
+    
     setFavorites(newFavorites);
     await saveFavorites(newFavorites);
+    console.log(`Removed ${type || 'any'} ${id} from favorites`);
   };
+
   // Check if an item is in favorites
-  const isFavorite = (id: string) => {
-    return favorites.some((item) => item.id === id);
+  const isFavorite = (id: string, type?: "photographer" | "location") => {
+    if (type) {
+      // Check specific type-id combination
+      const uniqueKey = createUniqueKey(type, id);
+      return favorites.some(item => createUniqueKey(item.type, item.id) === uniqueKey);
+    } else {
+      // Backward compatibility: check by id only
+      return favorites.some((item) => item.id === id);
+    }
   };
 
   // Toggle favorite status
   const toggleFavorite = async (item: FavoriteItem) => {
-    if (isFavorite(item.id)) {
-      await removeFavorite(item.id);
+    const isCurrentlyFavorite = isFavorite(item.id, item.type);
+    
+    if (isCurrentlyFavorite) {
+      await removeFavorite(item.id, item.type);
     } else {
       await addFavorite(item);
     }
+  };
+
+  // Get favorites by type
+  const getFavoritesByType = (type: "photographer" | "location") => {
+    return favorites.filter(item => item.type === type);
+  };
+
+  // Get favorite photographers
+  const getFavoritePhotographers = () => {
+    return getFavoritesByType("photographer").map(item => item.data as PhotographerData);
+  };
+
+  // Get favorite locations
+  const getFavoriteLocations = () => {
+    return getFavoritesByType("location").map(item => item.data as LocationData);
   };
 
   return {
@@ -87,6 +139,9 @@ export function useFavorites() {
     removeFavorite,
     isFavorite,
     toggleFavorite,
+    getFavoritesByType,
+    getFavoritePhotographers,
+    getFavoriteLocations,
     refetch: loadFavorites,
   };
 }

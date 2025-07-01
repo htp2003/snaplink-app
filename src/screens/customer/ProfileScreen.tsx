@@ -324,13 +324,13 @@ const CustomerProfileScreen = () => {
               <ProfileMiniCard
                 key={item.id}
                 id={item.id}
-                name={item.data.name}
-                avatar={item.data.avatar}
+                fullName={item.data.fullName}
+                avatar={item.data.profileImage}
                 styles={item.data.styles}
                 isFavorite={isFavorite(item.id)}
                 onFavoriteToggle={() => toggleFavorite(item)}
                 onPress={() => {
-                    navigation.navigate('Booking');
+                    navigation.navigate('ProfileCardDetail', { profileId: item.id });
                   }}    
               />
             ) : null)

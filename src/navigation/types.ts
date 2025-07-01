@@ -1,6 +1,24 @@
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 
+
+export interface Location {
+    id: number;
+    name: string;
+    address: string;
+    imageUrl: string;
+    rating: number;
+    distance: string;
+  }
+  
+  export interface Photographer {
+    id: number;
+    name: string;
+    specialty: string;
+    avatar: string;
+    hourlyRate: number;
+  }
+
 export type RootStackParamList = {
     Step: undefined;
     CustomerMain: { screen?: keyof CustomerTabParamList } | undefined;
@@ -19,11 +37,24 @@ export type RootStackParamList = {
     FavoritedBottomSheet: undefined;
     OrderManagementScreen: undefined;
     // Customer  screens
-    ProfileCardDetail: { profileId: string };
+    PhotographerCardDetail: { photographerId: string };
+    LocationCardDetail: { locationId: string };
     ViewAllPhotographers: undefined;
     ViewAllLocations: undefined;
     ProfilePhoto: undefined;
-    Booking: undefined;
+    Booking: {
+        photographerId: string;
+        photographerName: string;
+        hourlyRate?: number;
+      };
+    OrderDetail: {
+        photographer: Photographer;
+        selectedDate: string;
+        selectedTimes: string[];
+        selectedLocation: Location;
+        totalHours: number;
+        totalPrice: number;
+    };
    
 
 };

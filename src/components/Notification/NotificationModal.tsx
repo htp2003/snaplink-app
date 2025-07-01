@@ -18,7 +18,7 @@ export default function NotificationModal({ visible, onClose }: NotificationModa
                 }}>
                     <TouchableOpacity onPress={onClose}
                         className="absolute z-10"
-                        style={{ left: getResponsiveSize(8) }}>
+                        style={{ left: getResponsiveSize(10), top: getResponsiveSize(10) }}>
                         <Text style={{ color: "#fff", fontSize: getResponsiveSize(28) }}>✕</Text>
                     </TouchableOpacity>
                     <Text className="text-white font-bold self-center"

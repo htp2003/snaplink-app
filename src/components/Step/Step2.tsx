@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, Platform, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-
+import { AuthService } from '../../services/authService';
+import { useAuth } from '../../hooks/useAuth'; // Import useAuth hook
 const { width, height } = Dimensions.get('window');
 
 const GENDERS = [
@@ -22,11 +23,40 @@ const GENDERS = [
   },
 ];
 
-const Step2 = ({ onSelectGender }: { onSelectGender?: (gender: string) => void }) => {
+interface Step2Props {
+  onSelectGender?: (gender: string) => void;
+}
+
+const Step2: React.FC<Step2Props> = ({ onSelectGender }) => {
+  const { getCurrentUserId } = useAuth(); // Lấy từ useAuth
+  const userId = getCurrentUserId();
   const [selectedGender, setSelectedGender] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const cardWidth = width / 2 - 18;
   const cardHeight = height * 0.2;
   const iconSize = cardHeight * 0.6;
+
+  const handleContinue = async () => {
+    if (!selectedGender || !userId) {
+      Alert.alert('Lỗi', 'Vui lòng chọn giới tính và đảm bảo có thông tin user');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Update user profile with gender
+      await AuthService.updateUserProfile(userId, {
+        gender: selectedGender
+      });
+
+      onSelectGender?.(selectedGender);
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi cập nhật thông tin');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <View style={{ flex: 1 }}>
@@ -37,9 +67,8 @@ const Step2 = ({ onSelectGender }: { onSelectGender?: (gender: string) => void }
             <TouchableOpacity
               key={gender.key}
               activeOpacity={0.85}
-              onPress={() => {
-                setSelectedGender(gender.key);
-              }}
+              onPress={() => setSelectedGender(gender.key)}
+              disabled={loading}
               style={{
                 width: cardWidth,
                 height: cardHeight,
@@ -57,6 +86,7 @@ const Step2 = ({ onSelectGender }: { onSelectGender?: (gender: string) => void }
                 justifyContent: 'center',
                 alignItems: 'center',
                 borderStyle: 'solid',
+                opacity: loading ? 0.6 : 1,
               }}
             >
               {isSelected ? (
@@ -83,14 +113,16 @@ const Step2 = ({ onSelectGender }: { onSelectGender?: (gender: string) => void }
           );
         })}
       </View>
+      
       {/* Button Tiếp tục */}
       {selectedGender && (
         <View style={{ width: '100%', paddingHorizontal: 24, marginBottom: 28 }}>
           <TouchableOpacity
             activeOpacity={0.87}
-            onPress={() => onSelectGender && onSelectGender(selectedGender)}
+            onPress={handleContinue}
+            disabled={loading}
             style={{
-              backgroundColor: '#111',
+              backgroundColor: loading ? '#666' : '#111',
               borderRadius: 16,
               paddingVertical: 16,
               alignItems: 'center',
@@ -104,7 +136,7 @@ const Step2 = ({ onSelectGender }: { onSelectGender?: (gender: string) => void }
             }}
           >
             <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 16, letterSpacing: 1 }}>
-              Tiếp tục
+              {loading ? 'Đang lưu...' : 'Tiếp tục'}
             </Text>
           </TouchableOpacity>
         </View>

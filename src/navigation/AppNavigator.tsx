@@ -24,6 +24,8 @@ import BookingScreen from '../screens/customer/BookingScreen';
 import OrderDetailScreen from '../screens/customer/OrderDetailScreen';
 import PhotographerCardDetail from '../screens/customer/PhotographerCardDetail';
 import LocationCardDetail from '../screens/customer/LocationCardDetail';
+import RoleSelectionScreen from '../screens/RoleSelectionScreen';
+import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -37,7 +39,9 @@ const AppNavigator = () => {
         }}
       >
         {/* Màn hình chọn role */}
-        <Stack.Screen name="Step" component={StepContainer} />
+        <Stack.Screen name="StepContainer" component={StepContainer} />
+        <Stack.Screen name="RoleSelection" component={RoleSelectionScreen} />
+        
         
         {/* Các stack cho từng role */}
         <Stack.Screen name="CustomerMain" component={CustomerStack} />
@@ -63,7 +67,8 @@ const AppNavigator = () => {
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
         <Stack.Screen name="Subscription" component={SubscriptionScreen} />
         <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} />
-        
+        <Stack.Screen name="PhotographerHomeScreen" component={PhotographerHomeScreen} />
+
 
 
         {/* Các màn hình dành riêng cho VenueOwner */}

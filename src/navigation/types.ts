@@ -20,7 +20,8 @@ export interface Location {
   }
 
 export type RootStackParamList = {
-    Step: undefined;
+    StepContainer: undefined;
+    RoleSelection: undefined;
     CustomerMain: { screen?: keyof CustomerTabParamList } | undefined;
     PhotographerMain: { screen?: keyof PhotographerTabParamList } | undefined;
     VenueOwnerMain: { screen?: keyof VenueOwnerTabParamList } | undefined;

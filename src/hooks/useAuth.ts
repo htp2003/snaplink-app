@@ -134,6 +134,14 @@ export function AuthProvider(props: { children: React.ReactNode }) {
           if (userResponse.ok) {
             const userData = await userResponse.json();
             console.log('✅ Retrieved user data from getUserByEmail:', userData);
+
+            // Lưu userId vào AsyncStorage nếu có
+            if (userData.userId) {
+              await AsyncStorage.setItem('currentUserId', userData.userId.toString());
+              console.log('✅ Saved userId to AsyncStorage:', userData.userId);
+            } else {
+              console.warn('⚠️ userData.userId not found, cannot save to AsyncStorage');
+            }
             
             // ✅ Parse roles correctly từ $values format
             let userRoles = [];

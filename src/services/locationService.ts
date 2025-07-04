@@ -1,5 +1,5 @@
 import { apiClient } from "./base";
-import { Location, LocationDto, LocationOwner, LocationOwnerDto } from "../types";
+import { Location, LocationDto, LocationOwner, LocationOwnerDto, LocationApiResponse } from "../types";
 
 const ENDPOINTS = {
   ALL: "/api/Location/GetAllLocations",
@@ -20,13 +20,13 @@ const ENDPOINTS = {
 };
 
 export const locationService = {
-// Get all locations
-getAll: (): Promise<Location[]> => 
-    apiClient.get<Location[]>(ENDPOINTS.ALL),
+  // Get all locations - API might return array or object with $values
+  getAll: (): Promise<LocationApiResponse[] | { $values: LocationApiResponse[] }> => 
+    apiClient.get<LocationApiResponse[] | { $values: LocationApiResponse[] }>(ENDPOINTS.ALL),
 
-  // Get location by ID
-  getById: (id: number): Promise<Location> => 
-    apiClient.get<Location>(ENDPOINTS.BY_ID(id)),
+  // Get location by ID - API returns single location with full details
+  getById: (id: number): Promise<LocationApiResponse> => 
+    apiClient.get<LocationApiResponse>(ENDPOINTS.BY_ID(id)),
 
   // Create location
   create: (data: LocationDto): Promise<Location> => 
@@ -42,7 +42,7 @@ getAll: (): Promise<Location[]> =>
 };
 
 export const locationOwnerService = {
-    // Get all location owners
+  // Get all location owners
   getAll: (): Promise<LocationOwner[]> => 
     apiClient.get<LocationOwner[]>(ENDPOINTS.OWNERS),
 

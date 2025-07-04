@@ -85,11 +85,34 @@ export default function LocationCardDetail() {
     });
   };
 
-  const getGalleryImages = () => {
-    if (locationDetail?.locationImages?.$values && locationDetail.locationImages.$values.length > 0) {
-      return locationDetail.locationImages.$values.map(img => img.imageUrl);
+  const getGalleryImages = (): string[] => {
+    if (!locationDetail?.locationImages) {
+      return getDefaultImages();
     }
-    // Return placeholder images
+
+    let images: string[] = [];
+    
+    // Handle different structures of locationImages
+    if (Array.isArray(locationDetail.locationImages)) {
+      // Direct array
+      images = locationDetail.locationImages
+        .filter(img => img && (img.imageUrl || img.url))
+        .map(img => img.imageUrl || img.url || '');
+    } else if (locationDetail.locationImages && typeof locationDetail.locationImages === 'object' && '$values' in locationDetail.locationImages) {
+      // Object with $values property
+      const imageArray = (locationDetail.locationImages as any).$values;
+      if (Array.isArray(imageArray)) {
+        images = imageArray
+          .filter(img => img && (img.imageUrl || img.url))
+          .map(img => img.imageUrl || img.url || '');
+      }
+    }
+    
+    // Return default images if no images found
+    return images.length > 0 ? images : getDefaultImages();
+  };
+
+  const getDefaultImages = (): string[] => {
     return [
       'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400',
       'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=400',
@@ -100,7 +123,7 @@ export default function LocationCardDetail() {
     ];
   };
 
-  const getAmenities = () => {
+  const getAmenities = (): string[] => {
     if (locationDetail?.amenities) {
       return locationDetail.amenities.split(',').map(a => a.trim());
     }
@@ -367,6 +390,9 @@ export default function LocationCardDetail() {
                       source={{ uri: photo }}
                       className="w-full h-full"
                       resizeMode="cover"
+                      onError={(e) => {
+                        console.log('Image load error:', e.nativeEvent.error);
+                      }}
                     />
                   </View>
                 ))}

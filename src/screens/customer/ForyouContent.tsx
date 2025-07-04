@@ -32,10 +32,12 @@ export default function ForyouContent() {
         refreshPhotographers
     } = usePhotographers();
 
-    const { locations,
+    const { 
+        locations,
         loading: locationsLoading,
         error: locationsError,
-        refreshLocations } = useLocations();
+        refreshLocations 
+    } = useLocations();
 
     const { isFavorite, toggleFavorite, refetch } = useFavorites();
 
@@ -206,6 +208,7 @@ export default function ForyouContent() {
                     )}
                 </ScrollView>
             </View>
+
             {/* Location Section */}
             <View className="mt-4 px-4">
                 <View className="flex-row justify-between items-center mb-3">
@@ -235,7 +238,7 @@ export default function ForyouContent() {
                         // Show error card
                         <ErrorCard
                             message={locationsError}
-                            onRetry={fetchFeaturedPhotographers}
+                            onRetry={refreshLocations}
                         />
                     ) : locations.length > 0 ? (
                         // Show actual data
@@ -245,34 +248,31 @@ export default function ForyouContent() {
                                 style={{ width: getResponsiveSize(300), marginRight: getResponsiveSize(12) }}
                             >
                                 <LocationCard
-                                    id={location.id}
                                     locationId={location.locationId}
                                     name={location.name}
-                                    avatar={location.avatar}
-                                    images={location.images}
-                                    styles={location.styles}
+                                    images={location.images} // Truyền tất cả ảnh, LocationCard sẽ tự xử lý
                                     address={location.address}
                                     hourlyRate={location.hourlyRate}
                                     capacity={location.capacity}
                                     availabilityStatus={location.availabilityStatus}
-                                    isFavorite={isFavorite(location.id, 'location')} 
+                                    styles={location.styles}
+                                    isFavorite={isFavorite(location.id, 'location')}
                                     onFavoriteToggle={() => toggleFavorite({
                                         id: location.id,
                                         type: 'location',
                                         data: location
                                     })}
                                 />
-
                             </View>
                         ))
                     ) : (
                         // Show empty state
                         <View className="flex-1 items-center justify-center py-8 w-full">
                             <Text className="text-white/60 text-center mb-4">
-                                No featured photographers available
+                                No featured locations available
                             </Text>
                             <TouchableOpacity
-                                onPress={fetchFeaturedPhotographers}
+                                onPress={refreshLocations}
                                 className="px-6 py-3 bg-blue-500 rounded-lg"
                             >
                                 <Text className="text-white font-semibold">Refresh</Text>

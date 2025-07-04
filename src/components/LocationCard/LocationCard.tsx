@@ -6,12 +6,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { getResponsiveSize } from "../../utils/responsive";
 
 type LocationCardProps = {
-    id: string;
-    locationId?: number;
+    locationId: number;
     name: string;
-    avatar: any;
     images: any[];
-    styles: string[];
+    styles?: string[]; 
     address?: string;
     description?: string;
     hourlyRate?: number;
@@ -23,12 +21,10 @@ type LocationCardProps = {
 }
 
 const LocationCard: React.FC<LocationCardProps> = ({
-    id,
     locationId,
     name,
-    avatar,
     images,
-    styles,
+    styles = [],
     address,
     description,
     hourlyRate,
@@ -42,7 +38,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
     const navigation = useNavigation<RootStackNavigationProp>();
     
     const handlePress = () => {
-        navigation.navigate('LocationCardDetail', { locationId: id });
+        navigation.navigate('LocationCardDetail', { locationId: locationId.toString() });
     }
 
     // Helper function để format price
@@ -74,26 +70,42 @@ const LocationCard: React.FC<LocationCardProps> = ({
     };
 
     // Handle images from API
-    const displayImages = images.length > 0 ? images : [
+    const allImages = images.length > 0 ? images : [
         'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300',
         'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=300',
         'https://images.unsplash.com/photo-1540518614846-7eded47c9eb8?w=300',
         'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=300',
+        'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=300', // Thêm ảnh thứ 5 để có đủ
     ];
 
+    // Get avatar image (first image)
+    const avatarImage = allImages[0];
+    
+    // Get 4 images for grid (images 2-5, skip the first one used for avatar)
+    let gridImages = allImages.slice(1, 5);
+    
+    // Ensure we have exactly 4 images for grid
+    while (gridImages.length < 4) {
+        gridImages.push(...allImages.slice(0, 4 - gridImages.length));
+    }
+    gridImages = gridImages.slice(0, 4); 
     return (
         <TouchableOpacity onPress={handlePress} className="rounded-2xl items-center mt-4 relative border border-[#32FAE9]/20 bg-gray-900/50">
             <View className="w-full">
-                {/* 4 images */}
+                {/* 4 images grid (images 2-5, excluding avatar) */}
                 <View className="w-full flex-row flex-wrap justify-between gap-1 p-2">
-                    {displayImages.slice(0, 4).map((img, index) => (
-                        <Image
+                    {gridImages.map((img, index) => (
+                        <View
                             key={index}
-                            source={getImageSource(img)}
                             className="w-[49%] aspect-square rounded-lg"
-                            resizeMode="cover"
-                            onError={() => console.log(`Failed to load image ${index}`)}
-                        />
+                        >
+                            <Image
+                                source={getImageSource(img)}
+                                className="w-full h-full rounded-lg"
+                                resizeMode="cover"
+                                onError={() => console.log(`Failed to load grid image ${index + 1}:`, img)}
+                            />
+                        </View>
                     ))}
                 </View>
 
@@ -137,7 +149,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
                     />
                 </TouchableOpacity>
 
-                {/* Avatar - Location icon */}
+                {/* Avatar - First image from locationImages */}
                 <View
                     style={{
                         position: 'absolute',
@@ -158,11 +170,35 @@ const LocationCard: React.FC<LocationCardProps> = ({
                                 borderWidth: 3,
                                 borderColor: '#232449',
                                 backgroundColor: '#1a1a2e',
-                                justifyContent: 'center',
-                                alignItems: 'center'
+                                overflow: 'hidden', // Để ảnh không bị tràn ra ngoài
                             }}
                         >
-                            <Ionicons name="location" size={getResponsiveSize(40)} color="#32FAE9" />
+                            {avatarImage ? (
+                                <Image
+                                    source={getImageSource(avatarImage)}
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                    }}
+                                    resizeMode="cover"
+                                    onError={() => {
+                                        console.log('Failed to load avatar image, falling back to icon');
+                                    }}
+                                />
+                            ) : (
+                                // Fallback to icon if no image
+                                <View 
+                                    style={{
+                                        width: '100%',
+                                        height: '100%',
+                                        justifyContent: 'center',
+                                        alignItems: 'center',
+                                        backgroundColor: '#1a1a2e',
+                                    }}
+                                >
+                                    <Ionicons name="location" size={getResponsiveSize(40)} color="#32FAE9" />
+                                </View>
+                            )}
                         </View>
                     </View>
                 </View>
@@ -202,21 +238,21 @@ const LocationCard: React.FC<LocationCardProps> = ({
                 )}
             </View>
 
-            {/* Amenities/Styles */}
+            {/* Amenities */}
             <View className="flex-row justify-center flex-wrap gap-2 mb-5 px-2">
-                {styles.length > 0 ? (
-                    styles.slice(0, 3).map((style, idx) => (
+                {styles && styles.length > 0 ? (
+                    styles.slice(0, 3).map((amenity, idx) => (
                         <TouchableOpacity
                             key={idx}
                             className="bg-white/10 px-3 py-1 rounded-full"
                         >
-                            <Text className="text-white font-medium text-xs">{style}</Text>
+                            <Text className="text-white font-medium text-xs">{amenity}</Text>
                         </TouchableOpacity>
                     ))
                 ) : (
                     <Text className="text-white/60 text-sm">No amenities listed</Text>
                 )}
-                {styles.length > 3 && (
+                {styles && styles.length > 3 && (
                     <TouchableOpacity className="bg-white/10 px-3 py-1 rounded-full">
                         <Text className="text-white font-medium text-xs">
                             +{styles.length - 3} more

@@ -62,6 +62,9 @@ export type RootStackParamList = {
 
 export type CustomerTabParamList = {
     CustomerHomeScreen: undefined;
+    Favorites: undefined;
+    SnapLink: undefined;
+    Messages: undefined;
     Booking: undefined;
     Profile: undefined;
 }

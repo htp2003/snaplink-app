@@ -2,107 +2,214 @@ import React, { useEffect, useRef } from 'react';
 import { ViewStyle, TextStyle, Animated, TouchableOpacity, View, Text } from 'react-native';
 import { BottomTabNavigationOptions } from '@react-navigation/bottom-tabs';
 import { StackCardInterpolationProps } from '@react-navigation/stack';
+import { getResponsiveSize } from '../utils/responsive';
+
 
 // ===== BASIC TAB BAR STYLES =====
 
 export const customTabBarStyle: ViewStyle = {
-  backgroundColor: 'rgba(95, 96, 96, 0.8)', // Background đen trong suốt
-  position: 'absolute', 
-  marginHorizontal: 16,
-  bottom: 30,
-  borderRadius: 30, 
-  height: 60,
-  borderTopWidth: 0,
-  elevation: 8,
-  shadowColor: '#000',
-  shadowOpacity: 0.2, 
-  shadowOffset: { width: 0, height: 4 },
-  shadowRadius: 16,
-  paddingHorizontal: 10,
-  // Glass morphism effect
-  borderWidth: 1,
-  borderColor: 'rgba(255, 255, 255, 0.1)',
+  backgroundColor: 'white',
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  bottom: 0,
+  borderRadius: 0,
+  height: getResponsiveSize(90),
+  borderTopWidth: 1,
+  borderTopColor: '#E5E7EB',
+  elevation: 0,
+  shadowColor: 'transparent',
+  paddingHorizontal: 0,
 };
 
 export const customTabScreenOptions: BottomTabNavigationOptions = {
-  tabBarActiveTintColor: '#3B82F6', // Màu xanh dương khi active
-  tabBarInactiveTintColor: '#fff',   // Màu trắng khi inactive
+  tabBarStyle: customTabBarStyle,
   tabBarShowLabel: true,
-  tabBarLabelStyle: { 
-    fontSize: 12, 
+  tabBarActiveTintColor: '#FF5A5F', 
+  tabBarInactiveTintColor: '#717171',
+  tabBarLabelStyle: {
+    fontSize: getResponsiveSize(12),
     fontWeight: '500',
-    marginTop: -2,
-    marginBottom: 2,
+    marginTop: getResponsiveSize(2),
+    marginBottom: getResponsiveSize(2),
   },
   tabBarIconStyle: {
-    marginTop: 2,
+    marginTop: getResponsiveSize(2),
   },
-  tabBarStyle: customTabBarStyle,
   headerShown: false,
+};
+
+// ===== SNAPLINK STYLES =====
+
+export const SnapLinkTabBarStyle: ViewStyle = {
+  backgroundColor: 'white',
+  position: 'absolute',
+  bottom: 0,
+  left: 0,
+  right: 0,
+  height: getResponsiveSize(85),
+  borderTopWidth: 1,
+  borderTopColor: '#E5E7EB',
+  paddingBottom: getResponsiveSize(25), // space for home indicator
+  paddingTop: getResponsiveSize(8),
+  paddingHorizontal: getResponsiveSize(16),
+  shadowColor: '#000',
+  shadowOffset: {
+    width: 0,
+    height: getResponsiveSize(-2),
+  },
+  shadowOpacity: 0.1,
+  shadowRadius: getResponsiveSize(8),
+  elevation: 8,
+};
+
+
+
+// SnapLink special icon style
+export const snapLinkIconStyle: ViewStyle = {
+  width: getResponsiveSize(32), // hoặc 28-32 tuỳ ý
+  height: getResponsiveSize(32),
+  borderRadius: getResponsiveSize(16),
+  backgroundColor: '#FF5A5F',
+  alignItems: 'center',
+  justifyContent: 'center',
+  marginTop: 0,
+  shadowColor: 'transparent',
+  elevation: 0,
+};
+
+// Placeholder screen styles
+export const placeholderScreenStyle: ViewStyle = {
+  flex: 1,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: '#F5F1E8', // beige background
+  paddingHorizontal: getResponsiveSize(32),
+};
+
+export const placeholderTitleStyle: TextStyle = {
+  fontSize: getResponsiveSize(24),
+  fontWeight: 'bold',
+  color: '#8B4513',
+  marginTop: getResponsiveSize(16),
+  textAlign: 'center',
+};
+
+export const placeholderSubtitleStyle: TextStyle = {
+  fontSize: getResponsiveSize(16),
+  color: '#A0744A',
+  marginTop: getResponsiveSize(8),
+  textAlign: 'center',
+  lineHeight: getResponsiveSize(22),
+};
+
+// Styles cho custom tab bar
+export const snapLinkCustomTabBarContainerStyle: ViewStyle = {
+  backgroundColor: 'white',
+};
+
+export const snapLinkCustomTabBarStyle: ViewStyle = {
+  flexDirection: 'row',
+  backgroundColor: 'white',
+  borderTopWidth: 1,
+  borderTopColor: '#E5E7EB', // stone-200
+  paddingVertical: getResponsiveSize(8),
+  paddingHorizontal: getResponsiveSize(16),
+  height: getResponsiveSize(80),
+  alignItems: 'center',
+};
+
+export const snapLinkTabButtonStyle: ViewStyle = {
+  flex: 1,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingVertical: getResponsiveSize(8),
+};
+
+export const snapLinkTabTextStyle: TextStyle = {
+  fontSize: getResponsiveSize(12),
+  fontWeight: '500',
+  textAlign: 'center',
+};
+
+export const snapLinkSnapLinkTextStyle: TextStyle = {
+  fontSize: getResponsiveSize(12),
+  fontWeight: '500',
+  color: '#717171',
+  textAlign: 'center',
+};
+
+export const snapLinkHomeIndicatorStyle: ViewStyle = {
+  width: getResponsiveSize(134),
+  height: getResponsiveSize(5),
+  backgroundColor: '#000',
+  borderRadius: getResponsiveSize(3),
+  alignSelf: 'center',
+  marginBottom: getResponsiveSize(8),
 };
 
 // ===== DYNAMIC STYLES =====
 
 export const getTabBarButtonStyle = (focused: boolean): ViewStyle => ({
   backgroundColor: focused ? 'rgba(50, 250, 233, 0.15)' : 'transparent',
-  borderRadius: 20,
-  paddingHorizontal: 12,
-  paddingVertical: 8,
-  marginHorizontal: 4,
+  borderRadius: getResponsiveSize(20),
+  paddingHorizontal: getResponsiveSize(12),
+  paddingVertical: getResponsiveSize(8),
+  marginHorizontal: getResponsiveSize(4),
   borderWidth: focused ? 1 : 0,
   borderColor: focused ? 'rgba(50, 250, 233, 0.3)' : 'transparent',
 });
 
 export const getTabBarLabelStyle = (focused: boolean): TextStyle => ({
-  fontSize: focused ? 12 : 11,
+  fontSize: getResponsiveSize(focused ? 12 : 11),
   fontWeight: focused ? '700' : '500',
   color: focused ? '#32FAE9' : 'rgba(255, 255, 255, 0.6)',
-  marginTop: 2,
+  marginTop: getResponsiveSize(2),
 });
 
 export const tabBarIconContainerStyle: ViewStyle = {
   alignItems: 'center',
   justifyContent: 'center',
-  width: 28,
-  height: 28,
+  width: getResponsiveSize(28),
+  height: getResponsiveSize(28),
 };
 
 // ===== ALTERNATIVE STYLES =====
 
 export const floatingActionButtonStyle: ViewStyle = {
   position: 'absolute',
-  bottom: 20,
+  bottom: getResponsiveSize(20),
   alignSelf: 'center',
-  width: 56,
-  height: 56,
-  borderRadius: 28,
+  width: getResponsiveSize(56),
+  height: getResponsiveSize(56),
+  borderRadius: getResponsiveSize(28),
   backgroundColor: '#32FAE9',
   justifyContent: 'center',
   alignItems: 'center',
   elevation: 8,
   shadowColor: '#32FAE9',
   shadowOpacity: 0.4,
-  shadowOffset: { width: 0, height: 4 },
-  shadowRadius: 12,
-  borderWidth: 3,
+  shadowOffset: { width: 0, height: getResponsiveSize(4) },
+  shadowRadius: getResponsiveSize(12),
+  borderWidth: getResponsiveSize(3),
   borderColor: 'rgba(0, 0, 0, 0.9)',
 };
 
 export const blurTabBarStyle: ViewStyle = {
   backgroundColor: 'rgba(35, 36, 73, 0.8)',
   position: 'absolute', 
-  marginHorizontal: 16,
-  bottom: 30,
-  borderRadius: 32, 
-  height: 72,
+  marginHorizontal: getResponsiveSize(16),
+  bottom: getResponsiveSize(30),
+  borderRadius: getResponsiveSize(32), 
+  height: getResponsiveSize(72),
   borderTopWidth: 0,
   elevation: 25,
   shadowColor: '#000',
   shadowOpacity: 0.35, 
-  shadowOffset: { width: 0, height: 10 },
-  shadowRadius: 30,
-  paddingHorizontal: 6,
-  paddingVertical: 6,
+  shadowOffset: { width: 0, height: getResponsiveSize(10) },
+  shadowRadius: getResponsiveSize(30),
+  paddingHorizontal: getResponsiveSize(6),
+  paddingVertical: getResponsiveSize(6),
   borderWidth: 1.5,
   borderColor: 'rgba(255, 255, 255, 0.15)',
   overflow: 'hidden',
@@ -118,6 +225,16 @@ export const getResponsiveTabBarStyle = (screenWidth: number): ViewStyle => {
     height: isSmallScreen ? 65 : 70,
     marginHorizontal: isSmallScreen ? 12 : 20,
     bottom: isSmallScreen ? 28 : 34,
+  };
+};
+
+export const getResponsiveSnapLinkTabBarStyle = (screenWidth: number): ViewStyle => {
+  const isSmallScreen = screenWidth < 375;
+  
+  return {
+    ...SnapLinkTabBarStyle,
+    height: isSmallScreen ? 80 : 85,
+    paddingBottom: isSmallScreen ? 20 : 25,
   };
 };
 

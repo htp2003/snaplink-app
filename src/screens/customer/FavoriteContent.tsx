@@ -117,9 +117,8 @@ export default function FavoriteContent() {
             const location = item.data as LocationData;
             content = (
               <LocationCard
-                id={item.id}
+              locationId={location.locationId}
                 name={location.name}
-                avatar={location.avatar}
                 images={location.images}
                 styles={location.styles}
                 address={location.address}

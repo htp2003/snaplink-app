@@ -1,5 +1,14 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  ScrollView, 
+  Image, 
+  Animated,
+  StatusBar,
+  Dimensions 
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '../../navigation/types';
@@ -8,12 +17,16 @@ import { useProfile } from '../../context/ProfileContext';
 import FavoritedModal from '../../components/FavoritedModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const { width } = Dimensions.get('window');
+const HEADER_HEIGHT = 60;
+
 const ProfileScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState('Photos');
-  const { profileData, hasActiveSubscription } = useProfile();
+  const { profileData } = useProfile();
   const [isModalVisible, setIsModalVisible] = useState(false);
+  
+  const scrollY = useRef(new Animated.Value(0)).current;
   
   const favoritedUsers = [
     { id: '1', name: 'John Doe', avatar: 'https://example.com/avatar1.jpg' },
@@ -21,305 +34,460 @@ const ProfileScreen = () => {
     { id: '3', name: 'Mike Johnson' },
   ];
 
-  const handleUploadPress = () => {
-    if (!hasActiveSubscription()) {
-      navigation.navigate('Subscription');
-      return;
+  // Smooth animation values
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [HEADER_HEIGHT - 20, HEADER_HEIGHT + 20],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_HEIGHT],
+    outputRange: [-100, 0],
+    extrapolate: 'clamp',
+  });
+
+  const shadowOpacity = scrollY.interpolate({
+    inputRange: [HEADER_HEIGHT - 10, HEADER_HEIGHT + 10],
+    outputRange: [0, 0.1],
+    extrapolate: 'clamp',
+  });
+
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    { useNativeDriver: false }
+  );
+
+  const menuItems = [
+    {
+      icon: 'settings-outline',
+      title: 'Cài đặt tài khoản',
+      hasNotification: true,
+      // onPress: () => navigation.navigate('Settings')
+    },
+    {
+      icon: 'help-circle-outline',
+      title: 'Nhận trợ giúp',
+      // onPress: () => navigation.navigate('Help')
+    },
+    {
+      icon: 'person-outline',
+      title: 'Xem hồ sơ',
+      // onPress: () => navigation.navigate('ViewProfile')
+    },
+    {
+      icon: 'hand-left-outline',
+      title: 'Quyền riêng tư',
+      // onPress: () => navigation.navigate('Privacy')
+    },
+    {
+      icon: 'people-outline',
+      title: 'Giới thiệu host',
+      // onPress: () => navigation.navigate('BecomeHost')
+    },
+    {
+      icon: 'business-outline',
+      title: 'Tìm đồng chủ nhà',
+      // onPress: () => navigation.navigate('FindCoHost')
+    },
+    {
+      icon: 'document-text-outline',
+      title: 'Pháp lý',
+      // onPress: () => navigation.navigate('Legal')
+    },
+    {
+      icon: 'log-out-outline',
+      title: 'Đăng xuất',
+      onPress: () => {/* Handle logout */}
     }
-    // Handle upload logic here
-  };
+  ];
 
   const handleFavoritedPress = () => {
-    console.log("Opening favorited modal");
     setIsModalVisible(true);
   };
 
   const handleModalClose = () => {
-    console.log("Closing favorited modal");
     setIsModalVisible(false);
   };
 
+  const handleNotificationPress = () => {
+    // navigation.navigate('Notifications');
+  };
+
+  const renderMenuItem = (item: any, index: number) => (
+    <TouchableOpacity
+      key={index}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: index < menuItems.length - 1 ? 1 : 0,
+        borderBottomColor: '#F0F0F0'
+      }}
+      onPress={item.onPress}
+    >
+      <View style={{ position: 'relative' }}>
+        <Ionicons name={item.icon} size={24} color="#000000" />
+        {item.hasNotification && (
+          <View style={{
+            position: 'absolute',
+            top: -2,
+            right: -2,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: '#FF385C'
+          }} />
+        )}
+      </View>
+      <Text style={{
+        flex: 1,
+        marginLeft: 16,
+        fontSize: 16,
+        color: '#000000'
+      }}>
+        {item.title}
+      </Text>
+      <Ionicons name="chevron-forward" size={20} color="#C0C0C0" />
+    </TouchableOpacity>
+  );
+
   return (
-    <>
-      <ScrollView 
-        className="flex-1 bg-black"
-        contentContainerStyle={{ 
-          paddingBottom: 120 + insets.bottom
+    <View style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
+      {/* Smooth Sticky Header */}
+      <Animated.View style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: HEADER_HEIGHT + insets.top,
+        backgroundColor: '#FFFFFF',
+        zIndex: 1000,
+        paddingTop: insets.top,
+        opacity: headerOpacity,
+        transform: [{ translateY: headerTranslateY }],
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: shadowOpacity,
+        shadowRadius: 4,
+        elevation: 4,
+      }}>
+        <Animated.View style={{
+          flex: 1,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 20,
+        }}>
+          <Animated.Text style={{ 
+            fontSize: 32, 
+            fontWeight: 'bold', 
+            color: '#000000',
+            opacity: headerOpacity,
+          }}>
+            Hồ sơ
+          </Animated.Text>
+          <Animated.View style={{ opacity: headerOpacity }}>
+            <TouchableOpacity
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#F7F7F7',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}
+              onPress={handleNotificationPress}
+            >
+              <Ionicons name="notifications-outline" size={24} color="#000000" />
+              <View style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: '#FF385C'
+              }} />
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
+
+      {/* Scrollable Content */}
+      <ScrollView
+        contentContainerStyle={{
+          paddingTop: insets.top + 20,
+          paddingBottom: insets.bottom + 100,
         }}
         showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={8}
       >
-        {/* Profile Header */}
-        <View style={{ paddingTop: getResponsiveSize(50), paddingHorizontal: getResponsiveSize(20) }} className="items-center">
-          {/* Avatar Section */}
-          <View className="items-center mb-5">
-            <View style={{ 
-              width: getResponsiveSize(85), 
-              height: getResponsiveSize(85),
-              borderRadius: getResponsiveSize(42.5),
-              overflow: 'hidden',
-              borderWidth: 2,
-              borderColor: '#32FAE9'
-            }} className="bg-gray-700 mb-3">
+        {/* Header trong scroll - sẽ scroll lên và trở thành sticky */}
+        <View style={{
+          height: HEADER_HEIGHT,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 20,
+          marginBottom: 20,
+        }}>
+          <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#000000' }}>
+            Hồ sơ
+          </Text>
+          <TouchableOpacity
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: '#F7F7F7',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            onPress={handleNotificationPress}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#000000" />
+            <View style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: '#FF385C'
+            }} />
+          </TouchableOpacity>
+        </View>
+        {/* Profile Card */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+          <View style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 12,
+            padding: 20,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
+            <View style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: '#333333',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 12
+            }}>
               {profileData.avatar ? (
                 <Image 
                   source={{ uri: profileData.avatar }}
-                  style={{ width: '100%', height: '100%' }}
+                  style={{ width: '100%', height: '100%', borderRadius: 40 }}
                   resizeMode="cover"
                 />
               ) : (
-                <View className="w-full h-full items-center justify-center">
-                  <Ionicons name="person" size={getResponsiveSize(35)} color="#32FAE9" />
-                </View>
+                <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: 'bold' }}>A</Text>
               )}
             </View>
-            
-            <Text style={{ fontSize: getResponsiveSize(22) }} className="font-bold text-white mb-1">
-              {`${profileData.firstName} ${profileData.lastName}`}
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000000', marginBottom: 4 }}>
+              Anh Sơn
             </Text>
-            <Text style={{ fontSize: getResponsiveSize(14) }} className="text-gray-400">
-              {`${profileData.email}`}
+            <Text style={{ fontSize: 16, color: '#666666' }}>
+              Khách
             </Text>
           </View>
-          
-          {/* Stats Section */}
-          <View className="flex-row justify-around w-full mb-6">
+        </View>
+        {/* Feature Cards */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            {/* Chuyến di trước đây */}
+            <TouchableOpacity style={{
+              flex: 0.48,
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              padding: 20,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}>
+              <View style={{
+                width: 40,
+                height: 32,
+                marginBottom: 12,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Ionicons name="briefcase" size={32} color="#8B7355" />
+              </View>
+              <View style={{
+                backgroundColor: '#6B73FF',
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 12,
+                marginBottom: 8
+              }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>MỚI</Text>
+              </View>
+              <Text style={{
+                fontSize: 16,
+                fontWeight: '600',
+                color: '#000000',
+                textAlign: 'center'
+              }}>
+                Chuyến đi{'\n'}trước đây
+              </Text>
+            </TouchableOpacity>
+
+            {/* Kết nối */}
             <TouchableOpacity 
-              className="items-center px-3"
+              style={{
+                flex: 0.48,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                padding: 20,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
               onPress={handleFavoritedPress}
             >
-              <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">150k</Text>
-              <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">Favorited</Text>
+              <View style={{
+                width: 60,
+                height: 32,
+                marginBottom: 12,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <View style={{ flexDirection: 'row' }}>
+                  <View style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: '#4A90E2',
+                    marginRight: -5
+                  }} />
+                  <View style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: '#F5A623',
+                    marginRight: -5
+                  }} />
+                  <View style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: '#7ED321'
+                  }} />
+                </View>
+              </View>
+              <View style={{
+                backgroundColor: '#6B73FF',
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 12,
+                marginBottom: 8
+              }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>MỚI</Text>
+              </View>
+              <Text style={{
+                fontSize: 16,
+                fontWeight: '600',
+                color: '#000000',
+                textAlign: 'center'
+              }}>
+                Kết nối
+              </Text>
             </TouchableOpacity>
-            
-            <View className="items-center px-3">
-              <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">150k</Text>
-              <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">Booked</Text>
-            </View>
-            
-            <View className="items-center px-3">
-              <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">4.8</Text>
-              <View className="flex-row items-center">
-                <Ionicons name="star" size={getResponsiveSize(14)} color="#FFD700" />
-                <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium ml-1">Rating</Text>
+          </View>
+        </View>
+
+        {/* Host Invitation Card */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
+          <View style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 12,
+            padding: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#FF385C',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 16
+              }}>
+                <Ionicons name="home" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  fontSize: 18,
+                  fontWeight: '600',
+                  color: '#000000',
+                  marginBottom: 4
+                }}>
+                  Trở thành host
+                </Text>
+                <Text style={{
+                  fontSize: 14,
+                  color: '#666666',
+                  lineHeight: 20
+                }}>
+                  Bắt đầu đón tiếp khách và kiếm thêm thu nhập thật dễ dàng.
+                </Text>
               </View>
             </View>
           </View>
         </View>
 
-        {/* Categories Section */}
-        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-6">
-          <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white font-semibold mb-3">Specialties</Text>
-          <View className="flex-row justify-between">
-            <TouchableOpacity style={{ 
-              flex: 0.32,
-              height: getResponsiveSize(38),
-              borderRadius: getResponsiveSize(19),
-              backgroundColor: 'rgba(50, 250, 233, 0.15)',
-              borderWidth: 1,
-              borderColor: '#32FAE9'
-            }} className="items-center justify-center">
-              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-[#32FAE9] font-medium">Portrait</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ 
-              flex: 0.32,
-              height: getResponsiveSize(38),
-              borderRadius: getResponsiveSize(19),
-              backgroundColor: 'rgba(255, 255, 255, 0.1)'
-            }} className="items-center justify-center">
-              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-white font-medium">Wedding</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={{ 
-              flex: 0.32,
-              height: getResponsiveSize(38),
-              borderRadius: getResponsiveSize(19),
-              backgroundColor: 'rgba(255, 255, 255, 0.1)'
-            }} className="items-center justify-center">
-              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-white font-medium">Fashion</Text>
-            </TouchableOpacity>
-          </View>
+        {/* Menu Items */}
+        <View style={{
+          backgroundColor: '#FFFFFF',
+          marginHorizontal: 16,
+          borderRadius: 12,
+          overflow: 'hidden',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}>
+          {menuItems.map((item, index) => renderMenuItem(item, index))}
         </View>
 
-        {/* About Section */}
-        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-6">
-          <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white font-semibold mb-2">About</Text>
-          <Text style={{ fontSize: getResponsiveSize(14), lineHeight: getResponsiveSize(20) }} className="text-gray-300">
-            {profileData.about}
+        {/* Version Info */}
+        <View style={{ 
+          alignItems: 'center', 
+          paddingVertical: 30,
+          paddingHorizontal: 20 
+        }}>
+          <Text style={{ 
+            fontSize: 12, 
+            color: '#999999',
+            textAlign: 'center'
+          }}>
+            Phiên bản 1.0.0 (Build 100)
           </Text>
         </View>
-
-        {/* Action Buttons */}
-        <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-6">
-          <View className="flex-row gap-2 mb-3">
-            <TouchableOpacity 
-              onPress={() => navigation.navigate('EditProfile')} 
-              style={{ 
-                flex: 1,
-                paddingVertical: getResponsiveSize(12),
-                borderRadius: getResponsiveSize(20)
-              }} 
-              className="flex-row items-center justify-center bg-[#32FAE9]"
-            >
-              <Ionicons name="create-outline" size={getResponsiveSize(18)} color="black" />
-              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-black ml-1 font-bold">Edit Profile</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={{ 
-                paddingVertical: getResponsiveSize(12),
-                paddingHorizontal: getResponsiveSize(16),
-                borderRadius: getResponsiveSize(20),
-                borderWidth: 1.5,
-                borderColor: '#32FAE9'
-              }} 
-              className="items-center justify-center"
-            >
-              <Ionicons name="share-outline" size={getResponsiveSize(18)} color="#32FAE9" />
-            </TouchableOpacity>
-          </View>
-          
-          {/* Subscription Section */}
-          <View style={{
-            backgroundColor: hasActiveSubscription() ? 'rgba(50, 250, 233, 0.1)' : 'rgba(90, 143, 242, 0.1)',
-            borderRadius: getResponsiveSize(12),
-            borderWidth: 1,
-            borderColor: hasActiveSubscription() ? '#32FAE9' : '#5A8FF2',
-            padding: getResponsiveSize(14)
-          }}>
-            <View className="flex-row items-center justify-between">
-              <View className="flex-1">
-                <Text style={{ fontSize: getResponsiveSize(14) }} className="text-white font-semibold mb-1">
-                  {hasActiveSubscription() ? 'Premium Plan' : 'Upgrade to Premium'}
-                </Text>
-                <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400">
-                  {hasActiveSubscription() ? 'Manage your subscription' : 'Unlock premium features'}
-                </Text>
-              </View>
-              
-              <TouchableOpacity 
-                onPress={() => navigation.navigate(hasActiveSubscription() ? 'SubscriptionManagement' : 'Subscription')}
-                style={{ 
-                  paddingVertical: getResponsiveSize(8),
-                  paddingHorizontal: getResponsiveSize(16),
-                  borderRadius: getResponsiveSize(16),
-                  backgroundColor: hasActiveSubscription() ? '#32FAE9' : '#5A8FF2'
-                }} 
-              >
-                <View className="flex-row items-center">
-                  <Ionicons 
-                    name={hasActiveSubscription() ? "settings-outline" : "star"} 
-                    size={getResponsiveSize(16)} 
-                    color={hasActiveSubscription() ? "black" : "white"} 
-                  />
-                  <Text style={{ 
-                    fontSize: getResponsiveSize(11), 
-                    color: hasActiveSubscription() ? "black" : "white"
-                  }} className="ml-1 font-bold">
-                    {hasActiveSubscription() ? 'Manage' : 'Upgrade'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* Tab Navigation */}
-        <View className="flex-row border-b border-gray-800 mx-4">
-          <TouchableOpacity 
-            className="flex-1 items-center py-3"
-            style={{ borderBottomWidth: activeTab === 'Photos' ? 2 : 0, borderBottomColor: '#32FAE9' }}
-            onPress={() => setActiveTab('Photos')}
-          >
-            <Ionicons 
-              name="images-outline" 
-              size={getResponsiveSize(22)} 
-              color={activeTab === 'Photos' ? '#32FAE9' : '#666'} 
-            />
-            <Text style={{ 
-              fontSize: getResponsiveSize(11), 
-              color: activeTab === 'Photos' ? '#32FAE9' : '#666',
-              marginTop: getResponsiveSize(3)
-            }} className="font-medium">
-              Photos
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            className="flex-1 items-center py-3"
-            style={{ borderBottomWidth: activeTab === 'Reviews' ? 2 : 0, borderBottomColor: '#32FAE9' }}
-            onPress={() => setActiveTab('Reviews')}
-          >
-            <Ionicons 
-              name="star-outline" 
-              size={getResponsiveSize(22)} 
-              color={activeTab === 'Reviews' ? '#32FAE9' : '#666'} 
-            />
-            <Text style={{ 
-              fontSize: getResponsiveSize(11), 
-              color: activeTab === 'Reviews' ? '#32FAE9' : '#666',
-              marginTop: getResponsiveSize(3)
-            }} className="font-medium">
-              Reviews
-            </Text>
-          </TouchableOpacity>
-        </View>
-          
-        {/* Photos Tab Content */}
-        {activeTab === 'Photos' && (
-          <View className="items-center py-8">
-            <View style={{
-              width: getResponsiveSize(65),
-              height: getResponsiveSize(65),
-              borderRadius: getResponsiveSize(32.5),
-              backgroundColor: 'rgba(90, 143, 242, 0.2)',
-              marginBottom: getResponsiveSize(16)
-            }} className="items-center justify-center">
-              <Ionicons name="images-outline" size={getResponsiveSize(32)} color="#5A8FF2" />
-            </View>
-            
-            <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white font-semibold mb-2">No photos yet</Text>
-            <Text style={{ fontSize: getResponsiveSize(13) }} className="text-gray-400 text-center mb-6 px-8">
-              Share your best work with the community
-            </Text>
-            
-            <TouchableOpacity 
-              onPress={handleUploadPress}
-              style={{ 
-                paddingVertical: getResponsiveSize(12),
-                paddingHorizontal: getResponsiveSize(24),
-                borderRadius: getResponsiveSize(20)
-              }} 
-              className="flex-row items-center bg-[#5A8FF2]"
-            >
-              <Ionicons name="cloud-upload-outline" size={getResponsiveSize(18)} color="#fff" />
-              <Text style={{ fontSize: getResponsiveSize(14) }} className="text-white ml-2 font-medium">Upload Photos</Text> 
-            </TouchableOpacity>           
-          </View>
-        )}
-          
-        {/* Reviews Tab Content */}
-        {activeTab === 'Reviews' && (
-          <View className="items-center py-8">
-            <View style={{
-              width: getResponsiveSize(65),
-              height: getResponsiveSize(65),
-              borderRadius: getResponsiveSize(32.5),
-              backgroundColor: 'rgba(50, 250, 233, 0.2)',
-              marginBottom: getResponsiveSize(16)
-            }} className="items-center justify-center">
-              <Ionicons name="star-outline" size={getResponsiveSize(32)} color="#32FAE9" />
-            </View>
-            
-            <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white font-semibold mb-2">No reviews yet</Text>
-            <Text style={{ fontSize: getResponsiveSize(13) }} className="text-gray-400 text-center px-8">
-              Your reviews from clients will appear here
-            </Text>
-          </View>
-        )}
-        
-        {/* Bottom Spacing */}
-        <View style={{ height: getResponsiveSize(30) }} />
       </ScrollView>
 
       {/* Modal */}
@@ -328,7 +496,7 @@ const ProfileScreen = () => {
         favoritedUsers={favoritedUsers}
         onClose={handleModalClose}
       />
-    </>
+    </View>
   );
 };
 

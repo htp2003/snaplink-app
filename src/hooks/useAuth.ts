@@ -5,6 +5,7 @@ const API_BASE_URL =
   "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 export interface User {
   id: number;
+  photographerId?: number; 
   email: string;
   fullName: string;
   phoneNumber?: string;

@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { PhotographerTabParamList } from './types';
 import { customTabScreenOptions } from './tabBarOptions';
-import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Ionicons } from '@expo/vector-icons';
 
 // Placeholder screens - Cần tạo các màn hình này sau
 import ProfileScreen from '../screens/photographer/ProfileScreen';
@@ -26,10 +26,9 @@ const PhotographerStack = () => {
         options={{
           tabBarLabel: 'Ví',
           tabBarIcon: ({ focused, color, size }) => (
-            <Icon 
-              name="account-balance-wallet" 
-              size={focused ? 26 : 24} 
-              color={color} 
+            <Ionicons 
+              name="wallet-outline" 
+              size={26} color={focused ? '#FF5A5F' : '#717171'} 
             />
           ),
         }}
@@ -40,10 +39,9 @@ const PhotographerStack = () => {
         options={{
           tabBarLabel: 'Đơn hàng',
           tabBarIcon: ({ focused, color, size }) => (
-            <Icon 
-              name="assignment" 
-              size={focused ? 26 : 24} 
-              color={color} 
+            <Ionicons 
+              name="clipboard-outline" 
+              size={26} color={focused ? '#FF5A5F' : '#717171'} 
             />
           ),
         }}
@@ -54,10 +52,9 @@ const PhotographerStack = () => {
         options={{
           tabBarLabel: 'Hồ sơ',
           tabBarIcon: ({ focused, color, size }) => (
-            <Icon 
-              name="person" 
-              size={focused ? 26 : 24} 
-              color={color} 
+            <Ionicons
+              name="person-outline"
+              size={26} color={focused ? '#FF5A5F' : '#717171'}
             />
           ),
         }}

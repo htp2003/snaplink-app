@@ -34,7 +34,6 @@ const LocationCard: React.FC<LocationCardProps> = ({
     onFavoriteToggle,
     isFavorite
 }) => {
-    const avatarSize = getResponsiveSize(80);
     const navigation = useNavigation<RootStackNavigationProp>();
     
     const handlePress = () => {
@@ -43,23 +42,27 @@ const LocationCard: React.FC<LocationCardProps> = ({
 
     // Helper function để format price
     const formatPrice = (price?: number) => {
-        if (!price) return 'Contact for price';
-        return `$${price.toLocaleString()}/hr`;
+        if (!price) return 'Liên hệ để biết giá';
+        return `₫${price.toLocaleString()}`;
     };
 
-    // Helper function để render availability status
-    const getAvailabilityColor = (status?: string) => {
-        switch (status?.toLowerCase()) {
-            case 'available':
-                return '#10B981'; // green
-            case 'busy':
-                return '#F59E0B'; // yellow
-            case 'unavailable':
-                return '#EF4444'; // red
-            default:
-                return '#6B7280'; // gray
-        }
-    };
+    // Handle images from API
+    const fallbackImages = [
+        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1540518614846-7eded47c9eb8?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=400&h=300&fit=crop',
+        'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=300&fit=crop',
+    ];
+
+    // Get all images for display
+    const allImages = images.length > 0 ? images : fallbackImages;
+    const mainImage = allImages[0];
+    
+    // Get 4 images for grid (skip main image if we have enough)
+    const gridImages = allImages.length > 4 
+        ? allImages.slice(1, 5) 
+        : allImages.slice(0, 4);
 
     // Helper function to get image source
     const getImageSource = (img: any) => {
@@ -69,214 +72,176 @@ const LocationCard: React.FC<LocationCardProps> = ({
         return img;
     };
 
-    // Handle images from API
-    const allImages = images.length > 0 ? images : [
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300',
-        'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=300',
-        'https://images.unsplash.com/photo-1540518614846-7eded47c9eb8?w=300',
-        'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=300',
-        'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=300', // Thêm ảnh thứ 5 để có đủ
-    ];
+    const displayName = name || 'Location';
+    const locationInfo = address || 'Địa điểm chụp ảnh';
 
-    // Get avatar image (first image)
-    const avatarImage = allImages[0];
-    
-    // Get 4 images for grid (images 2-5, skip the first one used for avatar)
-    let gridImages = allImages.slice(1, 5);
-    
-    // Ensure we have exactly 4 images for grid
-    while (gridImages.length < 4) {
-        gridImages.push(...allImages.slice(0, 4 - gridImages.length));
-    }
-    gridImages = gridImages.slice(0, 4); 
     return (
-        <TouchableOpacity onPress={handlePress} className="rounded-2xl items-center mt-4 relative border border-[#32FAE9]/20 bg-gray-900/50">
-            <View className="w-full">
-                {/* 4 images grid (images 2-5, excluding avatar) */}
-                <View className="w-full flex-row flex-wrap justify-between gap-1 p-2">
-                    {gridImages.map((img, index) => (
-                        <View
-                            key={index}
-                            className="w-[49%] aspect-square rounded-lg"
-                        >
-                            <Image
-                                source={getImageSource(img)}
-                                className="w-full h-full rounded-lg"
-                                resizeMode="cover"
-                                onError={() => console.log(`Failed to load grid image ${index + 1}:`, img)}
-                            />
-                        </View>
-                    ))}
-                </View>
-
-                {/* Availability Status Badge */}
-                {availabilityStatus && (
-                    <View
-                        style={{
-                            position: 'absolute',
-                            top: getResponsiveSize(10),
-                            left: getResponsiveSize(10),
-                            backgroundColor: getAvailabilityColor(availabilityStatus),
-                            borderRadius: getResponsiveSize(12),
-                            paddingHorizontal: getResponsiveSize(8),
-                            paddingVertical: getResponsiveSize(4),
-                            zIndex: 10,
-                        }}
-                    >
-                        <Text className="text-white text-xs font-medium capitalize">
-                            {availabilityStatus}
-                        </Text>
-                    </View>
-                )}
-
+        <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100">
+            {/* Header với Main Image */}
+            <TouchableOpacity onPress={handlePress} className="relative">
+                <Image
+                    source={getImageSource(mainImage)}
+                    style={{ width: '100%', height: getResponsiveSize(180) }}
+                    className="bg-stone-200"
+                    resizeMode="cover"
+                />
+                
                 {/* Favorite Button */}
                 <TouchableOpacity
-                    style={{
-                        position: 'absolute',
-                        top: getResponsiveSize(10),
-                        right: getResponsiveSize(10),
-                        zIndex: 10,
-                        backgroundColor: 'rgba(0,0,0,0.5)',
-                        borderRadius: getResponsiveSize(15),
-                        padding: getResponsiveSize(5),
-                    }}
+                    className="absolute top-3 right-3 bg-black/30 rounded-full"
+                    style={{ padding: getResponsiveSize(6) }}
                     onPress={onFavoriteToggle}
                 >
                     <Ionicons
                         name={isFavorite ? "heart" : "heart-outline"}
                         size={getResponsiveSize(20)}
-                        color={isFavorite ? "#FF375F" : "white"}
+                        color={isFavorite ? "#ef4444" : "white"}
                     />
                 </TouchableOpacity>
 
-                {/* Avatar - First image from locationImages */}
-                <View
-                    style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        alignItems: 'center',
-                        transform: [{ translateY: avatarSize / 2 }],
-                        zIndex: 10,
-                    }}
-                >
-                    <View className="relative">
-                        <View
-                            style={{
-                                width: avatarSize,
-                                height: avatarSize,
-                                borderRadius: avatarSize / 2,
-                                borderWidth: 3,
-                                borderColor: '#232449',
-                                backgroundColor: '#1a1a2e',
-                                overflow: 'hidden', // Để ảnh không bị tràn ra ngoài
-                            }}
+                {/* Availability Badge */}
+                {availabilityStatus && availabilityStatus.toLowerCase() === 'available' && (
+                    <View 
+                        className="absolute top-3 left-3 bg-emerald-500 rounded-full"
+                        style={{ 
+                            paddingHorizontal: getResponsiveSize(8), 
+                            paddingVertical: getResponsiveSize(4) 
+                        }}
+                    >
+                        <Text 
+                            className="text-white font-medium"
+                            style={{ fontSize: getResponsiveSize(10) }}
                         >
-                            {avatarImage ? (
-                                <Image
-                                    source={getImageSource(avatarImage)}
-                                    style={{
-                                        width: '100%',
-                                        height: '100%',
-                                    }}
-                                    resizeMode="cover"
-                                    onError={() => {
-                                        console.log('Failed to load avatar image, falling back to icon');
-                                    }}
-                                />
-                            ) : (
-                                // Fallback to icon if no image
-                                <View 
-                                    style={{
-                                        width: '100%',
-                                        height: '100%',
-                                        justifyContent: 'center',
-                                        alignItems: 'center',
-                                        backgroundColor: '#1a1a2e',
-                                    }}
-                                >
-                                    <Ionicons name="location" size={getResponsiveSize(40)} color="#32FAE9" />
-                                </View>
-                            )}
+                            Available
+                        </Text>
+                    </View>
+                )}
+            </TouchableOpacity>
+            {/* Content area */}
+            <View style={{ padding: getResponsiveSize(8) }}>
+                {/* Title và thông tin cơ bản */}
+                <View style={{ marginBottom: getResponsiveSize(12) }}>
+                    <Text 
+                        className="text-stone-900 font-semibold" 
+                        style={{ fontSize: getResponsiveSize(17) }}
+                        numberOfLines={1}
+                    >
+                        {displayName}
+                    </Text>
+                    <Text 
+                        className="text-stone-600" 
+                        style={{ fontSize: getResponsiveSize(14), marginTop: getResponsiveSize(2) }}
+                        numberOfLines={1}
+                    >
+                        {locationInfo}
+                    </Text>
+                </View>
+
+                {/* Stats row */}
+                <View className="flex-row items-center justify-between mb-3">
+                    {/* Capacity */}
+                    {capacity && (
+                        <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
+                            <Ionicons name="people-outline" size={getResponsiveSize(14)} color="#57534e" />
+                            <Text 
+                                className="text-stone-700 font-medium ml-1"
+                                style={{ fontSize: getResponsiveSize(12) }}
+                            >
+                                {capacity}
+                            </Text>
                         </View>
+                    )}
+
+                    {/* Rating */}
+                    <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
+                    
+                    </View>
+
+                    {/* Price indicator */}
+                    <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
+                        <Ionicons name="cash-outline" size={getResponsiveSize(14)} color="#57534e" />
+                        <Text 
+                            className="text-stone-700 font-medium ml-1"
+                            style={{ fontSize: getResponsiveSize(12) }}
+                        >
+                            {hourlyRate ? `${Math.floor(hourlyRate/1000)}K` : 'TBD'}
+                        </Text>
                     </View>
                 </View>
-            </View>
 
-            <View style={{ height: avatarSize / 2 + 20 }} />
+                {/* Amenities */}
+                <View className="flex-row flex-wrap gap-2 mb-4">
+                    {styles && styles.length > 0 ? (
+                        styles.slice(0, 3).map((amenity, idx) => (
+                            <View
+                                key={idx}
+                                className="bg-amber-50 border border-amber-200 rounded-full"
+                                style={{ 
+                                    paddingHorizontal: getResponsiveSize(10), 
+                                    paddingVertical: getResponsiveSize(4) 
+                                }}
+                            >
+                                <Text 
+                                    className="text-amber-700 font-medium"
+                                    style={{ fontSize: getResponsiveSize(11) }}
+                                >
+                                    {amenity}
+                                </Text>
+                            </View>
+                        ))
+                    ) : (
+                        <View className="bg-stone-50 rounded-full px-3 py-1">
+                            <Text 
+                                className="text-stone-500"
+                                style={{ fontSize: getResponsiveSize(11) }}
+                            >
+                                Địa điểm chuyên nghiệp
+                            </Text>
+                        </View>
+                    )}
+                </View>
 
-            {/* Name */}
-            <Text className="text-white text-xl font-bold text-center mb-1" numberOfLines={2}>
-                {name}
-            </Text>
-
-            {/* Address */}
-            {address && (
-                <Text className="text-gray-400 text-sm text-center mb-3 px-2" numberOfLines={2}>
-                    {address}
-                </Text>
-            )}
-
-            {/* Capacity and Rate */}
-            <View className="flex-row items-center justify-center mb-3 space-x-4">
-                {capacity && (
-                    <View className="flex-row items-center">
-                        <Ionicons name="people-outline" size={getResponsiveSize(14)} color="#32FAE9" />
-                        <Text className="text-white/80 text-sm ml-1">
-                            {capacity} people
-                        </Text>
-                    </View>
-                )}
-                {hourlyRate !== undefined && hourlyRate !== null && (
-                    <View className="flex-row items-center">
-                        <Ionicons name="cash-outline" size={getResponsiveSize(14)} color="#32FAE9" />
-                        <Text className="text-white/80 text-sm ml-1">
+                {/* Price và action */}
+                <View className="flex-row items-center justify-between">
+                    <View>
+                        <Text 
+                            className="text-stone-900 font-bold"
+                            style={{ fontSize: getResponsiveSize(16) }}
+                        >
                             {formatPrice(hourlyRate)}
                         </Text>
-                    </View>
-                )}
-            </View>
-
-            {/* Amenities */}
-            <View className="flex-row justify-center flex-wrap gap-2 mb-5 px-2">
-                {styles && styles.length > 0 ? (
-                    styles.slice(0, 3).map((amenity, idx) => (
-                        <TouchableOpacity
-                            key={idx}
-                            className="bg-white/10 px-3 py-1 rounded-full"
+                        <Text 
+                            className="text-stone-500"
+                            style={{ fontSize: getResponsiveSize(12) }}
                         >
-                            <Text className="text-white font-medium text-xs">{amenity}</Text>
-                        </TouchableOpacity>
-                    ))
-                ) : (
-                    <Text className="text-white/60 text-sm">No amenities listed</Text>
-                )}
-                {styles && styles.length > 3 && (
-                    <TouchableOpacity className="bg-white/10 px-3 py-1 rounded-full">
-                        <Text className="text-white font-medium text-xs">
-                            +{styles.length - 3} more
+                            /giờ
+                        </Text>
+                    </View>
+
+                    {/* Quick book button */}
+                    <TouchableOpacity
+                        className={`rounded-full px-4 py-2 ${
+                            availabilityStatus?.toLowerCase() === 'unavailable' 
+                                ? 'bg-stone-200' 
+                                : 'bg-emerald-500'
+                        }`}
+                        onPress={onBooking}
+                        disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
+                    >
+                        <Text 
+                            className={`font-medium ${
+                                availabilityStatus?.toLowerCase() === 'unavailable'
+                                    ? 'text-stone-500'
+                                    : 'text-white'
+                            }`}
+                            style={{ fontSize: getResponsiveSize(12) }}
+                        >
+                            {availabilityStatus?.toLowerCase() === 'unavailable' ? 'Unavailable' : 'Book Now'}
                         </Text>
                     </TouchableOpacity>
-                )}
+                </View>
             </View>
-
-            {/* Booking button */}
-            {onBooking && (
-                <TouchableOpacity
-                    className="bg-green-500 px-8 py-3 rounded-full mb-3 shadow-lg"
-                    onPress={onBooking}
-                    disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
-                    style={{
-                        opacity: availabilityStatus?.toLowerCase() === 'unavailable' ? 0.5 : 1
-                    }}
-                >
-                    <Text className="text-white font-semibold text-base">
-                        {availabilityStatus?.toLowerCase() === 'unavailable' ? 'Unavailable' : 'Book Location'}
-                    </Text>
-                </TouchableOpacity>
-            )}
-        </TouchableOpacity>
+        </View>
     );
 }
 

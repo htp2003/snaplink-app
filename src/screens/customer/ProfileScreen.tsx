@@ -1,633 +1,503 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, ActivityIndicator, RefreshControl, Alert } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  TouchableOpacity, 
+  ScrollView, 
+  Image, 
+  Animated,
+  StatusBar,
+  Dimensions 
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '../../navigation/types';
 import { getResponsiveSize } from '../../utils/responsive';
+import { useProfile } from '../../context/ProfileContext';
+import FavoritedModal from '../../components/FavoritedModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
-import { useCustomerProfile } from '../../hooks/useCustomerProfile';
-import { useFavorites } from '../../hooks/useFavorites';
-import ProfileMiniCard from '../../components/ProifileCard/ProfileMiniCard';
-import { PhotographerData } from '../../hooks/usePhotographers';
 
-const CustomerProfileScreen = () => {
+const { width } = Dimensions.get('window');
+const HEADER_HEIGHT = 60;
+
+const ProfileScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState('History');
+  const { profileData } = useProfile();
+  const [isModalVisible, setIsModalVisible] = useState(false);
   
-  const {
-    user,
-    stats,
-    loading,
-    refreshing,
-    error,
-    refresh,
-    clearError,
-    getRecentBookings,
-    getRecentTransactions,
-    getUnreadNotifications,
-    formatDate,
-    hasActiveSubscription,
-    getActiveSubscription,
-    getMembershipDuration,
-    isProfileComplete,
-    getProfileCompletionPercentage,
-    updateProfile,
-    updateProfileImage
-  } = useCustomerProfile();
+  const scrollY = useRef(new Animated.Value(0)).current;
+  
+  const favoritedUsers = [
+    { id: '1', name: 'John Doe', avatar: 'https://example.com/avatar1.jpg' },
+    { id: '2', name: 'Jane Smith', avatar: 'https://example.com/avatar2.jpg' },
+    { id: '3', name: 'Mike Johnson' },
+  ];
 
-  const { favorites, loading: favoritesLoading, isFavorite, toggleFavorite, refetch } = useFavorites();
+  // Smooth animation values
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [HEADER_HEIGHT - 20, HEADER_HEIGHT + 20],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
-  // Refresh on focus
-  useFocusEffect(
-    useCallback(() => {
-      refresh();
-      refetch(); // Refresh favorites when screen is focused
-    }, [])
+  const headerTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_HEIGHT],
+    outputRange: [-100, 0],
+    extrapolate: 'clamp',
+  });
+
+  const shadowOpacity = scrollY.interpolate({
+    inputRange: [HEADER_HEIGHT - 10, HEADER_HEIGHT + 10],
+    outputRange: [0, 0.1],
+    extrapolate: 'clamp',
+  });
+
+  const handleScroll = Animated.event(
+    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+    { useNativeDriver: false }
   );
 
-  // Handle refresh
-  const onRefresh = useCallback(() => {
-    refresh();
-    refetch();
-  }, [refresh, refetch]);
-
-  // Handle profile update
-  const handleUpdateProfile = useCallback(async () => {
-    try {
-      Alert.alert(
-        "Update Profile",
-        "Feature coming soon!",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "OK", onPress: () => navigation.navigate('EditProfile') }
-        ]
-      );
-    } catch (error) {
-      Alert.alert("Error", "Failed to update profile");
+  const menuItems = [
+    {
+      icon: 'settings-outline',
+      title: 'Cài đặt tài khoản',
+      hasNotification: true,
+      // onPress: () => navigation.navigate('Settings')
+    },
+    {
+      icon: 'help-circle-outline',
+      title: 'Nhận trợ giúp',
+      // onPress: () => navigation.navigate('Help')
+    },
+    {
+      icon: 'person-outline',
+      title: 'Xem hồ sơ',
+      // onPress: () => navigation.navigate('ViewProfile')
+    },
+    {
+      icon: 'hand-left-outline',
+      title: 'Quyền riêng tư',
+      // onPress: () => navigation.navigate('Privacy')
+    },
+    {
+      icon: 'people-outline',
+      title: 'Giới thiệu host',
+      // onPress: () => navigation.navigate('BecomeHost')
+    },
+    {
+      icon: 'business-outline',
+      title: 'Tìm đồng chủ nhà',
+      // onPress: () => navigation.navigate('FindCoHost')
+    },
+    {
+      icon: 'document-text-outline',
+      title: 'Pháp lý',
+      // onPress: () => navigation.navigate('Legal')
+    },
+    {
+      icon: 'log-out-outline',
+      title: 'Đăng xuất',
+      onPress: () => {/* Handle logout */}
     }
-  }, [navigation]);
+  ];
 
-  // Handle retry
-  const handleRetry = useCallback(() => {
-    clearError();
-    refresh();
-  }, [clearError, refresh]);
-
-  // Render star rating
-  const renderStarRating = (rating: number) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      stars.push(
-        <Ionicons
-          key={i}
-          name={i <= rating ? "star" : "star-outline"}
-          size={getResponsiveSize(12)}
-          color="#FFD700"
-        />
-      );
-    }
-    return stars;
+  const handleFavoritedPress = () => {
+    setIsModalVisible(true);
   };
 
-  // Get status color
-  const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case 'completed':
-        return '#32FAE9';
-      case 'pending':
-      case 'confirmed':
-        return '#FFD700';
-      case 'cancelled':
-        return '#FF6B6B';
-      default:
-        return '#666';
-    }
+  const handleModalClose = () => {
+    setIsModalVisible(false);
   };
 
-  // Loading state
-  if (loading) {
-    return (
-      <View className="flex-1 bg-black items-center justify-center">
-        <ActivityIndicator size="large" color="#32FAE9" />
-        <Text className="text-white mt-4">Loading profile...</Text>
-      </View>
-    );
-  }
+  const handleNotificationPress = () => {
+    // navigation.navigate('Notifications');
+  };
 
-  // Error state
-  if (error) {
-    return (
-      <View className="flex-1 bg-black items-center justify-center px-4">
-        <Ionicons name="alert-circle-outline" size={getResponsiveSize(48)} color="#FF6B6B" />
-        <Text className="text-white text-center mt-4 mb-6">{error}</Text>
-        <TouchableOpacity
-          onPress={handleRetry}
-          className="bg-[#32FAE9] px-6 py-3 rounded-lg"
-        >
-          <Text className="text-black font-semibold">Retry</Text>
-        </TouchableOpacity>
+  const renderMenuItem = (item: any, index: number) => (
+    <TouchableOpacity
+      key={index}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: index < menuItems.length - 1 ? 1 : 0,
+        borderBottomColor: '#F0F0F0'
+      }}
+      onPress={item.onPress}
+    >
+      <View style={{ position: 'relative' }}>
+        <Ionicons name={item.icon} size={24} color="#000000" />
+        {item.hasNotification && (
+          <View style={{
+            position: 'absolute',
+            top: -2,
+            right: -2,
+            width: 8,
+            height: 8,
+            borderRadius: 4,
+            backgroundColor: '#FF385C'
+          }} />
+        )}
       </View>
-    );
-  }
-
-  if (!user || !stats) {
-    return (
-      <View className="flex-1 bg-black items-center justify-center">
-        <Text className="text-white">No user data available</Text>
-      </View>
-    );
-  }
-
-  const recentBookings = getRecentBookings(5);
-  const recentTransactions = getRecentTransactions(5);
-  const activeSubscription = getActiveSubscription();
-  const unreadNotifications = getUnreadNotifications().length;
+      <Text style={{
+        flex: 1,
+        marginLeft: 16,
+        fontSize: 16,
+        color: '#000000'
+      }}>
+        {item.title}
+      </Text>
+      <Ionicons name="chevron-forward" size={20} color="#C0C0C0" />
+    </TouchableOpacity>
+  );
 
   return (
-    <ScrollView 
-      className="flex-1 bg-black"
-      contentContainerStyle={{ 
-        paddingBottom: 120 + insets.bottom
-      }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#32FAE9" />
-      }
-    >
-      {/* Profile Header */}
-      <View style={{ paddingTop: getResponsiveSize(50), paddingHorizontal: getResponsiveSize(20) }} className="items-center">
-        {/* Avatar Section */}
-        <View className="items-center mb-5">
-          <View style={{ 
-            width: getResponsiveSize(85), 
-            height: getResponsiveSize(85),
-            borderRadius: getResponsiveSize(42.5),
-            overflow: 'hidden',
-            borderWidth: 2,
-            borderColor: '#32FAE9'
-          }} className="bg-gray-700 mb-3 relative">
-            {user.profileImage ? (
-              <Image 
-                source={{ uri: user.profileImage }}
-                style={{ width: '100%', height: '100%' }}
-                resizeMode="cover"
-              />
-            ) : (
-              <View className="w-full h-full items-center justify-center">
-                <Ionicons name="person" size={getResponsiveSize(35)} color="#32FAE9" />
-              </View>
-            )}
-            
-            {/* Profile completion indicator */}
-            {!isProfileComplete() && (
-              <View style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                backgroundColor: '#FFD700',
-                borderRadius: getResponsiveSize(10),
-                width: getResponsiveSize(20),
-                height: getResponsiveSize(20),
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                <Text style={{ fontSize: getResponsiveSize(8), color: 'black', fontWeight: 'bold' }}>
-                  {getProfileCompletionPercentage()}%
-                </Text>
-              </View>
-            )}
-            
-            {/* Clickable overlay for profile image update */}
-            <TouchableOpacity 
-              style={{ 
-                position: 'absolute', 
-                bottom: 0, 
-                right: 0, 
-                backgroundColor: '#32FAE9',
-                borderRadius: getResponsiveSize(15),
-                width: getResponsiveSize(30),
-                height: getResponsiveSize(30),
+    <View style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+      
+      {/* Smooth Sticky Header */}
+      <Animated.View style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        height: HEADER_HEIGHT + insets.top,
+        backgroundColor: '#FFFFFF',
+        zIndex: 1000,
+        paddingTop: insets.top,
+        opacity: headerOpacity,
+        transform: [{ translateY: headerTranslateY }],
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: shadowOpacity,
+        shadowRadius: 4,
+        elevation: 4,
+      }}>
+        <Animated.View style={{
+          flex: 1,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 20,
+        }}>
+          <Animated.Text style={{ 
+            fontSize: 32, 
+            fontWeight: 'bold', 
+            color: '#000000',
+            opacity: headerOpacity,
+          }}>
+            Hồ sơ
+          </Animated.Text>
+          <Animated.View style={{ opacity: headerOpacity }}>
+            <TouchableOpacity
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#F7F7F7',
                 justifyContent: 'center',
                 alignItems: 'center'
               }}
-              onPress={handleUpdateProfile}
+              onPress={handleNotificationPress}
             >
-              <Ionicons name="camera" size={getResponsiveSize(16)} color="black" />
+              <Ionicons name="notifications-outline" size={24} color="#000000" />
+              <View style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: '#FF385C'
+              }} />
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
+
+      {/* Scrollable Content */}
+      <ScrollView
+        contentContainerStyle={{
+          paddingTop: insets.top + 20,
+          paddingBottom: insets.bottom + 100,
+        }}
+        showsVerticalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={8}
+      >
+        {/* Header trong scroll - sẽ scroll lên và trở thành sticky */}
+        <View style={{
+          height: HEADER_HEIGHT,
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingHorizontal: 20,
+          marginBottom: 20,
+        }}>
+          <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#000000' }}>
+            Hồ sơ
+          </Text>
+          <TouchableOpacity
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: '#F7F7F7',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            onPress={handleNotificationPress}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#000000" />
+            <View style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              width: 8,
+              height: 8,
+              borderRadius: 4,
+              backgroundColor: '#FF385C'
+            }} />
+          </TouchableOpacity>
+        </View>
+        {/* Profile Card */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+          <View style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 12,
+            padding: 20,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
+            <View style={{
+              width: 80,
+              height: 80,
+              borderRadius: 40,
+              backgroundColor: '#333333',
+              justifyContent: 'center',
+              alignItems: 'center',
+              marginBottom: 12
+            }}>
+              {profileData.avatar ? (
+                <Image 
+                  source={{ uri: profileData.avatar }}
+                  style={{ width: '100%', height: '100%', borderRadius: 40 }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: 'bold' }}>A</Text>
+              )}
+            </View>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#000000', marginBottom: 4 }}>
+              Anh Sơn
+            </Text>
+            <Text style={{ fontSize: 16, color: '#666666' }}>
+              Khách
+            </Text>
+          </View>
+        </View>
+        {/* Feature Cards */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            {/* Chuyến di trước đây */}
+            <TouchableOpacity style={{
+              flex: 0.48,
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              padding: 20,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}>
+              <View style={{
+                width: 40,
+                height: 32,
+                marginBottom: 12,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Ionicons name="briefcase" size={32} color="#8B7355" />
+              </View>
+              <View style={{
+                backgroundColor: '#6B73FF',
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 12,
+                marginBottom: 8
+              }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>MỚI</Text>
+              </View>
+              <Text style={{
+                fontSize: 16,
+                fontWeight: '600',
+                color: '#000000',
+                textAlign: 'center'
+              }}>
+                Chuyến đi{'\n'}trước đây
+              </Text>
+            </TouchableOpacity>
+
+            {/* Kết nối */}
+            <TouchableOpacity 
+              style={{
+                flex: 0.48,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                padding: 20,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+              onPress={handleFavoritedPress}
+            >
+              <View style={{
+                width: 60,
+                height: 32,
+                marginBottom: 12,
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <View style={{ flexDirection: 'row' }}>
+                  <View style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: '#4A90E2',
+                    marginRight: -5
+                  }} />
+                  <View style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: '#F5A623',
+                    marginRight: -5
+                  }} />
+                  <View style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 10,
+                    backgroundColor: '#7ED321'
+                  }} />
+                </View>
+              </View>
+              <View style={{
+                backgroundColor: '#6B73FF',
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 12,
+                marginBottom: 8
+              }}>
+                <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' }}>MỚI</Text>
+              </View>
+              <Text style={{
+                fontSize: 16,
+                fontWeight: '600',
+                color: '#000000',
+                textAlign: 'center'
+              }}>
+                Kết nối
+              </Text>
             </TouchableOpacity>
           </View>
-          
-          <Text style={{ fontSize: getResponsiveSize(22) }} className="font-bold text-white mb-1">
-            {user.fullName}
-          </Text>
-          <Text style={{ fontSize: getResponsiveSize(14) }} className="text-gray-400">
-            {user.email}
-          </Text>
-          
-          {/* Member Badge */}
-          <View className="flex-row items-center mt-2">
-            <View style={{
-              backgroundColor: 'rgba(50, 250, 233, 0.15)',
-              borderRadius: getResponsiveSize(12),
-              paddingHorizontal: getResponsiveSize(12),
-              paddingVertical: getResponsiveSize(4),
-              marginRight: getResponsiveSize(8),
-              borderWidth: 1,
-              borderColor: '#32FAE9'
-            }}>
-              <Text style={{ fontSize: getResponsiveSize(12) }} className="text-[#32FAE9] font-medium">
-                Member for {getMembershipDuration()}
-              </Text>
-            </View>
-            
-            {hasActiveSubscription() && (
+        </View>
+
+        {/* Host Invitation Card */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
+          <View style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 12,
+            padding: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={{
-                backgroundColor: 'rgba(255, 215, 0, 0.15)',
-                borderRadius: getResponsiveSize(12),
-                paddingHorizontal: getResponsiveSize(12),
-                paddingVertical: getResponsiveSize(4),
-                borderWidth: 1,
-                borderColor: '#FFD700'
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#FF385C',
+                justifyContent: 'center',
+                alignItems: 'center',
+                marginRight: 16
               }}>
-                <Text style={{ fontSize: getResponsiveSize(12) }} className="text-[#FFD700] font-medium">
-                  {activeSubscription?.planName || 'Premium'}
-                </Text>
+                <Ionicons name="home" size={20} color="#FFFFFF" />
               </View>
-            )}
-          </View>
-        </View>
-        
-        {/* Customer Stats Section */}
-        <View className="flex-row justify-around w-full mb-6">
-          <View className="items-center px-3">
-            <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">
-              {stats.totalBookings}
-            </Text>
-            <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">
-              Bookings
-            </Text>
-          </View>
-          
-          <View className="items-center px-3">
-            <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">
-              {stats.favoritePhotographers}
-            </Text>
-            <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">
-              Favorites
-            </Text>
-          </View>
-          
-          <View className="items-center px-3">
-            <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">
-              ${stats.totalSpent.toFixed(0)}
-            </Text>
-            <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">
-              Total Spent
-            </Text>
-          </View>
-          
-          <View className="items-center px-3">
-            <Text style={{ fontSize: getResponsiveSize(20) }} className="font-bold text-white">
-              {unreadNotifications}
-            </Text>
-            <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 font-medium">
-              Notifications
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Profile Completion Alert */}
-      {!isProfileComplete() && (
-        <View style={{ 
-          marginHorizontal: getResponsiveSize(20), 
-          marginBottom: getResponsiveSize(16),
-          backgroundColor: 'rgba(255, 215, 0, 0.1)',
-          borderRadius: getResponsiveSize(12),
-          padding: getResponsiveSize(12),
-          borderWidth: 1,
-          borderColor: '#FFD700'
-        }}>
-          <View className="flex-row items-center">
-            <Ionicons name="warning-outline" size={getResponsiveSize(20)} color="#FFD700" />
-            <Text style={{ fontSize: getResponsiveSize(14), marginLeft: getResponsiveSize(8) }} className="text-white flex-1">
-              Complete your profile ({getProfileCompletionPercentage()}%) to unlock all features
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Action Buttons */}
-      <View style={{ paddingHorizontal: getResponsiveSize(20) }} className="mb-6">
-        <View className="flex-row gap-2 mb-3">
-          <TouchableOpacity 
-            onPress={handleUpdateProfile} 
-            style={{ 
-              flex: 1,
-              paddingVertical: getResponsiveSize(12),
-              borderRadius: getResponsiveSize(20)
-            }} 
-            className="flex-row items-center justify-center bg-[#32FAE9]"
-          >
-            <Ionicons name="create-outline" size={getResponsiveSize(18)} color="black" />
-            <Text style={{ fontSize: getResponsiveSize(13) }} className="text-black ml-1 font-bold">
-              Edit Profile
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            
-            style={{ 
-              paddingVertical: getResponsiveSize(12),
-              paddingHorizontal: getResponsiveSize(16),
-              borderRadius: getResponsiveSize(20),
-              borderWidth: 1.5,
-              borderColor: '#32FAE9'
-            }} 
-            className="items-center justify-center"
-          >
-            <Ionicons name="settings-outline" size={getResponsiveSize(18)} color="#32FAE9" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Tab Navigation */}
-      <View className="flex-row border-b border-gray-800 mx-4">
-        <TouchableOpacity 
-          className="flex-1 items-center py-3"
-          style={{ borderBottomWidth: activeTab === 'History' ? 2 : 0, borderBottomColor: '#32FAE9' }}
-          onPress={() => setActiveTab('History')}
-        >
-          <Ionicons 
-            name="time-outline" 
-            size={getResponsiveSize(22)} 
-            color={activeTab === 'History' ? '#32FAE9' : '#666'} 
-          />
-          <Text style={{ 
-            fontSize: getResponsiveSize(11), 
-            color: activeTab === 'History' ? '#32FAE9' : '#666',
-            marginTop: getResponsiveSize(3)
-          }} className="font-medium">
-            History
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          className="flex-1 items-center py-3"
-          style={{ borderBottomWidth: activeTab === 'Favorites' ? 2 : 0, borderBottomColor: '#32FAE9' }}
-          onPress={() => setActiveTab('Favorites')}
-        >
-          <Ionicons 
-            name="heart-outline" 
-            size={getResponsiveSize(22)} 
-            color={activeTab === 'Favorites' ? '#32FAE9' : '#666'} 
-          />
-          <Text style={{ 
-            fontSize: getResponsiveSize(11), 
-            color: activeTab === 'Favorites' ? '#32FAE9' : '#666',
-            marginTop: getResponsiveSize(3)
-          }} className="font-medium">
-            Favorites
-          </Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          className="flex-1 items-center py-3"
-          style={{ borderBottomWidth: activeTab === 'Transactions' ? 2 : 0, borderBottomColor: '#32FAE9' }}
-          onPress={() => setActiveTab('Transactions')}
-        >
-          <Ionicons 
-            name="card-outline" 
-            size={getResponsiveSize(22)} 
-            color={activeTab === 'Transactions' ? '#32FAE9' : '#666'} 
-          />
-          <Text style={{ 
-            fontSize: getResponsiveSize(11), 
-            color: activeTab === 'Transactions' ? '#32FAE9' : '#666',
-            marginTop: getResponsiveSize(3)
-          }} className="font-medium">
-            Transactions
-          </Text>
-        </TouchableOpacity>
-      </View>
-        
-      {/* History Tab Content */}
-      {activeTab === 'History' && (
-        <View style={{ paddingHorizontal: getResponsiveSize(20), paddingTop: getResponsiveSize(20) }}>
-          {recentBookings.length > 0 ? (
-            recentBookings.map((booking) => (
-              <View key={booking.id} style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                borderRadius: getResponsiveSize(12),
-                padding: getResponsiveSize(16),
-                marginBottom: getResponsiveSize(12),
-                borderWidth: 1,
-                borderColor: 'rgba(255, 255, 255, 0.1)'
-              }}>
-                <View className="flex-row items-center justify-between mb-3">
-                  <View className="flex-1">
-                    <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white font-semibold">
-                      Booking #{booking.id}
-                    </Text>
-                    <Text style={{ fontSize: getResponsiveSize(14) }} className="text-gray-400">
-                      {booking.notes || 'Photography Service'}
-                    </Text>
-                  </View>
-                  <View style={{
-                    backgroundColor: `${getStatusColor(booking.status)}20`,
-                    paddingHorizontal: getResponsiveSize(8),
-                    paddingVertical: getResponsiveSize(4),
-                    borderRadius: getResponsiveSize(8),
-                    borderWidth: 1,
-                    borderColor: getStatusColor(booking.status)
-                  }}>
-                    <Text style={{ 
-                      fontSize: getResponsiveSize(11), 
-                      color: getStatusColor(booking.status) 
-                    }} className="font-medium">
-                      {booking.status}
-                    </Text>
-                  </View>
-                </View>
-                
-                <View className="flex-row items-center justify-between">
-                  <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-500">
-                    {formatDate(booking.bookingDate)}
-                  </Text>
-                  <Text style={{ fontSize: getResponsiveSize(14) }} className="text-[#32FAE9] font-semibold">
-                    ${booking.totalAmount.toFixed(2)}
-                  </Text>
-                </View>
-                
-                {booking.rating && (
-                  <View className="flex-row items-center mt-2">
-                    <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400 mr-2">
-                      Your rating:
-                    </Text>
-                    <View className="flex-row">
-                      {renderStarRating(booking.rating)}
-                    </View>
-                  </View>
-                )}
-              </View>
-            ))
-          ) : (
-            <View className="items-center py-8">
-              <View style={{
-                width: getResponsiveSize(65),
-                height: getResponsiveSize(65),
-                borderRadius: getResponsiveSize(32.5),
-                backgroundColor: 'rgba(50, 250, 233, 0.2)',
-                marginBottom: getResponsiveSize(16)
-              }} className="items-center justify-center">
-                <Ionicons name="time-outline" size={getResponsiveSize(32)} color="#32FAE9" />
-              </View>
-              
-              <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white font-semibold mb-2">
-                No bookings yet
-              </Text>
-              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-gray-400 text-center px-8">
-                Start booking amazing photographers for your events
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-        
-      {/* Favorites Tab Content */}
-      {activeTab === 'Favorites' && (
-        <View style={{ paddingHorizontal: getResponsiveSize(20), paddingTop: getResponsiveSize(20) }}>
-          {favoritesLoading ? (
-            <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-              <ActivityIndicator color="#FF6B6B" size="large" />
-              <Text style={{ color: 'white', marginTop: 12 }}>Loading favorites...</Text>
-            </View>
-          ) : (() => {
-            const favoritePhotographers = favorites.filter(item => item.type === 'photographer');
-            return favoritePhotographers.length > 0 ? (
-              favoritePhotographers.map(item => {
-                const photographer = item.data as PhotographerData;
-                const avatar = Array.isArray(photographer.images) && photographer.images.length > 0 ? photographer.images[0] : undefined;
-                return (
-                  <ProfileMiniCard
-                    key={item.id}
-                    id={item.id}
-                    fullName={photographer.fullName}
-                    avatar={avatar}
-                    styles={photographer.styles}
-                    isFavorite={isFavorite(item.id)}
-                    isBooked={!!user?.bookings?.$values?.some(b => b.photographerId?.toString() === item.id)}
-                    onFavoriteToggle={() => toggleFavorite(item)}
-                    onPress={() => {
-                      navigation.navigate('PhotographerCardDetail', { photographerId: item.id });
-                    }}    
-                  />
-                );
-              })
-            ) : (
-              <View className="items-center py-8">
-                <View style={{
-                  width: getResponsiveSize(65),
-                  height: getResponsiveSize(65),
-                  borderRadius: getResponsiveSize(32.5),
-                  backgroundColor: 'rgba(50, 250, 233, 0.2)',
-                  marginBottom: getResponsiveSize(16),
-                  alignItems: 'center',
-                  justifyContent: 'center'
+              <View style={{ flex: 1 }}>
+                <Text style={{
+                  fontSize: 18,
+                  fontWeight: '600',
+                  color: '#000000',
+                  marginBottom: 4
                 }}>
-                  <Ionicons name="heart-outline" size={getResponsiveSize(32)} color="#32FAE9" />
-                </View>
-                <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white font-semibold mb-2">
-                  No favorites yet
+                  Trở thành host
                 </Text>
-                <Text style={{ fontSize: getResponsiveSize(13), color: '#aaa', textAlign: 'center', paddingHorizontal: getResponsiveSize(24) }}>
-                  Your favorite photographers will appear here
+                <Text style={{
+                  fontSize: 14,
+                  color: '#666666',
+                  lineHeight: 20
+                }}>
+                  Bắt đầu đón tiếp khách và kiếm thêm thu nhập thật dễ dàng.
                 </Text>
               </View>
-            );
-          })()}
-
-        </View>
-      )}
-
-      {/* Transactions Tab Content */}
-      {activeTab === 'Transactions' && (
-        <View style={{ paddingHorizontal: getResponsiveSize(20), paddingTop: getResponsiveSize(20) }}>
-          {recentTransactions.length > 0 ? (
-            recentTransactions.map((transaction) => (
-              <TouchableOpacity 
-                key={transaction.id} 
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  borderRadius: getResponsiveSize(12),
-                  padding: getResponsiveSize(16),
-                  marginBottom: getResponsiveSize(12),
-                  borderWidth: 1,
-                  borderColor: 'rgba(255, 255, 255, 0.1)'
-                }}
-                onPress={() => {
-                  Alert.alert(
-                    "Transaction Details",
-                    `Amount: ${transaction.amount}\nDate: ${formatDate(transaction.transactionDate)}\nStatus: ${transaction.status}\nType: ${transaction.transactionType}`,
-                    [{ text: "OK" }]
-                  );
-                }}
-              >
-                <View className="flex-row items-center justify-between mb-2">
-                  <View className="flex-1">
-                    <Text style={{ fontSize: getResponsiveSize(16) }} className="text-white font-semibold">
-                      {transaction.description}
-                    </Text>
-                    <Text style={{ fontSize: getResponsiveSize(12) }} className="text-gray-400">
-                      {formatDate(transaction.transactionDate)} • {transaction.transactionType}
-                    </Text>
-                  </View>
-                  <View className="items-end">
-                    <Text style={{ 
-                      fontSize: getResponsiveSize(16), 
-                      color: transaction.amount > 0 ? '#32FAE9' : '#FF6B6B' 
-                    }} className="font-semibold">
-                      {transaction.amount > 0 ? '+' : ''}${Math.abs(transaction.amount).toFixed(2)}
-                    </Text>
-                    <Text style={{ 
-                      fontSize: getResponsiveSize(11), 
-                      color: getStatusColor(transaction.status) 
-                    }} className="font-medium">
-                      {transaction.status}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          ) : (
-            <View className="items-center py-8">
-              <View style={{
-                width: getResponsiveSize(65),
-                height: getResponsiveSize(65),
-                borderRadius: getResponsiveSize(32.5),
-                backgroundColor: 'rgba(50, 250, 233, 0.2)',
-                marginBottom: getResponsiveSize(16)
-              }} className="items-center justify-center">
-                <Ionicons name="card-outline" size={getResponsiveSize(32)} color="#32FAE9" />
-              </View>
-              
-              <Text style={{ fontSize: getResponsiveSize(18) }} className="text-white font-semibold mb-2">
-                No transactions yet
-              </Text>
-              <Text style={{ fontSize: getResponsiveSize(13) }} className="text-gray-400 text-center px-8">
-                Your payment history will appear here
-              </Text>
             </View>
-          )}
+          </View>
         </View>
-      )}
-      
-      {/* Bottom Spacing */}
-      <View style={{ height: getResponsiveSize(30) }} />
-    </ScrollView>
+
+        {/* Menu Items */}
+        <View style={{
+          backgroundColor: '#FFFFFF',
+          marginHorizontal: 16,
+          borderRadius: 12,
+          overflow: 'hidden',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}>
+          {menuItems.map((item, index) => renderMenuItem(item, index))}
+        </View>
+
+        {/* Version Info */}
+        <View style={{ 
+          alignItems: 'center', 
+          paddingVertical: 30,
+          paddingHorizontal: 20 
+        }}>
+          <Text style={{ 
+            fontSize: 12, 
+            color: '#999999',
+            textAlign: 'center'
+          }}>
+            Phiên bản 1.0.0 (Build 100)
+          </Text>
+        </View>
+      </ScrollView>
+
+      {/* Modal */}
+      <FavoritedModal 
+        visible={isModalVisible}
+        favoritedUsers={favoritedUsers}
+        onClose={handleModalClose}
+      />
+    </View>
   );
 };
 
-export default CustomerProfileScreen;
+export default ProfileScreen;

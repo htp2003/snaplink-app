@@ -15,6 +15,8 @@ import LocationCard from '../../components/LocationCard/LocationCard';
 import { useNavigation } from '@react-navigation/native';
 import CategoryTabs, { CategoryItem } from '../../components/CategoryTabs';
 import { SearchBar } from '../../components/SearchBar';
+import { useCurrentUserId } from '../../hooks/useAuth';
+import { photographerStyleRecommendations } from '../../hooks/useStyleRecommendations';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -23,12 +25,21 @@ export default function CustomerHomeScreen() {
   const [selectedCategory, setSelectedCategory] = useState('photographers');
   const [textWidths, setTextWidths] = useState<{ [key: string]: number }>({});
 
+  const currentUserId = useCurrentUserId();
+
   const {
     photographers,
     loading: photographersLoading,
     error: photographersError,
     fetchFeaturedPhotographers,
   } = usePhotographers();
+
+  const {
+    recommendedPhotographers,
+    loading: recommendationsLoading,
+    error: recommendationsError,
+    refreshRecommendations,
+  } = photographerStyleRecommendations(currentUserId || 0);
 
   const {
     locations,
@@ -177,14 +188,14 @@ export default function CustomerHomeScreen() {
                 {photographersLoading ? (
                   [1, 2, 3].map((_, index) => (
                     <View
-                      key={`loading-${index}`}
+                      key={`loading-recommendations-${index}`}
                       className="w-64 h-72 bg-stone-100 rounded-2xl mr-3"
                     />
                   ))
-                ) : photographers.length > 0 ? (
-                  photographers.map((photographer) => (
+                ) : recommendedPhotographers.length > 0 ? (
+                  recommendedPhotographers.map((photographer) => (
                     <View
-                      key={photographer.id}
+                      key={`recommended-${photographer.id}`}
                       style={{ width: getResponsiveSize(260), marginRight: 12 }}
                     >
                       <PhotographerCard
@@ -212,10 +223,22 @@ export default function CustomerHomeScreen() {
                   ))
                 ) : (
                   <View className="flex-1 items-center justify-center py-8">
-                    <Text className="text-stone-500 text-center">
-                      Không có thợ chụp ảnh nào
-                    </Text>
-                  </View>
+                  <Text className="text-stone-500 text-center">
+                    {recommendationsError 
+                      ? 'Không thể tải gợi ý theo style' 
+                      : !currentUserId 
+                      ? 'Vui lòng đăng nhập để xem gợi ý'
+                      : 'Chưa có gợi ý theo style'}
+                  </Text>
+                  {recommendationsError && currentUserId && (
+                    <TouchableOpacity
+                      className="mt-2 px-4 py-2 bg-stone-200 rounded-lg"
+                      onPress={refreshRecommendations}
+                    >
+                      <Text className="text-stone-700">Thử lại</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
                 )}
               </ScrollView>
             </View>

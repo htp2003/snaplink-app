@@ -102,3 +102,22 @@ export interface PhotographerStats {
   totalReviews: number;
   favoriteCount: number;
 }
+
+export interface RecommendedPhotographer {
+  photographerId: number;
+  fullName: string;
+  specialty: string;
+  hourlyRate: number;
+  rating: number;
+  availabilityStatus: string;
+  profileImage: string;
+  verificationStatus: string;
+}
+
+export interface StyleRecommendation {
+  styleId: number;
+  styleName: string;
+  styleDescription: string;
+  photographerCount: number;
+  recommendedPhotographers: RecommendedPhotographer[];
+}

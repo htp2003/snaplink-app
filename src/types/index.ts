@@ -1,6 +1,6 @@
 export * from './photographer';
 export * from './location';
-export * from './review';
+export { Review as GeneralReview } from './review';
 export * from './user';
 export {
     UserProfile,

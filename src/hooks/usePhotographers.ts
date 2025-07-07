@@ -39,13 +39,8 @@ export const usePhotographers = () => {
     return {
       id: photographer.photographerId.toString(),
       fullName: photographer.fullName || 'Unknown Photographer',
-      avatar: photographer.profileImage || 'https://via.placeholder.com/150',
-      images: photographer.profileImage ? [photographer.profileImage] : [
-        'https://via.placeholder.com/300x300?text=Portfolio+1',
-        'https://via.placeholder.com/300x300?text=Portfolio+2',
-        'https://via.placeholder.com/300x300?text=Portfolio+3',
-        'https://via.placeholder.com/300x300?text=Portfolio+4',
-      ],
+      avatar: photographer.profileImage || 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300&auto=format&fit=crop&q=80',
+      images: photographer.profileImage ? [photographer.profileImage] : [],
       styles,
       rating: photographer.rating,
       hourlyRate: photographer.hourlyRate,

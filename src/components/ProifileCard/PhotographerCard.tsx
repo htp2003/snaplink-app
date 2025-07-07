@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Image, Text, TouchableOpacity, Dimensions } from "react-native";
+import { View, Image, Text, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
 import { getResponsiveSize } from "../../utils/responsive";
@@ -34,248 +34,175 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
     onFavoriteToggle,
     isFavorite
 }) => {
-    // Tính toán kích thước responsive cho các thành phần
-    const avatarSize = getResponsiveSize(80); // Kích thước avatar
-    const cardPadding = getResponsiveSize(16); // Padding cho card
-
     const navigation = useNavigation<RootStackNavigationProp>();
+    
     const handlePress = () => {
         navigation.navigate('PhotographerCardDetail', { photographerId: id });
     }
 
     // Helper function để format currency
     const formatPrice = (price?: number) => {
-        if (!price) return 'Contact for price';
-        return `$${price.toLocaleString()}/hr`;
-    };
-    console.log('hourlyRate:', hourlyRate, 'formatPrice:', formatPrice(hourlyRate));
-
-    // Helper function để render availability status
-    const getAvailabilityColor = (status?: string) => {
-        switch (status?.toLowerCase()) {
-            case 'available':
-                return '#10B981'; // green
-            case 'busy':
-                return '#F59E0B'; // yellow
-            case 'unavailable':
-                return '#EF4444'; // red
-            default:
-                return '#6B7280'; // gray
-        }
+        if (!price) return 'Liên hệ để biết giá';
+        return `₫${price.toLocaleString()}`;
     };
 
-    // Helper function để render rating stars
+    // Helper function để render rating
     const renderRating = (rating?: number) => {
-        if (!rating) return null;
-        
-        const stars = [];
-        const fullStars = Math.floor(rating);
-        const hasHalfStar = rating % 1 !== 0;
-        
-        for (let i = 0; i < fullStars; i++) {
-            stars.push(
-                <Ionicons key={i} name="star" size={getResponsiveSize(14)} color="#FFD700" />
-            );
-        }
-        
-        if (hasHalfStar) {
-            stars.push(
-                <Ionicons key="half" name="star-half" size={getResponsiveSize(14)} color="#FFD700" />
-            );
-        }
-        
-        const emptyStars = 5 - Math.ceil(rating);
-        for (let i = 0; i < emptyStars; i++) {
-            stars.push(
-                <Ionicons key={`empty-${i}`} name="star-outline" size={getResponsiveSize(14)} color="#6B7280" />
-            );
-        }
+        if (!rating) return (
+            <Text 
+                className="text-stone-900 font-medium"
+                style={{ fontSize: getResponsiveSize(14) }}
+            >
+                5.0
+            </Text>
+        );
         
         return (
             <View className="flex-row items-center">
-                {stars}
-                <Text className="text-white/80 text-xs ml-1">
-                    ({rating.toFixed(1)})
+                <Ionicons name="star" size={getResponsiveSize(16)} color="#d97706" />
+                <Text 
+                    className="text-stone-900 font-medium ml-1"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                >
+                    {rating.toFixed(1)}
                 </Text>
             </View>
         );
     };
 
-    // Xử lý images từ API
-    const displayImages = images.length > 0 ? images : [
-        // Default placeholder images nếu không có ảnh từ API
-        
+    // Lấy ảnh chính để hiển thị (ưu tiên images[0], fallback là avatar, hoặc placeholder)
+    const fallbackImages = [
+        'https://images.unsplash.com/photo-1554048612-b6eb0d27b92e?w=400&h=300&fit=crop', // Portrait photographer
+        'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400&h=300&fit=crop', // Wedding photographer  
+        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=300&fit=crop', // Male photographer
+        'https://images.unsplash.com/photo-1494790108755-2616b612b494?w=400&h=300&fit=crop', // Female photographer
+        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=300&fit=crop', // Professional photographer
     ];
 
+    // Logic để chọn ảnh hiển thị
+    let mainImage;
+    if (images.length > 0) {
+        mainImage = images[0]; // Ưu tiên ảnh từ API
+    } else if (avatar) {
+        mainImage = avatar; // Fallback về avatar
+    } else {
+        // Random placeholder image để test đa dạng
+        const randomIndex = Math.abs(id.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % fallbackImages.length;
+        mainImage = fallbackImages[randomIndex];
+    }
+
+    const displayName = fullName || 'Photographer';
+    const specialty = styles.length > 0 ? styles[0] : 'Professional Photographer';
+
     return (
-        <TouchableOpacity onPress={handlePress} className="rounded-2xl items-center mt-4 relative border border-[#32FAE9]/20 bg-gray-900/50">
-            {/* Container cho cụm ảnh và avatar */}
-            <View className="w-full">
-                {/* 4 images small */}
-                <View className="w-full flex-row flex-wrap justify-between gap-1 p-2">
-                    {displayImages.slice(0, 4).map((img, index) => (
-                        <Image
-                            key={index}
-                            source={typeof img === 'string' ? { uri: img } : img}
-                            className="w-[49%] aspect-square rounded-lg"
-                            resizeMode="cover"
-                            onError={() => console.log(`Failed to load image ${index}`)}
-                        />
-                    ))}
-                </View>
-
-                {/* Availability Status Badge */}
-                {availabilityStatus && (
-                    <View
-                        style={{
-                            position: 'absolute',
-                            top: getResponsiveSize(10),
-                            left: getResponsiveSize(10),
-                            backgroundColor: getAvailabilityColor(availabilityStatus),
-                            borderRadius: getResponsiveSize(12),
-                            paddingHorizontal: getResponsiveSize(8),
-                            paddingVertical: getResponsiveSize(4),
-                            zIndex: 10,
-                        }}
-                    >
-                        <Text className="text-white text-xs font-medium capitalize">
-                            {availabilityStatus}
-                        </Text>
-                    </View>
-                )}
-
+        <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
+            {/* Main Image */}
+            <TouchableOpacity onPress={handlePress} className="relative">
+                <Image
+                    source={typeof mainImage === 'string' ? { uri: mainImage } : mainImage}
+                    style={{ width: '100%', height: getResponsiveSize(240) }}
+                    className="bg-stone-200"
+                    resizeMode="cover"
+                    onError={() => console.log('Failed to load main image')}
+                />
+                
                 {/* Favorite Button */}
                 <TouchableOpacity
-                    style={{
-                        position: 'absolute',
-                        top: getResponsiveSize(10),
-                        right: getResponsiveSize(10),
-                        zIndex: 10,
-                        backgroundColor: 'rgba(0,0,0,0.5)',
-                        borderRadius: getResponsiveSize(15),
-                        padding: getResponsiveSize(5),
-                    }}
+                    className="absolute top-3 right-3"
+                    style={{ padding: getResponsiveSize(8) }}
                     onPress={onFavoriteToggle}
                 >
                     <Ionicons
                         name={isFavorite ? "heart" : "heart-outline"}
-                        size={getResponsiveSize(20)}
-                        color={isFavorite ? "#FF375F" : "white"}
+                        size={getResponsiveSize(24)}
+                        color={isFavorite ? "#ef4444" : "white"}
                     />
                 </TouchableOpacity>
 
-                {/* Avatar đè lên 2 ảnh dưới */}
-                <View
-                    style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        right: 0,
-                        alignItems: 'center',
-                        transform: [{ translateY: avatarSize / 2 }],
-                        zIndex: 10,
+                {/* Availability Badge */}
+                {availabilityStatus && availabilityStatus.toLowerCase() === 'available' && (
+                    <View 
+                        className="absolute top-3 left-3 bg-emerald-500 rounded-full"
+                        style={{ 
+                            paddingHorizontal: getResponsiveSize(8), 
+                            paddingVertical: getResponsiveSize(4) 
+                        }}
+                    >
+                        <Text 
+                            className="text-white font-medium"
+                            style={{ fontSize: getResponsiveSize(12) }}
+                        >
+                            Available
+                        </Text>
+                    </View>
+                )}
+
+                {/* Guest favorite badge (like in sample) */}
+                <View 
+                    className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-full"
+                    style={{ 
+                        paddingHorizontal: getResponsiveSize(12), 
+                        paddingVertical: getResponsiveSize(4) 
                     }}
                 >
-                    <View className="relative">
-                        <Image
-                            source={typeof avatar === 'string' ? { uri: avatar } : avatar}
-                            style={{
-                                width: avatarSize,
-                                height: avatarSize,
-                                borderRadius: avatarSize / 2,
-                                borderWidth: 3,
-                                borderColor: '#232449'
-                            }}
-                            onError={() => console.log('Failed to load avatar')}
-                        />
-                        {/* Verification badge */}
-                        <View 
-                            style={{
-                                position: 'absolute',
-                                bottom: 0,
-                                right: 0,
-                                backgroundColor: '#10B981',
-                                borderRadius: getResponsiveSize(10),
-                                padding: getResponsiveSize(2),
-                                borderWidth: 2,
-                                borderColor: '#232449'
-                            }}
-                        >
-                            <Ionicons name="checkmark" size={getResponsiveSize(12)} color="white" />
-                        </View>
-                    </View>
+                    <Text 
+                        className="text-stone-800 font-medium"
+                        style={{ fontSize: getResponsiveSize(12) }}
+                    >
+                        Được khách yêu thích
+                    </Text>
                 </View>
-            </View>
+            </TouchableOpacity>
 
-            <View style={{ height: avatarSize / 2 + 20 }} />
+            {/* Card Content */}
+            <View style={{ padding: getResponsiveSize(4)}}>
+                {/* Name and Specialty */}
+                <View style={{ marginBottom: getResponsiveSize(8) }}>
+                    <Text 
+                        className="text-stone-900 font-medium leading-tight" 
+                        style={{ fontSize: getResponsiveSize(16) }}
+                        numberOfLines={1}
+                    >
+                        {displayName}
+                    </Text>
+                    <Text 
+                        className="text-stone-600" 
+                        style={{ fontSize: getResponsiveSize(14), marginTop: getResponsiveSize(4) }}
+                        numberOfLines={1}
+                    >
+                        {specialty}
+                    </Text>
+                </View>
 
-            {/* Name */}
-            <Text className="text-white text-xl font-bold text-center mb-1">{fullName}</Text>
+                {/* Additional info - can show experience or location */}
+                {yearsExperience && (
+                    <Text 
+                        className="text-stone-600"
+                        style={{ 
+                            fontSize: getResponsiveSize(14), 
+                            marginBottom: getResponsiveSize(8) 
+                        }}
+                    >
+                        {yearsExperience} năm kinh nghiệm
+                    </Text>
+                )}
 
-            {/* Rating */}
-            {rating && (
-                <View className="mb-2">
+                {/* Price and Rating */}
+                <View className="flex-row items-center justify-between">
+                    <View>
+                        <Text className="text-stone-600" style={{ fontSize: getResponsiveSize(14) }}>
+                            <Text 
+                                className="text-stone-900 font-semibold"
+                                style={{ fontSize: getResponsiveSize(14) }}
+                            >
+                                {formatPrice(hourlyRate)}
+                            </Text> / giờ
+                        </Text>
+                    </View>
                     {renderRating(rating)}
                 </View>
-            )}
-
-            {/* Experience and Rate */}
-            <View className="flex-row items-center justify-center mb-3 space-x-4">
-                {/* {yearsExperience && (
-                    <View className="flex-row items-center">
-                        <Ionicons name="time-outline" size={getResponsiveSize(14)} color="#32FAE9" />
-                        <Text className="text-white/80 text-sm ml-1">
-                            {yearsExperience} years
-                        </Text>
-                    </View>
-                )} */}
-                {hourlyRate !== undefined && hourlyRate !== null && (
-                    <View className="flex-row items-center">
-                        <Ionicons name="cash-outline" size={getResponsiveSize(14)} color="#32FAE9" />
-                        <Text className="text-white/80 text-sm ml-1">
-                            {formatPrice(hourlyRate)}
-                        </Text>
-                    </View>
-                )}
             </View>
-
-            {/* Styles */}
-            <View className="flex-row justify-center flex-wrap gap-2 mb-5 px-2">
-                {styles.length > 0 ? (
-                    styles.slice(0, 3).map((style, idx) => (
-                        <TouchableOpacity
-                            key={idx}
-                            className="bg-white/10 px-3 py-1 rounded-full"
-                        >
-                            <Text className="text-white font-medium text-xs">{style}</Text>
-                        </TouchableOpacity>
-                    ))
-                ) : (
-                    <Text className="text-white/60 text-sm">No specialties listed</Text>
-                )}
-                {styles.length > 3 && (
-                    <TouchableOpacity className="bg-white/10 px-3 py-1 rounded-full">
-                        <Text className="text-white font-medium text-xs">
-                            +{styles.length - 3} more
-                        </Text>
-                    </TouchableOpacity>
-                )}
-            </View>
-
-            {/* Booking button */}
-            <TouchableOpacity
-                className="bg-blue-500 px-8 py-3 rounded-full mb-3 shadow-lg"
-                onPress={onBooking}
-                disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
-                style={{
-                    opacity: availabilityStatus?.toLowerCase() === 'unavailable' ? 0.5 : 1
-                }}
-            >
-                <Text className="text-white font-semibold text-base">
-                    {availabilityStatus?.toLowerCase() === 'unavailable' ? 'Unavailable' : 'Book now'}
-                </Text>
-            </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
     );
 }
 

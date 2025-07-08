@@ -8,6 +8,7 @@ import { RootStackParamList } from '../../navigation/types';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
 import { usePhotographerDetail } from '../../hooks/usePhotographerDetail';
+import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ProfileCardDetailRouteProp = RouteProp<RootStackParamList, 'PhotographerCardDetail'>;
@@ -24,6 +25,7 @@ export default function PhotographerCardDetail() {
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
+  const { trackView } = useRecentlyViewed();
   const { photographerDetail, loading, error, fetchPhotographerById } = usePhotographerDetail();
 
   useEffect(() => {
@@ -31,6 +33,35 @@ export default function PhotographerCardDetail() {
       fetchPhotographerById(photographerId);
     }
   }, [photographerId]);
+
+
+  // Track recently viewed khi có data
+  useEffect(() => {
+    if (photographerDetail) {
+      console.log('Tracking photographer view:', photographerDetail.photographerId);
+      
+      // Track view với data structure phù hợp
+      trackView({
+        id: photographerDetail.photographerId.toString(),
+        type: 'photographer',
+        data: {
+          id: photographerDetail.photographerId.toString(),
+          fullName: photographerDetail.fullName || 'Unknown Photographer',
+          avatar: photographerDetail.profileImage || '',
+          images: photographerDetail.portfolioUrl ? [photographerDetail.portfolioUrl] : [],
+          styles: Array.isArray(photographerDetail.styles)
+            ? photographerDetail.styles
+            : (photographerDetail.styles && '$values' in photographerDetail.styles)
+              ? (photographerDetail.styles as any).$values
+              : [photographerDetail.specialty || 'Photography'],
+          rating: photographerDetail.rating,
+          hourlyRate: photographerDetail.hourlyRate,
+          availabilityStatus: photographerDetail.availabilityStatus,
+          specialty: photographerDetail.specialty,
+        }
+      });
+    }
+  }, [photographerDetail, trackView]);
 
   useEffect(() => {
     if (error) {
@@ -44,6 +75,8 @@ export default function PhotographerCardDetail() {
       );
     }
   }, [error]);
+
+
 
   const handleToggleFavorite = () => {
     if (!photographerDetail) return;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { PhotographerData } from "./usePhotographers";
@@ -12,14 +12,45 @@ export interface FavoriteItem {
   data: PhotographerData | LocationData;
 }
 
+// Global state để đồng bộ cross screens
+let globalFavorites: FavoriteItem[] = [];
+let listeners: Set<() => void> = new Set();
+
+const notifyListeners = () => {
+  listeners.forEach(listener => listener());
+};
+
 export function useFavorites() {
-  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>(globalFavorites);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Subscribe to global changes - ĐƠN GIẢN HÓA
   useEffect(() => {
-    loadFavorites();
-  }, []);
+    const listener = () => {
+      console.log('Global favorites changed, updating local state');
+      setFavorites([...globalFavorites]);
+    };
+    
+    listeners.add(listener);
+    
+    // Initial sync
+    setFavorites([...globalFavorites]);
+    
+    return () => {
+      listeners.delete(listener);
+    };
+  }, []); // Empty deps - chỉ setup một lần
+
+  useEffect(() => {
+    // CHỈ load nếu chưa có data
+    if (globalFavorites.length === 0) {
+      loadFavorites();
+    } else {
+      setLoading(false);
+      setFavorites([...globalFavorites]);
+    }
+  }, []); // Chỉ chạy một lần khi mount
 
   // Create unique key by combining type and id
   const createUniqueKey = (type: string, id: string) => `${type}-${id}`;
@@ -34,79 +65,98 @@ export function useFavorites() {
   const loadFavorites = async () => {
     try {
       setLoading(true);
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      const favorites = await AsyncStorage.getItem(FAVORITES_STORAGE_KEY);
-      if (favorites) {
-        setFavorites(JSON.parse(favorites));
+      const stored = await AsyncStorage.getItem(FAVORITES_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        globalFavorites = parsed;
+        setFavorites(parsed);
+        console.log('Loaded favorites:', parsed.length);
       } else {
+        globalFavorites = [];
         setFavorites([]);
       }
       setError(null);
     } catch (err) {
+      console.error('Error loading favorites:', err);
       setError(err instanceof Error ? err : new Error("Unknown error"));
+      globalFavorites = [];
+      setFavorites([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Save favorites to AsyncStorage
+  // Save favorites to AsyncStorage and update global state
   const saveFavorites = async (newFavorites: FavoriteItem[]) => {
     try {
       await AsyncStorage.setItem(
         FAVORITES_STORAGE_KEY,
         JSON.stringify(newFavorites)
       );
+      
+      // Update global state
+      globalFavorites = newFavorites;
+      setFavorites([...newFavorites]);
+      
+      // Notify all components
+      notifyListeners();
+      
+      console.log('Saved favorites:', newFavorites.length);
     } catch (err) {
       console.error("Error saving favorites:", err);
     }
   };
 
   // Add an item to favorites
-  const addFavorite = async (item: FavoriteItem) => {
+  const addFavorite = useCallback(async (item: FavoriteItem) => {
+    console.log('Adding favorite:', item.type, item.id);
+    
     // Check if already exists to prevent duplicates
     const uniqueKey = createUniqueKey(item.type, item.id);
-    const exists = favorites.some(fav => createUniqueKey(fav.type, fav.id) === uniqueKey);
+    const exists = globalFavorites.some(fav => createUniqueKey(fav.type, fav.id) === uniqueKey);
     
     if (!exists) {
-      const newFavorites = [...favorites, item];
-      setFavorites(newFavorites);
+      const newFavorites = [...globalFavorites, item];
       await saveFavorites(newFavorites);
-      console.log(`Added ${item.type} ${item.id} to favorites`);
+      console.log(`✅ Added ${item.type} ${item.id} to favorites`);
+    } else {
+      console.log(`⚠️ ${item.type} ${item.id} already in favorites`);
     }
-  };
+  }, []);
 
   // Remove an item from favorites
-  const removeFavorite = async (id: string, type?: "photographer" | "location") => {
+  const removeFavorite = useCallback(async (id: string, type?: "photographer" | "location") => {
+    console.log('Removing favorite:', type, id);
+    
     let newFavorites: FavoriteItem[];
     
     if (type) {
       // Remove specific type-id combination
       const uniqueKey = createUniqueKey(type, id);
-      newFavorites = favorites.filter(item => createUniqueKey(item.type, item.id) !== uniqueKey);
+      newFavorites = globalFavorites.filter(item => createUniqueKey(item.type, item.id) !== uniqueKey);
     } else {
-      // Backward compatibility: remove by id only (will remove all matching ids regardless of type)
-      newFavorites = favorites.filter((item) => item.id !== id);
+      // Backward compatibility: remove by id only
+      newFavorites = globalFavorites.filter((item) => item.id !== id);
     }
     
-    setFavorites(newFavorites);
     await saveFavorites(newFavorites);
-    console.log(`Removed ${type || 'any'} ${id} from favorites`);
-  };
+    console.log(`✅ Removed ${type || 'any'} ${id} from favorites`);
+  }, []);
 
   // Check if an item is in favorites
-  const isFavorite = (id: string, type?: "photographer" | "location") => {
+  const isFavorite = useCallback((id: string, type?: "photographer" | "location") => {
     if (type) {
       // Check specific type-id combination
       const uniqueKey = createUniqueKey(type, id);
-      return favorites.some(item => createUniqueKey(item.type, item.id) === uniqueKey);
+      return globalFavorites.some(item => createUniqueKey(item.type, item.id) === uniqueKey);
     } else {
       // Backward compatibility: check by id only
-      return favorites.some((item) => item.id === id);
+      return globalFavorites.some((item) => item.id === id);
     }
-  };
+  }, []);
 
   // Toggle favorite status
-  const toggleFavorite = async (item: FavoriteItem) => {
+  const toggleFavorite = useCallback(async (item: FavoriteItem) => {
     const isCurrentlyFavorite = isFavorite(item.id, item.type);
     
     if (isCurrentlyFavorite) {
@@ -114,25 +164,31 @@ export function useFavorites() {
     } else {
       await addFavorite(item);
     }
-  };
+  }, [isFavorite, removeFavorite, addFavorite]);
 
   // Get favorites by type
-  const getFavoritesByType = (type: "photographer" | "location") => {
-    return favorites.filter(item => item.type === type);
-  };
+  const getFavoritesByType = useCallback((type: "photographer" | "location") => {
+    return globalFavorites.filter(item => item.type === type);
+  }, []);
 
   // Get favorite photographers
-  const getFavoritePhotographers = () => {
+  const getFavoritePhotographers = useCallback(() => {
     return getFavoritesByType("photographer").map(item => item.data as PhotographerData);
-  };
+  }, [getFavoritesByType]);
 
   // Get favorite locations
-  const getFavoriteLocations = () => {
+  const getFavoriteLocations = useCallback(() => {
     return getFavoritesByType("location").map(item => item.data as LocationData);
-  };
+  }, [getFavoritesByType]);
+
+  // Force refresh
+  const refetch = useCallback(async () => {
+    console.log('🔄 Force refreshing favorites...');
+    await loadFavorites();
+  }, []);
 
   return {
-    favorites,
+    favorites: globalFavorites, // Always return global state
     loading,
     error,
     addFavorite,
@@ -142,6 +198,6 @@ export function useFavorites() {
     getFavoritesByType,
     getFavoritePhotographers,
     getFavoriteLocations,
-    refetch: loadFavorites,
+    refetch,
   };
 }

@@ -7,6 +7,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
+import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'; // Import hook mới
 import { useLocationDetail } from '../../hooks/useLocationDetail';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -22,6 +23,7 @@ export default function LocationCardDetail() {
   
   const [activeTab, setActiveTab] = useState('about');
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
+  const { trackView } = useRecentlyViewed(); // Hook recently viewed
   const { locationDetail, loading, error, fetchLocationById } = useLocationDetail();
 
   useEffect(() => {
@@ -30,6 +32,34 @@ export default function LocationCardDetail() {
       fetchLocationById(locationId);
     }
   }, [locationId]);
+
+  // Track recently viewed khi có data
+  useEffect(() => {
+    if (locationDetail) {
+      console.log('Tracking location view:', locationDetail.locationId);
+      
+      // Track view với data structure phù hợp
+      trackView({
+        id: locationDetail.locationId.toString(),
+        type: 'location',
+        data: {
+          id: locationDetail.locationId.toString(),
+          locationId: locationDetail.locationId,
+          name: locationDetail.name || 'Unknown Location',
+          avatar: '',
+          images: getGalleryImages(),
+          styles: getAmenities(),
+          address: locationDetail.address,
+          hourlyRate: locationDetail.hourlyRate,
+          capacity: locationDetail.capacity,
+          availabilityStatus: locationDetail.availabilityStatus,
+          description: locationDetail.description,
+          indoor: locationDetail.indoor,
+          outdoor: locationDetail.outdoor
+        }
+      });
+    }
+  }, [locationDetail, trackView]);
 
   useEffect(() => {
     if (error) {

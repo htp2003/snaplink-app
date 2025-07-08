@@ -11,21 +11,15 @@ export interface RecommendedPhotographer {
     verificationStatus: string;
   }
   
-  export interface StyleRecommendation {
-    styleId: number;
-    styleName: string;
-    styleDescription: string;
-    photographerCount: number;
-    recommendedPhotographers: RecommendedPhotographer[];
-  }
+
   
   const ENDPOINTS = {
     USER_RECOMMENDATIONS: (userId: number, count: number = 10) => 
-      `/api/UserStyle/user/${userId}/recommendations?count=${count}`,
+      `/api/UserStyle/user/${userId}/photographers?count=${count}`,
   };
-  
+
   export const photographerStyleService = {
     // Get style recommendations for user
-    getPhotographerRecommendations: (userId: number, count: number = 10): Promise<StyleRecommendation[]> => 
-      apiClient.get<StyleRecommendation[]>(ENDPOINTS.USER_RECOMMENDATIONS(userId, count)),
+    getPhotographerRecommendations: (userId: number, count: number = 10): Promise<RecommendedPhotographer[]> => 
+      apiClient.get<RecommendedPhotographer[]>(ENDPOINTS.USER_RECOMMENDATIONS(userId, count)),
   };

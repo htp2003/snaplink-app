@@ -15,12 +15,12 @@ import { AuthService } from '../../services/authService';
 import { useAuth } from '../../hooks/useAuth';
 
 const { width, height } = Dimensions.get('window');
-const API_BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net'; // Update with your actual API base URL
+const API_BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
 
 // Updated ROLES mapping to match API
 const ROLES = [
   {
-    key: 'user', // Changed from 'customer' to match API
+    key: 'user',
     label: 'Khách hàng',
     desc: 'Tìm kiếm và đặt lịch chụp ảnh với các nhiếp ảnh gia chuyên nghiệp',
     features: [
@@ -33,7 +33,7 @@ const ROLES = [
     iconColors: ['#43cea2', '#185a9d'],
     icon: 'account-heart-outline',
     emoji: '👤',
-    roleId: 2, // Add role ID for API
+    roleId: 2,
   },
   {
     key: 'photographer',
@@ -52,7 +52,7 @@ const ROLES = [
     roleId: 3,
   },
   {
-    key: 'locationowner', // Changed from 'location' to match API
+    key: 'locationowner',
     label: 'Chủ địa điểm',
     desc: 'Quản lý và cho thuê không gian chụp ảnh độc đáo',
     features: [
@@ -74,13 +74,23 @@ interface Step1Props {
 }
 
 const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
-  const { getCurrentUserId, assignRole } = useAuth(); // Add assignRole
-  const userId = getCurrentUserId();
+  const { getCurrentUserId, assignRole, user } = useAuth();
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [animations] = useState(() => 
     ROLES.map(() => new Animated.Value(0))
   );
+
+  // Get the current user ID consistently
+  const userId = getCurrentUserId();
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 Step1 mounted with:');
+    console.log('  - getCurrentUserId():', getCurrentUserId());
+    console.log('  - user?.id:', user?.id);
+    console.log('  - Final userId:', userId);
+  }, [userId, user]);
 
   const handleSelectRole = (role: string, index: number) => {
     setSelectedRole(role);
@@ -105,25 +115,37 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
   };
 
   const handleContinue = async () => {
-    if (!selectedRole || !userId) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
+    if (!selectedRole) {
+      Alert.alert('Lỗi', 'Vui lòng chọn vai trò');
+      return;
+    }
+
+    if (!userId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin user. Vui lòng đăng nhập lại.');
       return;
     }
 
     const selectedRoleData = ROLES.find(role => role.key === selectedRole);
-    if (!selectedRoleData) return;
+    if (!selectedRoleData) {
+      Alert.alert('Lỗi', 'Vai trò không hợp lệ');
+      return;
+    }
 
     setLoading(true);
+    console.log('🚀 Starting role assignment for userId:', userId, 'role:', selectedRole);
 
     try {
-      // Call API to assign role using useAuth method
+      // ✅ Use the userId directly - no need to call getCurrentUserId again
+      console.log('📤 Calling assignRole with userId:', userId);
       await assignRole(userId, selectedRole as any);
       
+      console.log('✅ Role assigned successfully');
+
       // Create additional profile based on role
       if (selectedRole === 'photographer') {
-        await createPhotographerProfile();
+        await createPhotographerProfile(userId);
       } else if (selectedRole === 'locationowner') {
-        await createLocationOwnerProfile();
+        await createLocationOwnerProfile(userId);
       }
 
       // Call success callback
@@ -133,14 +155,17 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
       });
 
     } catch (error: any) {
+      console.error('❌ Role assignment failed:', error);
       Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi thiết lập vai trò');
     } finally {
       setLoading(false);
     }
   };
 
-  const createPhotographerProfile = async () => {
+  const createPhotographerProfile = async (userIdParam: number) => {
     try {
+      console.log('📸 Creating photographer profile for userId:', userIdParam);
+      
       const token = await AuthService.getToken();
       const response = await fetch(`${API_BASE_URL}/api/Photographer`, {
         method: 'POST',
@@ -149,22 +174,27 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          userId,
+          userId: userIdParam, // Use the parameter directly
           availabilityStatus: 'available',
           verificationStatus: 'pending'
         })
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create photographer profile');
+        const errorText = await response.text();
+        console.warn('⚠️ Could not create photographer profile:', response.status, errorText);
+      } else {
+        console.log('✅ Photographer profile created successfully');
       }
     } catch (error) {
-      console.warn('Could not create photographer profile:', error);
+      console.warn('⚠️ Could not create photographer profile:', error);
     }
   };
 
-  const createLocationOwnerProfile = async () => {
+  const createLocationOwnerProfile = async (userIdParam: number) => {
     try {
+      console.log('🏢 Creating location owner profile for userId:', userIdParam);
+      
       const token = await AuthService.getToken();
       const response = await fetch(`${API_BASE_URL}/api/LocationOwner/CreatedLocationOwnerId`, {
         method: 'POST',
@@ -173,18 +203,35 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          userId,
+          userId: userIdParam, // Use the parameter directly
           verificationStatus: 'pending'
         })
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create location owner profile');
+        const errorText = await response.text();
+        console.warn('⚠️ Could not create location owner profile:', response.status, errorText);
+      } else {
+        console.log('✅ Location owner profile created successfully');
       }
     } catch (error) {
-      console.warn('Could not create location owner profile:', error);
+      console.warn('⚠️ Could not create location owner profile:', error);
     }
   };
+
+  // Show error if no userId available
+  if (!userId) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ fontSize: 18, color: 'red', textAlign: 'center', marginBottom: 20 }}>
+          Không tìm thấy thông tin người dùng
+        </Text>
+        <Text style={{ fontSize: 14, color: '#666', textAlign: 'center' }}>
+          Vui lòng đăng xuất và đăng nhập lại
+        </Text>
+      </View>
+    );
+  }
 
   const RoleCard = ({ role, index }: { role: typeof ROLES[0], index: number }) => {
     const isSelected = selectedRole === role.key;
@@ -280,6 +327,10 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
         </Text>
         <Text style={{ fontSize: 14, color: 'black', textAlign: 'center', lineHeight: 20, fontWeight: '300', paddingHorizontal: 8 }}>
           Khám phá trải nghiệm phù hợp nhất với nhu cầu và mục đích sử dụng của bạn
+        </Text>
+        {/* Debug info */}
+        <Text style={{ fontSize: 10, color: '#999', textAlign: 'center', marginTop: 4 }}>
+          User ID: {userId}
         </Text>
       </View>
       

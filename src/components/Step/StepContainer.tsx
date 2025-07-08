@@ -4,8 +4,6 @@ import { View, Dimensions, StatusBar, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '../../navigation/types';
 import Step1 from './Step1';
-import Step2 from './Step2';
-import Step3 from './Step3';
 import Step4 from './Step4';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,147 +11,106 @@ import { useAuth, useCurrentUserId } from '../../hooks/useAuth';
 
 const getBg = (role: string | null) => {
     if (role === 'photographer') return require('../../../assets/slider2.png');
-    if (role === 'locationowner') return require('../../../assets/slider3.png'); // Changed from 'location'
+    if (role === 'locationowner') return require('../../../assets/slider3.png');
     return null;
 };
 
 const StepContainer = () => {
-    const [currentPosition, setCurrentPosition] = useState(0);
-    const [maxStep, setMaxStep] = useState(0);
+    const [currentPosition, setCurrentPosition] = useState(0); // Always start at step 0 (role selection)
+    const [maxStep, setMaxStep] = useState(0); // User can only proceed after completing previous steps
     const [selectedRole, setSelectedRole] = useState<string | null>(null);
     const [userData, setUserData] = useState<any>({});
     const { height } = Dimensions.get('window');
     const stepIndicatorMarginTop = height * 0.15;
     const navigation = useNavigation<RootStackNavigationProp>();
-    const { user, updateProfile } = useAuth();
+    const { user } = useAuth();
     const userId = useCurrentUserId();
 
     const bgSource = currentPosition === 0 ? null : getBg(selectedRole);
 
-    // Check if user already has some profile data completed
+    // Check if user has existing data but always start from step 0
     useEffect(() => {
         if (user) {
-            // Determine starting step based on completed profile
+            // If user already has roles, pre-populate but still start from step 0
             if (user.roles && user.roles.length > 0) {
-                setSelectedRole(user.roles[0]); // Assume first role
-                if (user.gender) {
-                    setCurrentPosition(2); // Start from age step
-                    setMaxStep(2);
-                } else {
-                    setCurrentPosition(1); // Start from gender step
-                    setMaxStep(1);
-                }
+                setSelectedRole(user.roles[0]);
+                // Don't auto-advance - let user confirm or change their role
             }
         }
     }, [user]);
 
     const handleStepPress = (step: number) => {
-        if (selectedRole === 'locationowner') { // Changed from 'location'
-            // Location owners chỉ cần role và concepts, skip gender/age
-            if (step === 0 || step === 3) {
-                setCurrentPosition(step);
-            }
-        } else {
-            if (step <= maxStep) {
-                setCurrentPosition(step);
-            }
+        // Only allow navigation to completed steps or next step
+        if (step <= maxStep) {
+            setCurrentPosition(step);
         }
     };
 
     const handleRoleSelect = (roleData: { role: string, roleId: number }) => {
         const role = roleData.role;
+        console.log('🎯 Role selected:', role);
+        
         setSelectedRole(role);
         setUserData((prev: any) => ({ ...prev, role, roleId: roleData.roleId }));
         
-        if (role === 'locationowner') {
-            // Location owners skip to concept selection
-            setCurrentPosition(3);
-            setMaxStep(3);
-        } else {
-            // Users and photographers go through all steps
-            setCurrentPosition(1);
-            setMaxStep(1);
-        }
+        // After role selection, allow and navigate to style selection
+        setMaxStep(1); // Now user can access step 1
+        setCurrentPosition(1); // Move to step 1 (style selection)
+        
+        console.log('✅ Moving to step 1 (style selection)');
     };
 
-    const handleGenderSelect = async (gender: string) => {
+    const handleStyleSelect = async (styleIds: number[]) => {
         try {
             if (!userId) {
                 Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
                 return;
             }
 
-            // Update profile with gender
-            await updateProfile(userId, { gender });
-            setUserData((prev: any) => ({ ...prev, gender }));
-            
-            setCurrentPosition(2);
-            setMaxStep(prev => Math.max(prev, 2));
+            console.log('🎨 Styles selected:', styleIds);
+
+            // Save selected styles to userData
+            setUserData((prev: any) => ({ ...prev, styleIds }));
+
+            // Complete the onboarding flow
+            await completeOnboarding(styleIds);
         } catch (error: any) {
-            Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi lưu giới tính');
+            console.error('❌ Error completing onboarding:', error);
+            Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi hoàn tất thiết lập');
         }
     };
 
-    const handleAgeSelect = async (ageRange: string) => {
-        try {
-            if (!userId) {
-                Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
-                return;
-            }
-
-            // Update profile with age range
-            await updateProfile(userId, { ageRange });
-            setUserData((prev: any) => ({ ...prev, ageRange }));
-            
-            setCurrentPosition(3);
-            setMaxStep(prev => Math.max(prev, 3));
-        } catch (error: any) {
-            Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi lưu độ tuổi');
-        }
-    };
-
-    const handleConceptSelect = async (concepts: string[]) => {
-        try {
-            if (!userId) {
-                Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
-                return;
-            }
-
-            // Update profile with interests/concepts
-            await updateProfile(userId, { interests: concepts });
-            setUserData((prev: any) => ({ ...prev, concepts }));
-
-            // Save role and navigate to appropriate dashboard
-            await saveRoleAndNavigate(concepts);
-        } catch (error: any) {
-            Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi lưu sở thích');
-        }
-    };
-
-    const saveRoleAndNavigate = async (styles?: string[]) => {
+    const completeOnboarding = async (styleIds?: number[]) => {
         try {
             // Save to AsyncStorage for backward compatibility
             if (selectedRole) {
                 await AsyncStorage.setItem('userRole', selectedRole);
+                console.log('💾 Saved role to AsyncStorage:', selectedRole);
             }
             
-            if (styles && styles.length > 0) {
-                await AsyncStorage.setItem('userStyles', JSON.stringify(styles));
+            if (styleIds && styleIds.length > 0) {
+                await AsyncStorage.setItem('userStyleIds', JSON.stringify(styleIds));
+                console.log('💾 Saved style IDs to AsyncStorage:', styleIds);
             }
+
+            // Mark onboarding as completed
+            await AsyncStorage.setItem('onboardingCompleted', 'true');
+            
+            console.log('🚀 Navigating based on role:', selectedRole);
             
             // Navigate based on role - updated navigation names
-            if (selectedRole === 'user') { // Changed from 'customer'
+            if (selectedRole === 'user') {
                 navigation.navigate('CustomerMain' as never);
             } else if (selectedRole === 'photographer') {
-                navigation.navigate('PhotographerHomeScreen' as never);
-            } else if (selectedRole === 'locationowner') { // Changed from 'location'
+                navigation.navigate('PhotographerMain' as never);
+            } else if (selectedRole === 'locationowner') {
                 navigation.navigate('VenueOwnerMain' as never);
             } else {
                 // Fallback - navigate to general dashboard
                 navigation.navigate('CustomerMain' as never);
             }
         } catch (error) {
-            console.error('Error saving role to AsyncStorage:', error);
+            console.error('❌ Error completing onboarding:', error);
             Alert.alert('Lỗi', 'Có lỗi xảy ra khi hoàn tất thiết lập');
         }
     };
@@ -171,32 +128,22 @@ const StepContainer = () => {
                     <StepIndicator
                         customStyles={customStyles}
                         currentPosition={currentPosition}
-                        stepCount={4}
-                        labels={['Vai trò', 'Giới tính', 'Tuổi', 'Sở thích']} // Updated label
+                        stepCount={2}
+                        labels={['Vai trò', 'Phong cách']}
                         onPress={handleStepPress}
                     />
                 </View>
                 
-                {/* Step 1: Role Selection */}
+                {/* Step 0: Role Selection */}
                 {currentPosition === 0 && (
                     <Step1 onSelectRole={handleRoleSelect} />
                 )}
                 
-                {/* Step 2: Gender Selection */}
-                {currentPosition === 1 && (
-                    <Step2 onSelectGender={handleGenderSelect} />
-                )}
-                
-                {/* Step 3: Age Selection */}
-                {currentPosition === 2 && (
-                    <Step3 onSelectAge={handleAgeSelect} />
-                )}
-                
-                {/* Step 4: Concept/Style Selection */}
-                {currentPosition === 3 && (
+                {/* Step 1: Style Selection */}
+                {currentPosition === 1 && selectedRole && (
                     <Step4 
-                        selectedRole={selectedRole || 'user'}
-                        onComplete={handleConceptSelect}
+                        selectedRole={selectedRole}
+                        onComplete={handleStyleSelect}
                     />
                 )}
             </View>

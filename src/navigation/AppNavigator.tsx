@@ -26,6 +26,7 @@ import PhotographerCardDetail from '../screens/customer/PhotographerCardDetail';
 import LocationCardDetail from '../screens/customer/LocationCardDetail';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScreen';
+import RecentlyViewedScreen from '../screens/customer/RecentlyViewedScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -68,6 +69,7 @@ const AppNavigator = () => {
         <Stack.Screen name="Subscription" component={SubscriptionScreen} />
         <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} />
         <Stack.Screen name="PhotographerHomeScreen" component={PhotographerHomeScreen} />
+        <Stack.Screen name="RecentlyViewedScreen" component={RecentlyViewedScreen} />
 
 
 

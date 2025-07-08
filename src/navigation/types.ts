@@ -37,6 +37,7 @@ export type RootStackParamList = {
     PhotographerHomeScreen: undefined;
     FavoritedBottomSheet: undefined;
     OrderManagementScreen: undefined;
+    RecentlyViewedScreen: undefined;
     // Customer  screens
     PhotographerCardDetail: { photographerId: string };
     LocationCardDetail: { locationId: string };

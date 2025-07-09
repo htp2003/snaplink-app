@@ -9,38 +9,74 @@ import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
 import { usePhotographerDetail } from '../../hooks/usePhotographerDetail';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
+import { photographerService } from '../../services/photographerService';
+import { PhotographerImage } from '../../types/photographerImage';
+import PhotographerReviews from '../../components/Photographer/PhotographerReviews';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ProfileCardDetailRouteProp = RouteProp<RootStackParamList, 'PhotographerCardDetail'>;
 
 const { width, height } = Dimensions.get('window');
-const HEADER_SWITCH_SCROLL = getResponsiveSize(180);
 
 export default function PhotographerCardDetail() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ProfileCardDetailRouteProp>();
   const { photographerId } = route.params;
 
+  // State management
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [photographerImages, setPhotographerImages] = useState<string[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
+  
+  // Hooks
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { trackView } = useRecentlyViewed();
   const { photographerDetail, loading, error, fetchPhotographerById } = usePhotographerDetail();
 
+  // Fetch photographer details
   useEffect(() => {
     if (photographerId) {
       fetchPhotographerById(photographerId);
     }
   }, [photographerId]);
 
+  // Fetch photographer images từ PhotographerImage API
+  const fetchPhotographerImages = async () => {
+    if (!photographerId) return;
+    
+    try {
+      setLoadingImages(true);
+      const images = await photographerService.getImages(parseInt(photographerId));
+      
+      // Process images array
+      let imageArray: PhotographerImage[] = [];
+      if (Array.isArray(images)) {
+        imageArray = images;
+      } else if (images && Array.isArray((images as any).$values)) {
+        imageArray = (images as any).$values;
+      }
 
-  // Track recently viewed khi có data
+      // Extract image URLs
+      const imageUrls = imageArray.map(img => img.imageUrl);
+      setPhotographerImages(imageUrls);
+      
+    } catch (error) {
+      console.error('Error fetching photographer images:', error);
+      setPhotographerImages([]);
+    } finally {
+      setLoadingImages(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPhotographerImages();
+  }, [photographerId]);
+
+  // Track recently viewed
   useEffect(() => {
     if (photographerDetail) {
-      console.log('Tracking photographer view:', photographerDetail.photographerId);
-      
-      // Track view với data structure phù hợp
       trackView({
         id: photographerDetail.photographerId.toString(),
         type: 'photographer',
@@ -48,7 +84,8 @@ export default function PhotographerCardDetail() {
           id: photographerDetail.photographerId.toString(),
           fullName: photographerDetail.fullName || 'Unknown Photographer',
           avatar: photographerDetail.profileImage || '',
-          images: photographerDetail.portfolioUrl ? [photographerDetail.portfolioUrl] : [],
+          cardImage: null,
+          images: photographerImages,
           styles: Array.isArray(photographerDetail.styles)
             ? photographerDetail.styles
             : (photographerDetail.styles && '$values' in photographerDetail.styles)
@@ -61,8 +98,9 @@ export default function PhotographerCardDetail() {
         }
       });
     }
-  }, [photographerDetail, trackView]);
+  }, [photographerDetail, photographerImages]);
 
+  // Handle error
   useEffect(() => {
     if (error) {
       Alert.alert(
@@ -76,8 +114,7 @@ export default function PhotographerCardDetail() {
     }
   }, [error]);
 
-
-
+  // Handle favorite toggle
   const handleToggleFavorite = () => {
     if (!photographerDetail) return;
 
@@ -88,7 +125,8 @@ export default function PhotographerCardDetail() {
         id: photographerDetail.photographerId.toString(),
         fullName: photographerDetail.fullName || 'Unknown',
         avatar: photographerDetail.profileImage || '',
-        images: photographerDetail.portfolioUrl ? [photographerDetail.portfolioUrl] : [],
+        cardImage: null,
+        images: photographerImages,
         styles: Array.isArray(photographerDetail.styles)
           ? photographerDetail.styles
           : (photographerDetail.styles && '$values' in photographerDetail.styles)
@@ -107,22 +145,7 @@ export default function PhotographerCardDetail() {
     }
   };
 
-  // Lấy hình ảnh portfolio để hiển thị slider
-  const getPortfolioImages = () => {
-    const fallbackImages = [
-      'https://images.unsplash.com/photo-1554048612-b6eb0d27b92e?w=800&h=600&fit=crop',
-      'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=800&h=600&fit=crop',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=800&h=600&fit=crop',
-      'https://images.unsplash.com/photo-1494790108755-2616b612b494?w=800&h=600&fit=crop',
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=800&h=600&fit=crop',
-    ];
-
-    if (photographerDetail?.portfolioUrl) {
-      return [photographerDetail.portfolioUrl, ...fallbackImages.slice(1)];
-    }
-    return fallbackImages;
-  };
-
+  // Render stars for rating
   const renderStars = (rating: number) => {
     const stars = [];
     const fullStars = Math.floor(rating);
@@ -141,28 +164,32 @@ export default function PhotographerCardDetail() {
     return stars;
   };
 
+  // Handle image viewable changes
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
     if (viewableItems.length > 0) {
       setCurrentImageIndex(viewableItems[0].index);
     }
   }).current;
 
-  // Render ảnh với chiều cao tràn viền
+  // Render image item
   const renderImageItem = ({ item }: { item: string }) => (
     <View style={{ width }}>
       <Image
         source={{ uri: item }}
         style={{ 
           width, 
-          height: height * 0.6 + 50, // Tăng chiều cao để bù trừ marginTop
-          marginTop: -50 // Đẩy lên trên để tràn qua status bar
+          height: height * 0.6 + 50,
+          marginTop: -50
         }}
         resizeMode="cover"
+        onError={(error) => {
+          console.log('Failed to load photographer image:', item, error);
+        }}
       />
     </View>
   );
 
-  // Đổi StatusBar icon màu theo scroll (trắng/đen)
+  // Handle status bar style change
   useEffect(() => {
     const listener = scrollY.addListener(({ value }) => {
       if (value > getResponsiveSize(160)) {
@@ -184,6 +211,7 @@ export default function PhotographerCardDetail() {
     );
   }
 
+  // Not found state
   if (!photographerDetail) {
     return (
       <View className="flex-1 bg-white justify-center items-center px-6">
@@ -201,15 +229,12 @@ export default function PhotographerCardDetail() {
     );
   }
 
-  const portfolioImages = getPortfolioImages();
-
   return (
     <View className="flex-1 bg-white">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Container chính - KHÔNG có SafeAreaView để ảnh tràn viền */}
       <View className="flex-1">
-        {/* Fixed Header Controls ban đầu - với SafeAreaView */}
+        {/* Fixed Header Controls */}
         <Animated.View
           style={{
             position: 'absolute',
@@ -285,7 +310,7 @@ export default function PhotographerCardDetail() {
           </SafeAreaView>
         </Animated.View>
 
-        {/* Header động khi cuộn */}
+        {/* Dynamic Header */}
         <Animated.View
           style={{
             position: 'absolute',
@@ -367,7 +392,7 @@ export default function PhotographerCardDetail() {
           </SafeAreaView>
         </Animated.View>
 
-        {/* Nội dung có thể cuộn */}
+        {/* Scrollable Content */}
         <Animated.ScrollView
           className="flex-1"
           showsVerticalScrollIndicator={false}
@@ -376,72 +401,75 @@ export default function PhotographerCardDetail() {
             { useNativeDriver: false }
           )}
           scrollEventThrottle={1}
-          contentContainerStyle={{ paddingTop: 0 }} // Không có padding để ảnh tràn viền
+          contentContainerStyle={{ paddingTop: 0 }}
         >
-          {/* Phần hình ảnh - TRÀN VIỀN */}
+          {/* Photographer Images Gallery */}
           <View style={{
-            height: height * 0.6, // Giảm chiều cao một chút
+            height: height * 0.6,
             overflow: 'hidden',
-            marginTop: -50, // Đẩy lên trên để tràn qua status bar
+            marginTop: -50,
             zIndex: 1,
             backgroundColor: '#eee',
           }}>
-            <FlatList
-              ref={flatListRef}
-              data={portfolioImages}
-              renderItem={({ item }) => (
-                <View style={{ width }}>
-                  <Image
-                    source={{ uri: item }}
-                    style={{ 
-                      width, 
-                      height: height * 0.6,
-                      marginTop: -50
-                    }}
-                    resizeMode="cover"
-                  />
+            {loadingImages ? (
+              <View className="flex-1 justify-center items-center">
+                <ActivityIndicator size="large" color="#d97706" />
+                <Text className="text-stone-600 mt-2">Đang tải ảnh...</Text>
+              </View>
+            ) : photographerImages.length > 0 ? (
+              <>
+                <FlatList
+                  ref={flatListRef}
+                  data={photographerImages}
+                  renderItem={renderImageItem}
+                  keyExtractor={(item, index) => index.toString()}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onViewableItemsChanged={onViewableItemsChanged}
+                  viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+                />
+                {/* Image Counter */}
+                <View
+                  className="absolute bg-black/50 backdrop-blur-sm rounded-full"
+                  style={{
+                    bottom: getResponsiveSize(90),
+                    right: getResponsiveSize(16),
+                    paddingHorizontal: getResponsiveSize(12),
+                    paddingVertical: getResponsiveSize(4),
+                    zIndex: 50,
+                  }}
+                >
+                  <Text
+                    className="text-white font-medium"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {currentImageIndex + 1} / {photographerImages.length}
+                  </Text>
                 </View>
-              )}
-              keyExtractor={(item, index) => index.toString()}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onViewableItemsChanged={onViewableItemsChanged}
-              viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
-            />
-
-            {/* Bộ đếm hình ảnh - điều chỉnh vị trí */}
-            <View
-              className="absolute bg-black/50 backdrop-blur-sm rounded-full"
-              style={{
-                bottom: getResponsiveSize(90), // Tăng cao hơn nữa để không bị content che
-                right: getResponsiveSize(16),
-                paddingHorizontal: getResponsiveSize(12),
-                paddingVertical: getResponsiveSize(4),
-                zIndex: 50, // Z-index cao để không bị che
-              }}
-            >
-              <Text
-                className="text-white font-medium"
-                style={{ fontSize: getResponsiveSize(14) }}
-              >
-                {currentImageIndex + 1} / {portfolioImages.length}
-              </Text>
-            </View>
+              </>
+            ) : (
+              <View className="flex-1 justify-center items-center">
+                <Ionicons name="camera-outline" size={getResponsiveSize(60)} color="#9ca3af" />
+                <Text className="text-stone-600 mt-4 text-center">
+                  Chưa có ảnh từ photographer
+                </Text>
+              </View>
+            )}
           </View>
 
-          {/* Phần nội dung overlap lên ảnh */}
+          {/* Content Section */}
           <View
             className="bg-white relative"
             style={{
               borderTopLeftRadius: getResponsiveSize(32),
               borderTopRightRadius: getResponsiveSize(32),
-              marginTop: -getResponsiveSize(80), // Giữ nguyên overlap 80 như bạn đã điều chỉnh
-              zIndex: 10, // Thấp hơn bộ đếm
+              marginTop: -getResponsiveSize(80),
+              zIndex: 10,
             }}
           >
             <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(24) }}>
-              {/* Icon và tiêu đề từ API */}
+              {/* Header Info */}
               <View className="items-center mb-4">
                 <View className="flex-row items-center mb-2">
                   <Ionicons name="camera-outline" size={getResponsiveSize(20)} color="#666" />
@@ -468,7 +496,7 @@ export default function PhotographerCardDetail() {
                 </Text>
               </View>
 
-              {/* Phần đánh giá */}
+              {/* Rating Section */}
               <View
                 className="flex-row items-center justify-between pb-6 border-b border-stone-200"
                 style={{ marginBottom: getResponsiveSize(24) }}
@@ -511,7 +539,7 @@ export default function PhotographerCardDetail() {
                 </View>
               </View>
 
-              {/* Thông tin Photographer */}
+              {/* Photographer Info */}
               <View
                 className="flex-row items-center pb-6 border-b border-stone-200"
                 style={{ marginBottom: getResponsiveSize(24) }}
@@ -539,7 +567,7 @@ export default function PhotographerCardDetail() {
                   </Text>
                 </View>
                 
-                {/* Badge verification nếu có */}
+                {/* Verification Badge */}
                 {photographerDetail?.verificationStatus === 'verified' && (
                   <View className="ml-2">
                     <Ionicons name="checkmark-circle" size={getResponsiveSize(20)} color="#10b981" />
@@ -547,12 +575,12 @@ export default function PhotographerCardDetail() {
                 )}
               </View>
 
-              {/* Dịch vụ và kỹ năng từ API */}
+              {/* Services Section */}
               <View
                 className="pb-6 border-b border-stone-200"
                 style={{ marginBottom: getResponsiveSize(24) }}
               >
-                {/* Dịch vụ 1 - Equipment */}
+                {/* Equipment */}
                 {photographerDetail?.equipment && (
                   <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
                     <Ionicons name="camera-outline" size={getResponsiveSize(24)} color="#57534e" />
@@ -573,7 +601,7 @@ export default function PhotographerCardDetail() {
                   </View>
                 )}
 
-                {/* Dịch vụ 2 - Specialty */}
+                {/* Specialty */}
                 {photographerDetail?.specialty && (
                   <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
                     <Ionicons name="star-outline" size={getResponsiveSize(24)} color="#57534e" />
@@ -594,56 +622,62 @@ export default function PhotographerCardDetail() {
                   </View>
                 )}
 
-                {/* Dịch vụ 3 - Portfolio */}
+                {/* Portfolio Website */}
                 {photographerDetail?.portfolioUrl && (
-                  <View className="flex-row">
-                    <Ionicons name="images-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
+                    <Ionicons name="link-outline" size={getResponsiveSize(24)} color="#57534e" />
                     <View className="ml-4 flex-1">
                       <Text
                         className="text-stone-900 font-semibold"
                         style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
                       >
-                        Portfolio chuyên nghiệp
+                        Portfolio Website
                       </Text>
                       <Text
                         className="text-stone-600 leading-6"
                         style={{ fontSize: getResponsiveSize(14) }}
                       >
-                        Xem thêm các tác phẩm đã hoàn thành với chất lượng cao.
+                        Xem thêm tác phẩm tại website cá nhân
                       </Text>
                     </View>
                   </View>
                 )}
-              </View>
 
-              {/* Highlight status */}
-              <View
-                className="bg-stone-50 rounded-2xl border-l-4 border-pink-500 flex-row items-center"
-                style={{
-                  padding: getResponsiveSize(16),
-                  marginBottom: getResponsiveSize(32)
-                }}
-              >
-                <Text style={{ fontSize: getResponsiveSize(20), marginRight: getResponsiveSize(12) }}>
-                  {photographerDetail?.featuredStatus ? '⭐' : photographerDetail?.availabilityStatus === 'available' ? '📸' : '💎'}
-                </Text>
-                <Text
-                  className="text-stone-800 font-medium flex-1"
-                  style={{ fontSize: getResponsiveSize(16) }}
-                >
-                  {photographerDetail?.featuredStatus 
-                    ? 'Photographer nổi bật! Được đánh giá cao bởi khách hàng'
-                    : photographerDetail?.availabilityStatus === 'available'
-                    ? 'Có thể đặt lịch ngay! Photographer đang sẵn sàng nhận booking'
-                    : 'Photographer được yêu thích! Thường xuyên được đặt lịch'
-                  }
-                </Text>
-              </View>
+                {/* Photographer Images */}
+                <View className="flex-row">
+                  <Ionicons name="images-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View className="ml-4 flex-1">
+                    <Text
+                      className="text-stone-900 font-semibold"
+                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                    >
+                      Ảnh từ photographer
+                    </Text>
+                    <Text
+                      className="text-stone-600 leading-6"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      {photographerImages.length > 0 
+                        ? `${photographerImages.length} ảnh được upload bởi photographer.`
+                        : 'Đang cập nhật ảnh mới nhất.'
+                      }
+                    </Text>
+                  </View>
+                </View>
+              </View>  
             </View>
           </View>
+          
+          {/* Reviews Section */}
+          <PhotographerReviews
+            photographerId={photographerDetail?.photographerId || photographerId}
+            currentRating={photographerDetail?.rating}
+            totalReviews={photographerDetail?.ratingCount}
+          />
+          <View style={{ height: getResponsiveSize(32) }} />
         </Animated.ScrollView>
 
-        {/* Nút đặt phòng cố định - với SafeAreaView */}
+        {/* Booking Button */}
         <SafeAreaView style={{ backgroundColor: 'white' }}>
           <View
             className="bg-white px-6 border-t border-stone-200"

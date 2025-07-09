@@ -22,3 +22,4 @@ export {
     NotificationType,
     VerificationStatus
   } from './userProfile';
+  export {PhotographerImage, CreatePhotographerImageRequest, UpdatePhotographerImageRequest} from './photographerImage';

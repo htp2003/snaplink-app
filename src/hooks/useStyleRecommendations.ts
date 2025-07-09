@@ -13,6 +13,7 @@ export const photographerStyleRecommendations = (userId: number) => {
       id: photographer.photographerId.toString(),
       fullName: photographer.fullName,
       avatar: photographer.profileImage || 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300&auto=format&fit=crop&q=80',
+      cardImage: null,
       images: photographer.profileImage ? [photographer.profileImage] : [],
       styles: [photographer.specialty], // Using specialty as style for now
       rating: photographer.rating,

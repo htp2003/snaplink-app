@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import ProfileCard from '../../components/ProifileCard/PhotographerCard';
+import ProfileCard from '../../components/Photographer/PhotographerCard';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useProfiles } from '../../hooks/usePhotographers';
 import { useFavorites } from '../../hooks/useFavorites';

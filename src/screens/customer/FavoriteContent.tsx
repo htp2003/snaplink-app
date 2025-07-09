@@ -3,13 +3,13 @@ import { View, Text, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
-import ProfileCard from '../../components/ProifileCard/PhotographerCard';
+import ProfileCard from '../../components/Photographer/PhotographerCard';
 import LocationCard from '../../components/LocationCard/LocationCard';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites } from '../../hooks/useFavorites';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import PhotographerCard from '../../components/ProifileCard/PhotographerCard';
+import PhotographerCard from '../../components/Photographer/PhotographerCard';
 import { PhotographerData } from '../../hooks/usePhotographers';
 import { LocationData } from '../../hooks/useLocations';
 

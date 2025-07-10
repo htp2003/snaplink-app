@@ -40,25 +40,6 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
     } = useNotifications(userId);
 
     const handleNotificationPress = (notification: NotificationApiResponse) => {
-        // TODO: Handle navigation based on notification type
-        // console.log('Notification pressed:', notification);
-
-        // Example navigation logic:
-        // switch (notification.notificationType.toLowerCase()) {
-        //   case 'booking':
-        //     navigation.navigate('BookingDetail', { bookingId: notification.referenceId });
-        //     break;
-        //   case 'message':
-        //     navigation.navigate('Chat', { chatId: notification.referenceId });
-        //     break;
-        //   case 'payment':
-        //     navigation.navigate('PaymentDetail', { paymentId: notification.referenceId });
-        //     break;
-        //   default:
-        //     break;
-        // }
-
-        // Close modal after navigation
         onClose();
     };
 

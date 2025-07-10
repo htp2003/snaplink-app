@@ -41,7 +41,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
 
     const handleNotificationPress = (notification: NotificationApiResponse) => {
         // TODO: Handle navigation based on notification type
-        console.log('Notification pressed:', notification);
+        // console.log('Notification pressed:', notification);
 
         // Example navigation logic:
         // switch (notification.notificationType.toLowerCase()) {
@@ -177,7 +177,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
         }}>
             <ActivityIndicator size="large" color="#FF385C" />
             <Text style={{
-                color: '#fff',
+                color: '#666',
                 fontSize: getResponsiveSize(14),
                 marginTop: getResponsiveSize(12)
             }}>
@@ -193,12 +193,9 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             transparent
             statusBarTranslucent
         >
-            <View style={{ flex: 1, backgroundColor: '#fff' }}>
+            <View style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
                 <SafeAreaView style={{ flex: 1 }}>
-                    <View style={{
-                        flex: 1,
-                        marginHorizontal: getResponsiveSize(12)
-                    }}>
+                    <View style={{ flex: 1 }}>
                         {/* Header */}
                         <View
                             style={{
@@ -206,12 +203,15 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 paddingVertical: getResponsiveSize(16),
-                                paddingHorizontal: getResponsiveSize(4),
+                                paddingHorizontal: getResponsiveSize(20),
+                                backgroundColor: '#FFFFFF',
+                                borderBottomWidth: 1,
+                                borderBottomColor: '#F0F0F0',
                                 position: 'relative',
                             }}
                         >
                             {/* Arrow Left */}
-                            <View style={{ width: getResponsiveSize(40), alignItems: 'flex-start', justifyContent: 'center' }}>
+                            <View style={{ position: 'absolute', left: getResponsiveSize(20) }}>
                                 <TouchableOpacity
                                     onPress={onClose}
                                     style={{
@@ -228,32 +228,18 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                             </View>
 
                             {/* Title Center */}
-                            <View
+                            <Text
                                 style={{
-                                    position: 'absolute',
-                                    left: 0,
-                                    right: 0,
-                                    top: 0,
-                                    bottom: 0,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    pointerEvents: 'none',
-                                    zIndex: 0,
+                                    color: '#000',
+                                    fontSize: getResponsiveSize(18),
+                                    fontWeight: '600',
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        color: '#000',
-                                        fontSize: getResponsiveSize(22),
-                                        fontWeight: '700',
-                                    }}
-                                >
-                                    Thông báo
-                                </Text>
-                            </View>
+                                Thông báo
+                            </Text>
 
                             {/* Refresh Right */}
-                            <View style={{ flex: 1, alignItems: 'flex-end', justifyContent: 'center' }}>
+                            <View style={{ position: 'absolute', right: getResponsiveSize(20) }}>
                                 <TouchableOpacity
                                     onPress={refetch}
                                     style={{
@@ -261,14 +247,14 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                                         borderWidth: 1,
                                         borderRadius: getResponsiveSize(6),
                                         paddingHorizontal: getResponsiveSize(12),
-                                        paddingVertical: getResponsiveSize(4),
+                                        paddingVertical: getResponsiveSize(6),
                                         backgroundColor: 'transparent',
                                     }}
                                 >
                                     <Text
                                         style={{
                                             color: '#FF385C',
-                                            fontSize: getResponsiveSize(14),
+                                            fontSize: getResponsiveSize(12),
                                             fontWeight: '500',
                                         }}
                                     >
@@ -277,20 +263,26 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                                 </TouchableOpacity>
                             </View>
                         </View>
+
                         {/* Mark all as read button */}
                         {unreadCount > 0 && (
                             <View style={{
-                                paddingHorizontal: getResponsiveSize(4),
-                                marginBottom: getResponsiveSize(8)
+                                paddingHorizontal: getResponsiveSize(20),
+                                paddingVertical: getResponsiveSize(12),
+                                backgroundColor: '#FFFFFF',
+                                borderBottomWidth: 1,
+                                borderBottomColor: '#F0F0F0',
                             }}>
                                 <TouchableOpacity
                                     onPress={handleMarkAllAsRead}
                                     style={{
                                         alignSelf: 'flex-end',
-                                        backgroundColor: '#333',
+                                        backgroundColor: '#F7F7F7',
                                         paddingHorizontal: getResponsiveSize(12),
                                         paddingVertical: getResponsiveSize(6),
-                                        borderRadius: getResponsiveSize(6)
+                                        borderRadius: getResponsiveSize(6),
+                                        borderWidth: 1,
+                                        borderColor: '#E0E0E0',
                                     }}
                                 >
                                     <Text style={{
@@ -298,14 +290,14 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                                         fontSize: getResponsiveSize(12),
                                         fontWeight: '500'
                                     }}>
-                                        Đánh dấu tất cả đã đọc
+                                        Đánh dấu tất cả đã đọc ({unreadCount})
                                     </Text>
                                 </TouchableOpacity>
                             </View>
                         )}
 
                         {/* Content */}
-                        <View style={{ flex: 1 }}>
+                        <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
                             {loading && notifications.length === 0 ? (
                                 renderLoadingState()
                             ) : error ? (
@@ -327,7 +319,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                                         paddingBottom: getResponsiveSize(20)
                                     }}
                                 >
-                                    {notifications.map((notification) => (
+                                    {notifications.map((notification, index) => (
                                         <NotificationItem
                                             key={notification.motificationId}
                                             notification={notification}

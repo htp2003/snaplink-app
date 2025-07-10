@@ -31,9 +31,6 @@ const ProfileScreen = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
   
-
-  
-  
   const scrollY = useRef(new Animated.Value(0)).current;
   
   const favoritedUsers = [
@@ -127,8 +124,10 @@ const ProfileScreen = () => {
   };
 
   const renderNotificationBell = (isSticky = false) => {
-    // Chỉ render khi có currentUserId
-    if (!currentUserId) return null;
+    // Chỉ render khi có currentUserId và currentUserId là số hợp lệ
+    if (!currentUserId || typeof currentUserId !== 'number' || currentUserId <= 0) {
+      return null;
+    }
     
     return (
       <NotificationBell
@@ -250,6 +249,7 @@ const ProfileScreen = () => {
           </Text>
           {renderNotificationBell(false)}
         </View>
+        
         {/* Profile Card */}
         <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
           <View style={{
@@ -272,7 +272,7 @@ const ProfileScreen = () => {
               alignItems: 'center',
               marginBottom: 12
             }}>
-              {profileData.avatar ? (
+              {profileData?.avatar ? (
                 <Image 
                   source={{ uri: profileData.avatar }}
                   style={{ width: '100%', height: '100%', borderRadius: 40 }}
@@ -290,6 +290,7 @@ const ProfileScreen = () => {
             </Text>
           </View>
         </View>
+        
         {/* Feature Cards */}
         <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -483,14 +484,15 @@ const ProfileScreen = () => {
         favoritedUsers={favoritedUsers}
         onClose={handleModalClose}
       />
-      {/* Notification Modal */}
-      {currentUserId !== null && (
-  <NotificationModal
-    visible={isNotificationModalVisible}
-    onClose={handleNotificationModalClose}
-    userId={currentUserId}
-  />  
-)}
+      
+      {/* Notification Modal - Only render if userId is valid */}
+      {currentUserId && typeof currentUserId === 'number' && currentUserId > 0 && (
+        <NotificationModal
+          visible={isNotificationModalVisible}
+          onClose={handleNotificationModalClose}
+          userId={currentUserId}
+        />  
+      )}
     </View>
   );
 };

@@ -23,3 +23,4 @@ export {
     VerificationStatus
   } from './userProfile';
   export {PhotographerImage, CreatePhotographerImageRequest, UpdatePhotographerImageRequest} from './photographerImage';
+  export * from './notification';

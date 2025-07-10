@@ -61,6 +61,7 @@ export type RootStackParamList = {
         totalHours: number;
         totalPrice: number;
     };
+    ViewProfile: { userId: number };
    
 
 };

@@ -16,6 +16,9 @@ import { getResponsiveSize } from '../../utils/responsive';
 import { useProfile } from '../../context/ProfileContext';
 import FavoritedModal from '../../components/FavoritedModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import NotificationBell from '../../components/Notification/NotificationBell';
+import NotificationModal from '../../components/Notification/NotificationModal';
+import { useCurrentUserId } from '../../hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 const HEADER_HEIGHT = 60;
@@ -24,7 +27,12 @@ const ProfileScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const insets = useSafeAreaInsets();
   const { profileData } = useProfile();
+  const currentUserId = useCurrentUserId(); 
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
+  
+
+  
   
   const scrollY = useRef(new Animated.Value(0)).current;
   
@@ -111,7 +119,28 @@ const ProfileScreen = () => {
   };
 
   const handleNotificationPress = () => {
-    // navigation.navigate('Notifications');
+    setIsNotificationModalVisible(true);
+  };
+
+  const handleNotificationModalClose = () => {
+    setIsNotificationModalVisible(false);
+  };
+
+  const renderNotificationBell = (isSticky = false) => {
+    // Chỉ render khi có currentUserId
+    if (!currentUserId) return null;
+    
+    return (
+      <NotificationBell
+        onPress={handleNotificationPress}
+        userId={currentUserId}
+        size={24}
+        color="#000000"
+        style={{
+          opacity: isSticky ? 1 : 1
+        }}
+      />
+    );
   };
 
   const renderMenuItem = (item: any, index: number) => (
@@ -192,28 +221,7 @@ const ProfileScreen = () => {
             Hồ sơ
           </Animated.Text>
           <Animated.View style={{ opacity: headerOpacity }}>
-            <TouchableOpacity
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: '#F7F7F7',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}
-              onPress={handleNotificationPress}
-            >
-              <Ionicons name="notifications-outline" size={24} color="#000000" />
-              <View style={{
-                position: 'absolute',
-                top: 8,
-                right: 8,
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: '#FF385C'
-              }} />
-            </TouchableOpacity>
+            {renderNotificationBell(true)}
           </Animated.View>
         </Animated.View>
       </Animated.View>
@@ -240,28 +248,7 @@ const ProfileScreen = () => {
           <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#000000' }}>
             Hồ sơ
           </Text>
-          <TouchableOpacity
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: '#F7F7F7',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}
-            onPress={handleNotificationPress}
-          >
-            <Ionicons name="notifications-outline" size={24} color="#000000" />
-            <View style={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              width: 8,
-              height: 8,
-              borderRadius: 4,
-              backgroundColor: '#FF385C'
-            }} />
-          </TouchableOpacity>
+          {renderNotificationBell(false)}
         </View>
         {/* Profile Card */}
         <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
@@ -496,6 +483,14 @@ const ProfileScreen = () => {
         favoritedUsers={favoritedUsers}
         onClose={handleModalClose}
       />
+      {/* Notification Modal */}
+      {currentUserId !== null && (
+  <NotificationModal
+    visible={isNotificationModalVisible}
+    onClose={handleNotificationModalClose}
+    userId={currentUserId}
+  />  
+)}
     </View>
   );
 };

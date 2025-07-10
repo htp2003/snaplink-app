@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, ActivityIndicator, Image, FlatList, Dimen
 import { Ionicons } from '@expo/vector-icons';
 import { getResponsiveSize } from '../../utils/responsive';
 import { Review } from '../../types/review';
-import { usePhotographerReviews } from '../../hooks/UsePhotographerReviews';
+import { usePhotographerReviews } from '../../hooks/usePhotographerReviews';
 
 
 interface PhotographerReviewsProps {

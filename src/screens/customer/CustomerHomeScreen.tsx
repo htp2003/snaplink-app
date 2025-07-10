@@ -107,7 +107,10 @@ export default function CustomerHomeScreen() {
                 </Text>
                 <TouchableOpacity
                   className="flex-row items-center"
-                  onPress={() => navigation.navigate('ViewAllPhotographers')}
+                  onPress={() => navigation.navigate('ViewAllPhotographers', {
+                    type: 'featured',
+                    title: 'Thợ chụp ảnh được yêu thích'
+                  })}
                 >
                   <Ionicons name="chevron-forward" size={20} color="#57534e" />
                 </TouchableOpacity>
@@ -174,7 +177,11 @@ export default function CustomerHomeScreen() {
                 </Text>
                 <TouchableOpacity
                   className="flex-row items-center"
-                  onPress={() => navigation.navigate('ViewAllPhotographers')}
+                  onPress={() => navigation.navigate('ViewAllPhotographers', {
+                    type: 'recommendations',
+                    title: 'Thợ chụp ảnh theo Style của bạn',
+                    userId: currentUserId
+                  })}
                 >
                   <Ionicons name="chevron-forward" size={20} color="#57534e" />
                 </TouchableOpacity>

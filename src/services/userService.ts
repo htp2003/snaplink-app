@@ -29,6 +29,8 @@ const ENDPOINTS = {
 };
 
 export class UserService {
+
+  
   // Get all users
   async getAllUsers(): Promise<UserProfile[]> {
     return apiClient.get<UserProfile[]>(ENDPOINTS.ALL);

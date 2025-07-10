@@ -1,5 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StatusBar, Dimensions, Alert, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  Image, 
+  TouchableOpacity, 
+  ScrollView, 
+  StatusBar, 
+  Dimensions, 
+  Alert, 
+  ActivityIndicator, 
+  FlatList, 
+  Animated,
+  Linking,
+  Platform 
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -7,9 +21,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
-import { useRecentlyViewed } from '../../hooks/useRecentlyViewed'; // Import hook mới
+import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { useLocationDetail } from '../../hooks/useLocationDetail';
-import { LinearGradient } from 'expo-linear-gradient';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type LocationCardDetailRouteProp = RouteProp<RootStackParamList, 'LocationCardDetail'>;
@@ -21,24 +34,124 @@ export default function LocationCardDetail() {
   const route = useRoute<LocationCardDetailRouteProp>();
   const { locationId } = route.params;
   
-  const [activeTab, setActiveTab] = useState('about');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [addressValidation, setAddressValidation] = useState<{
+    isValid: boolean;
+    coordinates?: { lat: number; lng: number };
+    displayName?: string;
+  } | null>(null);
+  
+  const flatListRef = useRef<FlatList>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
-  const { trackView } = useRecentlyViewed(); // Hook recently viewed
+  const { trackView } = useRecentlyViewed();
   const { locationDetail, loading, error, fetchLocationById } = useLocationDetail();
 
   useEffect(() => {
     if (locationId) {
-      console.log('LocationCardDetail mounted with locationId:', locationId);
       fetchLocationById(locationId);
     }
   }, [locationId]);
 
-  // Track recently viewed khi có data
+  // Helper function to open maps
+  const openMapsApp = async (lat: number, lng: number, address: string) => {
+    const encodedAddress = encodeURIComponent(address);
+    
+    const urls = {
+      googleMaps: `https://maps.google.com/maps?q=${lat},${lng}`,
+      appleMaps: `http://maps.apple.com/?ll=${lat},${lng}&q=${encodedAddress}`,
+      universal: `geo:${lat},${lng}?q=${lat},${lng}(${encodedAddress})`
+    };
+
+    try {
+      let urlToOpen = urls.googleMaps;
+      
+      if (Platform.OS === 'ios') {
+        const canOpenAppleMaps = await Linking.canOpenURL(urls.appleMaps);
+        if (canOpenAppleMaps) {
+          urlToOpen = urls.appleMaps;
+        }
+      }
+      
+      const canOpen = await Linking.canOpenURL(urlToOpen);
+      if (canOpen) {
+        await Linking.openURL(urlToOpen);
+      } else {
+        await Linking.openURL(urls.universal);
+      }
+    } catch (error) {
+      console.error('Error opening maps:', error);
+      Alert.alert(
+        'Không thể mở bản đồ',
+        'Vui lòng cài đặt ứng dụng bản đồ trên thiết bị của bạn.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // Validate address using Nominatim
+  useEffect(() => {
+    const validateAddress = async () => {
+      if (!locationDetail?.address) return;
+      
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationDetail.address)}&limit=1&countrycodes=vn&addressdetails=1`,
+          {
+            headers: {
+              'User-Agent': 'SnapLinkApp/1.0'
+            }
+          }
+        );
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          setAddressValidation({ isValid: false });
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data && Array.isArray(data) && data.length > 0) {
+          const result = data[0];
+          setAddressValidation({
+            isValid: true,
+            coordinates: { 
+              lat: parseFloat(result.lat), 
+              lng: parseFloat(result.lon) 
+            },
+            displayName: result.display_name
+          });
+        } else {
+          setAddressValidation({ isValid: false });
+        }
+      } catch (error) {
+        console.error('Address validation failed:', error);
+        setAddressValidation({ isValid: false });
+      }
+    };
+
+    const timer = setTimeout(validateAddress, 500);
+    return () => clearTimeout(timer);
+  }, [locationDetail?.address]);
+
+  // Generate static map URL
+  const getStaticMapUrl = (lat: number, lng: number, zoom: number = 15) => {
+    const x = Math.floor((lng + 180) / 360 * Math.pow(2, zoom));
+    const y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+    return `https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/${zoom}/${x}/${y}@2x.png`;
+  };
+
+  // Track recently viewed
   useEffect(() => {
     if (locationDetail) {
-      console.log('Tracking location view:', locationDetail.locationId);
-      
-      // Track view với data structure phù hợp
       trackView({
         id: locationDetail.locationId.toString(),
         type: 'location',
@@ -52,29 +165,20 @@ export default function LocationCardDetail() {
           address: locationDetail.address,
           hourlyRate: locationDetail.hourlyRate,
           capacity: locationDetail.capacity,
-          availabilityStatus: locationDetail.availabilityStatus,
-          description: locationDetail.description,
-          indoor: locationDetail.indoor,
-          outdoor: locationDetail.outdoor
+          availabilityStatus: locationDetail.availabilityStatus
         }
       });
     }
-  }, [locationDetail, trackView]);
+  }, [locationDetail]);
 
   useEffect(() => {
     if (error) {
       Alert.alert(
-        'Error',
-        `Failed to load location details: ${error}`,
+        'Lỗi',
+        `Không thể tải thông tin địa điểm: ${error}`,
         [
-          {
-            text: 'Retry',
-            onPress: () => fetchLocationById(locationId)
-          },
-          {
-            text: 'Go Back',
-            onPress: () => navigation.goBack()
-          }
+          { text: 'Thử lại', onPress: () => fetchLocationById(locationId) },
+          { text: 'Quay lại', onPress: () => navigation.goBack() }
         ]
       );
     }
@@ -106,30 +210,18 @@ export default function LocationCardDetail() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
-    });
-  };
-
   const getGalleryImages = (): string[] => {
     if (!locationDetail?.locationImages) {
-      return getDefaultImages();
+      return [];
     }
 
     let images: string[] = [];
     
-    // Handle different structures of locationImages
     if (Array.isArray(locationDetail.locationImages)) {
-      // Direct array
       images = locationDetail.locationImages
         .filter(img => img && (img.imageUrl || img.url))
         .map(img => img.imageUrl || img.url || '');
     } else if (locationDetail.locationImages && typeof locationDetail.locationImages === 'object' && '$values' in locationDetail.locationImages) {
-      // Object with $values property
       const imageArray = (locationDetail.locationImages as any).$values;
       if (Array.isArray(imageArray)) {
         images = imageArray
@@ -138,19 +230,7 @@ export default function LocationCardDetail() {
       }
     }
     
-    // Return default images if no images found
-    return images.length > 0 ? images : getDefaultImages();
-  };
-
-  const getDefaultImages = (): string[] => {
-    return [
-      'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400',
-      'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=400',
-      'https://images.unsplash.com/photo-1540518614846-7eded47c9eb8?w=400',
-      'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=400',
-      'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400',
-      'https://images.unsplash.com/photo-1542744173-05336fcc7ad4?w=400',
-    ];
+    return images;
   };
 
   const getAmenities = (): string[] => {
@@ -163,332 +243,765 @@ export default function LocationCardDetail() {
     return amenities.length > 0 ? amenities : ['Studio Space'];
   };
 
-  const getAvailabilityColor = (status?: string) => {
-    switch (status?.toLowerCase()) {
-      case 'available': return '#10B981';
-      case 'busy': return '#F59E0B';
-      case 'unavailable': return '#EF4444';
-      default: return '#6B7280';
+  const renderStars = (rating: number = 4.8) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 !== 0;
+
+    for (let i = 0; i < fullStars; i++) {
+      stars.push(<Ionicons key={i} name="star" size={getResponsiveSize(16)} color="#d97706" />);
     }
+    if (hasHalfStar) {
+      stars.push(<Ionicons key="half" name="star-half" size={getResponsiveSize(16)} color="#d97706" />);
+    }
+    const emptyStars = 5 - Math.ceil(rating);
+    for (let i = 0; i < emptyStars; i++) {
+      stars.push(<Ionicons key={`empty-${i}`} name="star-outline" size={getResponsiveSize(16)} color="#d1d5db" />);
+    }
+    return stars;
   };
 
-  // Loading state
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      setCurrentImageIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const renderImageItem = ({ item }: { item: string }) => (
+    <View style={{ width }}>
+      <Image
+        source={{ uri: item }}
+        style={{ 
+          width, 
+          height: height * 0.6 + 50,
+          marginTop: -50
+        }}
+        resizeMode="cover"
+      />
+    </View>
+  );
+
+  useEffect(() => {
+    const listener = scrollY.addListener(({ value }) => {
+      if (value > getResponsiveSize(160)) {
+        StatusBar.setBarStyle('dark-content');
+      } else {
+        StatusBar.setBarStyle('light-content');
+      }
+    });
+    return () => scrollY.removeListener(listener);
+  }, [scrollY]);
+
   if (loading) {
     return (
-      <View className="flex-1 bg-black justify-center items-center">
-        <ActivityIndicator size="large" color="#32FAE9" />
-        <Text className="text-white mt-4 text-lg">Loading location details...</Text>
+      <View className="flex-1 bg-white justify-center items-center">
+        <ActivityIndicator size="large" color="#10b981" />
+        <Text className="text-stone-600 mt-4 text-lg">Đang tải...</Text>
       </View>
     );
   }
 
   if (!locationDetail) {
     return (
-      <View className="flex-1 bg-black justify-center items-center px-6">
-        <Ionicons name="location-outline" size={80} color="#666" />
-        <Text className="text-white text-2xl font-bold mt-6 text-center">
-          Location Not Found
+      <View className="flex-1 bg-white justify-center items-center px-6">
+        <Ionicons name="location-outline" size={80} color="#9ca3af" />
+        <Text className="text-stone-900 text-2xl font-bold mt-6 text-center">
+          Không tìm thấy địa điểm
         </Text>
-        <Text className="text-gray-400 text-center mt-3 leading-6">
-          The location you're looking for might have been removed or doesn't exist.
-        </Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => navigation.goBack()}
-          className="mt-8 px-8 py-4 bg-green-500 rounded-2xl"
+          className="mt-8 px-8 py-4 bg-emerald-500 rounded-2xl"
         >
-          <Text className="text-white font-bold text-lg">Go Back</Text>
+          <Text className="text-white font-bold text-lg">Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  const galleryImages = getGalleryImages();
+
   return (
-    <View className="flex-1 bg-black">
-      <StatusBar barStyle="light-content" backgroundColor="black" />
+    <View className="flex-1 bg-white">
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      <SafeAreaView className="flex-1">
-        {/* Header */}
-        <View className="flex-row justify-between items-center px-6 py-4">
-          <TouchableOpacity 
-            onPress={() => navigation.goBack()}
-            className="w-12 h-12 bg-gray-800 rounded-2xl items-center justify-center"
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={handleToggleFavorite}
-            className="w-12 h-12 bg-gray-800 rounded-2xl items-center justify-center"
-          >
-            <Ionicons
-              name={isFavorite(locationDetail.locationId.toString()) ? 'heart' : 'heart-outline'}
-              size={24}
-              color={isFavorite(locationDetail.locationId.toString()) ? '#FF3B30' : 'white'}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Location Header */}
-        <View className="items-center px-6 pb-6">
-          <View className="relative mb-4">
+      <View className="flex-1">
+        {/* Fixed Header Controls */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(255,255,255,0)',
+            opacity: scrollY.interpolate({
+              inputRange: [0, getResponsiveSize(120), getResponsiveSize(180)],
+              outputRange: [1, 0.5, 0],
+              extrapolate: 'clamp',
+            }),
+          }}
+        >
+          <SafeAreaView>
             <View
-              style={{ width: 120, height: 120 }}
-              className="rounded-full bg-gray-800 items-center justify-center"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                height: getResponsiveSize(56),
+                paddingHorizontal: getResponsiveSize(16),
+              }}
             >
-              <Ionicons name="location" size={60} color="#32FAE9" />
-            </View>
-            
-            {/* Status Badges */}
-            <View className="absolute -bottom-2 -right-2 flex-row">
-              {locationDetail.verificationStatus?.toLowerCase() === 'verified' && (
-                <View className="w-8 h-8 bg-green-500 rounded-full items-center justify-center mr-1">
-                  <Ionicons name="checkmark" size={16} color="white" />
-                </View>
-              )}
-              {locationDetail.featuredStatus && (
-                <View className="w-8 h-8 bg-yellow-500 rounded-full items-center justify-center">
-                  <Ionicons name="star" size={16} color="white" />
-                </View>
-              )}
-            </View>
-          </View>
-
-          <Text className="text-white text-2xl font-bold text-center mb-2">
-            {locationDetail.name}
-          </Text>
-          
-          {locationDetail.address && (
-            <Text className="text-gray-400 text-base text-center mb-4">
-              {locationDetail.address}
-            </Text>
-          )}
-
-          {/* Stats Row */}
-          <View className="flex-row justify-around w-full bg-gray-900 rounded-2xl py-4 px-6">
-            <View className="items-center">
-              <Text className="text-white text-xl font-bold">
-                {locationDetail.capacity || 0}
-              </Text>
-              <Text className="text-gray-400 text-sm">Capacity</Text>
-            </View>
-            
-            <View className="items-center">
-              <View className="flex-row items-center">
-                <View 
-                  className="w-3 h-3 rounded-full mr-2"
-                  style={{ backgroundColor: getAvailabilityColor(locationDetail.availabilityStatus) }}
-                />
-                <Text 
-                  className="text-sm font-semibold capitalize"
-                  style={{ color: getAvailabilityColor(locationDetail.availabilityStatus) }}
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={{
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  borderRadius: getResponsiveSize(20),
+                }}
+              >
+                <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="white" />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.3)',
+                    borderRadius: getResponsiveSize(20),
+                    marginRight: getResponsiveSize(8),
+                  }}
                 >
-                  {locationDetail.availabilityStatus}
+                  <Ionicons name="share-outline" size={getResponsiveSize(22)} color="white" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleToggleFavorite}
+                  style={{
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.3)',
+                    borderRadius: getResponsiveSize(20),
+                  }}
+                >
+                  <Ionicons
+                    name={isFavorite(locationDetail.locationId.toString()) ? 'heart' : 'heart-outline'}
+                    size={getResponsiveSize(22)}
+                    color={isFavorite(locationDetail.locationId.toString()) ? '#ef4444' : 'white'}
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Animated.View>
+
+        {/* Dynamic Header */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 101,
+            backgroundColor: 'white',
+            borderBottomWidth: 1,
+            borderBottomColor: '#eee',
+            opacity: scrollY.interpolate({
+              inputRange: [getResponsiveSize(300), getResponsiveSize(340)],
+              outputRange: [0, 1],
+              extrapolate: 'clamp',
+            }),
+          }}
+        >
+          <SafeAreaView>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                height: getResponsiveSize(56),
+                paddingHorizontal: getResponsiveSize(16),
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={{
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="#222" />
+              </TouchableOpacity>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text
+                  style={{
+                    fontWeight: 'bold',
+                    fontSize: getResponsiveSize(16),
+                    color: '#222',
+                  }}
+                  numberOfLines={1}
+                >
+                  {locationDetail?.name || 'Location Detail'}
                 </Text>
               </View>
-              <Text className="text-gray-400 text-sm">Status</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="share-outline" size={getResponsiveSize(22)} color="#222" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleToggleFavorite}
+                  style={{
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons
+                    name={isFavorite(locationDetail.locationId.toString()) ? 'heart' : 'heart-outline'}
+                    size={getResponsiveSize(22)}
+                    color={isFavorite(locationDetail.locationId.toString()) ? '#ef4444' : '#222'}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
-            
-            <View className="items-center">
-              <Text className="text-white text-xl font-bold">
-                ${locationDetail.hourlyRate || 0}
-              </Text>
-              <Text className="text-gray-400 text-sm">Per Hour</Text>
-            </View>
-          </View>
-        </View>
+          </SafeAreaView>
+        </Animated.View>
 
-        {/* Tab Navigation */}
-        <View className="flex-row bg-gray-900 mx-4 rounded-2xl p-1 mb-4">
-          {[
-            { key: 'about', label: 'About', icon: 'information-circle-outline' },
-            { key: 'gallery', label: 'Gallery', icon: 'images-outline' },
-            { key: 'owner', label: 'Owner', icon: 'person-outline' }
-          ].map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              onPress={() => setActiveTab(tab.key)}
-              className={`flex-1 flex-row items-center justify-center py-3 rounded-xl ${
-                activeTab === tab.key ? 'bg-[#32FAE9]' : ''
-              }`}
-            >
-              <Ionicons
-                name={tab.icon as any}
-                size={18}
-                color={activeTab === tab.key ? 'black' : 'white'}
-              />
-              <Text className={`ml-2 font-semibold text-sm ${
-                activeTab === tab.key ? 'text-black' : 'text-white'
-              }`}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Content Area */}
-        <ScrollView className="flex-1 px-4" showsVerticalScrollIndicator={false}>
-          {/* About Tab */}
-          {activeTab === 'about' && (
-            <View>
-              {/* Description */}
-              {locationDetail.description && (
-                <View className="bg-gray-900 rounded-2xl p-6 mb-4">
-                  <View className="flex-row items-center mb-3">
-                    <Ionicons name="document-text-outline" size={20} color="#32FAE9" />
-                    <Text className="text-[#32FAE9] text-lg font-bold ml-2">Description</Text>
-                  </View>
-                  <Text className="text-gray-300 text-base leading-6">
-                    {locationDetail.description}
+        {/* Scrollable Content */}
+        <Animated.ScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false }
+          )}
+          scrollEventThrottle={1}
+          contentContainerStyle={{ paddingTop: 0 }}
+        >
+          {/* Location Images Gallery */}
+          <View style={{
+            height: height * 0.6,
+            overflow: 'hidden',
+            marginTop: -50,
+            zIndex: 1,
+            backgroundColor: '#eee',
+          }}>
+            {galleryImages.length > 0 ? (
+              <>
+                <FlatList
+                  ref={flatListRef}
+                  data={galleryImages}
+                  renderItem={renderImageItem}
+                  keyExtractor={(item, index) => index.toString()}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onViewableItemsChanged={onViewableItemsChanged}
+                  viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+                />
+                <View
+                  className="absolute bg-black/50 backdrop-blur-sm rounded-full"
+                  style={{
+                    bottom: getResponsiveSize(90),
+                    right: getResponsiveSize(16),
+                    paddingHorizontal: getResponsiveSize(12),
+                    paddingVertical: getResponsiveSize(4),
+                    zIndex: 50,
+                  }}
+                >
+                  <Text
+                    className="text-white font-medium"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {currentImageIndex + 1} / {galleryImages.length}
                   </Text>
                 </View>
-              )}
+              </>
+            ) : (
+              <View className="flex-1 justify-center items-center">
+                <Ionicons name="images-outline" size={getResponsiveSize(60)} color="#9ca3af" />
+                <Text className="text-stone-600 mt-4 text-center">
+                  Chưa có ảnh địa điểm
+                </Text>
+              </View>
+            )}
+          </View>
 
-              {/* Amenities */}
-              {getAmenities().length > 0 && (
-                <View className="bg-gray-900 rounded-2xl p-6 mb-4">
-                  <View className="flex-row items-center mb-4">
-                    <Ionicons name="checkmark-circle-outline" size={20} color="#32FAE9" />
-                    <Text className="text-[#32FAE9] text-lg font-bold ml-2">Amenities</Text>
-                  </View>
-                  <View className="flex-row flex-wrap gap-3">
-                    {getAmenities().map((amenity, index) => (
-                      <View
-                        key={index}
-                        className="bg-[#32FAE9]/20 border border-[#32FAE9]/30 px-4 py-2 rounded-full"
-                      >
-                        <Text className="text-[#32FAE9] font-medium">{amenity}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {/* Space Type */}
-              <View className="bg-gray-900 rounded-2xl p-6 mb-4">
-                <View className="flex-row items-center mb-4">
-                  <Ionicons name="business-outline" size={20} color="#32FAE9" />
-                  <Text className="text-[#32FAE9] text-lg font-bold ml-2">Space Details</Text>
+          {/* Content Section */}
+          <View
+            className="bg-white relative"
+            style={{
+              borderTopLeftRadius: getResponsiveSize(32),
+              borderTopRightRadius: getResponsiveSize(32),
+              marginTop: -getResponsiveSize(80),
+              zIndex: 10,
+            }}
+          >
+            <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(24) }}>
+              
+              {/* Header Info */}
+              <View className="items-center mb-4">
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="location-outline" size={getResponsiveSize(20)} color="#666" />
+                  <Text
+                    className="text-stone-900 font-bold ml-2"
+                    style={{ fontSize: getResponsiveSize(24) }}
+                  >
+                    {locationDetail?.name || 'Studio Location'}
+                  </Text>
                 </View>
                 
-                <View className="space-y-3">
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-gray-400">Indoor Space</Text>
-                    <View className="flex-row items-center">
-                      <Ionicons 
-                        name={locationDetail.indoor ? "checkmark-circle" : "close-circle"} 
-                        size={20} 
-                        color={locationDetail.indoor ? "#10B981" : "#EF4444"} 
-                      />
-                      <Text className={`ml-2 ${locationDetail.indoor ? 'text-green-400' : 'text-red-400'}`}>
-                        {locationDetail.indoor ? 'Available' : 'Not Available'}
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  <View className="flex-row items-center justify-between">
-                    <Text className="text-gray-400">Outdoor Space</Text>
-                    <View className="flex-row items-center">
-                      <Ionicons 
-                        name={locationDetail.outdoor ? "checkmark-circle" : "close-circle"} 
-                        size={20} 
-                        color={locationDetail.outdoor ? "#10B981" : "#EF4444"} 
-                      />
-                      <Text className={`ml-2 ${locationDetail.outdoor ? 'text-green-400' : 'text-red-400'}`}>
-                        {locationDetail.outdoor ? 'Available' : 'Not Available'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </View>
-            </View>
-          )}
+                <Text
+                  className="text-stone-600 text-center mb-2"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  {locationDetail?.address || 'Professional Photography Studio'}
+                </Text>
 
-          {/* Gallery Tab */}
-          {activeTab === 'gallery' && (
-            <View className="mb-4">
-              <View className="flex-row flex-wrap gap-2">
-                {getGalleryImages().map((photo, index) => (
-                  <View
-                    key={index}
-                    className="rounded-2xl overflow-hidden"
-                    style={{
-                      width: (width - 24) / 2,
-                      height: (width - 24) / 2,
-                    }}
+                <Text
+                  className="text-stone-600 text-center"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Sức chứa {locationDetail?.capacity || 0} người • {getAmenities().join(' • ')}
+                </Text>
+              </View>
+
+              {/* Rating Section */}
+              <View
+                className="flex-row items-center justify-between pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                <View className="items-center">
+                  <Text
+                    className="text-stone-900 font-bold"
+                    style={{ fontSize: getResponsiveSize(28) }}
                   >
-                    <Image
-                      source={{ uri: photo }}
-                      className="w-full h-full"
-                      resizeMode="cover"
-                      onError={(e) => {
-                        console.log('Image load error:', e.nativeEvent.error);
-                      }}
-                    />
+                    4.8
+                  </Text>
+                  <View className="flex-row mt-1">
+                    {renderStars(4.8)}
                   </View>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* Owner Tab */}
-          {activeTab === 'owner' && (
-            <View className="mb-4">
-              {locationDetail.locationOwner ? (
-                <View className="bg-gray-900 rounded-2xl p-6">
-                  <View className="flex-row items-center mb-4">
-                    <Ionicons name="business-outline" size={20} color="#32FAE9" />
-                    <Text className="text-[#32FAE9] text-lg font-bold ml-2">Business Information</Text>
-                  </View>
-                  
-                  {locationDetail.locationOwner.businessName && (
-                    <View className="mb-3">
-                      <Text className="text-gray-400 text-sm">Business Name</Text>
-                      <Text className="text-white text-base">{locationDetail.locationOwner.businessName}</Text>
-                    </View>
-                  )}
-                  
-                  {locationDetail.locationOwner.businessAddress && (
-                    <View className="mb-3">
-                      <Text className="text-gray-400 text-sm">Business Address</Text>
-                      <Text className="text-white text-base">{locationDetail.locationOwner.businessAddress}</Text>
-                    </View>
-                  )}
-                  
-                  {locationDetail.locationOwner.businessRegistrationNumber && (
-                    <View className="mb-3">
-                      <Text className="text-gray-400 text-sm">Registration Number</Text>
-                      <Text className="text-white text-base">{locationDetail.locationOwner.businessRegistrationNumber}</Text>
-                    </View>
-                  )}
-                  
-                  {locationDetail.locationOwner.verificationStatus && (
-                    <View className="flex-row items-center">
-                      <Ionicons 
-                        name={locationDetail.locationOwner.verificationStatus === 'Verified' ? "shield-checkmark" : "shield-outline"} 
-                        size={20} 
-                        color={locationDetail.locationOwner.verificationStatus === 'Verified' ? "#10B981" : "#F59E0B"} 
-                      />
-                      <Text className={`ml-2 font-semibold ${locationDetail.locationOwner.verificationStatus === 'Verified' ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {locationDetail.locationOwner.verificationStatus}
-                      </Text>
-                    </View>
-                  )}
                 </View>
-              ) : (
-                <View className="items-center py-12">
-                  <Ionicons name="person-outline" size={64} color="#666" />
-                  <Text className="text-white text-xl font-bold mt-4">No Owner Information</Text>
-                  <Text className="text-gray-400 text-center mt-2">
-                    Owner details are not available for this location.
+
+                <View className="items-center">
+                  <Ionicons name="location" size={getResponsiveSize(32)} color="#10b981" />
+                  <Text
+                    className="text-stone-700 font-medium mt-1"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    Địa điểm ưa thích
                   </Text>
                 </View>
-              )}
-            </View>
-          )}
 
-          <View style={{ height: 120 }} />
-        </ScrollView>
-      </SafeAreaView>
+                <View className="items-center">
+                  <Text
+                    className="text-stone-900 font-bold"
+                    style={{ fontSize: getResponsiveSize(28) }}
+                  >
+                    45
+                  </Text>
+                  <Text
+                    className="text-stone-600"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    đánh giá
+                  </Text>
+                </View>
+              </View>
+
+              {/* Owner Info */}
+              <View
+                className="flex-row items-center pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                <View
+                  style={{
+                    width: getResponsiveSize(56),
+                    height: getResponsiveSize(56),
+                    borderRadius: getResponsiveSize(28),
+                    backgroundColor: '#f5f5f4',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: getResponsiveSize(16)
+                  }}
+                >
+                  <Ionicons name="business-outline" size={getResponsiveSize(28)} color="#10b981" />
+                </View>
+                <View className="flex-1">
+                  <Text
+                    className="text-stone-900 font-semibold"
+                    style={{ fontSize: getResponsiveSize(18) }}
+                  >
+                    {locationDetail?.locationOwner?.businessName || 'Professional Studio'}
+                  </Text>
+                  <Text
+                    className="text-stone-600"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {locationDetail?.availabilityStatus || 'Available'} • {locationDetail?.locationOwner?.verificationStatus || 'Verified'}
+                  </Text>
+                </View>
+                
+                {(locationDetail?.verificationStatus === 'Verified' || 
+                  locationDetail?.locationOwner?.verificationStatus === 'Verified') && (
+                  <View className="ml-2">
+                    <Ionicons name="checkmark-circle" size={getResponsiveSize(20)} color="#10b981" />
+                  </View>
+                )}
+              </View>
+
+
+
+              {/* Location Features Section */}
+              <View
+                className="pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                {/* Description */}
+                {locationDetail?.description && (
+                  <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
+                    <Ionicons name="document-text-outline" size={getResponsiveSize(24)} color="#57534e" />
+                    <View className="ml-4 flex-1">
+                      <Text
+                        className="text-stone-900 font-semibold"
+                        style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                      >
+                        Mô tả địa điểm
+                      </Text>
+                      <Text
+                        className="text-stone-600 leading-6"
+                        style={{ fontSize: getResponsiveSize(14) }}
+                      >
+                        {locationDetail.description}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Amenities */}
+                <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
+                  <Ionicons name="checkmark-circle-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View className="ml-4 flex-1">
+                    <Text
+                      className="text-stone-900 font-semibold"
+                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                    >
+                      Tiện nghi
+                    </Text>
+                    <Text
+                      className="text-stone-600 leading-6"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      {getAmenities().join(', ')}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Space Type */}
+                <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
+                  <Ionicons name="business-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View className="ml-4 flex-1">
+                    <Text
+                      className="text-stone-900 font-semibold"
+                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                    >
+                      Loại không gian
+                    </Text>
+                    <Text
+                      className="text-stone-600 leading-6"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      {locationDetail?.indoor && locationDetail?.outdoor 
+                        ? 'Cả trong nhà và ngoài trời'
+                        : locationDetail?.indoor 
+                        ? 'Trong nhà' 
+                        : locationDetail?.outdoor 
+                        ? 'Ngoài trời'
+                        : 'Studio chuyên nghiệp'}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Capacity */}
+                <View className="flex-row">
+                  <Ionicons name="people-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View className="ml-4 flex-1">
+                    <Text
+                      className="text-stone-900 font-semibold"
+                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                    >
+                      Sức chứa
+                    </Text>
+                    <Text
+                      className="text-stone-600 leading-6"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      Tối đa {locationDetail?.capacity || 0} người cùng lúc.
+                    </Text>
+                  </View>
+                </View>
+              </View>
+                            {/* Location Map Section */}
+                            <View
+                className="pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                <View className="flex-row items-center mb-6">
+                  <Ionicons name="map-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <Text
+                    className="text-stone-900 font-semibold ml-4"
+                    style={{ fontSize: getResponsiveSize(24) }}
+                  >
+                    Nơi bạn sẽ đến
+                  </Text>
+                </View>
+                
+                <View 
+                  className="bg-stone-100 rounded-2xl overflow-hidden"
+                  style={{ height: getResponsiveSize(220) }}
+                >
+                  {addressValidation?.isValid && addressValidation.coordinates ? (
+                    <TouchableOpacity
+                      className="flex-1 relative"
+                      onPress={() => {
+                        Alert.alert(
+                          'Mở bản đồ',
+                          'Bạn muốn mở vị trí này trong ứng dụng bản đồ?',
+                          [
+                            { text: 'Hủy', style: 'cancel' },
+                            { 
+                              text: 'Mở', 
+                              onPress: () => {
+                                const { lat, lng } = addressValidation.coordinates!;
+                                const address = locationDetail?.address || 'Location';
+                                openMapsApp(lat, lng, address);
+                              }
+                            }
+                          ]
+                        );
+                      }}
+                    >
+                      <Image
+                        source={{
+                          uri: getStaticMapUrl(
+                            addressValidation.coordinates.lat, 
+                            addressValidation.coordinates.lng,
+                            15
+                          )
+                        }}
+                        style={{ width: '100%', height: '100%' }}
+                        resizeMode="cover"
+                      />
+                      
+                      <View 
+                        className="absolute"
+                        style={{ 
+                          top: '45%',
+                          left: '47%',
+                          transform: [{ translateX: -16 }, { translateY: -16 }]
+                        }}
+                      >
+                        <View 
+                          className="bg-emerald-500 rounded-full items-center justify-center shadow-lg"
+                          style={{ 
+                            width: getResponsiveSize(32), 
+                            height: getResponsiveSize(32),
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.3,
+                            shadowRadius: 4,
+                            elevation: 5,
+                          }}
+                        >
+                          <Ionicons name="location" size={getResponsiveSize(20)} color="white" />
+                        </View>
+                      </View>
+
+                      <View 
+                        className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm"
+                        style={{
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.1,
+                          shadowRadius: 2,
+                          elevation: 2,
+                        }}
+                      >
+                        <View className="flex-row items-center">
+                          <Ionicons name="map" size={getResponsiveSize(14)} color="#10b981" />
+                          <Text 
+                            className="text-stone-800 font-semibold ml-1"
+                            style={{ fontSize: getResponsiveSize(11) }}
+                          >
+                            Nhấn để mở Maps
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View 
+                        className="absolute bottom-2 right-2 bg-black/70 rounded px-2 py-1"
+                      >
+                        <Text 
+                          className="text-white"
+                          style={{ fontSize: getResponsiveSize(9) }}
+                        >
+                          © OpenStreetMap
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ) : (
+                    <View className="flex-1 items-center justify-center">
+                      <Ionicons 
+                        name={addressValidation === null ? "map-outline" : "location-outline"} 
+                        size={getResponsiveSize(40)} 
+                        color="#9ca3af" 
+                      />
+                      <Text className="text-stone-500 mt-2 text-center">
+                        {addressValidation === null 
+                          ? 'Đang kiểm tra địa chỉ...' 
+                          : 'Không thể xác thực địa chỉ'
+                        }
+                      </Text>
+                      {addressValidation === null && (
+                        <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 8 }} />
+                      )}
+                      
+                      {locationDetail?.address && (
+                        <Text className="text-stone-400 mt-2 text-center text-xs">
+                          {locationDetail.address}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+                </View>
+                
+                {/* Address Info */}
+                <View className="mt-4 p-4 bg-stone-50 rounded-xl">
+                  <View className="flex-row items-center justify-between">
+                    <View className="flex-1">
+                      <Text 
+                        className="text-stone-900 font-medium"
+                        style={{ fontSize: getResponsiveSize(14) }}
+                      >
+                        📍 {locationDetail?.address || 'Chưa có địa chỉ cụ thể'}
+                      </Text>
+                      {addressValidation?.displayName && (
+                        <Text 
+                          className="text-stone-600 mt-1"
+                          style={{ fontSize: getResponsiveSize(12) }}
+                        >
+                          {addressValidation.displayName}
+                        </Text>
+                      )}
+                      {addressValidation?.coordinates && (
+                        <Text 
+                          className="text-stone-500 mt-1"
+                          style={{ fontSize: getResponsiveSize(11) }}
+                        >
+                          📍 {addressValidation.coordinates.lat.toFixed(6)}, {addressValidation.coordinates.lng.toFixed(6)}
+                        </Text>
+                      )}
+                    </View>
+                    
+                    <View className="ml-2">
+                      {addressValidation === null ? (
+                        <View className="flex-row items-center bg-blue-100 px-3 py-1 rounded-full">
+                          <ActivityIndicator size="small" color="#3b82f6" />
+                          <Text 
+                            className="text-blue-700 font-medium ml-2"
+                            style={{ fontSize: getResponsiveSize(11) }}
+                          >
+                            Đang kiểm tra
+                          </Text>
+                        </View>
+                      ) : addressValidation.isValid ? (
+                        <View className="flex-row items-center bg-emerald-100 px-3 py-1 rounded-full">
+                          <Ionicons name="checkmark-circle" size={getResponsiveSize(14)} color="#10b981" />
+                          <Text 
+                            className="text-emerald-700 font-medium ml-1"
+                            style={{ fontSize: getResponsiveSize(11) }}
+                          >
+                            Đã xác thực
+                          </Text>
+                        </View>
+                      ) : (
+                        <View className="flex-row items-center bg-amber-100 px-3 py-1 rounded-full">
+                          <Ionicons name="warning" size={getResponsiveSize(14)} color="#f59e0b" />
+                          <Text 
+                            className="text-amber-700 font-medium ml-1"
+                            style={{ fontSize: getResponsiveSize(11) }}
+                          >
+                            Cần xác minh
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                  
+                  {addressValidation?.isValid && (
+                    <View className="mt-3 pt-3 border-t border-stone-200">
+                      <Text 
+                        className="text-stone-500"
+                        style={{ fontSize: getResponsiveSize(11) }}
+                      >
+                        Powered by OpenStreetMap • Free & Accurate
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+          </View>
+          
+          <View style={{ height: getResponsiveSize(32) }} />
+        </Animated.ScrollView>
+
+        {/* Action Buttons */}
+        <SafeAreaView style={{ backgroundColor: 'white' }}>
+          <View
+            className="bg-white px-6 border-t border-stone-200"
+            style={{ paddingVertical: getResponsiveSize(16) }}
+          >
+            <View className="flex-row space-x-3">
+              {/* Contact Owner Button */}
+              <TouchableOpacity
+                className="flex-1 bg-stone-100 rounded-2xl items-center"
+                style={{ paddingVertical: getResponsiveSize(16) }}
+                onPress={() => {
+                  Alert.alert(
+                    'Liên hệ chủ địa điểm',
+                    `Thông tin kinh doanh:\n\nTên: ${locationDetail?.locationOwner?.businessName || 'N/A'}\nĐịa chỉ: ${locationDetail?.locationOwner?.businessAddress || 'N/A'}\nMã đăng ký: ${locationDetail?.locationOwner?.businessRegistrationNumber || 'N/A'}`,
+                    [{ text: 'OK' }]
+                  );
+                }}
+              >
+                <Text
+                  className="text-stone-700 font-semibold"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Liên hệ
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      </View>
     </View>
   );
 }

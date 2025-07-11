@@ -354,11 +354,15 @@ export default function FavoritesScreen() {
                 {/* Hiển thị 4 ảnh recent items đầu tiên */}
                 <View className="flex-row flex-wrap justify-between mb-4">
                   <RecentGridPreview
-                    items={allRecentItems.slice(0, 4).map(item => ({
-                      image:
-                        // Nếu là location thì lấy images[0], nếu là photographer thì lấy avatar hoặc images[0]
-                        item.images?.[0]
-                    }))}
+                   items={allRecentItems.slice(0, 4).map(item => ({
+                    image:
+                      // Nếu là location thì lấy images[0], nếu là photographer thì lấy avatar hoặc images[0]
+                      'images' in item && Array.isArray(item.images) && item.images.length > 0
+                        ? item.images[0]
+                        : 'avatar' in item && item.avatar
+                        ? item.avatar
+                        : undefined
+                  }))}
                     onPress={() => navigation.navigate('RecentlyViewedScreen')}
                     size={getResponsiveSize(160)}
                   />
@@ -376,17 +380,6 @@ export default function FavoritesScreen() {
                     >
                       Đã xem gần đây
                     </Text>
-                    {allRecentItems.length > 4 && (
-                      <View className="flex-row items-center">
-                        <Text
-                          className="text-stone-600 mr-1"
-                          style={{ fontSize: getResponsiveSize(14) }}
-                        >
-                          Xem tất cả
-                        </Text>
-                        <Ionicons name="chevron-forward" size={16} color="#57534e" />
-                      </View>
-                    )}
                   </View>
                 </TouchableOpacity>
 
@@ -397,25 +390,38 @@ export default function FavoritesScreen() {
                     style={{ fontSize: getResponsiveSize(15) }}
                   >
                     Hôm nay
-                  </Text>
-                )}
+                  </Text>                )}
 
                 {groupedRecentItems.yesterdayItems.length > 0 && (
-                  <Text
-                    className="text-stone-500 font-medium"
-                    style={{ fontSize: getResponsiveSize(15) }}
-                  >
-                    Hôm qua
-                  </Text>
+                  <View>
+                    <Text
+                      className="text-stone-500 font-medium"
+                      style={{ fontSize: getResponsiveSize(15) }}
+                    >
+                      Hôm qua
+                    </Text>
+                    <View className="flex-row flex-wrap justify-between mt-2 mb-4">
+                      {groupedRecentItems.yesterdayItems.map((item, idx) =>
+                        renderGridCard(item, 'recent', idx)
+                      )}
+                    </View>
+                  </View>
                 )}
 
                 {groupedRecentItems.olderItems.length > 0 && (
-                  <Text
-                    className="text-stone-500 font-medium"
-                    style={{ fontSize: getResponsiveSize(15) }}
-                  >
-                    Trước đó
-                  </Text>
+                  <View>
+                    <Text
+                      className="text-stone-500 font-medium"
+                      style={{ fontSize: getResponsiveSize(15) }}
+                    >
+                      Trước đó
+                    </Text>
+                    <View className="flex-row flex-wrap justify-between mt-2 mb-4">
+                      {groupedRecentItems.olderItems.map((item, idx) =>
+                        renderGridCard(item, 'recent', idx)
+                      )}
+                    </View>
+                  </View>
                 )}
               </View>
             )}

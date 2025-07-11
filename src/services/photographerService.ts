@@ -69,6 +69,45 @@ class PhotographerService {
 
     return headers;
   }
+  // Get featured photographers
+  async getFeatured(): Promise<PhotographerProfile[]> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer/featured`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching featured photographers:', error);
+      throw error;
+    }
+  }
+
+  // Get all photography 
+  async getAll(): Promise<PhotographerProfile[]> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching photographers:', error);
+      throw error;
+    }
+  }
 
   // Get all photography styles
   async getStyles(): Promise<Style[]> {
@@ -211,6 +250,23 @@ class PhotographerService {
       console.error('Error finding photographer profile:', error);
       return null;
     }
+  }
+
+  // Alias cho getById để tương thích code cũ
+  getById(photographerId: number) {
+    return this.getPhotographerProfile(photographerId);
+  }
+
+  // Lấy photographer available (filter phía client)
+  async getAvailable(): Promise<PhotographerProfile[]> {
+    const all = await this.getAll();
+    return all.filter(p => p.availabilityStatus === 'available');
+  }
+
+  // Lấy photographer theo specialty (filter phía client)
+  async getBySpecialty(specialty: string): Promise<PhotographerProfile[]> {
+    const all = await this.getAll();
+    return all.filter(p => p.specialty === specialty);
   }
 
   // Update photographer profile

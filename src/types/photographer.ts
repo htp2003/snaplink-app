@@ -1,4 +1,4 @@
-import { PhotographerImage } from './photographerImage';
+import { ImageResponse } from './image';
 
 export interface Photographer {
   $id?: string;
@@ -84,8 +84,8 @@ export interface PhotographerProfile {
   verificationStatus?: string;
   styles?: PhotographerStyle[];
   reviews?: Review[];
-  images?: PhotographerImage[];
-  primaryImage?: PhotographerImage;
+  images?: ImageResponse[]; // Using ImageResponse from new Image API
+  primaryImage?: ImageResponse; // Using ImageResponse from new Image API
 }
 
 export interface PhotographerStyle {
@@ -133,9 +133,8 @@ export interface StyleRecommendation {
   recommendedPhotographers: RecommendedPhotographer[];
 }
 
-// Extended interface for photographer with images (from PhotographerImage API)
+// Extended interface for photographer with images (from Image API)
 export interface PhotographerWithImages extends Photographer {
-  images: string[];
-  primaryImage?: PhotographerImage;
+  images: string[]; // Array of image URLs for compatibility
+  primaryImage?: ImageResponse; // Using ImageResponse from new Image API
 }
-

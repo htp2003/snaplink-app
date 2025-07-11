@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, StatusBar, Dimensions, Alert, ActivityIndicator, FlatList, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,8 +9,6 @@ import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
 import { usePhotographerDetail } from '../../hooks/usePhotographerDetail';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
-import { photographerService } from '../../services/photographerService';
-import { PhotographerImage } from '../../types/photographerImage';
 import PhotographerReviews from '../../components/Photographer/PhotographerReviews';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -25,80 +23,79 @@ export default function PhotographerCardDetail() {
 
   // State management
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [photographerImages, setPhotographerImages] = useState<string[]>([]);
-  const [loadingImages, setLoadingImages] = useState(false);
+  const [hasTrackedView, setHasTrackedView] = useState(false); // Prevent multiple trackView calls
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   
   // Hooks
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { trackView } = useRecentlyViewed();
-  const { photographerDetail, loading, error, fetchPhotographerById } = usePhotographerDetail();
+  const { 
+    photographerDetail,
+    loading,
+    error,
+    fetchPhotographerById,
+    // Images data and methods from unified hook
+    images: photographerImages,
+    imageResponses,
+    primaryImage,
+    primaryImageUrl,
+    loadingImages,
+    imageError,
+  } = usePhotographerDetail();
 
-  // Fetch photographer details
+  // Fetch photographer details (including images via hook) - only once
   useEffect(() => {
     if (photographerId) {
       fetchPhotographerById(photographerId);
     }
-  }, [photographerId]);
+  }, [photographerId, fetchPhotographerById]);
 
-  // Fetch photographer images từ PhotographerImage API
-  const fetchPhotographerImages = async () => {
-    if (!photographerId) return;
+  // Memoize the track view data to prevent changes on every render
+  const trackViewData = useMemo(() => {
+    if (!photographerDetail) return null;
     
-    try {
-      setLoadingImages(true);
-      const images = await photographerService.getImages(parseInt(photographerId));
-      
-      // Process images array
-      let imageArray: PhotographerImage[] = [];
-      if (Array.isArray(images)) {
-        imageArray = images;
-      } else if (images && Array.isArray((images as any).$values)) {
-        imageArray = (images as any).$values;
-      }
-
-      // Extract image URLs
-      const imageUrls = imageArray.map(img => img.imageUrl);
-      setPhotographerImages(imageUrls);
-      
-    } catch (error) {
-      console.error('Error fetching photographer images:', error);
-      setPhotographerImages([]);
-    } finally {
-      setLoadingImages(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPhotographerImages();
-  }, [photographerId]);
-
-  // Track recently viewed
-  useEffect(() => {
-    if (photographerDetail) {
-      trackView({
+    return {
+      id: photographerDetail.photographerId.toString(),
+      type: 'photographer' as const,
+      data: {
         id: photographerDetail.photographerId.toString(),
-        type: 'photographer',
-        data: {
-          id: photographerDetail.photographerId.toString(),
-          fullName: photographerDetail.fullName || 'Unknown Photographer',
-          avatar: photographerDetail.profileImage || '',
-          cardImage: null,
-          images: photographerImages,
-          styles: Array.isArray(photographerDetail.styles)
-            ? photographerDetail.styles
-            : (photographerDetail.styles && '$values' in photographerDetail.styles)
-              ? (photographerDetail.styles as any).$values
-              : [photographerDetail.specialty || 'Photography'],
-          rating: photographerDetail.rating,
-          hourlyRate: photographerDetail.hourlyRate,
-          availabilityStatus: photographerDetail.availabilityStatus,
-          specialty: photographerDetail.specialty,
-        }
-      });
+        fullName: photographerDetail.fullName || 'Unknown Photographer',
+        avatar: photographerDetail.profileImage || '',
+        cardImage: primaryImageUrl || (photographerImages && photographerImages.length > 0 ? photographerImages[0] : null),
+        images: photographerImages || [],
+        styles: Array.isArray(photographerDetail.styles)
+          ? photographerDetail.styles
+          : (photographerDetail.styles && '$values' in photographerDetail.styles)
+            ? (photographerDetail.styles as any).$values
+            : [photographerDetail.specialty || 'Photography'],
+        rating: photographerDetail.rating,
+        hourlyRate: photographerDetail.hourlyRate,
+        availabilityStatus: photographerDetail.availabilityStatus,
+        specialty: photographerDetail.specialty,
+      }
+    };
+  }, [
+    photographerDetail?.photographerId,
+    photographerDetail?.fullName,
+    photographerDetail?.profileImage,
+    photographerDetail?.styles,
+    photographerDetail?.rating,
+    photographerDetail?.hourlyRate,
+    photographerDetail?.availabilityStatus,
+    photographerDetail?.specialty,
+    primaryImageUrl,
+    photographerImages
+  ]);
+
+  // Track recently viewed - only once when data is ready
+  useEffect(() => {
+    if (trackViewData && !hasTrackedView) {
+      console.log('Tracking view for photographer:', trackViewData.id);
+      trackView(trackViewData);
+      setHasTrackedView(true);
     }
-  }, [photographerDetail, photographerImages]);
+  }, [trackViewData, hasTrackedView, trackView]);
 
   // Handle error
   useEffect(() => {
@@ -112,21 +109,27 @@ export default function PhotographerCardDetail() {
         ]
       );
     }
-  }, [error]);
+  }, [error, photographerId, fetchPhotographerById, navigation]);
 
-  // Handle favorite toggle
-  const handleToggleFavorite = () => {
-    if (!photographerDetail) return;
+  // Handle image error - don't show alert, just log
+  useEffect(() => {
+    if (imageError) {
+      console.warn('Image loading error:', imageError);
+    }
+  }, [imageError]);
 
-    const favoriteItem: FavoriteItem = {
+  // Memoize favorite item to prevent recreation on every render
+  const favoriteItem = useMemo((): FavoriteItem | null => {
+    if (!photographerDetail) return null;
+    
+    return {
       id: photographerDetail.photographerId.toString(),
       type: 'photographer',
       data: {
         id: photographerDetail.photographerId.toString(),
         fullName: photographerDetail.fullName || 'Unknown',
         avatar: photographerDetail.profileImage || '',
-        cardImage: null,
-        images: photographerImages,
+        images: photographerImages || [],
         styles: Array.isArray(photographerDetail.styles)
           ? photographerDetail.styles
           : (photographerDetail.styles && '$values' in photographerDetail.styles)
@@ -137,16 +140,32 @@ export default function PhotographerCardDetail() {
         availabilityStatus: photographerDetail.availabilityStatus
       }
     };
+  }, [
+    photographerDetail?.photographerId,
+    photographerDetail?.fullName,
+    photographerDetail?.profileImage,
+    photographerDetail?.styles,
+    photographerDetail?.rating,
+    photographerDetail?.hourlyRate,
+    photographerDetail?.availabilityStatus,
+    primaryImageUrl,
+    photographerImages
+  ]);
 
-    if (isFavorite(photographerDetail.photographerId.toString())) {
-      removeFavorite(photographerDetail.photographerId.toString());
+  // Handle favorite toggle
+  const handleToggleFavorite = useCallback(() => {
+    if (!favoriteItem) return;
+
+    const photographerIdStr = favoriteItem.id;
+    if (isFavorite(photographerIdStr)) {
+      removeFavorite(photographerIdStr);
     } else {
       addFavorite(favoriteItem);
     }
-  };
+  }, [favoriteItem, isFavorite, addFavorite, removeFavorite]);
 
   // Render stars for rating
-  const renderStars = (rating: number) => {
+  const renderStars = useCallback((rating: number) => {
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 !== 0;
@@ -162,7 +181,7 @@ export default function PhotographerCardDetail() {
       stars.push(<Ionicons key={`empty-${i}`} name="star-outline" size={getResponsiveSize(16)} color="#d1d5db" />);
     }
     return stars;
-  };
+  }, []);
 
   // Handle image viewable changes
   const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
@@ -172,7 +191,7 @@ export default function PhotographerCardDetail() {
   }).current;
 
   // Render image item
-  const renderImageItem = ({ item }: { item: string }) => (
+  const renderImageItem = useCallback(({ item }: { item: string }) => (
     <View style={{ width }}>
       <Image
         source={{ uri: item }}
@@ -182,12 +201,12 @@ export default function PhotographerCardDetail() {
           marginTop: -50
         }}
         resizeMode="cover"
-        onError={(error) => {
-          console.log('Failed to load photographer image:', item, error);
+        onError={() => {
+          console.log('Failed to load image:', item);
         }}
       />
     </View>
-  );
+  ), []);
 
   // Handle status bar style change
   useEffect(() => {
@@ -200,6 +219,21 @@ export default function PhotographerCardDetail() {
     });
     return () => scrollY.removeListener(listener);
   }, [scrollY]);
+
+  // Handle navigation
+  const handleGoBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
+
+  const handleBooking = useCallback(() => {
+    if (!photographerDetail) return;
+    
+    navigation.navigate('Booking', {
+      photographerId: photographerDetail.photographerId.toString(),
+      photographerName: photographerDetail.fullName || 'Photographer',
+      hourlyRate: photographerDetail.hourlyRate
+    });
+  }, [navigation, photographerDetail]);
 
   // Loading state
   if (loading) {
@@ -220,7 +254,7 @@ export default function PhotographerCardDetail() {
           Không tìm thấy thợ chụp ảnh
         </Text>
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+          onPress={handleGoBack}
           className="mt-8 px-8 py-4 bg-amber-500 rounded-2xl"
         >
           <Text className="text-white font-bold text-lg">Quay lại</Text>
@@ -228,6 +262,9 @@ export default function PhotographerCardDetail() {
       </View>
     );
   }
+
+  const isPhotographerFavorite = photographerDetail ? isFavorite(photographerDetail.photographerId.toString()) : false;
+  const isUnavailable = photographerDetail?.availabilityStatus?.toLowerCase() === 'unavailable';
 
   return (
     <View className="flex-1 bg-white">
@@ -261,7 +298,7 @@ export default function PhotographerCardDetail() {
               }}
             >
               <TouchableOpacity
-                onPress={() => navigation.goBack()}
+                onPress={handleGoBack}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -300,9 +337,9 @@ export default function PhotographerCardDetail() {
                   }}
                 >
                   <Ionicons
-                    name={isFavorite(photographerDetail.photographerId.toString()) ? 'heart' : 'heart-outline'}
+                    name={isPhotographerFavorite ? 'heart' : 'heart-outline'}
                     size={getResponsiveSize(22)}
-                    color={isFavorite(photographerDetail.photographerId.toString()) ? '#ef4444' : 'white'}
+                    color={isPhotographerFavorite ? '#ef4444' : 'white'}
                   />
                 </TouchableOpacity>
               </View>
@@ -339,7 +376,7 @@ export default function PhotographerCardDetail() {
               }}
             >
               <TouchableOpacity
-                onPress={() => navigation.goBack()}
+                onPress={handleGoBack}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -382,9 +419,9 @@ export default function PhotographerCardDetail() {
                   }}
                 >
                   <Ionicons
-                    name={isFavorite(photographerDetail.photographerId.toString()) ? 'heart' : 'heart-outline'}
+                    name={isPhotographerFavorite ? 'heart' : 'heart-outline'}
                     size={getResponsiveSize(22)}
-                    color={isFavorite(photographerDetail.photographerId.toString()) ? '#ef4444' : '#222'}
+                    color={isPhotographerFavorite ? '#ef4444' : '#222'}
                   />
                 </TouchableOpacity>
               </View>
@@ -403,7 +440,7 @@ export default function PhotographerCardDetail() {
           scrollEventThrottle={1}
           contentContainerStyle={{ paddingTop: 0 }}
         >
-          {/* Photographer Images Gallery */}
+          {/* Photographer Images Gallery from unified hook */}
           <View style={{
             height: height * 0.6,
             overflow: 'hidden',
@@ -414,15 +451,15 @@ export default function PhotographerCardDetail() {
             {loadingImages ? (
               <View className="flex-1 justify-center items-center">
                 <ActivityIndicator size="large" color="#d97706" />
-                <Text className="text-stone-600 mt-2">Đang tải ảnh...</Text>
+                <Text className="text-stone-600 mt-2">Đang tải ảnh từ Image API...</Text>
               </View>
-            ) : photographerImages.length > 0 ? (
+            ) : photographerImages && photographerImages.length > 0 ? (
               <>
                 <FlatList
                   ref={flatListRef}
                   data={photographerImages}
                   renderItem={renderImageItem}
-                  keyExtractor={(item, index) => index.toString()}
+                  keyExtractor={(item, index) => `${item}-${index}`}
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
@@ -447,6 +484,26 @@ export default function PhotographerCardDetail() {
                     {currentImageIndex + 1} / {photographerImages.length}
                   </Text>
                 </View>
+                {/* Primary image indicator */}
+                {primaryImage && (
+                  <View
+                    className="absolute bg-amber-500 rounded-full"
+                    style={{
+                      bottom: getResponsiveSize(90),
+                      left: getResponsiveSize(16),
+                      paddingHorizontal: getResponsiveSize(8),
+                      paddingVertical: getResponsiveSize(4),
+                      zIndex: 50,
+                    }}
+                  >
+                    <Text
+                      className="text-white font-medium text-xs"
+                      style={{ fontSize: getResponsiveSize(12) }}
+                    >
+                      Ảnh chính
+                    </Text>
+                  </View>
+                )}
               </>
             ) : (
               <View className="flex-1 justify-center items-center">
@@ -643,7 +700,7 @@ export default function PhotographerCardDetail() {
                   </View>
                 )}
 
-                {/* Photographer Images */}
+                {/* Images from new Image API via unified hook */}
                 <View className="flex-row">
                   <Ionicons name="images-outline" size={getResponsiveSize(24)} color="#57534e" />
                   <View className="ml-4 flex-1">
@@ -657,8 +714,8 @@ export default function PhotographerCardDetail() {
                       className="text-stone-600 leading-6"
                       style={{ fontSize: getResponsiveSize(14) }}
                     >
-                      {photographerImages.length > 0 
-                        ? `${photographerImages.length} ảnh được upload bởi photographer.`
+                      {photographerImages && photographerImages.length > 0 
+                        ? `${photographerImages.length} ảnh được upload bởi photographer.${primaryImage ? ' Có ảnh chính được đánh dấu.' : ''}`
                         : 'Đang cập nhật ảnh mới nhất.'
                       }
                     </Text>
@@ -670,7 +727,7 @@ export default function PhotographerCardDetail() {
           
           {/* Reviews Section */}
           <PhotographerReviews
-            photographerId={photographerDetail?.photographerId || photographerId}
+            photographerId={photographerDetail?.photographerId || parseInt(photographerId)}
             currentRating={photographerDetail?.rating}
             totalReviews={photographerDetail?.ratingCount}
           />
@@ -684,23 +741,16 @@ export default function PhotographerCardDetail() {
             style={{ paddingVertical: getResponsiveSize(16) }}
           >
             <TouchableOpacity
-              onPress={() => navigation.navigate('Booking', {
-                photographerId: photographerDetail?.photographerId?.toString() || '',
-                photographerName: photographerDetail?.fullName || 'Photographer',
-                hourlyRate: photographerDetail?.hourlyRate
-              })}
-              disabled={photographerDetail?.availabilityStatus?.toLowerCase() === 'unavailable'}
-              className={`rounded-2xl items-center ${photographerDetail?.availabilityStatus?.toLowerCase() === 'unavailable'
-                ? 'bg-stone-300'
-                : 'bg-pink-500'
-                }`}
+              onPress={handleBooking}
+              disabled={isUnavailable}
+              className={`rounded-2xl items-center ${isUnavailable ? 'bg-stone-300' : 'bg-pink-500'}`}
               style={{ paddingVertical: getResponsiveSize(16) }}
             >
               <Text
                 className="text-white font-bold"
                 style={{ fontSize: getResponsiveSize(18) }}
               >
-                {photographerDetail?.availabilityStatus?.toLowerCase() === 'unavailable' 
+                {isUnavailable 
                   ? 'Không khả dụng' 
                   : `Đặt lịch - ₫${(photographerDetail?.hourlyRate || 0).toLocaleString('vi-VN')}/giờ`
                 }

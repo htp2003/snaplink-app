@@ -42,7 +42,11 @@ export type RootStackParamList = {
     // Customer  screens
     PhotographerCardDetail: { photographerId: string };
     LocationCardDetail: { locationId: string };
-    ViewAllPhotographers: undefined;
+    ViewAllPhotographers: {
+      type?: 'featured' | 'recommendations' | 'all';
+      title?: string;
+      userId?: number | null;
+    };
     ViewAllLocations: undefined;
     ProfilePhoto: undefined;
     Booking: {
@@ -58,6 +62,7 @@ export type RootStackParamList = {
         totalHours: number;
         totalPrice: number;
     };
+    ViewProfile: { userId: number };
    
 
 };

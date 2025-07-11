@@ -1,47 +1,40 @@
-// hooks/useLocationDetail.ts
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { locationService } from '../services/locationService';
-import type { Location, LocationOwner, LocationImage } from '../types';
-
-export interface LocationDetail extends Location {
-  locationOwner?: LocationOwner;
-  locationImages?: LocationImage[];
-  advertisements?: any[];
-}
+import { LocationApiResponse } from '../types/location';
 
 export const useLocationDetail = () => {
-  const [locationDetail, setLocationDetail] = useState<LocationDetail | null>(null);
+  const [locationDetail, setLocationDetail] = useState<LocationApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchLocationById = async (locationId: string) => {
+  const fetchLocationById = useCallback(async (locationId: string | number) => {
     setLoading(true);
     setError(null);
     
     try {
-      const id = parseInt(locationId);
+      console.log('Fetching location detail for ID:', locationId);
       
-      console.log('Fetching location by ID:', id);
-      const locationData = await locationService.getById(id);
-      console.log('Location data received:', locationData);
+      // Fetch location details
+      const location = await locationService.getById(Number(locationId));
+      console.log('Location data received:', location);
 
-      // Transform the data to match our interface
-      const transformedData: LocationDetail = {
-        ...locationData,
-        locationImages: Array.isArray(locationData.locationImages) 
-          ? locationData.locationImages 
-          : []
-      };
-
-      setLocationDetail(transformedData);
+      setLocationDetail(location);
+      console.log('Location detail set successfully:', location);
+      
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unknown error occurred';
-      setError(errorMessage);
-      console.error('Error fetching location by ID:', err);
+      console.error('Error fetching location detail:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch location details');
+      setLocationDetail(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  const refreshLocationDetail = useCallback(() => {
+    if (locationDetail?.locationId) {
+      fetchLocationById(locationDetail.locationId);
+    }
+  }, [locationDetail?.locationId, fetchLocationById]);
 
   const clearLocationDetail = () => {
     setLocationDetail(null);
@@ -53,6 +46,7 @@ export const useLocationDetail = () => {
     loading,
     error,
     fetchLocationById,
+    refreshLocationDetail,
     clearLocationDetail,
   };
 };

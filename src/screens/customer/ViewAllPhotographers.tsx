@@ -119,7 +119,6 @@ export default function ViewAllPhotographers({ navigation, route }: Props) {
         id={photographer.id}
         fullName={photographer.fullName}
         avatar={photographer.avatar}
-        images={photographer.images}
         styles={photographer.styles}
         rating={photographer.rating}
         hourlyRate={photographer.hourlyRate}

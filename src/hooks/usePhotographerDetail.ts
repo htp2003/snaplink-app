@@ -4,6 +4,7 @@ import { Photographer } from '../types';
 import { photographerService } from '../services/photographerService';
 import { Review } from '../types';
 import { usePhotographerImages } from './useImages';
+import { reviewService } from '../services/reviewService';
 
 // Extend the existing Photographer interface to include additional fields from API response
 export interface PhotographerDetail extends Photographer {
@@ -54,7 +55,7 @@ export const usePhotographerDetail = () => {
 
       // Fetch reviews for this photographer
       try {
-        const reviewsData = await photographerService.getReviews(id);
+        const reviewsData = await reviewService.getByPhotographer(id);
         console.log('Reviews data received:', reviewsData);
         
         // Handle case where reviews might be wrapped in $values

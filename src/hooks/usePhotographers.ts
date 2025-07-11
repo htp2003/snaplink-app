@@ -290,9 +290,10 @@ export const usePhotographers = () => {
     }
   };
 
+  // Lấy photographer theo ID (chuẩn hóa, chỉ dùng 1 hàm)
   const getPhotographerById = async (id: number): Promise<PhotographerData | null> => {
     try {
-      const photographerData = await photographerService.getById(id);
+      const photographerData = await photographerService.getPhotographerProfile(id);
       return transformPhotographerData(photographerData);
     } catch (err) {
       console.error('Error fetching photographer by id:', err);
@@ -300,9 +301,10 @@ export const usePhotographers = () => {
     }
   };
 
+  // Nếu muốn giữ hàm getPhotographerDetail riêng, cũng dùng chung getPhotographerProfile
   const getPhotographerDetail = async (id: number): Promise<PhotographerData | null> => {
     try {
-      const photographerData = await photographerService.getDetail(id);
+      const photographerData = await photographerService.getPhotographerProfile(id);
       return transformPhotographerData(photographerData);
     } catch (err) {
       console.error('Error fetching photographer detail:', err);

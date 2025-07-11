@@ -1,4 +1,3 @@
-// hooks/useImages.ts
 import { useState, useCallback, useEffect } from 'react';
 import { ImageResponse } from '../types/image';
 import { imageService, ImageType } from '../services/imageService';

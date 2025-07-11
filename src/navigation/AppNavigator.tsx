@@ -27,7 +27,9 @@ import LocationCardDetail from '../screens/customer/LocationCardDetail';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScreen';
 import RecentlyViewedScreen from '../screens/customer/RecentlyViewedScreen';
-import ViewProfileScreen from '../screens/customer/ViewProfileScreen';
+import ViewProfileScreen from '../screens/photographer/ViewProfileScreen';
+
+
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -67,6 +69,7 @@ const AppNavigator = () => {
 
         {/* Các màn hình dành riêng cho Photographer */}
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+        <Stack.Screen name='ViewProfileScreen' component={ViewProfileScreen} />
         <Stack.Screen name="Subscription" component={SubscriptionScreen} />
         <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} />
         <Stack.Screen name="PhotographerHomeScreen" component={PhotographerHomeScreen} />

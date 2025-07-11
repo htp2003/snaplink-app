@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, StyleSheet, TextInputProps } from 'react-native';
+import { View, TextInput, Text, StyleSheet, TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface InputFieldProps extends TextInputProps {
@@ -18,7 +18,7 @@ const InputField: React.FC<InputFieldProps> = ({ icon, error, ...props }) => {
           {...props}
         />
       </View>
-      {error && <View style={styles.errorText}>{error}</View>}
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 };

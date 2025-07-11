@@ -1,169 +1,333 @@
-// services/photographerService.ts
-import { 
-  CreatePhotographerRequest, 
-  Photographer, 
-  Review, 
-  UpdatePhotographerRequest, 
-  PhotographerProfile, 
-  PhotographerStyle, 
-  PhotographerStats
-} from '../types/photographer';
-import { apiClient } from './base';
+// Get photographer profile by photographerId  
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Photographer endpoints (clean version - removed image endpoints)
-const ENDPOINTS = {
-  ALL: '/api/Photographer',
-  BY_ID: (id: number) => `/api/Photographer/${id}`,
-  DETAIL: (id: number) => `/api/Photographer/${id}/detail`,
-  BY_SPECIALTY: (specialty: string) => `/api/Photographer/specialty/${specialty}`,
-  BY_STYLE: (styleName: string) => `/api/Photographer/style/${styleName}`,
-  AVAILABLE: '/api/Photographer/available',
-  FEATURED: '/api/Photographer/featured',
-  UPDATE_AVAILABILITY: (id: number) => `/api/Photographer/${id}/availability`,
-  UPDATE_RATING: (id: number) => `/api/Photographer/${id}/rating`,
-  VERIFY: (id: number) => `/api/Photographer/${id}/verify`,
-  STYLES: (id: number) => `/api/Photographer/${id}/styles`,
-  ADD_STYLE: (id: number, styleId: number) => `/api/Photographer/${id}/styles/${styleId}`,
-  REMOVE_STYLE: (id: number, styleId: number) => `/api/Photographer/${id}/styles/${styleId}`,
-  REVIEWS: (photographerId: number) => `/api/Review/photographer/${photographerId}`,
-  AVERAGE_RATING: (photographerId: number) => `/api/Review/photographer/${photographerId}/average-rating`,
-};
+const API_BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
 
-export const photographerService = {
-  // === CORE PHOTOGRAPHER OPERATIONS ===
+export interface Style {
+  styleId: number;
+  name: string;
+  description: string;
+  photographerCount: number;
+}
 
-  // Get all photographers
-  getAll: (): Promise<Photographer[]> => 
-    apiClient.get<Photographer[]>(ENDPOINTS.ALL),
+export interface PhotographerProfile {
+  photographerId: number;
+  userId: number;
+  yearsExperience: number;
+  equipment: string;
+  specialty?: string;
+  portfolioUrl?: string;
+  hourlyRate: number;
+  availabilityStatus: string;
+  rating: number;
+  ratingSum: number;
+  ratingCount: number;
+  featuredStatus: boolean;
+  verificationStatus: string;
+  styleIds?: number[];
+  // Additional fields from API response
+  userName?: string;
+  email?: string;
+  phoneNumber?: string;
+  fullName?: string;
+  profileImage?: string;
+  bio?: string;
+  createAt?: string;
+  updateAt?: string;
+  status?: string;
+  styles?: string[];
+}
 
-  // Get photographer by ID
-  getById: (id: number): Promise<Photographer> => 
-    apiClient.get<Photographer>(ENDPOINTS.BY_ID(id)),
+export interface CreatePhotographerRequest {
+  userId: number;
+  yearsExperience: number;
+  equipment: string;
+  hourlyRate: number;
+  availabilityStatus: string;
+  rating: number;
+  ratingSum: number;
+  ratingCount: number;
+  featuredStatus: boolean;
+  verificationStatus: string;
+  styleIds: number[];
+}
 
-  // Get photographer detail (with user info)
-  getDetail: (id: number): Promise<PhotographerProfile> => 
-    apiClient.get<PhotographerProfile>(ENDPOINTS.DETAIL(id)),
+export interface UpdatePhotographerRequest extends CreatePhotographerRequest {
+  photographerId: number;
+}
 
-  // Get photographers by specialty
-  getBySpecialty: (specialty: string): Promise<Photographer[]> => 
-    apiClient.get<Photographer[]>(ENDPOINTS.BY_SPECIALTY(specialty)),
-
-  // Get photographers by style
-  getByStyle: (styleName: string): Promise<Photographer[]> => 
-    apiClient.get<Photographer[]>(ENDPOINTS.BY_STYLE(styleName)),
-
-  // Get available photographers
-  getAvailable: (): Promise<Photographer[]> => 
-    apiClient.get<Photographer[]>(ENDPOINTS.AVAILABLE),
-
-  // Get featured photographers
-  getFeatured: (): Promise<Photographer[]> => 
-    apiClient.get<Photographer[]>(ENDPOINTS.FEATURED),
-
-  // Create photographer
-  create: (data: CreatePhotographerRequest): Promise<Photographer> => 
-    apiClient.post<Photographer>(ENDPOINTS.ALL, data),
-
-  // Update photographer
-  update: (id: number, data: UpdatePhotographerRequest): Promise<Photographer> => 
-    apiClient.put<Photographer>(ENDPOINTS.BY_ID(id), data),
-
-  // Delete photographer
-  delete: (id: number): Promise<void> => 
-    apiClient.delete<void>(ENDPOINTS.BY_ID(id)),
-
-  // === STATUS AND VERIFICATION ===
-
-  // Update availability
-  updateAvailability: (id: number, status: string): Promise<void> => 
-    apiClient.patch<void>(ENDPOINTS.UPDATE_AVAILABILITY(id), status),
-
-  // Update rating
-  updateRating: (id: number, rating: number): Promise<void> => 
-    apiClient.patch<void>(ENDPOINTS.UPDATE_RATING(id), rating),
-
-  // Verify photographer
-  verify: (id: number, status: string): Promise<void> => 
-    apiClient.patch<void>(ENDPOINTS.VERIFY(id), status),
-
-  // === STYLES MANAGEMENT ===
-
-  // Get photographer styles
-  getStyles: (id: number): Promise<PhotographerStyle[]> => 
-    apiClient.get<PhotographerStyle[]>(ENDPOINTS.STYLES(id)),
-
-  // Add style to photographer
-  addStyle: (photographerId: number, styleId: number): Promise<void> => 
-    apiClient.post<void>(ENDPOINTS.ADD_STYLE(photographerId, styleId)),
-
-  // Remove style from photographer
-  removeStyle: (photographerId: number, styleId: number): Promise<void> => 
-    apiClient.delete<void>(ENDPOINTS.REMOVE_STYLE(photographerId, styleId)),
-
-  // === REVIEWS MANAGEMENT ===
-
-  // Get photographer reviews
-  getReviews: (photographerId: number): Promise<Review[]> => 
-    apiClient.get<Review[]>(ENDPOINTS.REVIEWS(photographerId)),
-
-  // Get average rating
-  getAverageRating: (photographerId: number): Promise<{ averageRating: number }> => 
-    apiClient.get<{ averageRating: number }>(ENDPOINTS.AVERAGE_RATING(photographerId)),
-
-  // === PROFILE SPECIFIC METHODS ===
-
-  // Get photographer statistics
-  getStats: async (id: number): Promise<PhotographerStats> => {
-    try {
-      const [reviews, ratingResponse, photographer] = await Promise.all([
-        photographerService.getReviews(id).catch(() => []),
-        photographerService.getAverageRating(id).catch(() => ({ averageRating: 0 })),
-        photographerService.getDetail(id)
-      ]);
-
-      return {
-        totalBookings: photographer.ratingCount || 0,
-        averageRating: ratingResponse.averageRating || photographer.rating || 0,
-        totalReviews: reviews.length,
-        favoriteCount: 0, // TODO: Add favorite endpoint
-      };
-    } catch (error) {
-      console.error('Error fetching photographer stats:', error);
-      return {
-        totalBookings: 0,
-        averageRating: 0,
-        totalReviews: 0,
-        favoriteCount: 0,
-      };
-    }
-  },
-
-  // Update photographer profile (including user info)
-  updateProfile: async (id: number, data: {
-    photographer?: UpdatePhotographerRequest;
-    user?: {
-      fullName?: string;
-      bio?: string;
-      phoneNumber?: string;
-      profileImage?: string;
+class PhotographerService {
+  private async getHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
     };
-  }): Promise<PhotographerProfile> => {
+
+    const token = await AsyncStorage.getItem('token');
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    return headers;
+  }
+
+  // Get all photography styles
+  async getStyles(): Promise<Style[]> {
     try {
-      // Update photographer data if provided
-      if (data.photographer) {
-        await photographerService.update(id, data.photographer);
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Style`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      // TODO: Update user data if provided (need user update endpoint)
-      // if (data.user && photographer.userId) {
-      //   await userService.update(photographer.userId, data.user);
-      // }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching styles:', error);
+      throw error;
+    }
+  }
 
-      // Return updated profile
-      return photographerService.getDetail(id);
+  // Get photographer profile by photographerId - chỉ method này được giữ lại
+  async getPhotographerProfile(photographerId: number): Promise<PhotographerProfile> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer/${photographerId}`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Photographer profile not found');
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching photographer profile:', error);
+      throw error;
+    }
+  }
+
+  // Create photographer profile
+  async createPhotographerProfile(data: CreatePhotographerRequest): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      // Handle both JSON and text responses
+      const contentType = response.headers.get('content-type');
+      let result;
+      if (contentType && contentType.includes('application/json')) {
+        result = await response.json();
+      } else {
+        result = await response.text();
+      }
+
+      // Try to extract photographerId from response and store it
+      let photographerId = null;
+      if (typeof result === 'object' && result.photographerId) {
+        photographerId = result.photographerId;
+      } else if (typeof result === 'object' && result.id) {
+        photographerId = result.id;
+      }
+
+      if (photographerId) {
+        await this.storePhotographerId(data.userId, photographerId);
+        console.log(`Stored photographerId ${photographerId} for userId ${data.userId}`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error creating photographer profile:', error);
+      throw error;
+    }
+  }
+
+  // Store photographerId in AsyncStorage after creating profile
+  async storePhotographerId(userId: number, photographerId: number): Promise<void> {
+    try {
+      await AsyncStorage.setItem(`photographerId_${userId}`, photographerId.toString());
+    } catch (error) {
+      console.error('Error storing photographerId:', error);
+    }
+  }
+
+  // Get stored photographerId for a userId
+  async getStoredPhotographerId(userId: number): Promise<number | null> {
+    try {
+      const photographerId = await AsyncStorage.getItem(`photographerId_${userId}`);
+      return photographerId ? parseInt(photographerId) : null;
+    } catch (error) {
+      console.error('Error getting stored photographerId:', error);
+      return null;
+    }
+  }
+
+  // Try to find photographer profile - check stored ID first, then try userId as fallback
+  async findPhotographerProfile(userId: number): Promise<PhotographerProfile | null> {
+    try {
+      // First try stored photographerId
+      const storedPhotographerId = await this.getStoredPhotographerId(userId);
+      
+      if (storedPhotographerId) {
+        try {
+          const profile = await this.getPhotographerProfile(storedPhotographerId);
+          return profile;
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('not found')) {
+            // Stored ID is invalid, remove it
+            await AsyncStorage.removeItem(`photographerId_${userId}`);
+            console.log('Removed invalid stored photographerId');
+          }
+        }
+      }
+
+      // Fallback: try userId as photographerId (in case they're the same)
+      try {
+        const profile = await this.getPhotographerProfile(userId);
+        // If successful, store this photographerId for future use
+        await this.storePhotographerId(userId, profile.photographerId);
+        console.log(`Found photographer profile with userId as photographerId, stored for future use`);
+        return profile;
+      } catch (error) {
+        // No photographer profile exists
+        return null;
+      }
+    } catch (error) {
+      console.error('Error finding photographer profile:', error);
+      return null;
+    }
+  }
+
+  // Update photographer profile
+  async updatePhotographerProfile(photographerId: number, data: Partial<UpdatePhotographerRequest>): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer/${photographerId}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      // Handle both JSON and text responses
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        return await response.json();
+      } else {
+        return await response.text();
+      }
     } catch (error) {
       console.error('Error updating photographer profile:', error);
       throw error;
     }
-  },
-};
+  }
+
+  // Get photographer styles
+  async getPhotographerStyles(photographerId: number): Promise<Style[]> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer/${photographerId}/styles`, {
+        method: 'GET',
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching photographer styles:', error);
+      throw error;
+    }
+  }
+
+  // Add style to photographer
+  async addStyleToPhotographer(photographerId: number, styleId: number): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer/${photographerId}/styles/${styleId}`, {
+        method: 'POST',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return await response.text();
+    } catch (error) {
+      console.error('Error adding style to photographer:', error);
+      throw error;
+    }
+  }
+
+  // Remove style from photographer
+  async removeStyleFromPhotographer(photographerId: number, styleId: number): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/Photographer/${photographerId}/styles/${styleId}`, {
+        method: 'DELETE',
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return await response.text();
+    } catch (error) {
+      console.error('Error removing style from photographer:', error);
+      throw error;
+    }
+  }
+
+  // Batch update photographer styles
+  async updatePhotographerStyles(photographerId: number, styleIds: number[]): Promise<void> {
+    try {
+      // Get current styles
+      const currentStyles = await this.getPhotographerStyles(photographerId);
+      const currentStyleIds = currentStyles.map(style => style.styleId);
+
+      // Find styles to add and remove
+      const stylesToAdd = styleIds.filter(id => !currentStyleIds.includes(id));
+      const stylesToRemove = currentStyleIds.filter(id => !styleIds.includes(id));
+
+      // Add new styles
+      for (const styleId of stylesToAdd) {
+        await this.addStyleToPhotographer(photographerId, styleId);
+      }
+
+      // Remove old styles
+      for (const styleId of stylesToRemove) {
+        await this.removeStyleFromPhotographer(photographerId, styleId);
+      }
+    } catch (error) {
+      console.error('Error updating photographer styles:', error);
+      throw error;
+    }
+  }
+}
+
+export const photographerService = new PhotographerService();

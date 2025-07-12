@@ -1,13 +1,12 @@
-// hooks/usePhotographers.ts - Simplified version - only use avatar from User API
-import { useState, useEffect } from 'react';
+// hooks/usePhotographers.ts - Fixed version để tránh infinite render
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Photographer } from '../types/photographer';
 import { photographerService } from '../services/photographerService';
 
-// Simplified interface - only avatar from User API
 export interface PhotographerData {
   id: string;
   fullName: string;
-  avatar: string; // Avatar từ User profile (profileImage) only
+  avatar: string;
   styles: string[];
   rating?: number;
   hourlyRate?: number;
@@ -21,24 +20,38 @@ export interface PhotographerData {
 
 export const usePhotographers = () => {
   const [photographers, setPhotographers] = useState<PhotographerData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Use ref để track nếu đã fetch rồi
+  const hasFetched = useRef(false);
 
-  // Transform photographer data từ API response - simplified without images
-  const transformPhotographerData = (photographerApiData: any): PhotographerData => {
+  // Transform photographer data - stable function
+  const transformPhotographerData = useCallback((photographerApiData: any): PhotographerData => {
     console.log('=== Transforming photographer data ===');
     console.log('Raw photographer data:', photographerApiData);
 
-    // Extract photographer info từ API response
     const photographerId = photographerApiData.photographerId || photographerApiData.id;
     const userId = photographerApiData.userId;
     
-    // User info (nested trong photographer response)
+    // 🔧 FIX: API response structure analysis
     const userInfo = photographerApiData.user || photographerApiData;
     const fullName = userInfo.fullName || photographerApiData.fullName || 'Unknown Photographer';
-    const profileImage = userInfo.profileImage || photographerApiData.profileImage;
     
-    // Photographer specific info
+    // 🔧 FIX: Check actual API response structure for profileImage
+    console.log('🔍 Profile image sources:');
+    console.log('  - photographerApiData.profileImage:', photographerApiData.profileImage);
+    console.log('  - userInfo.profileImage:', userInfo.profileImage);
+    console.log('  - photographerApiData.user?.profileImage:', photographerApiData.user?.profileImage);
+    
+    // Try multiple sources for profile image
+    const profileImage = photographerApiData.profileImage || 
+                         userInfo.profileImage || 
+                         photographerApiData.user?.profileImage ||
+                         null;
+    
+    console.log('🖼️ Final profileImage value:', profileImage);
+    
     const rating = photographerApiData.rating;
     const hourlyRate = photographerApiData.hourlyRate;
     const availabilityStatus = photographerApiData.availabilityStatus || 'available';
@@ -47,7 +60,6 @@ export const usePhotographers = () => {
     const verificationStatus = photographerApiData.verificationStatus;
     const portfolioUrl = photographerApiData.portfolioUrl;
     
-    // Handle styles - có thể từ nhiều nguồn khác nhau
     let styles: string[] = [];
     if (photographerApiData.styles && Array.isArray(photographerApiData.styles)) {
       styles = photographerApiData.styles.map((style: any) => 
@@ -58,17 +70,17 @@ export const usePhotographers = () => {
         ps.style?.name || ps.styleName || 'Photography'
       );
     } else if (equipment) {
-      // Fallback: dùng equipment làm specialty
       styles = [equipment];
     } else {
       styles = ['Professional Photography'];
     }
 
-    console.log('Extracted styles:', styles);
+    // 🚀 BETTER AVATAR LOGIC: Always provide a fallback
+    const avatar = profileImage && profileImage !== null && profileImage.trim() !== '' 
+                   ? profileImage 
+                   : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format';
 
-    // Get avatar từ User profile only - with fallback
-    const avatar = profileImage || 
-                   'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format';
+    console.log('🎨 Final avatar assigned:', avatar);
 
     const result: PhotographerData = {
       id: photographerId.toString(),
@@ -85,12 +97,12 @@ export const usePhotographers = () => {
       verificationStatus,
     };
 
-    console.log('Transformed photographer data:', result);
+    console.log('✅ Transformed photographer data:', result);
     return result;
-  };
+  }, []);
 
   // Helper function to create fallback photographer data
-  const createFallbackPhotographer = (photographer: any): PhotographerData => {
+  const createFallbackPhotographer = useCallback((photographer: any): PhotographerData => {
     const photographerId = photographer.photographerId || photographer.id;
     const fallbackAvatar = photographer.profileImage || 
                            'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format';
@@ -109,38 +121,37 @@ export const usePhotographers = () => {
       equipment: photographer.equipment,
       verificationStatus: photographer.verificationStatus,
     };
-  };
+  }, []);
 
   // Process API response data
-  const processApiResponse = (apiResponse: any): any[] => {
+  const processApiResponse = useCallback((apiResponse: any): any[] => {
     console.log('Processing API response:', apiResponse);
     
-    // Handle different response formats
     if (Array.isArray(apiResponse)) {
       return apiResponse;
     }
     
-    // Handle .NET API response with $values
     if (apiResponse && Array.isArray(apiResponse.$values)) {
       return apiResponse.$values;
     }
     
-    // Handle single object
     if (apiResponse && typeof apiResponse === 'object') {
       return [apiResponse];
     }
     
     console.warn('Unexpected API response format:', apiResponse);
     return [];
-  };
+  }, []);
 
-  const fetchAllPhotographers = async () => {
+  // STABLE fetch functions với useCallback
+  const fetchAllPhotographers = useCallback(async () => {
+    if (loading) return; // Prevent concurrent calls
+    
     try {
       setLoading(true);
       setError(null);
       console.log('=== Fetching All Photographers ===');
       
-      // Fetch photographers data từ API - no images needed
       const photographersResponse = await photographerService.getAll();
       console.log('Raw photographers API response:', photographersResponse);
       
@@ -153,7 +164,6 @@ export const usePhotographers = () => {
         return;
       }
       
-      // Transform data - simplified without images
       const transformedData: PhotographerData[] = [];
       for (const photographer of photographersArray) {
         if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
@@ -162,7 +172,6 @@ export const usePhotographers = () => {
             transformedData.push(transformed);
           } catch (transformError) {
             console.error('Error transforming photographer:', photographer.photographerId || photographer.id, transformError);
-            // Thêm fallback data thay vì bỏ qua
             transformedData.push(createFallbackPhotographer(photographer));
           }
         } else {
@@ -177,15 +186,15 @@ export const usePhotographers = () => {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch photographers';
       setError(errorMessage);
       console.error('Error fetching photographers:', err);
-      
-      // Set empty array instead of keeping loading state
       setPhotographers([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, processApiResponse, transformPhotographerData, createFallbackPhotographer]);
 
-  const fetchFeaturedPhotographers = async () => {
+  const fetchFeaturedPhotographers = useCallback(async () => {
+    if (loading) return; // Prevent concurrent calls
+    
     try {
       setLoading(true);
       setError(null);
@@ -195,7 +204,12 @@ export const usePhotographers = () => {
       const photographersArray = processApiResponse(photographersResponse);
       console.log('Featured photographers data received:', photographersArray.length);
       
-      // Transform data - simplified without images
+      if (photographersArray.length === 0) {
+        console.warn('No featured photographers found');
+        setPhotographers([]);
+        return;
+      }
+      
       const transformedData: PhotographerData[] = [];
       for (const photographer of photographersArray) {
         if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
@@ -218,9 +232,11 @@ export const usePhotographers = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, processApiResponse, transformPhotographerData, createFallbackPhotographer]);
 
-  const fetchAvailablePhotographers = async () => {
+  const fetchAvailablePhotographers = useCallback(async () => {
+    if (loading) return;
+    
     try {
       setLoading(true);
       setError(null);
@@ -230,7 +246,6 @@ export const usePhotographers = () => {
       const photographersArray = processApiResponse(photographersResponse);
       console.log('Available photographers data received:', photographersArray.length);
       
-      // Transform data - simplified without images
       const transformedData: PhotographerData[] = [];
       for (const photographer of photographersArray) {
         if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
@@ -253,9 +268,11 @@ export const usePhotographers = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, processApiResponse, transformPhotographerData, createFallbackPhotographer]);
 
-  const fetchPhotographersBySpecialty = async (specialty: string) => {
+  const fetchPhotographersBySpecialty = useCallback(async (specialty: string) => {
+    if (loading) return;
+    
     try {
       setLoading(true);
       setError(null);
@@ -265,7 +282,6 @@ export const usePhotographers = () => {
       const photographersArray = processApiResponse(photographersResponse);
       console.log('Photographers by specialty data received:', photographersArray.length);
       
-      // Transform data - simplified without images
       const transformedData: PhotographerData[] = [];
       for (const photographer of photographersArray) {
         if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
@@ -288,10 +304,10 @@ export const usePhotographers = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, processApiResponse, transformPhotographerData, createFallbackPhotographer]);
 
-  // Lấy photographer theo ID (chuẩn hóa, chỉ dùng 1 hàm)
-  const getPhotographerById = async (id: number): Promise<PhotographerData | null> => {
+  // Get photographer by ID
+  const getPhotographerById = useCallback(async (id: number): Promise<PhotographerData | null> => {
     try {
       const photographerData = await photographerService.getPhotographerProfile(id);
       return transformPhotographerData(photographerData);
@@ -299,10 +315,9 @@ export const usePhotographers = () => {
       console.error('Error fetching photographer by id:', err);
       return null;
     }
-  };
+  }, [transformPhotographerData]);
 
-  // Nếu muốn giữ hàm getPhotographerDetail riêng, cũng dùng chung getPhotographerProfile
-  const getPhotographerDetail = async (id: number): Promise<PhotographerData | null> => {
+  const getPhotographerDetail = useCallback(async (id: number): Promise<PhotographerData | null> => {
     try {
       const photographerData = await photographerService.getPhotographerProfile(id);
       return transformPhotographerData(photographerData);
@@ -310,15 +325,11 @@ export const usePhotographers = () => {
       console.error('Error fetching photographer detail:', err);
       return null;
     }
-  };
+  }, [transformPhotographerData]);
 
-  const refreshPhotographers = () => {
+  const refreshPhotographers = useCallback(() => {
     fetchAllPhotographers();
-  };
-
-  useEffect(() => {
-    fetchAllPhotographers();
-  }, []);
+  }, [fetchAllPhotographers]);
 
   return {
     photographers,

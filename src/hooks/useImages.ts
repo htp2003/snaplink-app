@@ -44,20 +44,17 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       console.log(`Fetching ${type} images for ID ${refId}...`);
       
       // Fetch both images and primary image in parallel
-      const [imagesData, primaryImageData] = await Promise.all([
+      const [imagesData] = await Promise.all([
         imageService.getImagesByTypeAndRef(type, refId),
-        imageService.getPrimaryImageByTypeAndRef(type, refId)
+     
       ]);
-
       console.log(`${type} images fetched:`, {
         totalImages: imagesData.length,
-        primaryImage: primaryImageData?.url,
         imageUrls: imagesData.map(img => img.url)
       });
 
       setImages(imagesData);
-      setPrimaryImageState(primaryImageData);
-      
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch images';
       setError(errorMessage);

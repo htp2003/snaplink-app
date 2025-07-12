@@ -37,7 +37,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
     isFavorite
 }) => {
     const navigation = useNavigation<RootStackNavigationProp>();
-    
+
     const handlePress = () => {
         console.log('=== PhotographerCard handlePress ===');
         console.log('Navigating to detail with photographerId:', id);
@@ -53,18 +53,18 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
     // Helper function để render rating
     const renderRating = (rating?: number) => {
         if (!rating) return (
-            <Text 
+            <Text
                 className="text-stone-900 font-medium"
                 style={{ fontSize: getResponsiveSize(14) }}
             >
                 5.0
             </Text>
         );
-        
+
         return (
             <View className="flex-row items-center">
                 <Ionicons name="star" size={getResponsiveSize(16)} color="#d97706" />
-                <Text 
+                <Text
                     className="text-stone-900 font-medium ml-1"
                     style={{ fontSize: getResponsiveSize(14) }}
                 >
@@ -74,14 +74,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
         );
     };
 
-    // Fallback images nếu không có avatar
-    const fallbackImages = [
-        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format',
-        'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=600&fit=crop&auto=format',
-        'https://images.unsplash.com/photo-1494790108755-2616b612b494?w=400&h=600&fit=crop&auto=format',
-        'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=400&h=600&fit=crop&auto=format',
-        'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400&h=600&fit=crop&auto=format',
-    ];
+
 
     // State cho fallback handling
     const [imageError, setImageError] = useState(false);
@@ -89,39 +82,43 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
 
     // Lấy ảnh main để hiển thị - chỉ dùng avatar từ User API
     const getMainImage = () => {
-        // Nếu đã có lỗi, dùng fallback images
+        console.log('🖼️ Getting main image for photographer:', id);
+        console.log('Avatar received:', avatar);
+        console.log('Image error state:', imageError);
+
+        // Nếu có lỗi image, dùng fallback
         if (imageError) {
-            return fallbackImages[fallbackIndex];
+            console.log('Using fallback due to image error');
+            return '';
         }
 
-        // Kiểm tra nếu có avatar thật từ User API
-        if (avatar && avatar !== 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format') {
+        // Nếu có avatar (kể cả fallback URL), dùng nó
+        if (avatar) {
+            console.log('Using provided avatar:', avatar);
             return avatar;
         }
-        
-        // Dùng placeholder random dựa trên ID
-        const randomIndex = Math.abs(id.split('').reduce((a, b) => a + b.charCodeAt(0), 0)) % fallbackImages.length;
-        return fallbackImages[randomIndex];
+
+        // ✅ FIXED: Fallback cuối cùng nếu không có avatar
+        console.log('No avatar provided, using default fallback');
+        return '';
     };
 
     // Handle image error
     const handleImageError = (error: any) => {
         console.log('Failed to load avatar for photographer:', id);
         console.log('Error details:', error?.nativeEvent?.error || 'Unknown error');
-        
+
         // Set error state và thử fallback image khác
         setImageError(true);
-        const newIndex = (fallbackIndex + 1) % fallbackImages.length;
-        setFallbackIndex(newIndex);
     };
 
     const mainImage = getMainImage();
     const displayName = fullName || 'Photographer';
     const specialty = styles.length > 0 ? styles[0] : 'Professional Photographer';
-    
+
     // Check nếu có profile image thật từ User API
-    const hasRealProfileImage = avatar && 
-        avatar !== 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format' &&
+    const hasRealProfileImage = avatar &&
+        avatar !== '' &&
         !imageError;
 
     return (
@@ -136,7 +133,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                     onError={handleImageError}
                     key={`${id}-${imageError ? fallbackIndex : 'original'}`}
                 />
-                
+
                 {/* Favorite Button */}
                 <TouchableOpacity
                     className="absolute top-3 right-3 bg-black/20 rounded-full"
@@ -152,14 +149,14 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
 
                 {/* Availability Badge */}
                 {availabilityStatus && availabilityStatus.toLowerCase() === 'available' && (
-                    <View 
+                    <View
                         className="absolute top-3 left-3 bg-emerald-500 rounded-full"
-                        style={{ 
-                            paddingHorizontal: getResponsiveSize(8), 
-                            paddingVertical: getResponsiveSize(4) 
+                        style={{
+                            paddingHorizontal: getResponsiveSize(8),
+                            paddingVertical: getResponsiveSize(4)
                         }}
                     >
-                        <Text 
+                        <Text
                             className="text-white font-medium"
                             style={{ fontSize: getResponsiveSize(12) }}
                         >
@@ -170,19 +167,19 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
 
                 {/* Verification Badge */}
                 {verificationStatus && verificationStatus.toLowerCase() === 'verified' && (
-                    <View 
+                    <View
                         className="absolute bottom-3 left-3 bg-blue-500/90 backdrop-blur-sm rounded-full flex-row items-center"
-                        style={{ 
-                            paddingHorizontal: getResponsiveSize(8), 
-                            paddingVertical: getResponsiveSize(4) 
+                        style={{
+                            paddingHorizontal: getResponsiveSize(8),
+                            paddingVertical: getResponsiveSize(4)
                         }}
                     >
-                        <Ionicons 
-                            name="checkmark-circle" 
-                            size={getResponsiveSize(14)} 
-                            color="white" 
+                        <Ionicons
+                            name="checkmark-circle"
+                            size={getResponsiveSize(14)}
+                            color="white"
                         />
-                        <Text 
+                        <Text
                             className="text-white font-medium ml-1"
                             style={{ fontSize: getResponsiveSize(12) }}
                         >
@@ -192,21 +189,21 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                 )}
 
                 {/* Profile Status Badge */}
-                <View 
+                <View
                     className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-full flex-row items-center"
-                    style={{ 
-                        paddingHorizontal: getResponsiveSize(8), 
-                        paddingVertical: getResponsiveSize(4) 
+                    style={{
+                        paddingHorizontal: getResponsiveSize(8),
+                        paddingVertical: getResponsiveSize(4)
                     }}
                 >
                     {hasRealProfileImage ? (
                         <>
-                            <Ionicons 
-                                name="person-circle" 
-                                size={getResponsiveSize(14)} 
-                                color="#10b981" 
+                            <Ionicons
+                                name="person-circle"
+                                size={getResponsiveSize(14)}
+                                color="#10b981"
                             />
-                            <Text 
+                            <Text
                                 className="text-stone-800 font-medium ml-1"
                                 style={{ fontSize: getResponsiveSize(12) }}
                             >
@@ -214,7 +211,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                             </Text>
                         </>
                     ) : (
-                        <Text 
+                        <Text
                             className="text-stone-800 font-medium"
                             style={{ fontSize: getResponsiveSize(12) }}
                         >
@@ -228,15 +225,15 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
             <View style={{ padding: getResponsiveSize(16) }}>
                 {/* Name and Specialty */}
                 <View style={{ marginBottom: getResponsiveSize(8) }}>
-                    <Text 
-                        className="text-stone-900 font-semibold leading-tight" 
+                    <Text
+                        className="text-stone-900 font-semibold leading-tight"
                         style={{ fontSize: getResponsiveSize(16) }}
                         numberOfLines={1}
                     >
                         {displayName}
                     </Text>
-                    <Text 
-                        className="text-stone-600" 
+                    <Text
+                        className="text-stone-600"
                         style={{ fontSize: getResponsiveSize(14), marginTop: getResponsiveSize(2) }}
                         numberOfLines={1}
                     >
@@ -248,12 +245,12 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                 <View className="flex-row items-center" style={{ marginBottom: getResponsiveSize(8) }}>
                     {yearsExperience && (
                         <View className="flex-row items-center mr-4">
-                            <Ionicons 
-                                name="time-outline" 
-                                size={getResponsiveSize(14)} 
-                                color="#6b7280" 
+                            <Ionicons
+                                name="time-outline"
+                                size={getResponsiveSize(14)}
+                                color="#6b7280"
                             />
-                            <Text 
+                            <Text
                                 className="text-stone-600 ml-1"
                                 style={{ fontSize: getResponsiveSize(13) }}
                             >
@@ -261,15 +258,15 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                             </Text>
                         </View>
                     )}
-                    
+
                     {/* Styles count */}
                     <View className="flex-row items-center">
-                        <Ionicons 
-                            name="camera-outline" 
-                            size={getResponsiveSize(14)} 
-                            color="#6b7280" 
+                        <Ionicons
+                            name="camera-outline"
+                            size={getResponsiveSize(14)}
+                            color="#6b7280"
                         />
-                        <Text 
+                        <Text
                             className="text-stone-600 ml-1"
                             style={{ fontSize: getResponsiveSize(13) }}
                         >
@@ -281,12 +278,12 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                 {/* Equipment info */}
                 {equipment && (
                     <View className="flex-row items-center" style={{ marginBottom: getResponsiveSize(8) }}>
-                        <Ionicons 
-                            name="hardware-chip-outline" 
-                            size={getResponsiveSize(14)} 
-                            color="#6b7280" 
+                        <Ionicons
+                            name="hardware-chip-outline"
+                            size={getResponsiveSize(14)}
+                            color="#6b7280"
                         />
-                        <Text 
+                        <Text
                             className="text-stone-600 ml-1"
                             style={{ fontSize: getResponsiveSize(13) }}
                             numberOfLines={1}
@@ -300,7 +297,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                 <View className="flex-row items-center justify-between">
                     <View className="flex-1">
                         <Text className="text-stone-600" style={{ fontSize: getResponsiveSize(14) }}>
-                            <Text 
+                            <Text
                                 className="text-stone-900 font-semibold"
                                 style={{ fontSize: getResponsiveSize(16) }}
                             >

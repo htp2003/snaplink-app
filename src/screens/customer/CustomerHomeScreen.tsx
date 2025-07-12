@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
@@ -48,30 +48,31 @@ interface ApiResponse {
 export default function CustomerHomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [selectedCategory, setSelectedCategory] = useState('photographers');
-  const [textWidths, setTextWidths] = useState<{ [key: string]: number }>({});
 
   const currentUserId = useCurrentUserId();
 
-  // 🌟 SECTION 1: FEATURED PHOTOGRAPHERS
+  // 🌟 SECTION 1: FEATURED PHOTOGRAPHERS - stable instance
+  const featuredPhotographersHook = usePhotographers();
   const {
     photographers: featuredPhotographers,
     loading: featuredLoading,
     error: featuredError,
     fetchFeaturedPhotographers,
-  } = usePhotographers();
+  } = featuredPhotographersHook;
 
-  // 📷 SECTION 2: ALL PHOTOGRAPHERS (Separate state with proper types)
+  // 📷 SECTION 2: ALL PHOTOGRAPHERS - sử dụng state riêng để tránh conflict
   const [allPhotographers, setAllPhotographers] = useState<PhotographerData[]>([]);
-  const [allLoading, setAllLoading] = useState(true);
+  const [allLoading, setAllLoading] = useState(false);
   const [allError, setAllError] = useState<string | null>(null);
 
-  // 🎨 SECTION 3: STYLE RECOMMENDATIONS
+  // 🎨 SECTION 3: STYLE RECOMMENDATIONS - only if user logged in
+  const styleRecommendationsHook = photographerStyleRecommendations(currentUserId || 0);
   const {
     recommendedPhotographers,
     loading: recommendationsLoading,
     error: recommendationsError,
     refreshRecommendations,
-  } = photographerStyleRecommendations(currentUserId || 0);
+  } = styleRecommendationsHook;
 
   // 📍 LOCATIONS
   const {
@@ -83,21 +84,18 @@ export default function CustomerHomeScreen() {
 
   const { isFavorite, toggleFavorite } = useFavorites();
 
-  // 🔧 Helper function to process API response with proper typing
+  // 🔧 Helper functions - định nghĩa lại để không bị memoize issues
   const processApiResponse = (apiResponse: any): ApiPhotographerResponse[] => {
     console.log('Processing API response:', apiResponse);
     
-    // Handle different response formats
     if (Array.isArray(apiResponse)) {
       return apiResponse as ApiPhotographerResponse[];
     }
     
-    // Handle .NET API response with $values
     if (apiResponse && Array.isArray((apiResponse as ApiResponse).$values)) {
       return (apiResponse as ApiResponse).$values!;
     }
     
-    // Handle single object
     if (apiResponse && typeof apiResponse === 'object') {
       return [apiResponse as ApiPhotographerResponse];
     }
@@ -106,7 +104,6 @@ export default function CustomerHomeScreen() {
     return [];
   };
 
-  // 🔧 Helper function to transform photographer data with proper typing
   const transformPhotographerData = (photographer: ApiPhotographerResponse): PhotographerData => {
     const photographerId = photographer.photographerId || photographer.id;
     const userInfo = photographer.user || photographer;
@@ -115,7 +112,7 @@ export default function CustomerHomeScreen() {
       id: photographerId ? photographerId.toString() : 'unknown',
       fullName: userInfo.fullName || photographer.fullName || 'Unknown Photographer',
       avatar: userInfo.profileImage || photographer.profileImage || 
-              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format',
+              '',
       styles: Array.isArray(photographer.styles) ? photographer.styles : ['Professional Photography'],
       rating: photographer.rating,
       hourlyRate: photographer.hourlyRate,
@@ -127,8 +124,10 @@ export default function CustomerHomeScreen() {
     };
   };
 
-  // 🔄 Fetch ALL photographers separately with proper error handling
-  const fetchAllPhotographersSeparately = async (): Promise<void> => {
+  // 🔄 Fetch ALL photographers separately - simplified
+  const fetchAllPhotographersSeparately = useCallback(async () => {
+    if (allLoading) return;
+    
     try {
       setAllLoading(true);
       setAllError(null);
@@ -140,7 +139,6 @@ export default function CustomerHomeScreen() {
       const photographersArray = processApiResponse(response);
       console.log('📷 All photographers count:', photographersArray.length);
       
-      // Transform data with proper error handling
       const transformedData: PhotographerData[] = [];
       for (const photographer of photographersArray) {
         if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
@@ -149,7 +147,6 @@ export default function CustomerHomeScreen() {
             transformedData.push(transformed);
           } catch (error) {
             console.error('Error transforming photographer:', error);
-            // Skip invalid photographers instead of crashing
           }
         }
       }
@@ -164,32 +161,25 @@ export default function CustomerHomeScreen() {
     } finally {
       setAllLoading(false);
     }
-  };
+  }, [allLoading]);
 
-  // 🚀 Initial load
-  useEffect(() => {
-    console.log('🚀 Loading 3 photographer sections...');
-    fetchFeaturedPhotographers(); // Section 1: Featured
-    fetchAllPhotographersSeparately(); // Section 2: All
-    // Section 3: Style recommendations loads automatically
-  }, []);
-
-  // Categories for top navigation
-  const categories: CategoryItem[] = [
+  // Categories - memoized để tránh re-create
+  const categories = useMemo((): CategoryItem[] => [
     { id: 'photographers', icon: 'camera', label: 'Thợ chụp ảnh' },
     { id: 'locations', icon: 'location', label: 'Địa điểm' },
     { id: 'services', icon: 'construct', label: 'Dịch vụ' }
-  ];
+  ], []);
 
-  const handleCategoryPress = (categoryId: string): void => {
+  // Handle category press - stable reference
+  const handleCategoryPress = useCallback((categoryId: string) => {
     setSelectedCategory(categoryId);
     if (categoryId === 'locations' && locations.length === 0) {
       refreshLocations();
     }
-  };
+  }, [locations.length, refreshLocations]);
 
-  // 🔧 Helper để render photographer card with proper typing
-  const renderPhotographerCard = (photographer: PhotographerData) => (
+  // Render functions - memoized để tránh re-render
+  const renderPhotographerCard = useCallback((photographer: PhotographerData) => (
     <View
       key={photographer.id}
       style={{ width: getResponsiveSize(260), marginRight: 12 }}
@@ -218,20 +208,18 @@ export default function CustomerHomeScreen() {
         })}
       />
     </View>
-  );
+  ), [navigation, isFavorite, toggleFavorite]);
 
-  // Helper để render loading skeletons
-  const renderLoadingSkeleton = () => (
+  const renderLoadingSkeleton = useCallback(() => (
     [1, 2, 3].map((_, index) => (
       <View
         key={`loading-${index}`}
         className="w-64 h-72 bg-stone-100 rounded-2xl mr-3"
       />
     ))
-  );
+  ), []);
 
-  // 🔧 Helper để render error state with retry
-  const renderErrorState = (error: string, retryFunction: () => void) => (
+  const renderErrorState = useCallback((error: string, retryFunction: () => void) => (
     <View className="flex-1 items-center justify-center py-8">
       <Text className="text-red-500 text-center">❌ {error}</Text>
       <TouchableOpacity 
@@ -241,7 +229,14 @@ export default function CustomerHomeScreen() {
         <Text className="text-white">Thử lại</Text>
       </TouchableOpacity>
     </View>
-  );
+  ), []);
+
+  // 🚀 Load data only once on mount - STABLE REFERENCE
+  useEffect(() => {
+    console.log('🚀 Initial useEffect triggered');
+    fetchFeaturedPhotographers();
+    fetchAllPhotographersSeparately();
+  }, []); // EMPTY array để chỉ chạy 1 lần
 
   return (
     <View className="flex-1 bg-white">

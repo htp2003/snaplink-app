@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Image, Text, TouchableOpacity, Dimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
@@ -35,6 +35,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
     isFavorite
 }) => {
     const navigation = useNavigation<RootStackNavigationProp>();
+    const [imageError, setImageError] = useState(false);
     
     const handlePress = () => {
         navigation.navigate('LocationCardDetail', { locationId: locationId.toString() });
@@ -46,30 +47,22 @@ const LocationCard: React.FC<LocationCardProps> = ({
         return `₫${price.toLocaleString()}`;
     };
 
-    // Handle images from API
-    const fallbackImages = [
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1540518614846-7eded47c9eb8?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=400&h=300&fit=crop',
-        'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=400&h=300&fit=crop',
-    ];
 
-    // Get all images for display
-    const allImages = images.length > 0 ? images : fallbackImages;
-    const mainImage = allImages[0];
+    // Lấy ảnh đã được validate
+    const mainImage = images[0];
     
-    // Get 4 images for grid (skip main image if we have enough)
-    const gridImages = allImages.length > 4 
-        ? allImages.slice(1, 5) 
-        : allImages.slice(0, 4);
-
     // Helper function to get image source
     const getImageSource = (img: any) => {
         if (typeof img === 'string') {
             return { uri: img };
         }
         return img;
+    };
+
+    // Handle image load error
+    const handleImageError = (error: any) => {
+        console.log(`❌ Failed to load image for location ${locationId}:`, error?.nativeEvent?.error);
+        setImageError(true);
     };
 
     const displayName = name || 'Location';
@@ -84,6 +77,10 @@ const LocationCard: React.FC<LocationCardProps> = ({
                     style={{ width: '100%', height: getResponsiveSize(180) }}
                     className="bg-stone-200"
                     resizeMode="cover"
+                    onError={handleImageError}
+                    onLoad={() => {
+                        console.log(`✅ Image loaded successfully for location ${locationId}`);
+                    }}
                 />
                 
                 {/* Favorite Button */}
@@ -117,6 +114,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
                     </View>
                 )}
             </TouchableOpacity>
+
             {/* Content area */}
             <View style={{ padding: getResponsiveSize(8) }}>
                 {/* Title và thông tin cơ bản */}
@@ -152,9 +150,15 @@ const LocationCard: React.FC<LocationCardProps> = ({
                         </View>
                     )}
 
-                    {/* Rating */}
+                    {/* Rating placeholder */}
                     <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
-                    
+                        <Ionicons name="star" size={getResponsiveSize(14)} color="#d97706" />
+                        <Text 
+                            className="text-stone-700 font-medium ml-1"
+                            style={{ fontSize: getResponsiveSize(12) }}
+                        >
+                            4.5
+                        </Text>
                     </View>
 
                     {/* Price indicator */}

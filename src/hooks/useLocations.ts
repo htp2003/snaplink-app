@@ -1,6 +1,7 @@
-// hooks/useLocations.ts
+// hooks/useLocations.ts - Updated with Image API integration
 import { useState, useEffect } from 'react';
 import { locationService } from '../services/locationService';
+import { imageService } from '../services/imageService';
 import type { Location, LocationImage } from '../types';
 
 // Transform API data to match component props
@@ -8,7 +9,7 @@ export interface LocationData {
   id: string;
   locationId: number;
   name: string;
-  images: string[];
+  images: string[]; // Array of image URLs - will only contain first image for card
   styles: string[];
   address?: string;
   description?: string;
@@ -26,11 +27,54 @@ export const useLocations = () => {
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [allLocationImages, setAllLocationImages] = useState<any[]>([]); // Cache all images
 
-  const transformLocationData = (location: any): LocationData => {
-    console.log('Transforming location data:', location);
+  // 🖼️ Lấy tất cả ảnh location một lần và cache lại
+  const fetchAllLocationImages = async () => {
+    try {
+      console.log(`🖼️ Đang lấy TẤT CẢ ảnh location...`);
+      
+      // ✅ ĐÚNG: Dùng getAllImages() để lấy tất cả ảnh theo type location
+      const apiImages = await imageService.location.getAllImages();
+      
+      console.log(`📦 Tìm thấy ${apiImages.length} ảnh location tổng cộng`);
+      setAllLocationImages(apiImages);
+      
+      return apiImages;
+    } catch (error) {
+      console.log(`❌ Lỗi khi lấy tất cả ảnh location:`, error);
+      return [];
+    }
+  };
+
+  // 🖼️ Hàm helper để lấy ảnh đầu tiên cho location cụ thể từ cache
+  const getLocationMainImage = (locationId: number, cachedImages: any[]): string => {
+    try {
+      console.log(`🔍 Đang tìm ảnh cho location ${locationId}...`);
+      
+      // Lọc ảnh theo refId (locationId)
+      const locationImages = cachedImages.filter(img => img.refId === locationId);
+      
+      if (locationImages.length > 0) {
+        const firstImageUrl = locationImages[0].url;
+        console.log(`✅ Tìm thấy ảnh cache cho location ${locationId}:`, firstImageUrl);
+        return firstImageUrl;
+      } else {
+        console.log(`🔄 Không có ảnh cho location ${locationId}, trả về empty string`);
+      }
+    } catch (error) {
+      console.log(`❌ Lỗi khi lọc ảnh cho location ${locationId}:`, error);
+    }
     
-    // Extract amenities as styles
+    // Trả về empty string để test xem có ảnh thật không
+    console.log(`⚠️ Location ${locationId} không có ảnh từ API`);
+    return '';
+  };
+
+  const transformLocationData = (location: any, cachedImages: any[]): LocationData => {
+    console.log('🔄 Đang transform dữ liệu location:', location.locationId);
+    
+    // Tách amenities thành styles
     let styles: string[] = [];
     if (location.amenities) {
       styles = location.amenities.split(',').map((s: string) => s.trim());
@@ -40,46 +84,14 @@ export const useLocations = () => {
               location.outdoor ? ['Outdoor'] : ['Studio'];
     }
 
-    // Handle images - check both possible structures
-    let images: string[] = [];
-    
-    if (Array.isArray(location.locationImages)) {
-      // API returns array directly
-      images = location.locationImages
-        .filter((img: LocationImage) => img && (img.imageUrl || img.url))
-        .map((img: LocationImage) => img.imageUrl || img.url || '');
-    } else if (location.locationImages && typeof location.locationImages === 'object' && '$values' in location.locationImages) {
-      // API returns with $values wrapper
-      const imageArray = (location.locationImages as any).$values;
-      if (Array.isArray(imageArray)) {
-        images = imageArray
-          .filter((img: LocationImage) => img && (img.imageUrl || img.url))
-          .map((img: LocationImage) => img.imageUrl || img.url || '');
-      }
-    }
-    
-    // Use default images if no images available
-    if (images.length === 0) {
-      images = [
-        'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300', // Avatar
-        'https://images.unsplash.com/photo-1497486751825-1233686d5d80?w=300', // Grid 1
-        'https://images.unsplash.com/photo-1540518614846-7eded47c9eb8?w=300', // Grid 2
-        'https://images.unsplash.com/photo-1497215728101-856f4ea42174?w=300', // Grid 3
-        'https://images.unsplash.com/photo-1560472354-b33ff0c44a43?w=300', // Grid 4
-      ];
-    }
-
-    // Ensure we have at least 5 images (1 for avatar + 4 for grid)
-    // If we have fewer than 5, duplicate some images to fill the gaps
-    while (images.length < 5) {
-      images.push(...images.slice(0, 5 - images.length));
-    }
+    // 🚀 MỚI: Lấy ảnh chính từ cache
+    const mainImageUrl = getLocationMainImage(location.locationId, cachedImages);
 
     const transformedData: LocationData = {
       id: location.locationId.toString(),
       locationId: location.locationId,
       name: location.name || 'Unknown Location',
-      images,
+      images: [mainImageUrl], // ✅ Chỉ ảnh đầu tiên cho card
       styles,
       address: location.address,
       description: location.description,
@@ -93,7 +105,13 @@ export const useLocations = () => {
       verificationStatus: location.verificationStatus,
     };
 
-    console.log('Transformed location data:', transformedData);
+    console.log('✅ Đã transform xong dữ liệu location:', {
+      locationId: transformedData.locationId,
+      name: transformedData.name,
+      mainImage: transformedData.images[0],
+      styles: transformedData.styles
+    });
+    
     return transformedData;
   };
 
@@ -102,13 +120,18 @@ export const useLocations = () => {
       setLoading(true);
       setError(null);
       
-      console.log('Fetching all locations...');
+      console.log('🏢 Đang lấy tất cả locations...');
+      
+      // ✅ Bước 1: Lấy tất cả ảnh location trước
+      const cachedImages = await fetchAllLocationImages();
+      
+      // ✅ Bước 2: Lấy dữ liệu location
       const data = await locationService.getAll();
-      console.log('Location API raw data:', data);
+      console.log('📦 Dữ liệu thô từ Location API:', data);
       
       let arr: any[] = [];
       
-      // Handle different response structures
+      // Xử lý các cấu trúc response khác nhau
       if (Array.isArray(data)) {
         arr = data;
       } else if (data && typeof data === 'object' && Array.isArray((data as any).$values)) {
@@ -117,28 +140,53 @@ export const useLocations = () => {
         // Single object response
         arr = [data];
       } else {
-        console.warn('Unexpected data structure:', data);
+        console.warn('⚠️ Cấu trúc dữ liệu không mong đợi:', data);
         arr = [];
       }
       
-      console.log('Processed array:', arr);
+      console.log(`📋 Đang xử lý ${arr.length} locations...`);
       
-      const transformedData = arr
-        .filter(location => {
-          const isValid = location && location.locationId !== undefined;
-          if (!isValid) {
-            console.warn('Invalid location data:', location);
-          }
-          return isValid;
-        })
-        .map(transformLocationData);
+      // Lọc locations hợp lệ
+      const validLocations = arr.filter(location => {
+        const isValid = location && location.locationId !== undefined;
+        if (!isValid) {
+          console.warn('❌ Dữ liệu location không hợp lệ:', location);
+        }
+        return isValid;
+      });
+
+      console.log('🏢 Location IDs from API:', validLocations.map(loc => loc.locationId));
+console.log('🖼️ Available image refIds:', cachedImages.map(img => img.refId));
+
+      // 🚀 Transform với ảnh đã cache (đồng bộ bây giờ)
+      const transformedData: LocationData[] = [];
+      for (const location of validLocations) {
+        try {
+          const transformed = transformLocationData(location, cachedImages);
+          transformedData.push(transformed);
+        } catch (error) {
+          console.error(`❌ Lỗi transform location ${location.locationId}:`, error);
+          // Thêm dữ liệu location fallback
+          transformedData.push({
+            id: location.locationId.toString(),
+            locationId: location.locationId,
+            name: location.name || 'Unknown Location',
+            images: [''], // Empty string để test
+            styles: ['Studio'],
+            address: location.address,
+            hourlyRate: location.hourlyRate,
+            capacity: location.capacity,
+            availabilityStatus: location.availabilityStatus || 'available',
+          });
+        }
+      }
       
-      console.log('Final transformed data:', transformedData);
+      console.log(`✅ Hoàn tất transform ${transformedData.length} locations với ảnh`);
       setLocations(transformedData);
       
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch locations';
-      console.error('Error fetching locations:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Lỗi khi lấy locations';
+      console.error('❌ Lỗi khi lấy locations:', err);
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -147,13 +195,18 @@ export const useLocations = () => {
 
   const getLocationById = async (id: number): Promise<LocationData | null> => {
     try {
-      console.log('Fetching location by ID:', id);
+      console.log('🔍 Đang lấy location theo ID:', id);
       const data = await locationService.getById(id);
-      console.log('Location by ID raw data:', data);
+      console.log('📦 Dữ liệu thô location theo ID:', data);
       
-      return transformLocationData(data);
+      // Dùng ảnh đã cache nếu có, nếu không thì fetch mới
+      const cachedImages = allLocationImages.length > 0 
+        ? allLocationImages 
+        : await fetchAllLocationImages();
+      
+      return transformLocationData(data, cachedImages);
     } catch (err) {
-      console.error('Error fetching location by id:', err);
+      console.error('❌ Lỗi khi lấy location theo ID:', err);
       return null;
     }
   };

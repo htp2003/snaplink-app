@@ -16,7 +16,7 @@ import StepContainer from '../components/Step/StepContainer';
 import ProfileCardDetail from '../screens/customer/PhotographerCardDetail';
 import ViewAllPhotographers from '../screens/customer/ViewAllPhotographers';
 import ViewAllLocations from '../screens/customer/ViewAllLocations';
-import EditProfileScreen from '../screens/photographer/EditProfileScreen';
+import EditProfileScreen from '../screens/photographer/EditProfilePhotographerScreen';
 import SubscriptionScreen from '../screens/photographer/SubscriptionScreen';
 import SubscriptionManagementScreen from '../screens/photographer/SubscriptionManagementScreen';
 import BookingScreen from '../screens/customer/BookingScreen';
@@ -32,6 +32,7 @@ import ProfileUserScreen from '../screens/customer/ProfileUserScreen';
 import ViewProfileUserScreen from '../screens/customer/ViewProfileUserScreen';
 import ProfilePhotographerScreen from '../screens/photographer/ProfilePhotographerScreen';
 import ViewProfilePhotographerScreen from '../screens/photographer/ViewProfilePhotographerScreen';
+import EditProfilePhotographerScreen from '../screens/photographer/EditProfilePhotographerScreen';
 
 
 
@@ -75,7 +76,7 @@ const AppNavigator = () => {
 
 
         {/* Các màn hình dành riêng cho Photographer */}
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+        <Stack.Screen name="EditProfilePhotographer" component={EditProfilePhotographerScreen} />
         <Stack.Screen name='ProfilePhotographerScreen' component={ProfilePhotographerScreen} />
         <Stack.Screen name="Subscription" component={SubscriptionScreen} />
         <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} />

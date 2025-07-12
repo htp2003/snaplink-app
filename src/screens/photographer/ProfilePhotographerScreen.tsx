@@ -418,7 +418,7 @@ const ProfilePhotographerScreen = () => {
                 </View>
               ) : (
                 <TouchableOpacity
-                  onPress={() => navigation.navigate("EditProfile")}
+                  onPress={() => navigation.navigate("EditProfilePhotographer")}
                   style={{
                     backgroundColor: "#000000",
                     paddingHorizontal: 16,

@@ -15,7 +15,7 @@ import { RootStackNavigationProp } from '../../navigation/types';
 import { useAuth } from '../../hooks/useAuth';
 import { photographerService, PhotographerProfile } from '../../services/photographerService';
 
-const ViewProfileScreen = () => {
+const ViewProfilePhotographerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const { user, getCurrentUserId } = useAuth();
   const [photographerData, setPhotographerData] = useState<PhotographerProfile | null>(null);
@@ -507,4 +507,4 @@ const ViewProfileScreen = () => {
   );
 };
 
-export default ViewProfileScreen;
+export default ViewProfilePhotographerScreen;

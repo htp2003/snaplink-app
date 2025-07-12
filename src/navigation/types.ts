@@ -33,12 +33,12 @@ export type RootStackParamList = {
     EditProfile: undefined;
     Subscription: undefined;
     SubscriptionManagement: undefined;
-    Profile: undefined;
+    ViewProfilePhotographerScreen: undefined;
     PhotographerHomeScreen: undefined;
     FavoritedBottomSheet: undefined;
     OrderManagementScreen: undefined;
     RecentlyViewedScreen: undefined;
-    ViewProfileScreen: undefined;
+    ProfilePhotographerScreen: undefined;
     // Customer  screens
     PhotographerCardDetail: { photographerId: string };
     LocationCardDetail: { locationId: string };
@@ -48,7 +48,7 @@ export type RootStackParamList = {
       userId?: number | null;
     };
     ViewAllLocations: undefined;
-    ProfilePhoto: undefined;
+    ProfileUserScreen: undefined;
     Booking: {
         photographerId: string;
         photographerName: string;
@@ -62,7 +62,7 @@ export type RootStackParamList = {
         totalHours: number;
         totalPrice: number;
     };
-    ViewProfile: { userId: number };
+    ViewProfileUserScreen: { userId: number };
    
 
 };

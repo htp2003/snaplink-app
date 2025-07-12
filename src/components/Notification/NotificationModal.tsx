@@ -174,8 +174,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
             transparent
             statusBarTranslucent
         >
-            <View style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
-                <SafeAreaView style={{ flex: 1 }}>
+            <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+                <SafeAreaView style={{ flex: 1 }} edges={['top']}>
                     <View style={{ flex: 1 }}>
                         {/* Header */}
                         <View
@@ -185,10 +185,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({
                                 justifyContent: 'center',
                                 paddingVertical: getResponsiveSize(16),
                                 paddingHorizontal: getResponsiveSize(20),
-                                backgroundColor: '#FFFFFF',
-                                borderBottomWidth: 1,
-                                borderBottomColor: '#F0F0F0',
-                                position: 'relative',
+                                minHeight: getResponsiveSize(56),
                             }}
                         >
                             {/* Arrow Left */}

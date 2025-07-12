@@ -38,7 +38,17 @@ export class UserService {
 
   // Get user by ID
   async getUserById(userId: number): Promise<UserProfile> {
-    return apiClient.get<UserProfile>(ENDPOINTS.BY_ID(userId));
+    console.log('🔍 userService.getUserById called with:', userId);
+    console.log('🔍 API endpoint will be:', ENDPOINTS.BY_ID(userId));
+    
+    try {
+      const result = await apiClient.get<UserProfile>(ENDPOINTS.BY_ID(userId));
+      console.log('✅ API response:', result);
+      return result;
+    } catch (error) {
+      console.error('❌ userService.getUserById error:', error);
+      throw error;
+    }
   }
 
   // Get users by role

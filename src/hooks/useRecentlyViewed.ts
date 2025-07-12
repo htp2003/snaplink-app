@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { LocationData } from "./useLocations";
 import { PhotographerData } from "./usePhotographers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -20,12 +20,8 @@ export function useRecentlyViewed() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    loadRecentlyViewed();
-  }, []);
-
   // Load recently viewed from AsyncStorage
-  const loadRecentlyViewed = async () => {
+  const loadRecentlyViewed = useCallback(async () => {
     try {
       setLoading(true);
       const stored = await AsyncStorage.getItem(RECENTLY_VIEWED_STORAGE_KEY);
@@ -47,10 +43,14 @@ export function useRecentlyViewed() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadRecentlyViewed();
+  }, [loadRecentlyViewed]);
 
   // Save recently viewed to AsyncStorage
-  const saveRecentlyViewed = async (
+  const saveRecentlyViewed = useCallback(async (
     newRecentlyViewed: RecentlyViewedItem[]
   ) => {
     try {
@@ -61,50 +61,55 @@ export function useRecentlyViewed() {
     } catch (err) {
       console.error("Error saving recently viewed:", err);
     }
-  };
-   // Track a view (add to recently viewed)
-   const trackView = async (item: Omit<RecentlyViewedItem, 'viewedAt'>) => {
+  }, []);
+
+  // Track a view (add to recently viewed) - MEMOIZED to prevent infinite loops
+  const trackView = useCallback(async (item: Omit<RecentlyViewedItem, 'viewedAt'>) => {
     try {
       const viewedItem: RecentlyViewedItem = {
         ...item,
         viewedAt: new Date().toISOString()
       };
 
-      // Remove existing item with same id and type (to avoid duplicates)
-      const filteredItems = recentlyViewed.filter(
-        existing => !(existing.id === item.id && existing.type === item.type)
-      );
+      setRecentlyViewed(currentItems => {
+        // Remove existing item with same id and type (to avoid duplicates)
+        const filteredItems = currentItems.filter(
+          existing => !(existing.id === item.id && existing.type === item.type)
+        );
 
-      // Add new item at the beginning
-      const updatedItems = [viewedItem, ...filteredItems].slice(0, MAX_RECENT_ITEMS);
-      
-      setRecentlyViewed(updatedItems);
-      await saveRecentlyViewed(updatedItems);
-      
-      console.log(`Tracked view: ${item.type} ${item.id}`);
+        // Add new item at the beginning
+        const updatedItems = [viewedItem, ...filteredItems].slice(0, MAX_RECENT_ITEMS);
+        
+        // Save to AsyncStorage
+        saveRecentlyViewed(updatedItems);
+        
+        console.log(`Tracked view: ${item.type} ${item.id}`);
+        return updatedItems;
+      });
     } catch (err) {
       console.error("Error tracking view:", err);
     }
-  };
+  }, [saveRecentlyViewed]);
 
   // Remove an item from recently viewed
-  const removeFromRecentlyViewed = async (id: string, type: "photographer" | "location") => {
+  const removeFromRecentlyViewed = useCallback(async (id: string, type: "photographer" | "location") => {
     try {
-      const updatedItems = recentlyViewed.filter(
-        item => !(item.id === id && item.type === type)
-      );
-      
-      setRecentlyViewed(updatedItems);
-      await saveRecentlyViewed(updatedItems);
-      
-      console.log(`Removed from recently viewed: ${type} ${id}`);
+      setRecentlyViewed(currentItems => {
+        const updatedItems = currentItems.filter(
+          item => !(item.id === id && item.type === type)
+        );
+        
+        saveRecentlyViewed(updatedItems);
+        console.log(`Removed from recently viewed: ${type} ${id}`);
+        return updatedItems;
+      });
     } catch (err) {
       console.error("Error removing from recently viewed:", err);
     }
-  };
+  }, [saveRecentlyViewed]);
 
   // Clear all recently viewed
-  const clearRecentlyViewed = async () => {
+  const clearRecentlyViewed = useCallback(async () => {
     try {
       setRecentlyViewed([]);
       await AsyncStorage.removeItem(RECENTLY_VIEWED_STORAGE_KEY);
@@ -112,36 +117,36 @@ export function useRecentlyViewed() {
     } catch (err) {
       console.error("Error clearing recently viewed:", err);
     }
-  };
+  }, []);
 
   // Get recently viewed by type
-  const getRecentlyViewedByType = (type: "photographer" | "location") => {
+  const getRecentlyViewedByType = useCallback((type: "photographer" | "location") => {
     return recentlyViewed.filter(item => item.type === type);
-  };
+  }, [recentlyViewed]);
 
   // Get recently viewed photographers
-  const getRecentlyViewedPhotographers = () => {
+  const getRecentlyViewedPhotographers = useCallback(() => {
     return getRecentlyViewedByType("photographer").map(item => ({
       ...item.data as PhotographerData,
       viewedAt: item.viewedAt
     }));
-  };
+  }, [getRecentlyViewedByType]);
 
   // Get recently viewed locations
-  const getRecentlyViewedLocations = () => {
+  const getRecentlyViewedLocations = useCallback(() => {
     return getRecentlyViewedByType("location").map(item => ({
       ...item.data as LocationData,
       viewedAt: item.viewedAt
     }));
-  };
+  }, [getRecentlyViewedByType]);
 
   // Check if an item was recently viewed
-  const isRecentlyViewed = (id: string, type: "photographer" | "location") => {
+  const isRecentlyViewed = useCallback((id: string, type: "photographer" | "location") => {
     return recentlyViewed.some(item => item.id === id && item.type === type);
-  };
+  }, [recentlyViewed]);
 
   // Get formatted time ago
-  const getTimeAgo = (viewedAt: string) => {
+  const getTimeAgo = useCallback((viewedAt: string) => {
     const now = new Date();
     const viewed = new Date(viewedAt);
     const diffMs = now.getTime() - viewed.getTime();
@@ -154,13 +159,13 @@ export function useRecentlyViewed() {
     if (diffHours < 24) return `${diffHours} giờ trước`;
     if (diffDays < 7) return `${diffDays} ngày trước`;
     return viewed.toLocaleDateString('vi-VN');
-  };
+  }, []);
 
   return {
     recentlyViewed,
     loading,
     error,
-    trackView,
+    trackView, // Now memoized!
     removeFromRecentlyViewed,
     clearRecentlyViewed,
     getRecentlyViewedByType,
@@ -171,4 +176,3 @@ export function useRecentlyViewed() {
     refetch: loadRecentlyViewed,
   };
 }
-

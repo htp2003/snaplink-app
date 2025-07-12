@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -46,13 +46,44 @@ export default function LocationCardDetail() {
   
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { trackView } = useRecentlyViewed();
-  const { locationDetail, loading, error, fetchLocationById } = useLocationDetail();
+  
+  // Use updated hook with Image API integration
+  const { 
+    locationDetail, 
+    loading, 
+    error, 
+    fetchLocationById,
+    // Gallery images from Image API
+    galleryImages, // This is now string[] from imageUrls
+    imageResponses, // This is ImageResponse[] from images
+    loadingImages,
+    imageError
+  } = useLocationDetail();
+
+  // Move getAmenities up before it's used
+  const getAmenities = useCallback((): string[] => {
+    if (locationDetail?.amenities) {
+      return locationDetail.amenities.split(',').map(a => a.trim());
+    }
+    const amenities = [];
+    if (locationDetail?.indoor) amenities.push('Indoor');
+    if (locationDetail?.outdoor) amenities.push('Outdoor');
+    return amenities.length > 0 ? amenities : ['Studio Space'];
+  }, [locationDetail?.amenities, locationDetail?.indoor, locationDetail?.outdoor]);
 
   useEffect(() => {
     if (locationId) {
+      console.log('🎯 LocationCardDetail: Starting fetch for locationId:', locationId);
       fetchLocationById(locationId);
     }
   }, [locationId]);
+
+  // Debug images data - only log once when data changes significantly
+  useEffect(() => {
+    if (galleryImages?.length > 0) {
+      console.log('✅ Location images loaded:', galleryImages.length, 'images');
+    }
+  }, [galleryImages?.length]); // Only log when count changes
 
   // Helper function to open maps
   const openMapsApp = async (lat: number, lng: number, address: string) => {
@@ -149,27 +180,33 @@ export default function LocationCardDetail() {
     return `https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/${zoom}/${x}/${y}@2x.png`;
   };
 
-  // Track recently viewed
+  // Track recently viewed - only once when locationDetail is loaded
+  const [hasTrackedView, setHasTrackedView] = useState(false);
+  
   useEffect(() => {
-    if (locationDetail) {
-      trackView({
+    if (locationDetail && !hasTrackedView) {
+      const trackData = {
         id: locationDetail.locationId.toString(),
-        type: 'location',
+        type: 'location' as const,
         data: {
           id: locationDetail.locationId.toString(),
           locationId: locationDetail.locationId,
           name: locationDetail.name || 'Unknown Location',
-          avatar: '',
-          images: getGalleryImages(),
+          avatar: locationDetail.ownerAvatar || '', 
+          images: galleryImages || [], 
           styles: getAmenities(),
           address: locationDetail.address,
           hourlyRate: locationDetail.hourlyRate,
           capacity: locationDetail.capacity,
           availabilityStatus: locationDetail.availabilityStatus
         }
-      });
+      };
+      
+      console.log('Tracked view:', trackData.type, trackData.id);
+      trackView(trackData);
+      setHasTrackedView(true);
     }
-  }, [locationDetail]);
+  }, [locationDetail?.locationId, hasTrackedView]); // Only depend on locationId and hasTrackedView flag
 
   useEffect(() => {
     if (error) {
@@ -184,7 +221,7 @@ export default function LocationCardDetail() {
     }
   }, [error]);
 
-  const handleToggleFavorite = () => {
+  const handleToggleFavorite = useCallback(() => {
     if (!locationDetail) return;
     
     const favoriteItem: FavoriteItem = {
@@ -194,8 +231,8 @@ export default function LocationCardDetail() {
         id: locationDetail.locationId.toString(),
         locationId: locationDetail.locationId,
         name: locationDetail.name || 'Unknown Location',
-        avatar: '',
-        images: getGalleryImages(),
+        avatar: locationDetail.ownerAvatar || '', 
+        images: galleryImages || [], 
         styles: getAmenities(),
         address: locationDetail.address,
         hourlyRate: locationDetail.hourlyRate,
@@ -208,40 +245,18 @@ export default function LocationCardDetail() {
     } else {
       addFavorite(favoriteItem);
     }
-  };
-
-  const getGalleryImages = (): string[] => {
-    if (!locationDetail?.locationImages) {
-      return [];
-    }
-
-    let images: string[] = [];
-    
-    if (Array.isArray(locationDetail.locationImages)) {
-      images = locationDetail.locationImages
-        .filter(img => img && (img.imageUrl || img.url))
-        .map(img => img.imageUrl || img.url || '');
-    } else if (locationDetail.locationImages && typeof locationDetail.locationImages === 'object' && '$values' in locationDetail.locationImages) {
-      const imageArray = (locationDetail.locationImages as any).$values;
-      if (Array.isArray(imageArray)) {
-        images = imageArray
-          .filter(img => img && (img.imageUrl || img.url))
-          .map(img => img.imageUrl || img.url || '');
-      }
-    }
-    
-    return images;
-  };
-
-  const getAmenities = (): string[] => {
-    if (locationDetail?.amenities) {
-      return locationDetail.amenities.split(',').map(a => a.trim());
-    }
-    const amenities = [];
-    if (locationDetail?.indoor) amenities.push('Indoor');
-    if (locationDetail?.outdoor) amenities.push('Outdoor');
-    return amenities.length > 0 ? amenities : ['Studio Space'];
-  };
+  }, [
+    locationDetail?.locationId,
+    locationDetail?.name,
+    locationDetail?.ownerAvatar,
+    locationDetail?.address,
+    locationDetail?.hourlyRate,
+    locationDetail?.availabilityStatus,
+    galleryImages?.length, // Only depend on length
+    isFavorite,
+    addFavorite,
+    removeFavorite
+  ]);
 
   const renderStars = (rating: number = 4.8) => {
     const stars = [];
@@ -277,6 +292,9 @@ export default function LocationCardDetail() {
           marginTop: -50
         }}
         resizeMode="cover"
+        onError={() => {
+          console.log('Failed to load image:', item);
+        }}
       />
     </View>
   );
@@ -317,8 +335,6 @@ export default function LocationCardDetail() {
       </View>
     );
   }
-
-  const galleryImages = getGalleryImages();
 
   return (
     <View className="flex-1 bg-white">
@@ -494,7 +510,7 @@ export default function LocationCardDetail() {
           scrollEventThrottle={1}
           contentContainerStyle={{ paddingTop: 0 }}
         >
-          {/* Location Images Gallery */}
+          {/* Location Images Gallery - Now from Image API */}
           <View style={{
             height: height * 0.6,
             overflow: 'hidden',
@@ -502,13 +518,18 @@ export default function LocationCardDetail() {
             zIndex: 1,
             backgroundColor: '#eee',
           }}>
-            {galleryImages.length > 0 ? (
+            {loadingImages ? (
+              <View className="flex-1 justify-center items-center">
+                <ActivityIndicator size="large" color="#10b981" />
+                <Text className="text-stone-600 mt-2">Đang tải ảnh từ Image API...</Text>
+              </View>
+            ) : galleryImages && galleryImages.length > 0 ? (
               <>
                 <FlatList
                   ref={flatListRef}
                   data={galleryImages}
                   renderItem={renderImageItem}
-                  keyExtractor={(item, index) => index.toString()}
+                  keyExtractor={(item, index) => `${item}-${index}`}
                   horizontal
                   pagingEnabled
                   showsHorizontalScrollIndicator={false}
@@ -537,8 +558,13 @@ export default function LocationCardDetail() {
               <View className="flex-1 justify-center items-center">
                 <Ionicons name="images-outline" size={getResponsiveSize(60)} color="#9ca3af" />
                 <Text className="text-stone-600 mt-4 text-center">
-                  Chưa có ảnh địa điểm
+                  Chưa có ảnh địa điểm từ Image API
                 </Text>
+                {imageError && (
+                  <Text className="text-red-500 mt-2 text-center text-sm">
+                    {imageError}
+                  </Text>
+                )}
               </View>
             )}
           </View>
@@ -625,30 +651,46 @@ export default function LocationCardDetail() {
                 </View>
               </View>
 
-              {/* Owner Info */}
+              {/* Owner Info - Now with avatar from User API */}
               <View
                 className="flex-row items-center pb-6 border-b border-stone-200"
                 style={{ marginBottom: getResponsiveSize(24) }}
               >
-                <View
-                  style={{
-                    width: getResponsiveSize(56),
-                    height: getResponsiveSize(56),
-                    borderRadius: getResponsiveSize(28),
-                    backgroundColor: '#f5f5f4',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: getResponsiveSize(16)
-                  }}
-                >
-                  <Ionicons name="business-outline" size={getResponsiveSize(28)} color="#10b981" />
-                </View>
+                {/* Owner Avatar */}
+                {locationDetail?.ownerAvatar ? (
+                  <Image
+                    source={{ uri: locationDetail.ownerAvatar }}
+                    style={{
+                      width: getResponsiveSize(56),
+                      height: getResponsiveSize(56),
+                      borderRadius: getResponsiveSize(28),
+                      marginRight: getResponsiveSize(16)
+                    }}
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: getResponsiveSize(56),
+                      height: getResponsiveSize(56),
+                      borderRadius: getResponsiveSize(28),
+                      backgroundColor: '#f5f5f4',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: getResponsiveSize(16)
+                    }}
+                  >
+                    <Ionicons name="business-outline" size={getResponsiveSize(28)} color="#10b981" />
+                  </View>
+                )}
+                
                 <View className="flex-1">
                   <Text
                     className="text-stone-900 font-semibold"
                     style={{ fontSize: getResponsiveSize(18) }}
                   >
-                    {locationDetail?.locationOwner?.businessName || 'Professional Studio'}
+                    {locationDetail?.locationOwner?.businessName || 
+                     locationDetail?.ownerProfile?.fullName || 
+                     'Professional Studio'}
                   </Text>
                   <Text
                     className="text-stone-600"
@@ -665,8 +707,6 @@ export default function LocationCardDetail() {
                   </View>
                 )}
               </View>
-
-
 
               {/* Location Features Section */}
               <View
@@ -739,7 +779,7 @@ export default function LocationCardDetail() {
                 </View>
 
                 {/* Capacity */}
-                <View className="flex-row">
+                <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
                   <Ionicons name="people-outline" size={getResponsiveSize(24)} color="#57534e" />
                   <View className="ml-4 flex-1">
                     <Text
@@ -756,9 +796,32 @@ export default function LocationCardDetail() {
                     </Text>
                   </View>
                 </View>
+
+                {/* Images from Image API */}
+                <View className="flex-row">
+                  <Ionicons name="images-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View className="ml-4 flex-1">
+                    <Text
+                      className="text-stone-900 font-semibold"
+                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                    >
+                      Ảnh địa điểm
+                    </Text>
+                    <Text
+                      className="text-stone-600 leading-6"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      {galleryImages && galleryImages.length > 0 
+                        ? `${galleryImages.length} ảnh được upload cho địa điểm này.`
+                        : 'Đang cập nhật ảnh mới nhất từ Image API.'
+                      }
+                    </Text>
+                  </View>
+                </View>
               </View>
-                            {/* Location Map Section */}
-                            <View
+
+              {/* Location Map Section */}
+              <View
                 className="pb-6 border-b border-stone-200"
                 style={{ marginBottom: getResponsiveSize(24) }}
               >
@@ -984,9 +1047,21 @@ export default function LocationCardDetail() {
                 className="flex-1 bg-stone-100 rounded-2xl items-center"
                 style={{ paddingVertical: getResponsiveSize(16) }}
                 onPress={() => {
+                  const businessInfo = locationDetail?.locationOwner;
+                  const ownerInfo = locationDetail?.ownerProfile;
+                  
+                  const contactInfo = [
+                    businessInfo?.businessName && `Tên doanh nghiệp: ${businessInfo.businessName}`,
+                    ownerInfo?.fullName && `Chủ sở hữu: ${ownerInfo.fullName}`,
+                    ownerInfo?.email && `Email: ${ownerInfo.email}`,
+                    ownerInfo?.phoneNumber && `Điện thoại: ${ownerInfo.phoneNumber}`,
+                    businessInfo?.businessAddress && `Địa chỉ kinh doanh: ${businessInfo.businessAddress}`,
+                    businessInfo?.businessRegistrationNumber && `Mã đăng ký: ${businessInfo.businessRegistrationNumber}`,
+                  ].filter(Boolean).join('\n');
+
                   Alert.alert(
-                    'Liên hệ chủ địa điểm',
-                    `Thông tin kinh doanh:\n\nTên: ${locationDetail?.locationOwner?.businessName || 'N/A'}\nĐịa chỉ: ${locationDetail?.locationOwner?.businessAddress || 'N/A'}\nMã đăng ký: ${locationDetail?.locationOwner?.businessRegistrationNumber || 'N/A'}`,
+                    'Thông tin liên hệ',
+                    contactInfo || 'Thông tin liên hệ chưa được cập nhật.',
                     [{ text: 'OK' }]
                   );
                 }}

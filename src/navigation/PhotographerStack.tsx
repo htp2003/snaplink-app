@@ -5,9 +5,10 @@ import { customTabScreenOptions } from './tabBarOptions';
 import { Ionicons } from '@expo/vector-icons';
 
 // Placeholder screens - Cần tạo các màn hình này sau
-import ProfileScreen from '../screens/photographer/ProfileScreen';
+
 import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScreen';
 import OrderManagementScreen from '../screens/photographer/OrderManagementScreen';
+import ProfilePhotographerScreen from '../screens/photographer/ProfilePhotographerScreen';
 
 const Tab = createBottomTabNavigator<PhotographerTabParamList>();
 
@@ -48,7 +49,7 @@ const PhotographerStack = () => {
       />
       <Tab.Screen 
         name="Profile" 
-        component={ProfileScreen}
+        component={ProfilePhotographerScreen}
         options={{
           tabBarLabel: 'Hồ sơ',
           tabBarIcon: ({ focused, color, size }) => (

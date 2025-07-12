@@ -2,7 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { CustomerTabParamList } from './types';
 import CustomerHomeScreen from '../screens/customer/CustomerHomeScreen';
-import ProfileScreen from '../screens/customer/ProfileScreen';
+import ProfileScreen from '../screens/customer/ProfileUserScreen';
 import FavoritesScreen from '../screens/customer/FavoritesScreen';
 import SnapLinkScreen from '../screens/customer/SnapLinkScreen';
 import MessagesScreen from '../screens/customer/MessagesScreen';

@@ -24,7 +24,7 @@ import { photographerService, PhotographerProfile } from "../../services/photogr
 const { width } = Dimensions.get("window");
 const HEADER_HEIGHT = 60;
 
-const ProfileScreen = () => {
+const ProfilePhotographerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const insets = useSafeAreaInsets();
   const { profileData } = useProfile();
@@ -331,7 +331,7 @@ const ProfileScreen = () => {
         </View>
         {/* Profile Card */}
         <TouchableOpacity
-          onPress={() => navigation.navigate("ViewProfileScreen")}
+          onPress={() => navigation.navigate("ViewProfilePhotographerScreen")}
         >
           <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
             <View
@@ -656,4 +656,4 @@ const ProfileScreen = () => {
   );
 };
 
-export default ProfileScreen;
+export default ProfilePhotographerScreen;

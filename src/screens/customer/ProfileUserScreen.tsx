@@ -28,7 +28,7 @@ import { useAuth, User as AuthUser } from '../../hooks/useAuth';
 const { width } = Dimensions.get('window');
 const HEADER_HEIGHT = 60;
 
-const ProfileScreen = () => {
+const ProfileUserScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const insets = useSafeAreaInsets();
   const { profileData } = useProfile();
@@ -435,7 +435,7 @@ const ProfileScreen = () => {
                 }}
               />
             ) : (
-              <Text style={{ color: '#FFFFFF', fontSize: 24, fontWeight: 'bold' }}>
+              <Text style={{ color: '#FFFFFF', fontSize: 32, fontWeight: 'bold' }}>
                 {initials}
               </Text>
             )}
@@ -523,7 +523,7 @@ const ProfileScreen = () => {
         <TouchableOpacity 
           onPress={() => {
             if (currentUserId) {
-              navigation.navigate('ViewProfile', { userId: currentUserId });
+              navigation.navigate('ViewProfileUserScreen', { userId: currentUserId });
             }
           }}
         >
@@ -736,4 +736,4 @@ const ProfileScreen = () => {
   );
 };
 
-export default ProfileScreen;
+export default ProfileUserScreen;

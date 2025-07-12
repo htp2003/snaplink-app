@@ -16,7 +16,6 @@ import StepContainer from '../components/Step/StepContainer';
 import ProfileCardDetail from '../screens/customer/PhotographerCardDetail';
 import ViewAllPhotographers from '../screens/customer/ViewAllPhotographers';
 import ViewAllLocations from '../screens/customer/ViewAllLocations';
-import ProfileScreen from '../screens/photographer/ProfileScreen';
 import EditProfileScreen from '../screens/photographer/EditProfileScreen';
 import SubscriptionScreen from '../screens/photographer/SubscriptionScreen';
 import SubscriptionManagementScreen from '../screens/photographer/SubscriptionManagementScreen';
@@ -27,7 +26,14 @@ import LocationCardDetail from '../screens/customer/LocationCardDetail';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScreen';
 import RecentlyViewedScreen from '../screens/customer/RecentlyViewedScreen';
-import ViewProfileScreen from '../screens/photographer/ViewProfileScreen';
+
+
+import ProfileUserScreen from '../screens/customer/ProfileUserScreen';
+import ViewProfileUserScreen from '../screens/customer/ViewProfileUserScreen';
+import ProfilePhotographerScreen from '../screens/photographer/ProfilePhotographerScreen';
+import ViewProfilePhotographerScreen from '../screens/photographer/ViewProfilePhotographerScreen';
+
+
 
 
 
@@ -62,19 +68,20 @@ const AppNavigator = () => {
         <Stack.Screen name="LocationCardDetail" component={LocationCardDetail} />
         <Stack.Screen name="ViewAllPhotographers" component={ViewAllPhotographers} />
         <Stack.Screen name="ViewAllLocations" component={ViewAllLocations} />
-        <Stack.Screen name="ProfilePhoto" component={ProfileScreen} />
+        <Stack.Screen name="ProfileUserScreen" component={ProfileUserScreen} />
+        <Stack.Screen name="ViewProfileUserScreen" component={ViewProfileUserScreen} />
         <Stack.Screen name="Booking" component={BookingScreen} />
         <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
 
 
         {/* Các màn hình dành riêng cho Photographer */}
         <Stack.Screen name="EditProfile" component={EditProfileScreen} />
-        <Stack.Screen name='ViewProfileScreen' component={ViewProfileScreen} />
+        <Stack.Screen name='ProfilePhotographerScreen' component={ProfilePhotographerScreen} />
         <Stack.Screen name="Subscription" component={SubscriptionScreen} />
         <Stack.Screen name="SubscriptionManagement" component={SubscriptionManagementScreen} />
         <Stack.Screen name="PhotographerHomeScreen" component={PhotographerHomeScreen} />
         <Stack.Screen name="RecentlyViewedScreen" component={RecentlyViewedScreen} />
-        <Stack.Screen name="ViewProfile" component={ViewProfileScreen} />
+        <Stack.Screen name="ViewProfilePhotographerScreen" component={ViewProfilePhotographerScreen} />
 
 
 

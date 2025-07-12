@@ -16,7 +16,7 @@ import { RootStackNavigationProp } from '../../navigation/types';
 import { useAuth } from '../../hooks/useAuth';
 import FieldEditModal from '../../components/Photographer/FileEditModal';
 import { photographerService, Style as ApiStyle, CreatePhotographerRequest, UpdatePhotographerRequest, PhotographerProfile as ApiPhotographerProfile } from '../../services/photographerService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 
 interface Style {
   styleId: number;

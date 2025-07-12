@@ -47,11 +47,11 @@ const ViewProfilePhotographerScreen = () => {
   };
 
   const handleEditPress = () => {
-    navigation.navigate('EditProfile');
+    navigation.navigate('EditProfilePhotographer');
   };
 
   const handleStartPress = () => {
-    navigation.navigate('EditProfile');
+    navigation.navigate('EditProfilePhotographer');
   };
 
   const handleBackPress = () => {

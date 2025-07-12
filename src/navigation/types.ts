@@ -30,7 +30,7 @@ export type RootStackParamList = {
     Register: undefined;
     
     // Photographer screens
-    EditProfile: undefined;
+    EditProfilePhotographer: undefined;
     Subscription: undefined;
     SubscriptionManagement: undefined;
     ViewProfilePhotographerScreen: undefined;

@@ -78,31 +78,6 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
 
     // State cho fallback handling
     const [imageError, setImageError] = useState(false);
-    const [fallbackIndex, setFallbackIndex] = useState(0);
-
-    // Lấy ảnh main để hiển thị - chỉ dùng avatar từ User API
-    const getMainImage = () => {
-        console.log('🖼️ Getting main image for photographer:', id);
-        console.log('Avatar received:', avatar);
-        console.log('Image error state:', imageError);
-
-        // Nếu có lỗi image, dùng fallback
-        if (imageError) {
-            console.log('Using fallback due to image error');
-            return '';
-        }
-
-        // Nếu có avatar (kể cả fallback URL), dùng nó
-        if (avatar) {
-            console.log('Using provided avatar:', avatar);
-            return avatar;
-        }
-
-        // ✅ FIXED: Fallback cuối cùng nếu không có avatar
-        console.log('No avatar provided, using default fallback');
-        return '';
-    };
-
     // Handle image error
     const handleImageError = (error: any) => {
         console.log('Failed to load avatar for photographer:', id);
@@ -112,7 +87,6 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
         setImageError(true);
     };
 
-    const mainImage = getMainImage();
     const displayName = fullName || 'Photographer';
     const specialty = styles.length > 0 ? styles[0] : 'Professional Photographer';
 
@@ -126,12 +100,11 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
             {/* Main Image - Avatar từ User API */}
             <TouchableOpacity onPress={handlePress} className="relative">
                 <Image
-                    source={{ uri: mainImage }}
+                    source={{ uri: avatar }}
                     style={{ width: '100%', height: getResponsiveSize(240) }}
                     className="bg-stone-200"
                     resizeMode="cover"
                     onError={handleImageError}
-                    key={`${id}-${imageError ? fallbackIndex : 'original'}`}
                 />
 
                 {/* Favorite Button */}

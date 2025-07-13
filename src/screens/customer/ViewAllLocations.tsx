@@ -45,8 +45,8 @@ export default function ViewAllLocations({ navigation }: Props) {
                 style={{ marginBottom: getResponsiveSize(20) }}
               >
                 <LocationCard 
+                  locationId={Number(location.id)}
                   name={location.name}
-                  avatar={location.avatar}
                   images={location.images}
                   styles={location.styles}
                   isFavorite={isFavorite(location.id)}

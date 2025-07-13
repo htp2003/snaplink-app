@@ -228,12 +228,29 @@ export default function PhotographerCardDetail() {
   const handleBooking = useCallback(() => {
     if (!photographerDetail) return;
     
+    console.log('Navigating to Booking with photographerDetail:', photographerDetail);
+    
     navigation.navigate('Booking', {
-      photographerId: photographerDetail.photographerId.toString(),
-      photographerName: photographerDetail.fullName || 'Photographer',
-      hourlyRate: photographerDetail.hourlyRate
+      photographer: {
+        ...photographerDetail,
+        photographerId: String(photographerDetail.photographerId),
+        userId: String(photographerDetail.userId),
+        fullName: photographerDetail.fullName || 'Unknown Photographer',
+        profileImage: photographerDetail.profileImage || '',
+        hourlyRate: photographerDetail.hourlyRate || 0,
+        specialty: photographerDetail.specialty || 'Photography',
+        yearsExperience: photographerDetail.yearsExperience,
+        equipment: photographerDetail.equipment,
+        availabilityStatus: photographerDetail.availabilityStatus,
+        rating: photographerDetail.rating,
+        verificationStatus: photographerDetail.verificationStatus,
+        bio: photographerDetail.bio,
+        phoneNumber: photographerDetail.phoneNumber,
+        email: photographerDetail.email,
+        styles: photographerDetail.styles,
+      }
     });
-  }, [navigation, photographerDetail]);
+}, [navigation, photographerDetail]);
 
   // Loading state
   if (loading) {

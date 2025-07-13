@@ -1,116 +1,385 @@
-import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, Platform, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, Modal, TextInput, Alert } from 'react-native';
 import { getResponsiveSize } from '../../utils/responsive';
-import { useNavigation } from '@react-navigation/native';
-import { AntDesign, Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { AntDesign, Feather, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import ModernCalendar from '../../components/ModernCalendar';
+import { useBooking } from '../../hooks/useBooking';
+import { useLocations } from '../../hooks/useLocations';
 import type { RootStackNavigationProp } from '../../navigation/types';
+import type { CreateBookingRequest } from '../../types/booking';
 
-interface Location {
-  id: number;
-  name: string;
-  address: string;
-  imageUrl: string;
-  rating: number;
-  distance: string;
+// Route params interface - match với actual data structure
+interface RouteParams {
+  photographer: {
+    photographerId: number;
+    userId?: number;
+    fullName: string;
+    profileImage?: string;
+    hourlyRate: number;
+    specialty?: string;
+    yearsExperience?: number;
+    equipment?: string;
+    availabilityStatus?: string;
+    rating?: number;
+    verificationStatus?: string;
+    // API có thể return thêm fields
+    userName?: string;
+    email?: string;
+    phoneNumber?: string;
+    bio?: string;
+    styles?: string[];
+    // Legacy support
+    name?: string;
+    avatar?: string;
+  };
 }
-
-const locations: Location[] = [
-  {
-    id: 1,
-    name: "Vinhomes Grand Park",
-    address: "S6.02 Vinhomes Grand Park, Quận 9",
-    imageUrl: "https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80",
-    rating: 4.8,
-    distance: "2.5km"
-  },
-  {
-    id: 2,
-    name: "Landmark 81 Rooftop",
-    address: "720A Điện Biên Phủ, Bình Thạnh",
-    imageUrl: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=400&q=80",
-    rating: 4.9,
-    distance: "5.2km"
-  },
-  {
-    id: 3,
-    name: "Saigon Skydeck",
-    address: "36 Hồ Tùng Mậu, Quận 1",
-    imageUrl: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?auto=format&fit=crop&w=400&q=80",
-    rating: 4.7,
-    distance: "8.1km"
-  },
-  {
-    id: 4,
-    name: "Bitexco Financial Tower",
-    address: "2 Hải Triều, Quận 1",
-    imageUrl: "https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?auto=format&fit=crop&w=400&q=80",
-    rating: 4.6,
-    distance: "7.8km"
-  }
-];
 
 export default function BookingScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
-  // State chọn giờ
-  const [date, setDate] = useState<Date>(new Date());
+  const route = useRoute();
+  const { photographer } = route.params as RouteParams;
+  
+  // Debug log để check data
+  useEffect(() => {
+    console.log('BookingScreen received photographer:', photographer);
+  }, []);
+  
+  // Hooks
+  const { locations, loading: locationsLoading } = useLocations();
+  const {
+    createBooking,
+    checkAvailability,
+    calculatePrice,
+    priceCalculation,
+    setPriceCalculation,
+    availability,
+    creating,
+    checkingAvailability,
+    calculatingPrice,
+    error
+  } = useBooking();
+  
+  // Form State
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [selectedStartTime, setSelectedStartTime] = useState<string>('');
+  const [selectedEndTime, setSelectedEndTime] = useState<string>('');
+  const [selectedLocation, setSelectedLocation] = useState<any>(null);
+  const [specialRequests, setSpecialRequests] = useState<string>('');
+
+  // UI State
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<Location>(locations[0]);
-  
-  const times = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00", "23:00"];
+  const [showSpecialRequests, setShowSpecialRequests] = useState(false);
 
-  // Tự động chọn index giờ khả dụng đầu tiên
-  const getFirstAvailableTimeIdx = () => {
-    const now = new Date();
-    const nowHour = now.getHours();
-    const nowMinute = now.getMinutes();
-    for (let i = 0; i < times.length; i++) {
-      const [h, m] = times[i].split(":").map(Number);
-      if (h > nowHour || (h === nowHour && m > nowMinute)) {
-        return i;
-      }
-    }
-    return times.length - 1;
-  };
-  const [selectedTimeIdxs, setSelectedTimeIdxs] = useState<number[]>([getFirstAvailableTimeIdx()]);
+  const allTimes = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 
-  // Toggle chọn/bỏ khung giờ
-  const handleToggleTime = (idx: number) => {
-    setSelectedTimeIdxs(prev =>
-      prev.includes(idx) ? prev.filter(i => i !== idx) : [...prev, idx].sort((a, b) => a - b)
-    );
-  }
+  // Safe data extraction từ photographer object
+  const photographerName = photographer?.fullName || photographer?.name || 'Unknown Photographer';
+  const photographerAvatar = photographer?.profileImage || photographer?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format';
+  const photographerRate = photographer?.hourlyRate || 0;
+  const photographerSpecialty = photographer?.specialty || 'Professional Photographer';
+  const photographerId = photographer?.photographerId;
 
-  const handleDateChange = (selectedDate: Date) => {
-    setDate(selectedDate);
-    setShowDatePicker(false);
-  };
-
-  const handleLocationSelect = (location: Location) => {
-    setSelectedLocation(location);
-    setShowLocationPicker(false);
-  };
-
+  // Helper functions
   const formatDate = (d: Date) => {
     const today = new Date();
     const tomorrow = new Date(today);
     tomorrow.setDate(today.getDate() + 1);
     
     if (d.toDateString() === today.toDateString()) {
-      return 'Today';
+      return 'Hôm nay';
     } else if (d.toDateString() === tomorrow.toDateString()) {
-      return 'Tomorrow';
+      return 'Ngày mai';
     } else {
-      return d.toLocaleDateString('en-US', { 
+      return d.toLocaleDateString('vi-VN', { 
         weekday: 'short',
-        month: 'short', 
         day: 'numeric',
-        year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+        month: 'short'
       });
     }
   };
+
+  const formatPrice = (price: number | undefined): string => {
+    if (price === undefined || isNaN(price)) return 'Liên hệ';
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(price);
+  };
+
+  const getFilteredTimes = () => {
+    const today = new Date();
+    const isToday = selectedDate.toDateString() === today.toDateString();
+    
+    if (isToday) {
+      const nowHour = today.getHours();
+      const nowMinute = today.getMinutes();
+      return allTimes.filter(time => {
+        const [h, m] = time.split(":").map(Number);
+        return h > nowHour || (h === nowHour && m > nowMinute);
+      });
+    }
+    return allTimes;
+  };
+
+  const getEndTimeOptions = () => {
+    if (!selectedStartTime) return [];
+    const startIndex = allTimes.indexOf(selectedStartTime);
+    return allTimes.slice(startIndex + 1);
+  };
+
+  // Event handlers
+  const handleDateChange = (date: Date) => {
+    setSelectedDate(date);
+    setSelectedStartTime('');
+    setSelectedEndTime('');
+    setShowDatePicker(false);
+  };
+
+  const handleLocationSelect = (location: any) => {
+    console.log('Selected location:', location);
+    setSelectedLocation(location);
+    setShowLocationPicker(false);
+  };
+
+  const handleStartTimeSelect = (time: string) => {
+    setSelectedStartTime(time);
+    // Reset end time if it's before new start time
+    if (selectedEndTime && allTimes.indexOf(selectedEndTime) <= allTimes.indexOf(time)) {
+      setSelectedEndTime('');
+    }
+  };
+
+  const handleEndTimeSelect = (time: string) => {
+    setSelectedEndTime(time);
+  };
+
+  // Effects
+  useEffect(() => {
+    const calculateAndSetPrice = async () => {
+      if (selectedStartTime && selectedEndTime && photographerId) {
+        const startDateTime = new Date(selectedDate);
+        const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
+        startDateTime.setHours(startHour, startMinute, 0, 0);
+        
+        const endDateTime = new Date(selectedDate);
+        const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
+        endDateTime.setHours(endHour, endMinute, 0, 0);
+
+        console.log('Checking availability and calculating price for:', {
+          photographerId,
+          startDateTime: startDateTime.toISOString(),
+          endDateTime: endDateTime.toISOString(),
+          locationId: selectedLocation?.id
+        });
+
+        try {
+          // Check availability
+          await checkAvailability(
+            photographerId,
+            startDateTime.toISOString(),
+            endDateTime.toISOString(),
+            selectedLocation?.id
+          );
+
+          console.log('Calling calculatePrice with:', {
+            photographerId,
+            startTime: startDateTime.toISOString(),
+            endTime: endDateTime.toISOString(),
+            locationId: selectedLocation?.id
+          });
+          
+          // Calculate price using the hook's built-in functionality
+          const calculatePriceResult = await calculatePrice(
+            photographerId,
+            startDateTime.toISOString(),
+            endDateTime.toISOString(),
+            selectedLocation?.id
+          );
+          
+          console.log('Price calculation result:', calculatePriceResult);
+          
+          if (calculatePriceResult) {
+            const duration = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60 * 60);
+            const photographerFee = photographerRate * duration;
+            const locationFee = selectedLocation?.hourlyRate ? selectedLocation.hourlyRate * duration : 0;
+            
+            // Update price calculation state with the result
+            setPriceCalculation({
+              totalPrice: calculatePriceResult?.totalPrice ?? (photographerFee + locationFee),
+              photographerFee: calculatePriceResult?.photographerFee ?? photographerFee,
+              locationFee: calculatePriceResult?.locationFee ?? locationFee,
+              duration: calculatePriceResult?.duration ?? duration,
+              breakdown: calculatePriceResult?.breakdown ?? {
+                baseRate: photographerFee,
+                locationRate: locationFee,
+                additionalFees: []
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error in price calculation:', error);
+          // Fallback to default calculation if there's an error
+          const duration = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60 * 60);
+          const photographerFee = photographerRate * duration;
+          const locationFee = selectedLocation?.hourlyRate ? selectedLocation.hourlyRate * duration : 0;
+          
+          setPriceCalculation({
+            totalPrice: photographerFee + locationFee,
+            photographerFee,
+            locationFee,
+            duration,
+            breakdown: {
+              baseRate: photographerFee,
+              locationRate: locationFee,
+              additionalFees: []
+            }
+          });
+        }
+      }
+    };
+
+    calculateAndSetPrice();
+  }, [selectedStartTime, selectedEndTime, selectedLocation, photographerId, checkAvailability, calculatePrice]);
+
+  const handleSubmitBooking = async () => {
+    // Basic validation
+    if (!photographerId) {
+      Alert.alert('Lỗi', 'Thông tin photographer không hợp lệ');
+      return;
+    }
+
+    if (!selectedStartTime || !selectedEndTime) {
+      Alert.alert('Lỗi', 'Vui lòng chọn thời gian bắt đầu và kết thúc');
+      return;
+    }
+
+    if (!availability?.available) {
+      Alert.alert('Không khả dụng', 'Photographer không rảnh trong khung giờ này.');
+      return;
+    }
+
+    try {
+      const startDateTime = new Date(selectedDate);
+      const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
+      startDateTime.setHours(startHour, startMinute, 0, 0);
+      
+      const endDateTime = new Date(selectedDate);
+      const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
+      endDateTime.setHours(endHour, endMinute, 0, 0);
+
+      const bookingData: CreateBookingRequest = {
+        photographerId: photographerId,
+        startDatetime: startDateTime.toISOString(),
+        endDatetime: endDateTime.toISOString(),
+        specialRequests: specialRequests || undefined,
+        ...(selectedLocation && { locationId: selectedLocation.locationId })
+      };
+
+      console.log('Creating booking with data:', bookingData);
+
+      const booking = await createBooking(1, bookingData); // userId = 1 for demo
+
+      if (booking) {
+        Alert.alert('Thành công', 'Booking đã được tạo thành công!', [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack()
+          }
+        ]);
+      }
+    } catch (err) {
+      console.error('Booking error:', err);
+      Alert.alert('Lỗi', 'Không thể tạo booking. Vui lòng thử lại.');
+    }
+  };
+
+  // Check if form is ready for submission
+  const isFormValid = photographerId && selectedStartTime && selectedEndTime && availability?.available && !creating;
+
+  // Modal Components
+  const SpecialRequestsModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={showSpecialRequests}
+      onRequestClose={() => setShowSpecialRequests(false)}
+    >
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <View style={{
+          backgroundColor: '#fff',
+          borderTopLeftRadius: getResponsiveSize(20),
+          borderTopRightRadius: getResponsiveSize(20),
+          paddingTop: getResponsiveSize(20),
+          paddingHorizontal: getResponsiveSize(20),
+          paddingBottom: getResponsiveSize(40),
+          maxHeight: '70%'
+        }}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: getResponsiveSize(20),
+          }}>
+            <Text style={{
+              fontSize: getResponsiveSize(18),
+              fontWeight: 'bold',
+              color: '#333'
+            }}>Yêu cầu đặc biệt</Text>
+            <TouchableOpacity 
+              onPress={() => setShowSpecialRequests(false)}
+              style={{
+                backgroundColor: '#f5f5f5',
+                borderRadius: getResponsiveSize(20),
+                padding: getResponsiveSize(8)
+              }}
+            >
+              <AntDesign name="close" size={getResponsiveSize(18)} color="#666" />
+            </TouchableOpacity>
+          </View>
+
+          <TextInput
+            value={specialRequests}
+            onChangeText={setSpecialRequests}
+            placeholder="Ví dụ: Chụp ảnh gia đình, có em bé 2 tuổi cần kiên nhẫn..."
+            multiline={true}
+            numberOfLines={6}
+            textAlignVertical="top"
+            style={{
+              borderWidth: 1,
+              borderColor: '#e0e0e0',
+              borderRadius: getResponsiveSize(12),
+              padding: getResponsiveSize(15),
+              fontSize: getResponsiveSize(16),
+              color: '#333',
+              height: getResponsiveSize(120),
+              marginBottom: getResponsiveSize(20)
+            }}
+          />
+
+          <TouchableOpacity
+            onPress={() => setShowSpecialRequests(false)}
+            style={{
+              backgroundColor: '#E91E63',
+              borderRadius: getResponsiveSize(12),
+              padding: getResponsiveSize(15),
+              alignItems: 'center'
+            }}
+          >
+            <Text style={{
+              color: '#fff',
+              fontSize: getResponsiveSize(16),
+              fontWeight: 'bold'
+            }}>Lưu</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
 
   const LocationModal = () => (
     <Modal
@@ -119,123 +388,116 @@ export default function BookingScreen() {
       visible={showLocationPicker}
       onRequestClose={() => setShowLocationPicker(false)}
     >
-      <View style={{ 
-        flex: 1, 
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        justifyContent: 'flex-end'
-      }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
         <View style={{
-          backgroundColor: '#1A1A1A',
-          borderTopLeftRadius: getResponsiveSize(25),
-          borderTopRightRadius: getResponsiveSize(25),
+          backgroundColor: '#fff',
+          borderTopLeftRadius: getResponsiveSize(20),
+          borderTopRightRadius: getResponsiveSize(20),
           paddingTop: getResponsiveSize(20),
           paddingHorizontal: getResponsiveSize(20),
           paddingBottom: getResponsiveSize(40),
           maxHeight: '70%'
         }}>
-          {/* Header */}
           <View style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
             marginBottom: getResponsiveSize(20),
-            paddingBottom: getResponsiveSize(15),
-            borderBottomWidth: 1,
-            borderBottomColor: '#333'
           }}>
             <Text style={{
-              color: '#fff',
-              fontSize: getResponsiveSize(20),
-              fontWeight: 'bold'
-            }}>Choose Location</Text>
+              fontSize: getResponsiveSize(18),
+              fontWeight: 'bold',
+              color: '#333'
+            }}>Chọn địa điểm</Text>
             <TouchableOpacity 
               onPress={() => setShowLocationPicker(false)}
               style={{
-                backgroundColor: '#333',
+                backgroundColor: '#f5f5f5',
                 borderRadius: getResponsiveSize(20),
                 padding: getResponsiveSize(8)
               }}
             >
-              <AntDesign name="close" size={getResponsiveSize(18)} color="#fff" />
+              <AntDesign name="close" size={getResponsiveSize(18)} color="#666" />
             </TouchableOpacity>
           </View>
 
-          {/* Location List */}
           <ScrollView showsVerticalScrollIndicator={false}>
-            {locations.map((location) => (
-              <TouchableOpacity
-                key={location.id}
-                onPress={() => handleLocationSelect(location)}
-                style={{
-                  backgroundColor: selectedLocation.id === location.id ? '#252F3F' : '#2A2A2A',
-                  borderRadius: getResponsiveSize(16),
-                  marginBottom: getResponsiveSize(12),
-                  overflow: 'hidden',
-                  borderWidth: selectedLocation.id === location.id ? 2 : 1,
-                  borderColor: selectedLocation.id === location.id ? '#14B8A6' : '#333'
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={{ flexDirection: 'row', padding: getResponsiveSize(12) }}>
+            {locationsLoading ? (
+              <Text style={{ textAlign: 'center', color: '#666', padding: getResponsiveSize(20) }}>
+                Đang tải...
+              </Text>
+            ) : locations.length === 0 ? (
+              <Text style={{ textAlign: 'center', color: '#666', padding: getResponsiveSize(20) }}>
+                Không có địa điểm nào
+              </Text>
+            ) : (
+              locations.map((location) => (
+                <TouchableOpacity
+                  key={location.id}
+                  onPress={() => handleLocationSelect(location)}
+                  style={{
+                    backgroundColor: selectedLocation?.id === location.id ? '#fff' : '#f8f9fa',
+                    borderRadius: getResponsiveSize(12),
+                    marginBottom: getResponsiveSize(12),
+                    borderWidth: selectedLocation?.id === location.id ? 2 : 1,
+                    borderColor: selectedLocation?.id === location.id ? '#E91E63' : '#e0e0e0',
+                    padding: getResponsiveSize(15),
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}
+                >
                   {/* Location Image */}
                   <Image
-                    source={{ uri: location.imageUrl }}
+                    source={{ 
+                      uri: location.images?.[0] || 'https://images.unsplash.com/photo-1465101046530-73398c7f28ca?auto=format&fit=crop&w=400&q=80'
+                    }}
                     style={{
-                      width: getResponsiveSize(70),
-                      height: getResponsiveSize(70),
-                      borderRadius: getResponsiveSize(12),
-                      marginRight: getResponsiveSize(15)
+                      width: getResponsiveSize(50),
+                      height: getResponsiveSize(50),
+                      borderRadius: getResponsiveSize(8),
+                      marginRight: getResponsiveSize(12)
                     }}
                   />
                   
-                  {/* Location Info */}
-                  <View style={{ flex: 1, justifyContent: 'space-between' }}>
-                    <View>
-                      <Text style={{
-                        color: '#fff',
+                  <View style={{ flex: 1 }}>
+                    <Text 
+                      style={{
                         fontSize: getResponsiveSize(16),
                         fontWeight: 'bold',
+                        color: '#333',
                         marginBottom: getResponsiveSize(4)
-                      }}>{location.name}</Text>
-                      <Text style={{
-                        color: '#888',
-                        fontSize: getResponsiveSize(13),
-                        marginBottom: getResponsiveSize(8)
-                      }}>{location.address}</Text>
-                    </View>
-                    
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Ionicons name="star" size={getResponsiveSize(14)} color="#FFD700" />
-                        <Text style={{
-                          color: '#FFD700',
-                          fontSize: getResponsiveSize(13),
-                          fontWeight: 'bold',
-                          marginLeft: getResponsiveSize(4),
-                          marginRight: getResponsiveSize(12)
-                        }}>{location.rating}</Text>
-                        <Feather name="map-pin" size={getResponsiveSize(12)} color="#666" />
-                        <Text style={{
-                          color: '#666',
-                          fontSize: getResponsiveSize(12),
-                          marginLeft: getResponsiveSize(4)
-                        }}>{location.distance}</Text>
-                      </View>
-                      
-                      {selectedLocation.id === location.id && (
-                        <View style={{
-                          backgroundColor: '#14B8A6',
-                          borderRadius: getResponsiveSize(12),
-                          padding: getResponsiveSize(4)
-                        }}>
-                          <Feather name="check" size={getResponsiveSize(14)} color="#fff" />
-                        </View>
-                      )}
-                    </View>
+                      }}
+                      numberOfLines={1}
+                    >
+                      {location?.name || 'Không có tên'}
+                    </Text>
+                    <Text 
+                      style={{
+                        fontSize: getResponsiveSize(14),
+                        color: '#666',
+                        marginBottom: getResponsiveSize(4)
+                      }}
+                      numberOfLines={1}
+                    >
+                      {location?.address || 'Địa chỉ chưa cập nhật'}
+                    </Text>
+                    {location?.hourlyRate && !isNaN(Number(location.hourlyRate)) ? (
+  <Text style={{
+    fontSize: getResponsiveSize(12),
+    color: '#E91E63',
+    fontWeight: 'bold'
+  }}>
+    {formatPrice(Number(location.hourlyRate))}/giờ
+  </Text>
+) : null}
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+
+                  {selectedLocation?.id === location.id && (
+                    <Feather name="check" size={getResponsiveSize(18)} color="#E91E63" />
+                  )}
+                </TouchableOpacity>
+              ))
+            )}
           </ScrollView>
         </View>
       </View>
@@ -243,332 +505,453 @@ export default function BookingScreen() {
   );
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#0F0F0F' }}>
-      {/* Background + Back button + Avatar + Gradient overlay */}
-      <View className="relative w-full mb-20" style={{ height: getResponsiveSize(320) }}>
-        <Image
-          className="w-full h-full object-cover rounded-b-3xl"
-          source={{ uri: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=800&q=80' }}
-        />
-        {/* Gradient overlay */}
-        <LinearGradient
-          colors={["rgba(0,0,0,0.0)", "rgba(0,0,0,0.8)"]}
-          style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: getResponsiveSize(120), borderBottomLeftRadius: getResponsiveSize(30), borderBottomRightRadius: getResponsiveSize(30) }}
-        />
-        {/* Nút back */}
-        <TouchableOpacity
-          className="absolute"
-          style={{ top: getResponsiveSize(20), left: getResponsiveSize(10), padding: getResponsiveSize(10), zIndex: 10 }}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <View style={{
-            backgroundColor: 'rgba(0,0,0,0.3)',
-            borderRadius: getResponsiveSize(20),
-            padding: getResponsiveSize(8)
-          }}>
-            <AntDesign name="arrowleft" size={getResponsiveSize(24)} color="#fff" />
-          </View>
-        </TouchableOpacity>
-        {/* Avatar */}
-        <View
-          className="absolute bg-white shadow-lg"
-          style={{
-            left: '50%',
-            bottom: getResponsiveSize(-48),
-            transform: [{ translateX: -getResponsiveSize(48) }],
-            borderRadius: getResponsiveSize(48),
-            padding: 4,
-            zIndex: 5,
-            elevation: 8
-          }}
-        >
-          <Image
-            source={{ uri: 'https://randomuser.me/api/portraits/women/1.jpg' }}
+    <View style={{ flex: 1, backgroundColor: '#f8f9fa' }}>
+      {/* Header */}
+      <View style={{
+        backgroundColor: '#fff',
+        paddingTop: getResponsiveSize(50),
+        paddingHorizontal: getResponsiveSize(20),
+        paddingBottom: getResponsiveSize(20),
+        elevation: 2
+      }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
             style={{
-              width: getResponsiveSize(96),
-              height: getResponsiveSize(96),
-              borderRadius: getResponsiveSize(48),
-              borderWidth: 3,
-              borderColor: '#fff',
-              backgroundColor: '#eee',
+              backgroundColor: '#f5f5f5',
+              borderRadius: getResponsiveSize(12),
+              padding: getResponsiveSize(10)
+            }}
+          >
+            <AntDesign name="arrowleft" size={getResponsiveSize(24)} color="#333" />
+          </TouchableOpacity>
+          
+          <Text style={{
+            fontSize: getResponsiveSize(20),
+            fontWeight: 'bold',
+            color: '#333'
+          }}>Đặt lịch chụp</Text>
+          
+          <View style={{ width: getResponsiveSize(44) }} />
+        </View>
+
+        {/* Photographer Info */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginTop: getResponsiveSize(20),
+          backgroundColor: '#f8f9fa',
+          borderRadius: getResponsiveSize(12),
+          padding: getResponsiveSize(15)
+        }}>
+          <Image
+            source={{ uri: photographerAvatar }}
+            style={{
+              width: getResponsiveSize(50),
+              height: getResponsiveSize(50),
+              borderRadius: getResponsiveSize(25),
+              marginRight: getResponsiveSize(15)
             }}
           />
-        </View>
-        {/* Tên photographer dưới avatar */}
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: getResponsiveSize(-105), alignItems: 'center', zIndex: 4 }}>
-          <Text className="text-white font-bold" style={{ fontSize: getResponsiveSize(22), textAlign: 'center' }}>David Silva</Text>
-          <Text className="text-gray-300 mt-1" style={{ fontSize: getResponsiveSize(14) }}>Chuyên gia chân dung</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{
+              fontSize: getResponsiveSize(16),
+              fontWeight: 'bold',
+              color: '#333'
+            }}>{photographerName}</Text>
+            <Text style={{
+              fontSize: getResponsiveSize(14),
+              color: '#666'
+            }}>{photographerSpecialty}</Text>
+          </View>
+          <Text style={{
+            fontSize: getResponsiveSize(16),
+            fontWeight: 'bold',
+            color: '#E91E63'
+          }}>{formatPrice(photographerRate)}/h</Text>
         </View>
       </View>
 
-      {/* Box chứa thông tin booking */}
-      <View
-        className="mx-3 shadow-lg"
-        style={{
-          backgroundColor: "#1A1A1A",
-          borderRadius: getResponsiveSize(25),
-          padding: getResponsiveSize(24),
-          marginTop: getResponsiveSize(50),
-          elevation: 8,
-          borderWidth: 1,
-          borderColor: '#2A2A2A'
-        }}
-      >
-        {/* Date */}
-        <View className="flex-row items-center mb-4">
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        <View style={{ padding: getResponsiveSize(20) }}>
+          
+          {/* Date Selection */}
           <View style={{
-            backgroundColor: 'rgba(20, 184, 166, 0.15)',
-            padding: getResponsiveSize(10),
-            borderRadius: getResponsiveSize(12),
-            marginRight: getResponsiveSize(12),
+            backgroundColor: '#fff',
+            borderRadius: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            marginBottom: getResponsiveSize(15),
+            elevation: 2
           }}>
-            <Feather name="calendar" size={getResponsiveSize(20)} color="#14B8A6" />
-          </View>
-          <Text className="text-gray-300 font-semibold" style={{ fontSize: getResponsiveSize(16) }}>Select Date</Text>
-        </View>
-        
-        <TouchableOpacity 
-          onPress={() => setShowDatePicker(true)} 
-          activeOpacity={0.8}
-          style={{
-            backgroundColor: '#252525',
-            borderRadius: getResponsiveSize(18),
-            padding: getResponsiveSize(18),
-            marginBottom: getResponsiveSize(24),
-            borderWidth: 1,
-            borderColor: '#333',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <View>
-            <Text style={{
-              color: '#14B8A6',
-              fontSize: getResponsiveSize(18),
-              fontWeight: 'bold',
-              marginBottom: getResponsiveSize(3),
-            }}>
-              {formatDate(date)}
-            </Text>
-            <Text style={{
-              color: '#888',
-              fontSize: getResponsiveSize(13),
-            }}>
-              {date.toLocaleDateString('en-US', { 
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(15) }}>
+              <Feather name="calendar" size={getResponsiveSize(20)} color="#E91E63" />
+              <Text style={{
+                fontSize: getResponsiveSize(16),
+                fontWeight: 'bold',
+                color: '#333',
+                marginLeft: getResponsiveSize(10)
+              }}>Chọn ngày</Text>
+            </View>
+
+            <TouchableOpacity 
+              onPress={() => setShowDatePicker(true)}
+              style={{
+                backgroundColor: '#f8f9fa',
+                borderRadius: getResponsiveSize(12),
+                padding: getResponsiveSize(15),
+                borderWidth: 1,
+                borderColor: '#e0e0e0'
+              }}
+            >
+              <Text style={{
+                fontSize: getResponsiveSize(16),
+                fontWeight: 'bold',
+                color: '#E91E63'
+              }}>{formatDate(selectedDate)}</Text>
+              <Text style={{
+                fontSize: getResponsiveSize(14),
+                color: '#666',
+                marginTop: getResponsiveSize(2)
+              }}>{selectedDate.toLocaleDateString('vi-VN', { 
                 weekday: 'long', 
                 year: 'numeric', 
                 month: 'long', 
                 day: 'numeric' 
-              })}
-            </Text>
+              })}</Text>
+            </TouchableOpacity>
           </View>
-          <AntDesign name="down" size={getResponsiveSize(16)} color="#666" />
-        </TouchableOpacity>
 
-        {/* Modern Calendar Modal */}
-        <ModernCalendar
-          date={date}
-          onDateChange={handleDateChange}
-          visible={showDatePicker}
-          onClose={() => setShowDatePicker(false)}
-        />
-
-        <View style={{ height: 1, backgroundColor: "#2A2A2A", marginVertical: getResponsiveSize(12) }} />
-
-        {/* Time */}
-        <View className="flex-row items-center mb-4">
+          {/* Time Selection */}
           <View style={{
-            backgroundColor: 'rgba(24, 201, 100, 0.15)',
-            padding: getResponsiveSize(10),
-            borderRadius: getResponsiveSize(12),
-            marginRight: getResponsiveSize(12),
+            backgroundColor: '#fff',
+            borderRadius: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            marginBottom: getResponsiveSize(15),
+            elevation: 2
           }}>
-            <Feather name="clock" size={getResponsiveSize(20)} color="#14B8A6" />
-          </View>
-          <Text className="text-gray-300 font-semibold" style={{ fontSize: getResponsiveSize(16) }}>Available Times</Text>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-6">
-          {(function() {
-            const today = new Date();
-            const isToday = date.getDate() === today.getDate() && date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
-            let filteredTimes = times;
-            if (isToday) {
-              const nowHour = today.getHours();
-              const nowMinute = today.getMinutes();
-              filteredTimes = times.filter(t => {
-                const [h, m] = t.split(":").map(Number);
-                return h > nowHour || (h === nowHour && m > nowMinute);
-              });
-            }
-            return filteredTimes.map((time, idx) => {
-              const realIdx = times.indexOf(time);
-              const isSelected = selectedTimeIdxs.includes(realIdx);
-              return (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(15) }}>
+              <Feather name="clock" size={getResponsiveSize(20)} color="#E91E63" />
+              <Text style={{
+                fontSize: getResponsiveSize(16),
+                fontWeight: 'bold',
+                color: '#333',
+                marginLeft: getResponsiveSize(10)
+              }}>Chọn thời gian</Text>
+              {checkingAvailability && (
+                <Text style={{
+                  fontSize: getResponsiveSize(12),
+                  color: '#E91E63',
+                  marginLeft: 'auto'
+                }}>Kiểm tra...</Text>
+              )}
+            </View>
+
+            {/* Start Time */}
+            <Text style={{
+              fontSize: getResponsiveSize(14),
+              color: '#666',
+              marginBottom: getResponsiveSize(10)
+            }}>Giờ bắt đầu</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: getResponsiveSize(15) }}>
+              {getFilteredTimes().map((time) => (
                 <TouchableOpacity
                   key={time}
-                  onPress={() => handleToggleTime(realIdx)}
-                  activeOpacity={0.8}
+                  onPress={() => handleStartTimeSelect(time)}
                   style={{
-                    backgroundColor: isSelected ? "#14B8A6" : "#2A2A2A",
+                    backgroundColor: selectedStartTime === time ? '#E91E63' : '#f8f9fa',
                     borderRadius: getResponsiveSize(20),
-                    paddingVertical: getResponsiveSize(14),
-                    paddingHorizontal: getResponsiveSize(24),
-                    marginRight: getResponsiveSize(12),
-                    shadowColor: isSelected ? '#14B8A6' : 'transparent',
-                    shadowOpacity: 0.3,
-                    shadowRadius: 8,
-                    elevation: isSelected ? 6 : 0,
-                    borderWidth: isSelected ? 0 : 1,
-                    borderColor: '#404040',
+                    paddingVertical: getResponsiveSize(12),
+                    paddingHorizontal: getResponsiveSize(20),
+                    marginRight: getResponsiveSize(10),
+                    borderWidth: 1,
+                    borderColor: selectedStartTime === time ? '#E91E63' : '#e0e0e0'
                   }}
                 >
                   <Text style={{
-                    color: isSelected ? '#fff' : '#d1d5db',
-                    fontWeight: 'bold',
-                    fontSize: getResponsiveSize(16)
+                    color: selectedStartTime === time ? '#fff' : '#333',
+                    fontWeight: selectedStartTime === time ? 'bold' : 'normal',
+                    fontSize: getResponsiveSize(14)
                   }}>{time}</Text>
                 </TouchableOpacity>
-              );
-            });
-          })()}
-        </ScrollView>
+              ))}
+            </ScrollView>
 
-        <View style={{ height: 1, backgroundColor: "#2A2A2A", marginVertical: getResponsiveSize(12) }} />
+            {/* End Time */}
+            {selectedStartTime && (
+              <>
+                <Text style={{
+                  fontSize: getResponsiveSize(14),
+                  color: '#666',
+                  marginBottom: getResponsiveSize(10)
+                }}>Giờ kết thúc</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {getEndTimeOptions().map((time) => (
+                    <TouchableOpacity
+                      key={time}
+                      onPress={() => handleEndTimeSelect(time)}
+                      style={{
+                        backgroundColor: selectedEndTime === time ? '#E91E63' : '#f8f9fa',
+                        borderRadius: getResponsiveSize(20),
+                        paddingVertical: getResponsiveSize(12),
+                        paddingHorizontal: getResponsiveSize(20),
+                        marginRight: getResponsiveSize(10),
+                        borderWidth: 1,
+                        borderColor: selectedEndTime === time ? '#E91E63' : '#e0e0e0'
+                      }}
+                    >
+                      <Text style={{
+                        color: selectedEndTime === time ? '#fff' : '#333',
+                        fontWeight: selectedEndTime === time ? 'bold' : 'normal',
+                        fontSize: getResponsiveSize(14)
+                      }}>{time}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </>
+            )}
 
-        {/* Location */}
-        <View className="flex-row items-center mb-4">
-          <View style={{
-            backgroundColor: 'rgba(24, 201, 100, 0.15)',
-            padding: getResponsiveSize(10),
-            borderRadius: getResponsiveSize(12),
-            marginRight: getResponsiveSize(12),
-          }}>
-            <Feather name="map-pin" size={getResponsiveSize(20)} color="#14B8A6" />
+            {/* Availability Status */}
+            {availability && selectedStartTime && selectedEndTime && (
+              <View style={{
+                marginTop: getResponsiveSize(15),
+                padding: getResponsiveSize(12),
+                borderRadius: getResponsiveSize(8),
+                backgroundColor: availability.available ? '#E8F5E8' : '#FFF3F3',
+                borderWidth: 1,
+                borderColor: availability.available ? '#4CAF50' : '#F44336'
+              }}>
+                <Text style={{
+                  color: availability.available ? '#2E7D32' : '#C62828',
+                  fontSize: getResponsiveSize(14),
+                  fontWeight: 'bold'
+                }}>
+                  {availability.available ? '✓ Có thể đặt lịch' : '✗ Không khả dụng'}
+                </Text>
+              </View>
+            )}
           </View>
-          <Text className="text-gray-300 font-semibold" style={{ fontSize: getResponsiveSize(16) }}>Location</Text>
-        </View>
 
-        {/* Location Selector */}
-        <TouchableOpacity
-          onPress={() => setShowLocationPicker(true)}
-          activeOpacity={0.8}
-          style={{
-            backgroundColor: '#252525',
-            borderRadius: getResponsiveSize(18),
-            padding: getResponsiveSize(16),
-            marginBottom: getResponsiveSize(16),
-            borderWidth: 1,
-            borderColor: '#333',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <View style={{ flex: 1 }}>
-            <Text style={{
-              color: '#fff',
-              fontSize: getResponsiveSize(16),
-              fontWeight: 'bold',
-              marginBottom: getResponsiveSize(3)
-            }}>{selectedLocation.name}</Text>
-            <Text style={{
-              color: '#888',
-              fontSize: getResponsiveSize(13)
-            }}>{selectedLocation.address}</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: getResponsiveSize(6) }}>
-              <Ionicons name="star" size={getResponsiveSize(14)} color="#FFD700" />
+          {/* Location Selection */}
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            marginBottom: getResponsiveSize(15),
+            elevation: 2
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(15) }}>
+              <Feather name="map-pin" size={getResponsiveSize(20)} color="#E91E63" />
               <Text style={{
-                color: '#FFD700',
-                fontSize: getResponsiveSize(12),
+                fontSize: getResponsiveSize(16),
                 fontWeight: 'bold',
-                marginLeft: getResponsiveSize(4),
-                marginRight: getResponsiveSize(12)
-              }}>{selectedLocation.rating}</Text>
-              <Feather name="map-pin" size={getResponsiveSize(12)} color="#666" />
+                color: '#333',
+                marginLeft: getResponsiveSize(10)
+              }}>Địa điểm</Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setShowLocationPicker(true)}
+              style={{
+                backgroundColor: '#f8f9fa',
+                borderRadius: getResponsiveSize(12),
+                padding: getResponsiveSize(15),
+                borderWidth: 1,
+                borderColor: '#e0e0e0'
+              }}
+            >
               <Text style={{
-                color: '#666',
-                fontSize: getResponsiveSize(12),
-                marginLeft: getResponsiveSize(4)
-              }}>{selectedLocation.distance}</Text>
+                fontSize: getResponsiveSize(16),
+                color: selectedLocation ? '#333' : '#999'
+              }}>
+                {selectedLocation ? selectedLocation.name : 'Chọn địa điểm (tùy chọn)'}
+              </Text>
+              {selectedLocation && (
+                <Text style={{
+                  fontSize: getResponsiveSize(14),
+                  color: '#666',
+                  marginTop: getResponsiveSize(2)
+                }}>{selectedLocation.address}</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+
+          {/* Special Requests */}
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            marginBottom: getResponsiveSize(15),
+            elevation: 2
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(15) }}>
+              <Feather name="edit-3" size={getResponsiveSize(20)} color="#E91E63" />
+              <Text style={{
+                fontSize: getResponsiveSize(16),
+                fontWeight: 'bold',
+                color: '#333',
+                marginLeft: getResponsiveSize(10)
+              }}>Ghi chú</Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => setShowSpecialRequests(true)}
+              style={{
+                backgroundColor: '#f8f9fa',
+                borderRadius: getResponsiveSize(12),
+                padding: getResponsiveSize(15),
+                borderWidth: 1,
+                borderColor: '#e0e0e0',
+                minHeight: getResponsiveSize(50)
+              }}
+            >
+              <Text style={{
+                fontSize: getResponsiveSize(14),
+                color: specialRequests ? '#333' : '#999'
+              }}>
+                {specialRequests || 'Thêm yêu cầu đặc biệt...'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Price Summary */}
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            marginBottom: getResponsiveSize(20),
+            elevation: 2
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(15) }}>
+              <MaterialIcons name="receipt" size={getResponsiveSize(20)} color="#E91E63" />
+              <Text style={{
+                fontSize: getResponsiveSize(16),
+                fontWeight: 'bold',
+                color: '#333',
+                marginLeft: getResponsiveSize(10)
+              }}>Tổng chi phí</Text>
+              {calculatingPrice && (
+                <Text style={{
+                  fontSize: getResponsiveSize(12),
+                  color: '#E91E63',
+                  marginLeft: 'auto'
+                }}>Đang tính...</Text>
+              )}
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: getResponsiveSize(10) }}>
+              <Text style={{ fontSize: getResponsiveSize(16), color: '#333' }}>
+                {priceCalculation?.duration ? `${priceCalculation.duration.toFixed(1)} giờ` : '0 giờ'}
+              </Text>
+              <Text style={{ fontSize: getResponsiveSize(16), color: '#333' }}>
+                {priceCalculation?.photographerFee !== undefined && priceCalculation?.duration 
+                  ? `${formatPrice(priceCalculation.photographerFee / Math.max(1, priceCalculation.duration))}/giờ`
+                  : 'Liên hệ'}
+              </Text>
+            </View>
+
+            {priceCalculation?.locationFee ? (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: getResponsiveSize(10) }}>
+                <Text style={{ fontSize: getResponsiveSize(14), color: '#666' }}>Phí địa điểm:</Text>
+                <Text style={{ fontSize: getResponsiveSize(14), color: '#666' }}>
+                  {formatPrice(priceCalculation.locationFee)}
+                </Text>
+              </View>
+            ) : null}
+
+            <View style={{ 
+              flexDirection: 'row', 
+              justifyContent: 'space-between',
+              borderTopWidth: 1,
+              borderTopColor: '#eee',
+              paddingTop: getResponsiveSize(10),
+              marginTop: getResponsiveSize(5)
+            }}>
+              <Text style={{ fontSize: getResponsiveSize(16), fontWeight: 'bold', color: '#333' }}>
+                Tổng cộng:
+              </Text>
+              <Text style={{ fontSize: getResponsiveSize(18), fontWeight: 'bold', color: '#E91E63' }}>
+                {priceCalculation?.totalPrice ? formatPrice(priceCalculation.totalPrice) : 'Liên hệ'}
+              </Text>
             </View>
           </View>
-          <AntDesign name="down" size={getResponsiveSize(16)} color="#666" />
-        </TouchableOpacity>
 
-        {/* Location Preview Image */}
-        <View className="overflow-hidden rounded-2xl shadow-lg mb-6">
-          <Image
-            source={{ uri: selectedLocation.imageUrl }}
-            style={{ width: '100%', height: getResponsiveSize(140), resizeMode: 'cover' }}
-          />
-          <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.6)"]}
+          {/* Booking Button */}
+          <TouchableOpacity
+            onPress={handleSubmitBooking}
+            disabled={!isFormValid}
             style={{
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              height: getResponsiveSize(60),
-              justifyContent: 'flex-end',
-              paddingHorizontal: getResponsiveSize(16),
-              paddingBottom: getResponsiveSize(12)
+              backgroundColor: isFormValid ? '#E91E63' : '#ccc',
+              borderRadius: getResponsiveSize(16),
+              padding: getResponsiveSize(18),
+              alignItems: 'center',
+              marginBottom: getResponsiveSize(20),
+              elevation: isFormValid ? 3 : 0
             }}
           >
             <Text style={{
               color: '#fff',
-              fontSize: getResponsiveSize(14),
+              fontSize: getResponsiveSize(16),
               fontWeight: 'bold'
-            }}>{selectedLocation.name}</Text>
-          </LinearGradient>
-        </View>
+            }}>
+              {creating ? 'Đang tạo...' : 'Xác nhận đặt lịch'}
+            </Text>
+          </TouchableOpacity>
 
-        {/* Location Modal */}
-        <LocationModal />
-
-        {/* Nút xác nhận booking */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => {
-            // Navigate to OrderDetail with booking data (serialize Date to string)
-            navigation.navigate('OrderDetail', {
-              photographer: {
-                id: 1,
-                name: 'David Silva',
-                specialty: 'Chuyên gia chân dung',
-                avatar: 'https://randomuser.me/api/portraits/women/1.jpg',
-                hourlyRate: 500000
-              },
-              selectedDate: date.toISOString(), // ✅ Convert Date to string
-              selectedTimes: selectedTimeIdxs.map(idx => times[idx]),
-              selectedLocation: selectedLocation,
-              totalHours: selectedTimeIdxs.length,
-              totalPrice: selectedTimeIdxs.length * 500000
-            });
-          }}
-          style={{
-            borderRadius: getResponsiveSize(20),
-            overflow: 'hidden',
-            marginTop: getResponsiveSize(8),
-            elevation: 8,
-            shadowColor: '#14B8A6',
-            shadowOpacity: 0.4,
-            shadowRadius: 15
-          }}
-        >
-          <LinearGradient
-            colors={["#14B8A6", "#5EEAD4"]}
-            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-            style={{ paddingVertical: getResponsiveSize(18), alignItems: 'center' }}
-          >
-            <View className="flex-row items-center justify-center">
-              <MaterialIcons name="check-circle" size={getResponsiveSize(24)} color="#fff" style={{ marginRight: 10 }} />
-              <Text className="text-white font-bold" style={{ fontSize: getResponsiveSize(18) }}>Confirm Booking</Text>
+          {/* Debug Info - Remove in production */}
+          {__DEV__ && (
+            <View style={{
+              backgroundColor: '#f0f0f0',
+              padding: getResponsiveSize(10),
+              borderRadius: getResponsiveSize(8),
+              marginBottom: getResponsiveSize(10)
+            }}>
+              <Text style={{ fontSize: getResponsiveSize(12), color: '#666' }}>
+                Debug: photographerId={photographerId}, rate={photographerRate}
+              </Text>
+              <Text style={{ fontSize: getResponsiveSize(12), color: '#666' }}>
+                Selected: {selectedStartTime} - {selectedEndTime}
+              </Text>
+              <Text style={{ fontSize: getResponsiveSize(12), color: '#666' }}>
+                Location: {selectedLocation?.name || 'None'}
+              </Text>
+              <Text style={{ fontSize: getResponsiveSize(12), color: '#666' }}>
+                Available: {availability?.available ? 'Yes' : 'No'}, Price: {priceCalculation?.totalPrice || 0}
+              </Text>
             </View>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* Modals */}
+      <ModernCalendar
+        date={selectedDate}
+        onDateChange={handleDateChange}
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+      />
+      
+      <LocationModal />
+      <SpecialRequestsModal />
+
+      {/* Error Display */}
+      {error && (
+        <View style={{
+          position: 'absolute',
+          top: getResponsiveSize(100),
+          left: getResponsiveSize(20),
+          right: getResponsiveSize(20),
+          backgroundColor: '#F44336',
+          borderRadius: getResponsiveSize(8),
+          padding: getResponsiveSize(15),
+          elevation: 5
+        }}>
+          <Text style={{
+            color: '#fff',
+            fontSize: getResponsiveSize(14),
+            textAlign: 'center'
+          }}>{error}</Text>
+        </View>
+      )}
+    </View>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, Animated } from 'react-native';
-import { AntDesign, Feather } from '@expo/vector-icons';
+import { AntDesign } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getResponsiveSize } from '../utils/responsive';
 
@@ -16,11 +16,11 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
   const [slideAnim] = useState(new Animated.Value(0));
 
   const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
+    'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+    'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'
   ];
 
-  const weekDays = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+  const weekDays = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -88,7 +88,6 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
     onClose();
   };
 
-
   const days = getDaysInMonth(currentMonth);
 
   return (
@@ -100,20 +99,20 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
     >
       <View style={{
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: getResponsiveSize(20),
       }}>
         <View style={{
-          backgroundColor: '#1A1A1A',
-          borderRadius: getResponsiveSize(24),
+          backgroundColor: '#fff',
+          borderRadius: getResponsiveSize(20),
           padding: getResponsiveSize(24),
           width: '100%',
           maxWidth: getResponsiveSize(350),
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 10 },
-          shadowOpacity: 0.3,
+          shadowOpacity: 0.15,
           shadowRadius: 20,
           elevation: 15,
         }}>
@@ -129,16 +128,16 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
               style={{
                 padding: getResponsiveSize(8),
                 borderRadius: getResponsiveSize(12),
-                backgroundColor: '#2A2A2A',
+                backgroundColor: '#f5f5f5',
               }}
               activeOpacity={0.7}
             >
-              <AntDesign name="left" size={getResponsiveSize(18)} color="#fff" />
+              <AntDesign name="left" size={getResponsiveSize(18)} color="#666" />
             </TouchableOpacity>
 
             <Text style={{
-              color: '#fff',
-              fontSize: getResponsiveSize(20),
+              color: '#333',
+              fontSize: getResponsiveSize(18),
               fontWeight: 'bold',
             }}>
               {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
@@ -149,14 +148,13 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
               style={{
                 padding: getResponsiveSize(8),
                 borderRadius: getResponsiveSize(12),
-                backgroundColor: '#2A2A2A',
+                backgroundColor: '#f5f5f5',
               }}
               activeOpacity={0.7}
             >
-              <AntDesign name="right" size={getResponsiveSize(18)} color="#fff" />
+              <AntDesign name="right" size={getResponsiveSize(18)} color="#666" />
             </TouchableOpacity>
           </View>
-
 
           {/* Week Days */}
           <View style={{
@@ -166,7 +164,7 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
           }}>
             {weekDays.map((day, index) => (
               <Text key={index} style={{
-                color: '#666',
+                color: '#999',
                 fontSize: getResponsiveSize(14),
                 fontWeight: '600',
                 textAlign: 'center',
@@ -184,7 +182,7 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
               outputRange: [-getResponsiveSize(300), 0, getResponsiveSize(300)]
             })}]
           }}>
-            {Array.from({ length: 5 }).map((_, weekIdx) => (
+            {Array.from({ length: 6 }).map((_, weekIdx) => (
               <View key={weekIdx} style={{
                 flexDirection: 'row',
                 justifyContent: 'space-around',
@@ -195,6 +193,7 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
                   const isTodayDate = isToday(day.date);
                   const isSelectedDate = isSelected(day.date);
                   const isPast = isPastDate(day.date);
+                  
                   return (
                     <TouchableOpacity
                       key={index}
@@ -206,15 +205,15 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
                         justifyContent: 'center',
                         alignItems: 'center',
                         borderRadius: getResponsiveSize(18),
-                        backgroundColor: isSelectedDate ? '#18C964' : 
-                                       isTodayDate ? '#2A2A2A' : 'transparent',
+                        backgroundColor: isSelectedDate ? '#E91E63' : 
+                                       isTodayDate ? '#f0f0f0' : 'transparent',
                         opacity: (!isCurrentMonth || isPast) ? 0.3 : 1,
                       }}
                       activeOpacity={(!isCurrentMonth || isPast) ? 1 : 0.7}
                     >
                       {isSelectedDate ? (
                         <LinearGradient
-                          colors={['#18C964', '#38ef7d']}
+                          colors={['#E91E63', '#F06292']}
                           style={{
                             width: getResponsiveSize(36),
                             height: getResponsiveSize(36),
@@ -236,9 +235,9 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
                         </LinearGradient>
                       ) : (
                         <Text style={{
-                          color: !isCurrentMonth ? '#fff' : 
-                                 isPast ? '#555' :
-                                 isTodayDate ? '#18C964' : '#fff',
+                          color: !isCurrentMonth ? '#ccc' : 
+                                 isPast ? '#ccc' :
+                                 isTodayDate ? '#E91E63' : '#333',
                           fontSize: getResponsiveSize(16),
                           fontWeight: isTodayDate ? 'bold' : 'normal',
                           zIndex: 2,
@@ -259,18 +258,18 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
             style={{
               marginTop: getResponsiveSize(24),
               padding: getResponsiveSize(16),
-              borderRadius: getResponsiveSize(16),
-              backgroundColor: '#2A2A2A',
+              borderRadius: getResponsiveSize(12),
+              backgroundColor: '#f5f5f5',
               alignItems: 'center',
             }}
             activeOpacity={0.8}
           >
             <Text style={{
-              color: '#fff',
+              color: '#666',
               fontSize: getResponsiveSize(16),
               fontWeight: '600',
             }}>
-              Close
+              Đóng
             </Text>
           </TouchableOpacity>
         </View>
@@ -278,6 +277,5 @@ const ModernCalendar = ({ date, onDateChange, visible, onClose }: ModernCalendar
     </Modal>
   );
 };
-
 
 export default ModernCalendar;

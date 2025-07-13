@@ -50,10 +50,27 @@ export type RootStackParamList = {
     ViewAllLocations: undefined;
     ProfileUserScreen: undefined;
     Booking: {
-        photographerId: string;
-        photographerName: string;
-        hourlyRate?: number;
+      photographer: {
+          photographerId?: string;
+          id?: string;
+          userId?: string;
+          fullName: string;
+          name?: string; 
+          profileImage?: string;
+          avatar?: string; 
+          hourlyRate: number;
+          specialty?: string;
+          yearsExperience?: number;
+          equipment?: string;
+          availabilityStatus?: string;
+          rating?: number;
+          verificationStatus?: string;
+          email?: string;
+          phoneNumber?: string;
+          bio?: string;
+          styles?: string[];
       };
+  };
     OrderDetail: {
         photographer: Photographer;
         selectedDate: string;

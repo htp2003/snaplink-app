@@ -72,12 +72,32 @@ export type RootStackParamList = {
       };
   };
     OrderDetail: {
-        photographer: Photographer;
-        selectedDate: string;
-        selectedTimes: string[];
-        selectedLocation: Location;
-        totalHours: number;
+      photographer: {
+        photographerId: number;
+        fullName: string;
+        profileImage?: string;
+        hourlyRate: number;
+      };
+      selectedDate: string;
+      selectedStartTime: string;
+      selectedEndTime: string;
+      selectedLocation?: {
+        id: number;
+        name: string;
+        hourlyRate?: number;
+      };
+      specialRequests?: string;
+      priceCalculation: {
         totalPrice: number;
+        photographerFee: number;
+        locationFee?: number;
+        duration: number;
+        breakdown: {
+          baseRate: number;
+          locationRate?: number;
+          additionalFees?: Array<{ name: string; amount: number }>;
+        };
+      };
     };
     ViewProfileUserScreen: { userId: number };
    

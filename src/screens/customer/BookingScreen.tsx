@@ -263,7 +263,8 @@ export default function BookingScreen() {
       return;
     }
 
-    try {
+    // Calculate price if not already calculated
+    if (!priceCalculation) {
       const startDateTime = new Date(selectedDate);
       const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
       startDateTime.setHours(startHour, startMinute, 0, 0);
@@ -271,31 +272,53 @@ export default function BookingScreen() {
       const endDateTime = new Date(selectedDate);
       const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
       endDateTime.setHours(endHour, endMinute, 0, 0);
-
-      const bookingData: CreateBookingRequest = {
-        photographerId: photographerId,
-        startDatetime: startDateTime.toISOString(),
-        endDatetime: endDateTime.toISOString(),
-        specialRequests: specialRequests || undefined,
-        ...(selectedLocation && { locationId: selectedLocation.locationId })
-      };
-
-      console.log('Creating booking with data:', bookingData);
-
-      const booking = await createBooking(1, bookingData); // userId = 1 for demo
-
-      if (booking) {
-        Alert.alert('Thành công', 'Booking đã được tạo thành công!', [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack()
-          }
-        ]);
-      }
-    } catch (err) {
-      console.error('Booking error:', err);
-      Alert.alert('Lỗi', 'Không thể tạo booking. Vui lòng thử lại.');
+      
+      const duration = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60 * 60);
+      const photographerFee = photographerRate * duration;
+      const locationFee = selectedLocation?.hourlyRate ? selectedLocation.hourlyRate * duration : 0;
+      
+      setPriceCalculation({
+        totalPrice: photographerFee + locationFee,
+        photographerFee,
+        locationFee,
+        duration,
+        breakdown: {
+          baseRate: photographerFee,
+          locationRate: locationFee,
+          additionalFees: []
+        }
+      });
     }
+
+    // Navigate to OrderDetailScreen with all necessary parameters
+    navigation.navigate('OrderDetail', {
+      photographer: {
+        photographerId: photographer.photographerId,
+        fullName: photographer.fullName || photographer.name || 'Unknown Photographer',
+        profileImage: photographer.profileImage || photographer.avatar,
+        hourlyRate: photographer.hourlyRate
+      },
+      selectedDate: selectedDate.toISOString(),
+      selectedStartTime,
+      selectedEndTime,
+      selectedLocation: selectedLocation ? {
+        id: selectedLocation.locationId,
+        name: selectedLocation.name,
+        hourlyRate: selectedLocation.hourlyRate
+      } : undefined,
+      specialRequests: specialRequests || undefined,
+      priceCalculation: priceCalculation || {
+        totalPrice: 0,
+        photographerFee: 0,
+        locationFee: 0,
+        duration: 0,
+        breakdown: {
+          baseRate: 0,
+          locationRate: 0,
+          additionalFees: []
+        }
+      }
+    });
   };
 
   // Check if form is ready for submission

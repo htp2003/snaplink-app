@@ -1,18 +1,72 @@
-import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StatusBar, Modal, Alert } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { 
+  View, 
+  Text, 
+  Image, 
+  TouchableOpacity, 
+  ScrollView, 
+  StatusBar, 
+  Modal, 
+  Alert, 
+  StyleSheet, 
+  ActivityIndicator 
+} from 'react-native';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { AntDesign, Feather, MaterialIcons, Ionicons } from '@expo/vector-icons';
+import { AntDesign, Feather, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { RouteProp } from '@react-navigation/native';
 import type { RootStackParamList, RootStackNavigationProp } from '../../navigation/types';
+import { useBooking } from '../../hooks/useBooking';
 
-type OrderDetailScreenRouteProp = RouteProp<RootStackParamList, 'OrderDetail'>;
+// Define the type for location
+interface Location {
+  id: number;
+  name: string;
+  hourlyRate?: number;
+  imageUrl?: string;
+}
+
+// Define the type for photographer
+interface Photographer {
+  photographerId: number;
+  fullName: string;
+  profileImage?: string;
+  hourlyRate: number;
+}
+
+// Define the type for price calculation
+interface PriceCalculation {
+  totalPrice: number;
+  photographerFee: number;
+  locationFee?: number;
+}
+
+// Extend the route params type
+type OrderDetailRouteParams = {
+  photographer: Photographer;
+  selectedDate: string;
+  selectedStartTime: string;
+  selectedEndTime: string;
+  selectedLocation?: Location;
+  specialRequests?: string;
+  priceCalculation: PriceCalculation;
+};
+
+type OrderDetailScreenRouteProp = RouteProp<{ OrderDetail: OrderDetailRouteParams }, 'OrderDetail'>;
 
 export default function OrderDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute<OrderDetailScreenRouteProp>();
   const params = route.params;
+  
+  if (!params) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#14B8A6" />
+      </View>
+    );
+  }
   
   // ✅ Parse string back to Date
   const selectedDate = new Date(params.selectedDate);
@@ -20,9 +74,12 @@ export default function OrderDetailScreen() {
   // State for success modal
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [isBooking, setIsBooking] = useState(false);
+  
+  // Use the booking hook
+  const { createBooking } = useBooking();
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString('vi-VN', {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
@@ -30,41 +87,98 @@ export default function OrderDetailScreen() {
     });
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined) return 'Liên hệ';
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
-      currency: 'VND'
+      currency: 'VND',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
   };
-
-  const serviceFee = params.totalPrice * 0.1; // 10% service fee
-  const finalTotal = params.totalPrice + serviceFee;
+  
+  // Calculate total hours from start and end time
+  const calculateTotalHours = () => {
+    if (!params.selectedStartTime || !params.selectedEndTime) return 0;
+    
+    const [startHour, startMinute] = params.selectedStartTime.split(':').map(Number);
+    const [endHour, endMinute] = params.selectedEndTime.split(':').map(Number);
+    
+    const startDate = new Date(selectedDate);
+    startDate.setHours(startHour, startMinute, 0, 0);
+    
+    const endDate = new Date(selectedDate);
+    endDate.setHours(endHour, endMinute, 0, 0);
+    
+    // Calculate difference in hours
+    const diffMs = endDate.getTime() - startDate.getTime();
+    return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10; // Round to 1 decimal place
+  };
+  
+  // Calculate total hours, service fee and final total using useMemo
+  const { totalHours, serviceFee, finalTotal } = useMemo(() => {
+    const hours = calculateTotalHours();
+    const fee = params.priceCalculation ? params.priceCalculation.totalPrice * 0.1 : 0;
+    const total = params.priceCalculation ? params.priceCalculation.totalPrice + fee : 0;
+    
+    return {
+      totalHours: hours,
+      serviceFee: fee,
+      finalTotal: total
+    };
+  }, [params.priceCalculation, params.selectedStartTime, params.selectedEndTime]);
 
   // Handle booking confirmation
   const handleBookNow = async () => {
+    if (!params.priceCalculation) return;
+    
     setIsBooking(true);
     
     try {
-      // Simulate API call - replace with your actual booking API
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Format the date and time for the API
+      const startDate = new Date(params.selectedDate);
+      const [startHours, startMinutes] = params.selectedStartTime.split(':').map(Number);
+      const [endHours, endMinutes] = params.selectedEndTime.split(':').map(Number);
       
-      // Show success modal
-      setIsBooking(false);
-      setShowSuccessModal(true);
+      // Set the time on the selected date
+      startDate.setHours(startHours, startMinutes, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setHours(endHours, endMinutes, 0, 0);
       
-      // Auto close modal and navigate after 3 seconds
-      setTimeout(() => {
-        setShowSuccessModal(false);
-        // Navigate to customer home screen
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'CustomerMain', params: { screen: 'CustomerHomeScreen' } }],
-        });
-      }, 3000);
+      // Create the booking data matching CreateBookingRequest type
+      const bookingData = {
+        photographerId: params.photographer.photographerId,
+        startDatetime: startDate.toISOString(),
+        endDatetime: endDate.toISOString(),
+        specialRequests: params.specialRequests,
+        ...(params.selectedLocation?.id && { locationId: params.selectedLocation.id })
+      };
       
+      // Get current user ID (you might need to get this from your auth context)
+      const currentUserId = 1; // Replace with actual user ID from auth context
+      
+      // Call createBooking with the correct signature
+      const booking = await createBooking(currentUserId, bookingData);
+      
+      if (booking) {
+        // Show success modal
+        setShowSuccessModal(true);
+        
+        // Auto close modal and navigate after 3 seconds
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          // Navigate to customer home screen
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'CustomerMain', params: { screen: 'CustomerHomeScreen' } }],
+          });
+        }, 3000);
+      }
     } catch (error) {
+      console.error('Booking error:', error);
+      Alert.alert('Lỗi', 'Không thể tạo booking. Vui lòng thử lại.');
+    } finally {
       setIsBooking(false);
-      Alert.alert('Error', 'Failed to book appointment. Please try again.');
     }
   };
 
@@ -119,7 +233,7 @@ export default function OrderDetailScreen() {
             lineHeight: getResponsiveSize(24),
             marginBottom: getResponsiveSize(20)
           }}>
-            Your photography session has been confirmed. We'll send you a confirmation email shortly.
+            Buổi chụp ảnh của bạn đã được xác nhận. Chúng tôi sẽ gửi email xác nhận cho bạn trong giây lát.
           </Text>
           
           {/* Booking Details Summary */}
@@ -141,12 +255,12 @@ export default function OrderDetailScreen() {
               color: '#fff',
               fontSize: getResponsiveSize(14),
               marginBottom: getResponsiveSize(4)
-            }}>{params.photographer.name}</Text>
+            }}>{params.photographer.fullName}</Text>
             
             <Text style={{
               color: '#888',
               fontSize: getResponsiveSize(13)
-            }}>{formatDate(selectedDate)} • {params.selectedTimes.join(', ')}</Text>
+            }}>{formatDate(selectedDate)} • {params.selectedStartTime} - {params.selectedEndTime}</Text>
           </View>
           
           {/* Auto redirect message */}
@@ -160,22 +274,14 @@ export default function OrderDetailScreen() {
     </Modal>
   );
 
+
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#0F0F0F' }}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F0F0F" />
       
       {/* Header */}
-      <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: getResponsiveSize(20),
-        paddingTop: getResponsiveSize(50),
-        paddingBottom: getResponsiveSize(20),
-        backgroundColor: '#1A1A1A',
-        borderBottomWidth: 1,
-        borderBottomColor: '#2A2A2A'
-      }}>
+      <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
           style={{
@@ -197,227 +303,46 @@ export default function OrderDetailScreen() {
         <View style={{ width: getResponsiveSize(44) }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Photographer Info Card */}
-        <View style={{
-          backgroundColor: '#1A1A1A',
-          marginHorizontal: getResponsiveSize(20),
-          marginTop: getResponsiveSize(20),
-          borderRadius: getResponsiveSize(20),
-          padding: getResponsiveSize(20),
-          borderWidth: 1,
-          borderColor: '#2A2A2A'
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(16) }}>
-            <View style={{
-              backgroundColor: 'rgba(20, 184, 166, 0.15)',
-              padding: getResponsiveSize(8),
-              borderRadius: getResponsiveSize(10),
-              marginRight: getResponsiveSize(12)
-            }}>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconContainer}>
               <Feather name="user" size={getResponsiveSize(20)} color="#14B8A6" />
             </View>
-            <Text style={{
-              color: '#fff',
-              fontSize: getResponsiveSize(18),
-              fontWeight: 'bold'
-            }}>Photographer</Text>
-          </View>
-          
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <Image
-              source={{ uri: params.photographer.avatar }}
-              style={{
-                width: getResponsiveSize(60),
-                height: getResponsiveSize(60),
-                borderRadius: getResponsiveSize(30),
-                marginRight: getResponsiveSize(16),
-                borderWidth: 2,
-                borderColor: '#14B8A6'
-              }}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={{
-                color: '#fff',
-                fontSize: getResponsiveSize(18),
-                fontWeight: 'bold',
-                marginBottom: getResponsiveSize(4)
-              }}>{params.photographer.name}</Text>
-              <Text style={{
-                color: '#888',
-                fontSize: getResponsiveSize(14)
-              }}>{params.photographer.specialty}</Text>
-              <Text style={{
-                color: '#14B8A6',
-                fontSize: getResponsiveSize(14),
-                fontWeight: 'bold',
-                marginTop: getResponsiveSize(4)
-              }}>{formatCurrency(params.photographer.hourlyRate)}/hour</Text>
-            </View>
-          </View>
-        </View>
+            <Text style={styles.cardTitle}>
 
-        {/* Booking Details Card */}
-        <View style={{
-          backgroundColor: '#1A1A1A',
-          marginHorizontal: getResponsiveSize(20),
-          marginTop: getResponsiveSize(16),
-          borderRadius: getResponsiveSize(20),
-          padding: getResponsiveSize(20),
-          borderWidth: 1,
-          borderColor: '#2A2A2A'
-        }}>
-          {/* Date & Time */}
-          <View style={{ marginBottom: getResponsiveSize(20) }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(12) }}>
-              <View style={{
-                backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                padding: getResponsiveSize(8),
-                borderRadius: getResponsiveSize(10),
-                marginRight: getResponsiveSize(12)
-              }}>
-                <Feather name="calendar" size={getResponsiveSize(18)} color="#14B8A6" />
-              </View>
-              <Text style={{
-                color: '#fff',
-                fontSize: getResponsiveSize(16),
-                fontWeight: 'bold'
-              }}>Date & Time</Text>
-            </View>
-            
-            <Text style={{
-              color: '#14B8A6',
-              fontSize: getResponsiveSize(16),
-              fontWeight: 'bold',
-              marginBottom: getResponsiveSize(4)
-            }}>{formatDate(selectedDate)}</Text>
-            
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: getResponsiveSize(8) }}>
-              {params.selectedTimes.map((time, index) => (
-                <View
-                  key={index}
-                  style={{
-                    backgroundColor: '#2A2A2A',
-                    borderRadius: getResponsiveSize(12),
-                    paddingHorizontal: getResponsiveSize(12),
-                    paddingVertical: getResponsiveSize(6),
-                    marginRight: getResponsiveSize(8),
-                    marginBottom: getResponsiveSize(6),
-                    borderWidth: 1,
-                    borderColor: '#14B8A6'
-                  }}
-                >
-                  <Text style={{
-                    color: '#14B8A6',
-                    fontSize: getResponsiveSize(14),
-                    fontWeight: 'bold'
-                  }}>{time}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+// ...
 
-          {/* Location */}
-          <View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(12) }}>
-              <View style={{
-                backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                padding: getResponsiveSize(8),
-                borderRadius: getResponsiveSize(10),
-                marginRight: getResponsiveSize(12)
-              }}>
-                <Feather name="map-pin" size={getResponsiveSize(18)} color="#14B8A6" />
-              </View>
-              <Text style={{
-                color: '#fff',
-                fontSize: getResponsiveSize(16),
-                fontWeight: 'bold'
-              }}>Location</Text>
-            </View>
-            
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Image
-                source={{ uri: params.selectedLocation.imageUrl }}
-                style={{
-                  width: getResponsiveSize(50),
-                  height: getResponsiveSize(50),
-                  borderRadius: getResponsiveSize(12),
-                  marginRight: getResponsiveSize(12)
-                }}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={{
-                  color: '#fff',
-                  fontSize: getResponsiveSize(16),
-                  fontWeight: 'bold',
-                  marginBottom: getResponsiveSize(2)
-                }}>{params.selectedLocation.name}</Text>
-                <Text style={{
-                  color: '#888',
-                  fontSize: getResponsiveSize(13),
-                  marginBottom: getResponsiveSize(4)
-                }}>{params.selectedLocation.address}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Ionicons name="star" size={getResponsiveSize(12)} color="#FFD700" />
-                  <Text style={{
-                    color: '#FFD700',
-                    fontSize: getResponsiveSize(12),
-                    fontWeight: 'bold',
-                    marginLeft: getResponsiveSize(4),
-                    marginRight: getResponsiveSize(12)
-                  }}>{params.selectedLocation.rating}</Text>
-                  <Feather name="map-pin" size={getResponsiveSize(10)} color="#666" />
-                  <Text style={{
-                    color: '#666',
-                    fontSize: getResponsiveSize(12),
-                    marginLeft: getResponsiveSize(4)
-                  }}>{params.selectedLocation.distance}</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
+<View style={styles.locationInfo}>
+  <Image
+    source={{ uri: 'https://via.placeholder.com/300x200?text=Location' }}
+    style={styles.locationImage}
+    resizeMode="cover"
+  />
+  <View style={styles.locationDetails}>
+    <Text style={styles.locationName}>{params.selectedLocation?.name || 'Không có địa điểm'}</Text>
+    {params.selectedLocation?.hourlyRate && (
+      <Text style={styles.locationAddress}>Giá thuê: {formatCurrency(params.selectedLocation.hourlyRate)}/giờ</Text>
+    )}
+  </View>
+</View>
 
-        {/* Price Breakdown Card */}
-        <View style={{
-          backgroundColor: '#1A1A1A',
-          marginHorizontal: getResponsiveSize(20),
-          marginTop: getResponsiveSize(16),
-          borderRadius: getResponsiveSize(20),
-          padding: getResponsiveSize(20),
-          borderWidth: 1,
-          borderColor: '#2A2A2A'
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: getResponsiveSize(16) }}>
-            <View style={{
-              backgroundColor: 'rgba(20, 184, 166, 0.15)',
-              padding: getResponsiveSize(8),
-              borderRadius: getResponsiveSize(10),
-              marginRight: getResponsiveSize(12)
-            }}>
-              <Feather name="credit-card" size={getResponsiveSize(18)} color="#14B8A6" />
-            </View>
-            <Text style={{
-              color: '#fff',
-              fontSize: getResponsiveSize(16),
-              fontWeight: 'bold'
-            }}>Price Breakdown</Text>
-          </View>
+// ...
 
-          {/* Service Details */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: getResponsiveSize(12) }}>
-            <Text style={{ color: '#888', fontSize: getResponsiveSize(14) }}>
-              Photography Service ({params.totalHours} hours)
-            </Text>
-            <Text style={{ color: '#fff', fontSize: getResponsiveSize(14), fontWeight: 'bold' }}>
-              {formatCurrency(params.totalPrice)}
-            </Text>
-          </View>
+<View style={styles.priceRow}>
+  <Text style={styles.priceLabel}>Tổng thời gian</Text>
+  <Text style={styles.priceValue}>{totalHours} giờ</Text>
+</View>
 
-          {/* Service Fee */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: getResponsiveSize(12) }}>
-            <Text style={{ color: '#888', fontSize: getResponsiveSize(14) }}>Service Fee (10%)</Text>
-            <Text style={{ color: '#fff', fontSize: getResponsiveSize(14), fontWeight: 'bold' }}>
+<View style={styles.priceRow}>
+  <Text style={styles.priceLabel}>Tổng cộng</Text>
+  <Text style={styles.finalPrice}>{formatCurrency(finalTotal)}</Text>
+</View>
               {formatCurrency(serviceFee)}
             </Text>
           </View>
@@ -522,6 +447,170 @@ export default function OrderDetailScreen() {
         {/* Success Modal */}
         <SuccessModal />
       </ScrollView>
+      
+      {/* Success Modal */}
+      <SuccessModal />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0F0F0F',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0F0F0F',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: getResponsiveSize(20),
+    paddingTop: getResponsiveSize(50),
+    paddingBottom: getResponsiveSize(20),
+    backgroundColor: '#1A1A1A',
+    borderBottomWidth: 1,
+    borderBottomColor: '#2A2A2A',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    paddingBottom: getResponsiveSize(100),
+  },
+  card: {
+    backgroundColor: '#1A1A1A',
+    marginHorizontal: getResponsiveSize(20),
+    marginTop: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(20),
+    padding: getResponsiveSize(20),
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: getResponsiveSize(16),
+  },
+  iconContainer: {
+    backgroundColor: 'rgba(20, 184, 166, 0.15)',
+    padding: getResponsiveSize(8),
+    borderRadius: getResponsiveSize(10),
+    marginRight: getResponsiveSize(12),
+  },
+  cardTitle: {
+    color: '#fff',
+    fontSize: getResponsiveSize(16),
+    fontWeight: 'bold',
+  },
+  locationInfo: {
+    marginTop: getResponsiveSize(16),
+    backgroundColor: '#1A1A1A',
+    borderRadius: getResponsiveSize(16),
+    overflow: 'hidden',
+    marginHorizontal: getResponsiveSize(20),
+  },
+  locationImage: {
+    width: '100%',
+    height: getResponsiveSize(160),
+  },
+  locationDetails: {
+    padding: getResponsiveSize(16),
+  },
+  locationName: {
+    color: '#fff',
+    fontSize: getResponsiveSize(16),
+    fontWeight: 'bold',
+    marginBottom: getResponsiveSize(4),
+  },
+  locationAddress: {
+    color: '#888',
+    fontSize: getResponsiveSize(14),
+  },
+  priceSection: {
+    backgroundColor: '#1A1A1A',
+    margin: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(16),
+    padding: getResponsiveSize(20),
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: getResponsiveSize(12),
+  },
+  priceLabel: {
+    color: '#888',
+    fontSize: getResponsiveSize(14),
+  },
+  priceValue: {
+    color: '#fff',
+    fontSize: getResponsiveSize(14),
+    fontWeight: '500',
+  },
+  finalPrice: {
+    color: '#14B8A6',
+    fontSize: getResponsiveSize(18),
+    fontWeight: 'bold',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: getResponsiveSize(20),
+  },
+  modalContent: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: getResponsiveSize(20),
+    padding: getResponsiveSize(24),
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: getResponsiveSize(350),
+  },
+  successIcon: {
+    backgroundColor: 'rgba(20, 184, 166, 0.15)',
+    borderRadius: getResponsiveSize(50),
+    padding: getResponsiveSize(20),
+    marginBottom: getResponsiveSize(24),
+  },
+  successTitle: {
+    color: '#fff',
+    fontSize: getResponsiveSize(24),
+    fontWeight: 'bold',
+    marginBottom: getResponsiveSize(12),
+    textAlign: 'center',
+  },
+  successMessage: {
+    color: '#888',
+    fontSize: getResponsiveSize(16),
+    textAlign: 'center',
+    marginBottom: getResponsiveSize(20),
+    lineHeight: getResponsiveSize(24),
+  },
+  bookingSummary: {
+    backgroundColor: '#252525',
+    borderRadius: getResponsiveSize(16),
+    padding: getResponsiveSize(16),
+    width: '100%',
+    marginBottom: getResponsiveSize(24),
+  },
+  bookingReference: {
+    color: '#14B8A6',
+    fontSize: getResponsiveSize(14),
+    fontWeight: 'bold',
+    marginBottom: getResponsiveSize(8),
+  },
+  bookingDateTime: {
+    color: '#888',
+    fontSize: getResponsiveSize(13),
+  },
+  redirectMessage: {
+    color: '#666',
+    fontSize: getResponsiveSize(12),
+    textAlign: 'center',
+  },
+});

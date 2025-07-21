@@ -8,7 +8,8 @@ import {
   Animated,
   StatusBar,
   Dimensions,
-  ActivityIndicator 
+  ActivityIndicator, 
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -32,13 +33,15 @@ const ProfileUserScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const insets = useSafeAreaInsets();
   const { profileData } = useProfile();
-  const { user: authUser, getCurrentUserId } = useAuth();
+  const { user: authUser, getCurrentUserId, logout } = useAuth();
   const currentUserId = getCurrentUserId(); 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isNotificationModalVisible, setIsNotificationModalVisible] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
   
   const scrollY = useRef(new Animated.Value(0)).current;
   
@@ -88,6 +91,51 @@ const ProfileUserScreen = () => {
 
     fetchUserProfile();
   }, [currentUserId, authUser]);
+
+  const handleLogout = async () => {
+    Alert.alert(
+      'Đăng xuất',
+      'Bạn có chắc chắn muốn đăng xuất không?',
+      [
+        {
+          text: 'Hủy',
+          style: 'cancel',
+        },
+        {
+          text: 'Đăng xuất',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setIsLoggingOut(true);
+              console.log('🚪 Starting logout process...');
+              
+              await logout();
+              
+              console.log('✅ Logout completed, navigating to login...');
+              
+              // Navigate to login screen or reset navigation stack
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Login' }], // Adjust route name as needed
+              });
+              
+            } catch (error) {
+              console.error('❌ Logout error:', error);
+              
+              // Show error alert
+              Alert.alert(
+                'Lỗi đăng xuất',
+                'Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.',
+                [{ text: 'OK' }]
+              );
+            } finally {
+              setIsLoggingOut(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   // Get user's primary role - for now, default to "Khách"
   const getUserRole = (user: UserProfile | AuthUser | null): string => {
@@ -252,7 +300,8 @@ const ProfileUserScreen = () => {
     {
       icon: 'log-out-outline',
       title: 'Đăng xuất',
-      onPress: () => {/* Handle logout */}
+      onPress: handleLogout,
+      isLoading: isLoggingOut,
     }
   ];
 

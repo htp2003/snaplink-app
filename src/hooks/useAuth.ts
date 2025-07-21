@@ -202,9 +202,46 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     try {
       setAuthState((prev) => ({ ...prev, isLoading: true }));
 
+      console.log('📤 Starting logout process...');
+      
+      // Get token before clearing it
+      const token = await AsyncStorage.getItem("token");
+      
+      if (token) {
+        try {
+          console.log('📤 Calling logout API endpoint...');
+          
+          // Call the logout API endpoint
+          const response = await fetch(`${API_BASE_URL}/api/Auth/Logout`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          console.log('📥 Logout API response status:', response.status);
+          
+          if (response.ok) {
+            console.log('✅ Logout API call successful');
+          } else {
+            const errorText = await response.text();
+            console.warn('⚠️ Logout API returned error:', errorText);
+            // Continue with local cleanup even if API fails
+          }
+        } catch (apiError) {
+          console.error('❌ Logout API error:', apiError);
+          // Continue with local cleanup even if API fails
+          console.log('🔄 Continuing with local cleanup despite API error...');
+        }
+      } else {
+        console.log('ℹ️ No token found, skipping API call');
+      }
+
+      // Always clear local storage regardless of API success/failure
       await AsyncStorage.removeItem("token");
       await AsyncStorage.removeItem("user");
-      await AsyncStorage.removeItem("currentUserId"); // Also clear currentUserId
+      await AsyncStorage.removeItem("currentUserId");
 
       setCurrentUserId(null);
 
@@ -214,8 +251,12 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         isLoading: false,
         isAuthenticated: false,
       });
+
+      console.log('✅ Logout completed successfully');
     } catch (error) {
-      console.error("Error during logout:", error);
+      console.error("❌ Error during logout:", error);
+      
+      // Even if there's an error, still clear local state
       setCurrentUserId(null);
       setAuthState({
         user: null,
@@ -223,6 +264,15 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         isLoading: false,
         isAuthenticated: false,
       });
+      
+      // Try to clear AsyncStorage anyway
+      try {
+        await AsyncStorage.removeItem("token");
+        await AsyncStorage.removeItem("user");
+        await AsyncStorage.removeItem("currentUserId");
+      } catch (storageError) {
+        console.error("❌ Error clearing storage:", storageError);
+      }
     }
   };
 

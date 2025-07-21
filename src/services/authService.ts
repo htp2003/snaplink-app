@@ -1,6 +1,7 @@
+// authService.ts - Updated with logout endpoint
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_BASE_URL =  'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
+const API_BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
 
 // Types
 export interface LoginRequest {
@@ -69,12 +70,12 @@ class ApiClient {
     return response.json();
   }
 
-  async post(endpoint: string, data: any): Promise<any> {
+  async post(endpoint: string, data?: any): Promise<any> {
     const headers = await this.getHeaders();
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(data),
+      body: data ? JSON.stringify(data) : undefined,
     });
 
     if (!response.ok) {
@@ -82,7 +83,13 @@ class ApiClient {
       throw new Error(errorData || `HTTP ${response.status}`);
     }
 
-    return response.json();
+    // Handle both JSON and text responses
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return response.json();
+    } else {
+      return response.text();
+    }
   }
 
   async put(endpoint: string, data: any): Promise<any> {
@@ -108,12 +115,49 @@ const apiClient = new ApiClient(API_BASE_URL);
 export class AuthService {
   // Step 1: Login
   static async login(credentials: LoginRequest): Promise<AuthResponse> {
-    return apiClient.post(`${API_BASE_URL}/api/Auth/login`, credentials);
+    return apiClient.post(`/api/Auth/login`, credentials);
+  }
+
+  // ✅ NEW: Logout with API endpoint
+  static async logout(): Promise<void> {
+    try {
+      console.log('📤 Calling logout API endpoint...');
+      
+      // Call the logout endpoint
+      await apiClient.post(`/api/Auth/Logout`);
+      
+      console.log('✅ Logout API call successful');
+    } catch (error) {
+      console.error('❌ Logout API error:', error);
+      // Even if API fails, we still want to clear local storage
+      console.log('🔄 Continuing with local cleanup despite API error...');
+    } finally {
+      // Always clear local storage regardless of API success/failure
+      await this.clearLocalStorage();
+    }
+  }
+
+  // ✅ NEW: Client-side logout (fallback)
+  static async logoutLocal(): Promise<void> {
+    console.log('📱 Performing client-side logout...');
+    await this.clearLocalStorage();
+  }
+
+  // ✅ NEW: Clear local storage helper
+  private static async clearLocalStorage(): Promise<void> {
+    try {
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('currentUserId');
+      console.log('✅ Local storage cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing local storage:', error);
+    }
   }
 
   // Step 2: Register user
   static async registerUser(userData: CreateUserRequest): Promise<any> {
-    return apiClient.post(`${API_BASE_URL}/api/User/create-user`, userData);
+    return apiClient.post(`/api/User/create-user`, userData);
   }
 
   // Step 3: Assign role using existing API
@@ -129,7 +173,7 @@ export class AuthService {
       roleIds: roleMap[roleType]
     };
 
-    return apiClient.post(`${API_BASE_URL}/api/User/assign-roles`, assignRolesRequest);
+    return apiClient.post(`/api/User/assign-roles`, assignRolesRequest);
   }
 
   // Step 4: Update user profile
@@ -150,7 +194,7 @@ export class AuthService {
 
   // Get current user info
   static async getCurrentUser(userId: number): Promise<any> {
-    return apiClient.get(`${API_BASE_URL}/api/User/${userId}`);
+    return apiClient.get(`/api/User/${userId}`);
   }
 
   // Token management for React Native
@@ -175,13 +219,10 @@ export class AuthService {
     try {
       await AsyncStorage.removeItem('token');
       await AsyncStorage.removeItem('user');
+      await AsyncStorage.removeItem('currentUserId');
     } catch (error) {
       console.error('Error removing token:', error);
     }
-  }
-
-  static async logout(): Promise<void> {
-    await this.removeToken();
   }
 
   static async isAuthenticated(): Promise<boolean> {

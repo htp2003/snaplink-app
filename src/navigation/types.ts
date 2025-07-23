@@ -39,6 +39,9 @@ export type RootStackParamList = {
     OrderManagementScreen: undefined;
     RecentlyViewedScreen: undefined;
     ProfilePhotographerScreen: undefined;
+    PhotographerEventScreen: {
+      photographerId: number;
+  };
     // Customer  screens
     PhotographerCardDetail: { photographerId: string };
     LocationCardDetail: { locationId: string };
@@ -117,6 +120,9 @@ export type PhotographerTabParamList = {
     PhotographerHomeScreen: undefined;
     Profile: undefined;
     OrderManagementScreen: undefined;
+    PhotographerEventScreen: {
+    photographerId: number;
+  };
 }
 
 export type VenueOwnerTabParamList = {

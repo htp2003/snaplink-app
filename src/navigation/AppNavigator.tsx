@@ -26,7 +26,7 @@ import LocationCardDetail from '../screens/customer/LocationCardDetail';
 import RoleSelectionScreen from '../screens/RoleSelectionScreen';
 import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScreen';
 import RecentlyViewedScreen from '../screens/customer/RecentlyViewedScreen';
-
+import PhotographerEventScreen from '../screens/photographer/PhotographerEventScreen';
 
 import ProfileUserScreen from '../screens/customer/ProfileUserScreen';
 import ViewProfileUserScreen from '../screens/customer/ViewProfileUserScreen';
@@ -83,7 +83,7 @@ const AppNavigator = () => {
         <Stack.Screen name="PhotographerHomeScreen" component={PhotographerHomeScreen} />
         <Stack.Screen name="RecentlyViewedScreen" component={RecentlyViewedScreen} />
         <Stack.Screen name="ViewProfilePhotographerScreen" component={ViewProfilePhotographerScreen} />
-
+        <Stack.Screen name='PhotographerEventScreen' component={PhotographerEventScreen} />
 
 
         {/* Các màn hình dành riêng cho VenueOwner */}

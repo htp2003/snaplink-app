@@ -92,6 +92,7 @@ export interface PhotographerStyle {
   id: number;
   name: string;
   description?: string;
+  photographerCount: number;
 }
 
 export interface Review {

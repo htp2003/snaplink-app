@@ -12,10 +12,8 @@ export const photographerStyleRecommendations = (userId: number) => {
     return {
       id: photographer.photographerId.toString(),
       fullName: photographer.fullName,
-      avatar: photographer.profileImage || 'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?w=300&auto=format&fit=crop&q=80',
-      cardImage: null,
-      images: photographer.profileImage ? [photographer.profileImage] : [],
-      styles: [photographer.specialty], // Using specialty as style for now
+      avatar: photographer.profileImage,
+      styles: [photographer.specialty], 
       rating: photographer.rating,
       hourlyRate: photographer.hourlyRate,
       availabilityStatus: photographer.availabilityStatus,

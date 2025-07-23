@@ -77,11 +77,9 @@ export const usePhotographers = () => {
 
     // 🚀 BETTER AVATAR LOGIC: Always provide a fallback
     const avatar = profileImage && profileImage !== null && profileImage.trim() !== '' 
-                   ? profileImage 
-                   : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format';
-
-    console.log('🎨 Final avatar assigned:', avatar);
-
+                   ? profileImage
+                   : null;
+                   
     const result: PhotographerData = {
       id: photographerId.toString(),
       fullName,
@@ -104,8 +102,7 @@ export const usePhotographers = () => {
   // Helper function to create fallback photographer data
   const createFallbackPhotographer = useCallback((photographer: any): PhotographerData => {
     const photographerId = photographer.photographerId || photographer.id;
-    const fallbackAvatar = photographer.profileImage || 
-                           'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format';
+    const fallbackAvatar = photographer.profileImage;
     
     return {
       id: photographerId.toString(),

@@ -11,11 +11,18 @@ export interface UseImagesReturn {
   error: string | null;
   fetchImages: () => Promise<void>;
   refresh: () => Promise<void>;
-  createImage: (imageUrl: string, isPrimary?: boolean, caption?: string) => Promise<ImageResponse | null>;
-  updateImage: (imageId: number, imageUrl?: string, isPrimary?: boolean, caption?: string) => Promise<ImageResponse | null>;
+  createImage: (file: File, isPrimary?: boolean, caption?: string) => Promise<ImageResponse | null>;
+  updateImage: (imageId: number, options?: {
+    photographerId?: number;
+    locationId?: number;
+    photographerEventId?: number;
+    url?: string;
+    isPrimary?: boolean;
+    caption?: string;
+  }) => Promise<ImageResponse | null>;
   deleteImage: (imageId: number) => Promise<boolean>;
   setPrimaryImage: (imageId: number) => Promise<boolean>;
-  uploadMultiple: (imageUrls: string[], primaryIndex?: number) => Promise<ImageResponse[]>;
+  uploadMultiple: (files: File[], primaryIndex?: number) => Promise<ImageResponse[]>;
   clear: () => void;
 }
 
@@ -44,16 +51,19 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       console.log(`Fetching ${type} images for ID ${refId}...`);
       
       // Fetch both images and primary image in parallel
-      const [imagesData] = await Promise.all([
-        imageService.getImagesByTypeAndRef(type, refId),
-     
+      const [imagesData, primaryImageData] = await Promise.all([
+        imageService.getImagesByType(type, refId),
+        imageService.getPrimaryImageByType(type, refId)
       ]);
+      
       console.log(`${type} images fetched:`, {
         totalImages: imagesData.length,
+        primaryImage: primaryImageData?.url || 'none',
         imageUrls: imagesData.map(img => img.url)
       });
 
       setImages(imagesData);
+      setPrimaryImageState(primaryImageData);
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch images';
@@ -79,9 +89,9 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
   // Refresh images (alias for fetchImages)
   const refresh = useCallback(() => fetchImages(), [fetchImages]);
 
-  // Create new image
+  // Create new image - Updated to use File instead of URL
   const createImage = useCallback(async (
-    imageUrl: string, 
+    file: File, 
     isPrimary: boolean = false, 
     caption?: string
   ): Promise<ImageResponse | null> => {
@@ -91,7 +101,23 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       setLoading(true);
       setError(null);
       
-      const newImage = await imageService.createImage(type, refId, imageUrl, isPrimary, caption);
+      let newImage: ImageResponse | null = null;
+      
+      // Call appropriate create method based on type
+      switch (type) {
+        case 'photographer':
+          newImage = await imageService.photographer.createImage(file, refId, isPrimary, caption);
+          break;
+        case 'location':
+          newImage = await imageService.location.createImage(file, refId, isPrimary, caption);
+          break;
+        case 'event':
+          newImage = await imageService.event.createImage(file, refId, isPrimary, caption);
+          break;
+        default:
+          console.error(`Unknown image type: ${type}`);
+          return null;
+      }
       
       if (newImage) {
         // Refresh images to get updated list
@@ -110,18 +136,31 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
     }
   }, [type, refId, fetchImages]);
 
-  // Update image
+  // Update image - Updated with new parameters
   const updateImage = useCallback(async (
     imageId: number,
-    imageUrl?: string,
-    isPrimary?: boolean,
-    caption?: string
+    options?: {
+      photographerId?: number;
+      locationId?: number;
+      photographerEventId?: number;
+      url?: string;
+      isPrimary?: boolean;
+      caption?: string;
+    }
   ): Promise<ImageResponse | null> => {
     try {
       setLoading(true);
       setError(null);
       
-      const updatedImage = await imageService.updateImage(imageId, imageUrl, isPrimary, caption);
+      const updatedImage = await imageService.updateImage(
+        imageId,
+        options?.photographerId,
+        options?.locationId,
+        options?.photographerEventId,
+        options?.url,
+        options?.isPrimary,
+        options?.caption
+      );
       
       if (updatedImage) {
         // Refresh images to get updated list
@@ -190,9 +229,9 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
     }
   }, [type, fetchImages]);
 
-  // Upload multiple images
+  // Upload multiple images - Updated to use Files
   const uploadMultiple = useCallback(async (
-    imageUrls: string[], 
+    files: File[], 
     primaryIndex?: number
   ): Promise<ImageResponse[]> => {
     if (!refId || refId <= 0) return [];
@@ -201,12 +240,29 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       setLoading(true);
       setError(null);
       
-      const uploadedImages = await imageService.uploadMultipleImages(
-        type, 
-        refId, 
-        imageUrls, 
-        primaryIndex
-      );
+      let uploadedImages: ImageResponse[] = [];
+      
+      // Call appropriate upload method based on type
+      switch (type) {
+        case 'photographer':
+          uploadedImages = await imageService.uploadMultipleImages(
+            files, refId, undefined, undefined, primaryIndex
+          );
+          break;
+        case 'location':
+          uploadedImages = await imageService.uploadMultipleImages(
+            files, undefined, refId, undefined, primaryIndex
+          );
+          break;
+        case 'event':
+          uploadedImages = await imageService.uploadMultipleImages(
+            files, undefined, undefined, refId, primaryIndex
+          );
+          break;
+        default:
+          console.error(`Unknown image type: ${type}`);
+          return [];
+      }
       
       if (uploadedImages.length > 0) {
         // Refresh images to get updated list
@@ -257,8 +313,37 @@ export const usePhotographerImages = (photographerId: number) =>
 export const useLocationImages = (locationId: number) => 
   useImages('location', locationId);
 
-export const useStyleImages = (styleId: number) => 
-  useImages('style', styleId);
-
 export const useEventImages = (eventId: number) => 
   useImages('event', eventId);
+
+// Quick hooks to get just the images without full CRUD functionality
+export const usePhotographerImageUrls = (photographerId: number): string[] => {
+  const { imageUrls } = usePhotographerImages(photographerId);
+  return imageUrls;
+};
+
+export const useLocationImageUrls = (locationId: number): string[] => {
+  const { imageUrls } = useLocationImages(locationId);
+  return imageUrls;
+};
+
+export const useEventImageUrls = (eventId: number): string[] => {
+  const { imageUrls } = useEventImages(eventId);
+  return imageUrls;
+};
+
+// Hooks to get primary image only
+export const usePhotographerPrimaryImage = (photographerId: number): string | null => {
+  const { primaryImageUrl } = usePhotographerImages(photographerId);
+  return primaryImageUrl;
+};
+
+export const useLocationPrimaryImage = (locationId: number): string | null => {
+  const { primaryImageUrl } = useLocationImages(locationId);
+  return primaryImageUrl;
+};
+
+export const useEventPrimaryImage = (eventId: number): string | null => {
+  const { primaryImageUrl } = useEventImages(eventId);
+  return primaryImageUrl;
+};

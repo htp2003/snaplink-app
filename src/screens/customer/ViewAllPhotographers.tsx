@@ -124,11 +124,30 @@ export default function ViewAllPhotographers({ navigation, route }: Props) {
         hourlyRate={photographer.hourlyRate}
         availabilityStatus={photographer.availabilityStatus}
         yearsExperience={photographer.yearsExperience}
-        onBooking={() => navigation.navigate('Booking', {
-          photographerId: photographer.id,
-          photographerName: photographer.fullName,
-          hourlyRate: photographer.hourlyRate
-        })}
+        onBooking={() => {
+          navigation.navigate('Booking', {
+            photographer: {
+              photographerId: photographer.id?.toString(),
+              id: photographer.id?.toString(),
+              userId: photographer.userId?.toString(),
+              fullName: photographer.fullName || photographer.name || 'Unknown Photographer',
+              name: photographer.fullName || photographer.name,
+              profileImage: photographer.avatar || photographer.profileImage,
+              avatar: photographer.avatar || photographer.profileImage,
+              hourlyRate: photographer.hourlyRate || 0,
+              specialty: photographer.specialty,
+              yearsExperience: photographer.yearsExperience,
+              equipment: photographer.equipment,
+              availabilityStatus: photographer.availabilityStatus,
+              rating: photographer.rating,
+              verificationStatus: photographer.verificationStatus,
+              email: photographer.email,
+              phoneNumber: photographer.phoneNumber,
+              bio: photographer.bio,
+              styles: photographer.styles || []
+            }
+          });
+        }}
         isFavorite={isFavorite(photographer.id, 'photographer')}
         onFavoriteToggle={() => toggleFavorite({
           id: photographer.id,

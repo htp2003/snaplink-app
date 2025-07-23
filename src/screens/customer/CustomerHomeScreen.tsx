@@ -195,11 +195,22 @@ export default function CustomerHomeScreen() {
         yearsExperience={photographer.yearsExperience}
         equipment={photographer.equipment}
         verificationStatus={photographer.verificationStatus}
-        onBooking={() => navigation.navigate('Booking', {
-          photographerId: photographer.id,
-          photographerName: photographer.fullName,
-          hourlyRate: photographer.hourlyRate
-        })}
+        onBooking={() => {
+          if (photographer.id === undefined) {
+            console.error('Photographer ID is undefined');
+            return;
+          }
+          
+          navigation.navigate('Booking', {
+            photographer: {
+              photographerId: photographer.id, 
+              fullName: photographer.fullName || '',
+              hourlyRate: photographer.hourlyRate || 0,
+              profileImage: photographer.avatar || '',
+              // Include any other required properties here
+            }
+          });
+        }}
         isFavorite={isFavorite(photographer.id, 'photographer')}
         onFavoriteToggle={() => toggleFavorite({
           id: photographer.id,

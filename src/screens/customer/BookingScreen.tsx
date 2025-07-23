@@ -77,7 +77,7 @@ export default function BookingScreen() {
 
   // Safe data extraction từ photographer object
   const photographerName = photographer?.fullName || photographer?.name || 'Unknown Photographer';
-  const photographerAvatar = photographer?.profileImage || photographer?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=600&fit=crop&auto=format';
+  const photographerAvatar = photographer?.profileImage || photographer?.avatar;
   const photographerRate = photographer?.hourlyRate || 0;
   const photographerSpecialty = photographer?.specialty || 'Professional Photographer';
   const photographerId = photographer?.photographerId;

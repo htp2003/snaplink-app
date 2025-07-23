@@ -8,7 +8,7 @@ import { Ionicons } from "@expo/vector-icons";
 type PhotographerCardProps = {
     id: string;
     fullName: string;
-    avatar: string; // Avatar từ User API (profileImage)
+    avatar: string; 
     styles: string[];
     rating?: number;
     hourlyRate?: number;

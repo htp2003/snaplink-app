@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Alert, RefreshControl, ActivityIndicator } from 'react-native'
 import React, { useState, useEffect } from 'react'
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
@@ -7,63 +7,55 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+// Import hooks và services
+import { useTransactionHistory, useWallet, useTransactionStats } from '../../hooks/useTransaction';
+import transactionService from '../../services/transactionService';
+import { usePhotographerAuth } from '../../hooks/usePhotographerAuth';
+
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PhotographerTabParamList, 'PhotographerHomeScreen'>,
   NativeStackScreenProps<RootStackParamList>
 >;
 
-interface Transaction {
-  id: string;
-  type: 'income' | 'withdrawal';
-  amount: number;
-  description: string;
-  date: string;
-  status: 'completed' | 'pending' | 'failed';
-  customerName?: string;
-}
-
 export default function PhotographerHomeScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const [balance, setBalance] = useState(2450000); // Số dư hiện tại (VND)
-  const [pendingAmount, setPendingAmount] = useState(350000); // Số tiền đang chờ xử lý
-  const [transactions, setTransactions] = useState<Transaction[]>([
-    {
-      id: '1',
-      type: 'income',
-      amount: 500000,
-      description: 'Thanh toán chụp ảnh cưới',
-      date: '2025-06-15',
-      status: 'completed',
-      customerName: 'Nguyễn Văn A'
-    },
-    {
-      id: '2',
-      type: 'withdrawal',
-      amount: 200000,
-      description: 'Rút tiền về tài khoản ngân hàng',
-      date: '2025-06-14',
-      status: 'completed'
-    },
-    {
-      id: '3',
-      type: 'income',
-      amount: 350000,
-      description: 'Thanh toán chụp ảnh profile',
-      date: '2025-06-13',
-      status: 'pending',
-      customerName: 'Trần Thị B'
-    },
-    {
-      id: '4',
-      type: 'income',
-      amount: 800000,
-      description: 'Thanh toán chụp ảnh sự kiện',
-      date: '2025-06-12',
-      status: 'completed',
-      customerName: 'Công ty XYZ'
-    }
-  ]);
+  const { userId, photographerId, isPhotographer, hasPhotographerProfile } = usePhotographerAuth();
+  const shouldFetchData = userId && photographerId && hasPhotographerProfile;
+  const { 
+    transactions, 
+    loading: transactionsLoading, 
+    refreshing: transactionsRefreshing,
+    error: transactionsError,
+    refreshTransactions 
+  } = useTransactionHistory(shouldFetchData ? photographerId : 0, 5); // pageSize = 5 cho home screen
 
+  // Hook khác cho wallet và stats
+  const { 
+    balance, 
+    loading: balanceLoading, 
+    refreshBalance 
+  } = useWallet(shouldFetchData ? userId : 0);
+
+  const { 
+    stats, 
+    loading: statsLoading, 
+    refreshStats 
+  } = useTransactionStats(shouldFetchData ? photographerId : 0);
+
+  // Hàm refresh tất cả data
+  const onRefresh = async () => {
+    try {
+      await Promise.all([
+        refreshTransactions(),
+        refreshBalance(),
+        refreshStats()
+      ]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    }
+  };
+
+  // Format currency
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -71,8 +63,9 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
     }).format(amount);
   };
 
+  // Handle withdraw
   const handleWithdraw = () => {
-    if (balance < 100000) {
+    if (balance.availableBalance < 100000) {
       Alert.alert('Thông báo', 'Số dư tối thiểu để rút tiền là 100,000 VND');
       return;
     }
@@ -85,67 +78,211 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
         { 
           text: 'Xác nhận', 
           onPress: () => {
-            // Navigate to withdrawal screen or show withdrawal form
-            Alert.alert('Thành công', 'Yêu cầu rút tiền đã được gửi!');
+            // Navigate to withdrawal screen
+            navigation.navigate('WithdrawalScreen' as any);
           }
         }
       ]
     );
   };
 
-  const getTransactionIcon = (type: string, status: string) => {
-    if (type === 'income') {
-      return status === 'pending' ? 'time-outline' : 'arrow-down-outline';
-    }
-    return 'arrow-up-outline';
+  // Navigate to full transaction history
+  // const handleViewAllTransactions = () => {
+  //   navigateToTransactionHistory();
+  // };
+
+  // Get transaction color based on type and status
+  const getTransactionColor = (displayType: string, status: string) => {
+    if (status.toLowerCase() === 'pending') return '#F59E0B';
+    if (status.toLowerCase() === 'failed' || status.toLowerCase() === 'cancelled') return '#EF4444';
+    return displayType === 'income' ? '#10B981' : '#EF4444';
   };
 
-  const getTransactionColor = (type: string, status: string) => {
-    if (status === 'pending') return '#F59E0B';
-    if (status === 'failed') return '#EF4444';
-    return type === 'income' ? '#10B981' : '#EF4444';
+  // Render recent transactions section
+  const renderRecentTransactions = () => {
+    return (
+      <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+        <View style={{ 
+          flexDirection: 'row', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: 12 
+        }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#000000' }}>
+            Giao dịch gần đây
+          </Text>
+          <TouchableOpacity >
+            <Text style={{ color: '#FF385C', fontWeight: '500', fontSize: 14 }}>
+              Xem tất cả
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: 12,
+          overflow: 'hidden',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          elevation: 3,
+        }}>
+          {/* Loading state */}
+          {transactionsLoading && transactions.length === 0 ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color="#FF385C" />
+              <Text style={{ color: '#666666', marginTop: 8 }}>
+                Đang tải giao dịch...
+              </Text>
+            </View>
+          ) : 
+          /* Error state */
+          transactionsError ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+              <Text style={{ color: '#666666', marginTop: 12, textAlign: 'center' }}>
+                Không thể tải giao dịch
+              </Text>
+              <TouchableOpacity 
+                style={{ marginTop: 8 }}
+                onPress={refreshTransactions}
+              >
+                <Text style={{ color: '#FF385C', fontWeight: '500' }}>
+                  Thử lại
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : 
+          /* Empty state */
+          transactions.length === 0 ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <Ionicons name="receipt-outline" size={48} color="#CCCCCC" />
+              <Text style={{ color: '#666666', marginTop: 12, textAlign: 'center' }}>
+                Chưa có giao dịch nào
+              </Text>
+            </View>
+          ) : 
+          /* Transactions list */
+          (
+            transactions.map((transaction, index) => (
+              <TouchableOpacity 
+                key={transaction.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  padding: 16,
+                  borderBottomWidth: index !== transactions.length - 1 ? 1 : 0,
+                  borderBottomColor: '#F0F0F0'
+                }}
+                // onPress={() => {
+                //   // Navigate to transaction detail
+                //   navigateToTransactionDetail(transaction.id);
+                // }}
+              >
+                {/* Transaction Icon */}
+                <View style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  backgroundColor: transaction.iconBgColor,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 12
+                }}>
+                  <Ionicons 
+                    name={transaction.iconName as any} 
+                    size={20} 
+                    color={getTransactionColor(transaction.displayType, transaction.status)} 
+                  />
+                </View>
+
+                {/* Transaction Details */}
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontWeight: '500', color: '#000000', marginBottom: 4 }}>
+                    {transaction.description}
+                  </Text>
+                  
+                  {/* Customer name if available */}
+                  {transaction.customerName && (
+                    <Text style={{ color: '#666666', fontSize: 14, marginBottom: 4 }}>
+                      Từ: {transaction.customerName}
+                    </Text>
+                  )}
+                  
+                  {/* Date and Status */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ color: '#999999', fontSize: 12 }}>
+                      {transaction.formattedDate}
+                    </Text>
+                    <View style={{
+                      marginLeft: 8,
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                      borderRadius: 12,
+                      backgroundColor: transaction.statusBgColor
+                    }}>
+                      <Text style={{
+                        fontSize: 10,
+                        fontWeight: '500',
+                        color: transaction.statusColor
+                      }}>
+                        {transactionService.getStatusText(transaction.status)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Amount and Arrow */}
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{
+                    fontWeight: 'bold',
+                    textAlign: 'right',
+                    color: getTransactionColor(transaction.displayType, transaction.status),
+                    fontSize: 16
+                  }}>
+                    {transaction.displayType === 'income' ? '+' : '-'}{transaction.formattedAmount}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={16} color="#CCCCCC" style={{ marginTop: 4 }} />
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </View>
+    );
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'completed': return 'Hoàn thành';
-      case 'pending': return 'Đang xử lý';
-      case 'failed': return 'Thất bại';
-      default: return '';
-    }
-  };
-
-  const getStatusBgColor = (status: string) => {
-    switch (status) {
-      case 'completed': return '#DCFCE7';
-      case 'pending': return '#FEF3C7';
-      case 'failed': return '#FEE2E2';
-      default: return '#F3F4F6';
-    }
-  };
-
-  const getStatusTextColor = (status: string) => {
-    switch (status) {
-      case 'completed': return '#166534';
-      case 'pending': return '#92400E';
-      case 'failed': return '#991B1B';
-      default: return '#374151';
-    }
-  };
-
-  const getTransactionIconBg = (type: string, status: string) => {
-    if (status === 'pending') return '#FEF3C7';
-    if (status === 'failed') return '#FEE2E2';
-    return type === 'income' ? '#DCFCE7' : '#FEE2E2';
-  };
+  // Show loading for initial screen load
+  if (transactionsLoading && balanceLoading && statsLoading) {
+    return (
+      <View style={{ 
+        flex: 1, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        backgroundColor: '#F7F7F7' 
+      }}>
+        <ActivityIndicator size="large" color="#FF385C" />
+        <Text style={{ marginTop: 16, color: '#666666' }}>Đang tải...</Text>
+      </View>
+    );
+  }
 
   return (
     <ScrollView 
       style={{ flex: 1, backgroundColor: '#F7F7F7' }}
       contentContainerStyle={{ 
-        paddingBottom: 120 + insets.bottom // Tab height + safe area
+        paddingBottom: 120 + insets.bottom 
       }}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={transactionsRefreshing}
+          onRefresh={onRefresh}
+          colors={['#FF385C']}
+          tintColor="#FF385C"
+        />
+      }
     >
       {/* Header */}
       <View style={{ 
@@ -194,9 +331,13 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
           <Text style={{ color: '#666666', fontSize: 14, marginBottom: 8 }}>
             Số dư khả dụng
           </Text>
-          <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#000000', marginBottom: 16 }}>
-            {formatCurrency(balance)}
-          </Text>
+          {balanceLoading ? (
+            <ActivityIndicator size="small" color="#FF385C" style={{ marginBottom: 16 }} />
+          ) : (
+            <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#000000', marginBottom: 16 }}>
+              {formatCurrency(balance.availableBalance)}
+            </Text>
+          )}
           
           <View style={{ 
             flexDirection: 'row', 
@@ -208,17 +349,25 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
               <Text style={{ color: '#666666', fontSize: 12, marginBottom: 4 }}>
                 Đang chờ xử lý
               </Text>
-              <Text style={{ color: '#F59E0B', fontWeight: '600', fontSize: 16 }}>
-                {formatCurrency(pendingAmount)}
-              </Text>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color="#F59E0B" />
+              ) : (
+                <Text style={{ color: '#F59E0B', fontWeight: '600', fontSize: 16 }}>
+                  {formatCurrency(stats.pendingAmount)}
+                </Text>
+              )}
             </View>
             <View style={{ alignItems: 'flex-end' }}>
               <Text style={{ color: '#666666', fontSize: 12, marginBottom: 4 }}>
                 Tổng thu nhập tháng này
               </Text>
-              <Text style={{ color: '#10B981', fontWeight: '600', fontSize: 16 }}>
-                {formatCurrency(1650000)}
-              </Text>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color="#10B981" />
+              ) : (
+                <Text style={{ color: '#10B981', fontWeight: '600', fontSize: 16 }}>
+                  {formatCurrency(stats.monthlyIncome)}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -228,13 +377,9 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
               borderRadius: 8,
               paddingVertical: 12,
               alignItems: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 2,
             }}
             onPress={handleWithdraw}
+            disabled={balanceLoading}
           >
             <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 16 }}>
               Rút tiền
@@ -263,9 +408,13 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
                 Hôm nay
               </Text>
             </View>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
-              {formatCurrency(150000)}
-            </Text>
+            {statsLoading ? (
+              <ActivityIndicator size="small" color="#10B981" />
+            ) : (
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
+                {formatCurrency(stats.todayIncome)}
+              </Text>
+            )}
           </View>
           
           <View style={{
@@ -285,110 +434,19 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
                 Booking hoàn thành
               </Text>
             </View>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
-              12
-            </Text>
+            {statsLoading ? (
+              <ActivityIndicator size="small" color="#6B73FF" />
+            ) : (
+              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
+                {stats.completedBookings}
+              </Text>
+            )}
           </View>
         </View>
       </View>
 
-      {/* Recent Transactions */}
-      <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-        <View style={{ 
-          flexDirection: 'row', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: 12 
-        }}>
-          <Text style={{ fontSize: 18, fontWeight: '600', color: '#000000' }}>
-            Giao dịch gần đây
-          </Text>
-          <TouchableOpacity>
-            <Text style={{ color: '#FF385C', fontWeight: '500', fontSize: 14 }}>
-              Xem tất cả
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: 12,
-          overflow: 'hidden',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-        }}>
-          {transactions.map((transaction, index) => (
-            <View 
-              key={transaction.id}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                padding: 16,
-                borderBottomWidth: index !== transactions.length - 1 ? 1 : 0,
-                borderBottomColor: '#F0F0F0'
-              }}
-            >
-              <View style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: getTransactionIconBg(transaction.type, transaction.status),
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginRight: 12
-              }}>
-                <Ionicons 
-                  name={getTransactionIcon(transaction.type, transaction.status)} 
-                  size={20} 
-                  color={getTransactionColor(transaction.type, transaction.status)} 
-                />
-              </View>
-
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontWeight: '500', color: '#000000', marginBottom: 4 }}>
-                  {transaction.description}
-                </Text>
-                {transaction.customerName && (
-                  <Text style={{ color: '#666666', fontSize: 14, marginBottom: 4 }}>
-                    Từ: {transaction.customerName}
-                  </Text>
-                )}
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={{ color: '#999999', fontSize: 12 }}>
-                    {new Date(transaction.date).toLocaleDateString('vi-VN')}
-                  </Text>
-                  <View style={{
-                    marginLeft: 8,
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                    borderRadius: 12,
-                    backgroundColor: getStatusBgColor(transaction.status)
-                  }}>
-                    <Text style={{
-                      fontSize: 10,
-                      fontWeight: '500',
-                      color: getStatusTextColor(transaction.status)
-                    }}>
-                      {getStatusText(transaction.status)}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-
-              <Text style={{
-                fontWeight: 'bold',
-                textAlign: 'right',
-                color: getTransactionColor(transaction.type, transaction.status)
-              }}>
-                {transaction.type === 'income' ? '+' : '-'}{formatCurrency(transaction.amount)}
-              </Text>
-            </View>
-          ))}
-        </View>
-      </View>
+      {/* Recent Transactions - SỬ DỤNG HOOK ĐÃ TẠO */}
+      {renderRecentTransactions()}
 
       {/* Quick Actions */}
       <View style={{ paddingHorizontal: 16, paddingBottom: 20 }}>
@@ -420,18 +478,21 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
             </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            padding: 16,
-            flex: 0.31,
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}>
+          <TouchableOpacity 
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              padding: 16,
+              flex: 0.31,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}
+            // onPress={handleViewAllTransactions}
+          >
             <Ionicons name="time-outline" size={24} color="#F59E0B" />
             <Text style={{ 
               color: '#000000', 

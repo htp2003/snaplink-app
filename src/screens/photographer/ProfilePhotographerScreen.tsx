@@ -49,7 +49,7 @@ const ProfilePhotographerScreen = () => {
       }
 
       // Use the new findPhotographerProfile method that includes fallback logic
-      const photographerProfile = await photographerService.findPhotographerProfile(userId);
+      const photographerProfile = await photographerService.findPhotographerByUserId(userId);
       
       if (photographerProfile) {
         setPhotographerData(photographerProfile);

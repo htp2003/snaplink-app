@@ -33,6 +33,7 @@ import ViewProfileUserScreen from '../screens/customer/ViewProfileUserScreen';
 import ProfilePhotographerScreen from '../screens/photographer/ProfilePhotographerScreen';
 import ViewProfilePhotographerScreen from '../screens/photographer/ViewProfilePhotographerScreen';
 import EditProfilePhotographerScreen from '../screens/photographer/EditProfilePhotographerScreen';
+import PaymentWaitingScreen from '../screens/customer/PaymentWaitingScreen ';
 
 
 
@@ -83,6 +84,7 @@ const AppNavigator = () => {
         <Stack.Screen name="PhotographerHomeScreen" component={PhotographerHomeScreen} />
         <Stack.Screen name="RecentlyViewedScreen" component={RecentlyViewedScreen} />
         <Stack.Screen name="ViewProfilePhotographerScreen" component={ViewProfilePhotographerScreen} />
+        <Stack.Screen name="PaymentWaitingScreen" component={PaymentWaitingScreen} />
 
 
 

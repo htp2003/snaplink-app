@@ -203,11 +203,10 @@ export default function CustomerHomeScreen() {
           
           navigation.navigate('Booking', {
             photographer: {
-              photographerId: photographer.id, 
+              photographerId: Number(photographer.id),
               fullName: photographer.fullName || '',
               hourlyRate: photographer.hourlyRate || 0,
               profileImage: photographer.avatar || '',
-              // Include any other required properties here
             }
           });
         }}

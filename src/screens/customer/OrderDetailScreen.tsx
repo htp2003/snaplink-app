@@ -1,56 +1,52 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  Image, 
-  TouchableOpacity, 
-  ScrollView, 
-  StatusBar, 
-  Modal, 
-  Alert, 
-  StyleSheet, 
-  ActivityIndicator 
+// OrderDetailScreen.tsx - FIXED VERSION
+
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  Alert,
+  StyleSheet,
+  ActivityIndicator
 } from 'react-native';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { AntDesign, Feather, MaterialIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { RouteProp } from '@react-navigation/native';
-import type { RootStackParamList, RootStackNavigationProp } from '../../navigation/types';
+import type { RootStackNavigationProp } from '../../navigation/types';
+import { useAuth } from '../../hooks/useAuth';
 import { useBooking } from '../../hooks/useBooking';
+import { usePayment } from '../../hooks/usePayment';
+import type { BookingResponse, CreatePaymentLinkRequest, PriceCalculationResponse } from '../../types/booking';
+import { PaymentFlowData } from '../../types/payment';
 
-// Define the type for location
-interface Location {
+interface LocationParam {
   id: number;
   name: string;
   hourlyRate?: number;
   imageUrl?: string;
 }
 
-// Define the type for photographer
-interface Photographer {
+interface PhotographerParam {
   photographerId: number;
   fullName: string;
   profileImage?: string;
   hourlyRate: number;
 }
 
-// Define the type for price calculation
-interface PriceCalculation {
-  totalPrice: number;
-  photographerFee: number;
-  locationFee?: number;
-}
-
-// Extend the route params type
 type OrderDetailRouteParams = {
-  photographer: Photographer;
+  bookingId: number;
+  photographer: PhotographerParam;
   selectedDate: string;
   selectedStartTime: string;
   selectedEndTime: string;
-  selectedLocation?: Location;
+  selectedLocation?: LocationParam;
   specialRequests?: string;
-  priceCalculation: PriceCalculation;
+  priceCalculation: PriceCalculationResponse;
 };
 
 type OrderDetailScreenRouteProp = RouteProp<{ OrderDetail: OrderDetailRouteParams }, 'OrderDetail'>;
@@ -59,397 +55,551 @@ export default function OrderDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute<OrderDetailScreenRouteProp>();
   const params = route.params;
-  
-  if (!params) {
+
+  // Auth hook
+  const { user, isAuthenticated } = useAuth();
+
+  const { 
+    getBookingById, 
+    loading: loadingBooking 
+  } = useBooking();
+
+  const { 
+    createPaymentForBooking, 
+    creatingPayment, 
+    error: paymentError 
+  } = usePayment();
+
+  // State để lưu booking đã tạo
+  const [currentBooking, setCurrentBooking] = useState<BookingResponse | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Load booking data khi component mount
+  useEffect(() => {
+    const loadBookingData = async () => {
+      if (params.bookingId && !currentBooking) {
+        try {
+          console.log('🔍 Loading booking data for ID:', params.bookingId);
+          const bookingData = await getBookingById(params.bookingId);
+          
+          if (bookingData) {
+            setCurrentBooking(bookingData);
+            console.log('✅ Booking loaded successfully:', {
+              id: bookingData.id,
+              status: bookingData.status,
+              totalAmount: bookingData.totalAmount
+            });
+          } else {
+            console.warn('⚠️ No booking data returned');
+            Alert.alert('Cảnh báo', 'Không thể tải thông tin booking');
+          }
+        } catch (error) {
+          console.error('❌ Error loading booking:', error);
+          Alert.alert('Lỗi', 'Không thể tải thông tin booking');
+        }
+      }
+    };
+
+    loadBookingData();
+  }, [params.bookingId, currentBooking, getBookingById]);
+
+  // Check authentication
+  useEffect(() => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để đặt lịch chụp ảnh',
+        [
+          {
+            text: 'Đăng nhập',
+            onPress: () => navigation.navigate('Login')
+          },
+          {
+            text: 'Hủy',
+            style: 'cancel',
+            onPress: () => navigation.goBack()
+          }
+        ]
+      );
+    }
+  }, [isAuthenticated, navigation]);
+
+  // Validate params
+  if (!params || !params.photographer || !params.selectedDate) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#14B8A6" />
+      <View style={styles.errorContainer}>
+        <MaterialIcons name="error" size={getResponsiveSize(48)} color="#EF5350" />
+        <Text style={styles.errorTitle}>Thông tin không hợp lệ</Text>
+        <Text style={styles.errorMessage}>Vui lòng quay lại và thử lại</Text>
+        <TouchableOpacity
+          style={styles.errorButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={styles.errorButtonText}>Quay lại</Text>
+        </TouchableOpacity>
       </View>
     );
   }
-  
-  // ✅ Parse string back to Date
+
+  if (!isAuthenticated || !user?.id) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#E91E63" />
+        <Text style={styles.loadingText}>Đang kiểm tra xác thực...</Text>
+      </View>
+    );
+  }
+
   const selectedDate = new Date(params.selectedDate);
-  
-  // State for success modal
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [isBooking, setIsBooking] = useState(false);
-  
-  // Use the booking hook
-  const { createBooking } = useBooking();
 
+  // Helper functions
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('vi-VN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const formatCurrency = (amount: number | undefined) => {
-    if (amount === undefined) return 'Liên hệ';
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-  
-  // Calculate total hours from start and end time
-  const calculateTotalHours = () => {
-    if (!params.selectedStartTime || !params.selectedEndTime) return 0;
-    
-    const [startHour, startMinute] = params.selectedStartTime.split(':').map(Number);
-    const [endHour, endMinute] = params.selectedEndTime.split(':').map(Number);
-    
-    const startDate = new Date(selectedDate);
-    startDate.setHours(startHour, startMinute, 0, 0);
-    
-    const endDate = new Date(selectedDate);
-    endDate.setHours(endHour, endMinute, 0, 0);
-    
-    // Calculate difference in hours
-    const diffMs = endDate.getTime() - startDate.getTime();
-    return Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10; // Round to 1 decimal place
-  };
-  
-  // Calculate total hours, service fee and final total using useMemo
-  const { totalHours, serviceFee, finalTotal } = useMemo(() => {
-    const hours = calculateTotalHours();
-    const fee = params.priceCalculation ? params.priceCalculation.totalPrice * 0.1 : 0;
-    const total = params.priceCalculation ? params.priceCalculation.totalPrice + fee : 0;
-    
-    return {
-      totalHours: hours,
-      serviceFee: fee,
-      finalTotal: total
-    };
-  }, [params.priceCalculation, params.selectedStartTime, params.selectedEndTime]);
-
-  // Handle booking confirmation
-  const handleBookNow = async () => {
-    if (!params.priceCalculation) return;
-    
-    setIsBooking(true);
-    
     try {
-      // Format the date and time for the API
-      const startDate = new Date(params.selectedDate);
-      const [startHours, startMinutes] = params.selectedStartTime.split(':').map(Number);
-      const [endHours, endMinutes] = params.selectedEndTime.split(':').map(Number);
-      
-      // Set the time on the selected date
-      startDate.setHours(startHours, startMinutes, 0, 0);
-      const endDate = new Date(startDate);
-      endDate.setHours(endHours, endMinutes, 0, 0);
-      
-      // Create the booking data matching CreateBookingRequest type
-      const bookingData = {
-        photographerId: params.photographer.photographerId,
-        startDatetime: startDate.toISOString(),
-        endDatetime: endDate.toISOString(),
-        specialRequests: params.specialRequests,
-        ...(params.selectedLocation?.id && { locationId: params.selectedLocation.id })
-      };
-      
-      // Get current user ID (you might need to get this from your auth context)
-      const currentUserId = 1; // Replace with actual user ID from auth context
-      
-      // Call createBooking with the correct signature
-      const booking = await createBooking(currentUserId, bookingData);
-      
-      if (booking) {
-        // Show success modal
-        setShowSuccessModal(true);
-        
-        // Auto close modal and navigate after 3 seconds
-        setTimeout(() => {
-          setShowSuccessModal(false);
-          // Navigate to customer home screen
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'CustomerMain', params: { screen: 'CustomerHomeScreen' } }],
-          });
-        }, 3000);
-      }
-    } catch (error) {
-      console.error('Booking error:', error);
-      Alert.alert('Lỗi', 'Không thể tạo booking. Vui lòng thử lại.');
-    } finally {
-      setIsBooking(false);
+      return date.toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    } catch {
+      return 'Ngày không hợp lệ';
     }
   };
 
-  // Success Modal Component
-  const SuccessModal = () => (
-    <Modal
-      animationType="fade"
-      transparent={true}
-      visible={showSuccessModal}
-      onRequestClose={() => setShowSuccessModal(false)}
-    >
-      <View style={{
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: getResponsiveSize(40)
-      }}>
-        <View style={{
-          backgroundColor: '#1A1A1A',
-          borderRadius: getResponsiveSize(25),
-          padding: getResponsiveSize(40),
-          alignItems: 'center',
-          borderWidth: 1,
-          borderColor: '#2A2A2A',
-          width: '100%',
-          maxWidth: getResponsiveSize(350)
-        }}>
-          {/* Success Icon */}
-          <View style={{
-            backgroundColor: 'rgba(20, 184, 166, 0.15)',
-            borderRadius: getResponsiveSize(50),
-            padding: getResponsiveSize(20),
-            marginBottom: getResponsiveSize(24)
-          }}>
-            <MaterialIcons name="check-circle" size={getResponsiveSize(60)} color="#14B8A6" />
-          </View>
-          
-          {/* Success Message */}
-          <Text style={{
-            color: '#fff',
-            fontSize: getResponsiveSize(24),
-            fontWeight: 'bold',
-            textAlign: 'center',
-            marginBottom: getResponsiveSize(12)
-          }}>Booking Successful!</Text>
-          
-          <Text style={{
-            color: '#888',
-            fontSize: getResponsiveSize(16),
-            textAlign: 'center',
-            lineHeight: getResponsiveSize(24),
-            marginBottom: getResponsiveSize(20)
-          }}>
-            Buổi chụp ảnh của bạn đã được xác nhận. Chúng tôi sẽ gửi email xác nhận cho bạn trong giây lát.
-          </Text>
-          
-          {/* Booking Details Summary */}
-          <View style={{
-            backgroundColor: '#252525',
-            borderRadius: getResponsiveSize(16),
-            padding: getResponsiveSize(16),
-            width: '100%',
-            marginBottom: getResponsiveSize(24)
-          }}>
-            <Text style={{
-              color: '#14B8A6',
-              fontSize: getResponsiveSize(14),
-              fontWeight: 'bold',
-              marginBottom: getResponsiveSize(8)
-            }}>Booking Reference: #BK{Date.now().toString().slice(-6)}</Text>
-            
-            <Text style={{
-              color: '#fff',
-              fontSize: getResponsiveSize(14),
-              marginBottom: getResponsiveSize(4)
-            }}>{params.photographer.fullName}</Text>
-            
-            <Text style={{
-              color: '#888',
-              fontSize: getResponsiveSize(13)
-            }}>{formatDate(selectedDate)} • {params.selectedStartTime} - {params.selectedEndTime}</Text>
-          </View>
-          
-          {/* Auto redirect message */}
-          <Text style={{
-            color: '#666',
-            fontSize: getResponsiveSize(12),
-            textAlign: 'center'
-          }}>Redirecting to home in 3 seconds...</Text>
-        </View>
-      </View>
-    </Modal>
-  );
+  const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined || isNaN(amount) || amount < 0) return '0 ₫';
+    try {
+      return new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(amount);
+    } catch {
+      return `${amount.toLocaleString()} ₫`;
+    }
+  };
 
+  const calculateDuration = () => {
+    try {
+      if (!params.selectedStartTime || !params.selectedEndTime) return 0;
 
+      const [startHour, startMinute] = params.selectedStartTime.split(':').map(Number);
+      const [endHour, endMinute] = params.selectedEndTime.split(':').map(Number);
+
+      if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+        return 0;
+      }
+
+      const startMinutes = startHour * 60 + startMinute;
+      const endMinutes = endHour * 60 + endMinute;
+
+      return Math.max(0, (endMinutes - startMinutes) / 60);
+    } catch {
+      return 0;
+    }
+  };
+
+  // Calculate pricing details
+  const pricingDetails = useMemo(() => {
+    const duration = params.priceCalculation?.duration || calculateDuration();
+    const photographerFee = params.priceCalculation?.photographerFee || 0;
+    const locationFee = params.priceCalculation?.locationFee || 0;
+    const serviceFee = params.priceCalculation?.serviceFee || 0;
+    const totalPrice = params.priceCalculation?.totalPrice || 0;
+
+    return {
+      duration: Math.round(duration * 10) / 10,
+      photographerFee,
+      locationFee,
+      serviceFee,
+      totalPrice
+    };
+  }, [params.priceCalculation, params.selectedStartTime, params.selectedEndTime]);
+
+  const handleEditBooking = () => {
+    if (!params) {
+      Alert.alert('Lỗi', 'Không có dữ liệu để chỉnh sửa');
+      return;
+    }
+
+    const editData = {
+      selectedDate: params.selectedDate,
+      selectedStartTime: params.selectedStartTime,
+      selectedEndTime: params.selectedEndTime,
+      selectedLocation: params.selectedLocation,
+      specialRequests: params.specialRequests
+    };
+
+    console.log('🔄 Navigating to edit mode with data:', editData);
+
+    navigation.navigate('Booking', {
+      photographer: params.photographer,
+      editMode: true,
+      existingBookingId: params.bookingId,
+      existingBookingData: editData
+    });
+  };
+
+  // ✅ FIX: Improved payment handling
+  const handleBookNow = async () => {
+    if (isProcessing || creatingPayment) return;
+
+    // Validation checks
+    if (!user?.id) {
+      Alert.alert('Lỗi', 'Vui lòng đăng nhập lại');
+      return;
+    }
+
+    if (!params.bookingId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin booking');
+      return;
+    }
+
+    if (!params.photographer?.fullName) {
+      Alert.alert('Lỗi', 'Thông tin photographer không hợp lệ');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    try {
+      console.log('💳 Creating payment for booking:', params.bookingId);
+
+      // Create payment using service
+      const paymentResult = await createPaymentForBooking(
+        user.id,
+        params.bookingId,
+        params.photographer.fullName,
+        {
+          date: formatDate(selectedDate),
+          startTime: params.selectedStartTime,
+          endTime: params.selectedEndTime,
+          location: params.selectedLocation?.name
+        }
+      );
+
+      if (!paymentResult) {
+        throw new Error(paymentError || 'Không thể tạo thanh toán');
+      }
+
+      console.log('✅ Payment created successfully:', paymentResult);
+
+      // ✅ FIX: Use orderCode (numeric) for tracking
+      const paymentId = paymentResult.id; // This is now orderCode (number)
+
+      // ✅ FIX: Ensure QR code is properly passed
+      const qrCode = paymentResult.qrCode;
+      if (!qrCode) {
+        console.warn('⚠️ No QR code in payment response');
+      }
+
+      // Prepare navigation data
+      const navigationData: PaymentFlowData = {
+        booking: {
+          id: params.bookingId,
+          photographerName: params.photographer.fullName,
+          date: formatDate(selectedDate),
+          time: `${params.selectedStartTime}-${params.selectedEndTime}`,
+          location: params.selectedLocation?.name,
+          totalAmount: pricingDetails.totalPrice
+        },
+        payment: {
+          id: paymentId, // ✅ FIX: This is now numeric orderCode
+          paymentUrl: paymentResult.paymentUrl || '',
+          orderCode: paymentResult.orderCode || '',
+          amount: paymentResult.amount || pricingDetails.totalPrice,
+          qrCode: qrCode // ✅ FIX: Ensure QR code is passed
+        },
+        user: {
+          name: user.fullName || user.email || 'Unknown',
+          email: user.email || 'No email'
+        }
+      };
+
+      console.log('🔄 Navigating to PaymentWaiting with data:', {
+        paymentId: navigationData.payment.id,
+        hasQR: !!navigationData.payment.qrCode,
+        qrLength: navigationData.payment.qrCode?.length,
+        paymentUrl: navigationData.payment.paymentUrl
+      });
+
+      // Navigate to payment screen
+      navigation.navigate('PaymentWaitingScreen', navigationData);
+
+    } catch (err) {
+      console.error('❌ Payment creation error:', err);
+      
+      let errorMessage = 'Có lỗi xảy ra khi tạo thanh toán';
+      
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+
+      Alert.alert('Lỗi thanh toán', errorMessage, [
+        {
+          text: 'Thử lại',
+          onPress: () => handleBookNow()
+        },
+        {
+          text: 'Đóng',
+          style: 'cancel'
+        }
+      ]);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0F0F" />
-      
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={{
-            backgroundColor: '#2A2A2A',
-            borderRadius: getResponsiveSize(12),
-            padding: getResponsiveSize(10)
-          }}
-          activeOpacity={0.8}
+          style={styles.backButton}
+          activeOpacity={0.7}
         >
-          <AntDesign name="arrowleft" size={getResponsiveSize(24)} color="#fff" />
+          <AntDesign name="arrowleft" size={getResponsiveSize(24)} color="#333" />
         </TouchableOpacity>
-        
-        <Text style={{
-          color: '#fff',
-          fontSize: getResponsiveSize(20),
-          fontWeight: 'bold'
-        }}>Order Details</Text>
-        
-        <View style={{ width: getResponsiveSize(44) }} />
+        <Text style={styles.headerTitle}>Xác nhận đặt lịch</Text>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollViewContent}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         {/* Photographer Info Card */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <View style={styles.iconContainer}>
-              <Feather name="user" size={getResponsiveSize(20)} color="#14B8A6" />
+            <View style={styles.iconWrapper}>
+              <Feather name="user" size={getResponsiveSize(18)} color="#E91E63" />
             </View>
-            <Text style={styles.cardTitle}>
-
-// ...
-
-<View style={styles.locationInfo}>
-  <Image
-    source={{ uri: 'https://via.placeholder.com/300x200?text=Location' }}
-    style={styles.locationImage}
-    resizeMode="cover"
-  />
-  <View style={styles.locationDetails}>
-    <Text style={styles.locationName}>{params.selectedLocation?.name || 'Không có địa điểm'}</Text>
-    {params.selectedLocation?.hourlyRate && (
-      <Text style={styles.locationAddress}>Giá thuê: {formatCurrency(params.selectedLocation.hourlyRate)}/giờ</Text>
-    )}
-  </View>
-</View>
-
-// ...
-
-<View style={styles.priceRow}>
-  <Text style={styles.priceLabel}>Tổng thời gian</Text>
-  <Text style={styles.priceValue}>{totalHours} giờ</Text>
-</View>
-
-<View style={styles.priceRow}>
-  <Text style={styles.priceLabel}>Tổng cộng</Text>
-  <Text style={styles.finalPrice}>{formatCurrency(finalTotal)}</Text>
-</View>
-              {formatCurrency(serviceFee)}
-            </Text>
+            <Text style={styles.cardTitle}>Photographer</Text>
           </View>
 
-          {/* Divider */}
-          <View style={{ height: 1, backgroundColor: '#2A2A2A', marginVertical: getResponsiveSize(16) }} />
-
-          {/* Total */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ color: '#fff', fontSize: getResponsiveSize(16), fontWeight: 'bold' }}>Total</Text>
-            <Text style={{ color: '#14B8A6', fontSize: getResponsiveSize(18), fontWeight: 'bold' }}>
-              {formatCurrency(finalTotal)}
-            </Text>
+          <View style={styles.photographerContainer}>
+            <Image
+              source={{
+                uri: params.photographer.profileImage || 'https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar'
+              }}
+              style={styles.photographerAvatar}
+              defaultSource={{ uri: 'https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar' }}
+            />
+            <View style={styles.photographerInfo}>
+              <Text style={styles.photographerName} numberOfLines={2}>
+                {params.photographer.fullName}
+              </Text>
+              <Text style={styles.photographerRate}>
+                {formatCurrency(params.photographer.hourlyRate)}/giờ
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={{
-          flexDirection: 'row',
-          marginHorizontal: getResponsiveSize(20),
-          marginTop: getResponsiveSize(24),
-          marginBottom: getResponsiveSize(40),
-          gap: getResponsiveSize(12)
-        }}>
-          {/* Edit Button */}
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-            style={{
-              flex: 1,
-              backgroundColor: '#2A2A2A',
-              borderRadius: getResponsiveSize(16),
-              paddingVertical: getResponsiveSize(16),
-              alignItems: 'center',
-              borderWidth: 1,
-              borderColor: '#404040'
-            }}
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <Feather name="edit-3" size={getResponsiveSize(18)} color="#fff" />
-              <Text style={{
-                color: '#fff',
-                fontSize: getResponsiveSize(16),
-                fontWeight: 'bold',
-                marginLeft: getResponsiveSize(8)
-              }}>Edit</Text>
+        {/* Date & Time Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconWrapper}>
+              <Feather name="calendar" size={getResponsiveSize(18)} color="#E91E63" />
             </View>
-          </TouchableOpacity>
+            <Text style={styles.cardTitle}>Thời gian</Text>
+          </View>
 
-          {/* Confirm Booking Button */}
-          <TouchableOpacity
-            onPress={handleBookNow}
-            disabled={isBooking}
-            activeOpacity={0.8}
-            style={{
-              flex: 2,
-              borderRadius: getResponsiveSize(16),
-              overflow: 'hidden',
-              elevation: 8,
-              shadowColor: '#14B8A6',
-              shadowOpacity: 0.4,
-              shadowRadius: 15,
-              opacity: isBooking ? 0.6 : 1
-            }}
-          >
-            <LinearGradient
-              colors={["#14B8A6", "#5EEAD4"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{
-                paddingVertical: getResponsiveSize(16),
-                alignItems: 'center'
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                {isBooking ? (
-                  <>
-                    <MaterialIcons name="hourglass-empty" size={getResponsiveSize(20)} color="#fff" />
-                    <Text style={{
-                      color: '#fff',
-                      fontSize: getResponsiveSize(16),
-                      fontWeight: 'bold',
-                      marginLeft: getResponsiveSize(8)
-                    }}>Processing...</Text>
-                  </>
-                ) : (
-                  <>
-                    <MaterialIcons name="payment" size={getResponsiveSize(20)} color="#fff" />
-                    <Text style={{
-                      color: '#fff',
-                      fontSize: getResponsiveSize(16),
-                      fontWeight: 'bold',
-                      marginLeft: getResponsiveSize(8)
-                    }}>Book & Pay</Text>
-                  </>
+          <View style={styles.timeInfoContainer}>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeLabel}>Ngày:</Text>
+              <Text style={styles.timeValue}>{formatDate(selectedDate)}</Text>
+            </View>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeLabel}>Giờ:</Text>
+              <Text style={styles.timeValue}>
+                {params.selectedStartTime} - {params.selectedEndTime}
+              </Text>
+            </View>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeLabel}>Thời lượng:</Text>
+              <Text style={styles.timeValue}>{pricingDetails.duration} giờ</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Location Card (if selected) */}
+        {params.selectedLocation && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.iconWrapper}>
+                <Feather name="map-pin" size={getResponsiveSize(18)} color="#E91E63" />
+              </View>
+              <Text style={styles.cardTitle}>Địa điểm</Text>
+            </View>
+
+            <View style={styles.locationContainer}>
+              {params.selectedLocation.imageUrl && (
+                <Image
+                  source={{
+                    uri: params.selectedLocation.imageUrl
+                  }}
+                  style={styles.locationImage}
+                />
+              )}
+              <View style={styles.locationInfo}>
+                <Text style={styles.locationName} numberOfLines={2}>
+                  {params.selectedLocation.name}
+                </Text>
+                {params.selectedLocation.hourlyRate && (
+                  <Text style={styles.locationPrice}>
+                    {formatCurrency(params.selectedLocation.hourlyRate)}/giờ
+                  </Text>
                 )}
               </View>
-            </LinearGradient>
-          </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Special Requests Card */}
+        {params.specialRequests && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.iconWrapper}>
+                <Feather name="edit-3" size={getResponsiveSize(18)} color="#E91E63" />
+              </View>
+              <Text style={styles.cardTitle}>Yêu cầu đặc biệt</Text>
+            </View>
+
+            <View style={styles.requestsContainer}>
+              <Text style={styles.requestsText}>{params.specialRequests}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Price Breakdown Card */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <View style={styles.iconWrapper}>
+              <MaterialIcons name="receipt" size={getResponsiveSize(18)} color="#E91E63" />
+            </View>
+            <Text style={styles.cardTitle}>Chi phí dự kiến</Text>
+          </View>
+
+          <View style={styles.priceContainer}>
+            {/* Photographer Fee */}
+            <View style={styles.priceRow}>
+              <Text style={styles.priceLabel}>
+                Phí Photographer ({pricingDetails.duration}h)
+              </Text>
+              <Text style={styles.priceValue}>
+                {formatCurrency(pricingDetails.photographerFee)}
+              </Text>
+            </View>
+
+            {/* Location Fee */}
+            {pricingDetails.locationFee > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>
+                  Phí địa điểm ({pricingDetails.duration}h)
+                </Text>
+                <Text style={styles.priceValue}>
+                  {formatCurrency(pricingDetails.locationFee)}
+                </Text>
+              </View>
+            )}
+
+            {/* Service Fee */}
+            {pricingDetails.serviceFee > 0 && (
+              <View style={styles.priceRow}>
+                <Text style={styles.priceLabel}>Phí dịch vụ</Text>
+                <Text style={styles.priceValue}>
+                  {formatCurrency(pricingDetails.serviceFee)}
+                </Text>
+              </View>
+            )}
+
+            {/* Divider */}
+            <View style={styles.priceDivider} />
+
+            {/* Total */}
+            <View style={styles.priceRow}>
+              <Text style={styles.totalLabel}>Tổng cộng</Text>
+              <Text style={styles.totalValue}>
+                {formatCurrency(pricingDetails.totalPrice)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Note about payment */}
+          <View style={styles.paymentNote}>
+            <MaterialIcons name="info" size={getResponsiveSize(16)} color="#FF9800" />
+            <Text style={styles.paymentNoteText}>
+              Bạn sẽ thanh toán ngay sau khi xác nhận booking
+            </Text>
+          </View>
         </View>
-        
-        {/* Success Modal */}
-        <SuccessModal />
+
+        {/* ✅ THÊM: Hiển thị thông tin booking đã load */}
+        {currentBooking && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <View style={styles.iconWrapper}>
+                <MaterialIcons name="info" size={getResponsiveSize(18)} color="#4CAF50" />
+              </View>
+              <Text style={styles.cardTitle}>Trạng thái Booking</Text>
+            </View>
+            <View style={styles.bookingStatusContainer}>
+              <Text style={styles.bookingStatusText}>
+                Booking #{currentBooking.id} - {currentBooking.status}
+              </Text>
+              <Text style={styles.bookingAmountText}>
+                Tổng tiền: {formatCurrency(currentBooking.totalAmount)}
+              </Text>
+            </View>
+          </View>
+        )}
       </ScrollView>
-      
-      {/* Success Modal */}
-      <SuccessModal />
+
+      {/* Bottom Action Buttons */}
+      <View style={styles.bottomActions}>
+        {/* Edit Button */}
+        <TouchableOpacity
+          onPress={handleEditBooking}
+          activeOpacity={0.7}
+          style={styles.editButton}
+        >
+          <Feather name="edit-3" size={getResponsiveSize(18)} color="#666" />
+          <Text style={styles.editButtonText}>Chỉnh sửa</Text>
+        </TouchableOpacity>
+
+        {/* Confirm Button */}
+        <TouchableOpacity
+          onPress={handleBookNow}
+          activeOpacity={0.8}
+          style={styles.confirmButton}
+        >
+          <LinearGradient
+            colors={["#E91E63", "#F06292"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.confirmButtonGradient}
+          >
+            {(isProcessing) ? (
+              <>
+                <ActivityIndicator size="small" color="#fff" style={{ marginRight: getResponsiveSize(8) }} />
+                <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
+              </>
+            ) : (
+              <>
+                <MaterialIcons name="payment" size={getResponsiveSize(20)} color="#fff" style={{ marginRight: getResponsiveSize(8) }} />
+                <Text style={styles.confirmButtonText}>Đặt lịch & Thanh toán</Text>
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -457,14 +607,57 @@ export default function OrderDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#f8f9fa',
   },
+
+  // Loading state
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#f8f9fa',
   },
+  loadingText: {
+    fontSize: getResponsiveSize(16),
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: getResponsiveSize(16),
+  },
+
+  // Error state
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f8f9fa',
+    paddingHorizontal: getResponsiveSize(40),
+  },
+  errorTitle: {
+    fontSize: getResponsiveSize(20),
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: getResponsiveSize(16),
+    marginBottom: getResponsiveSize(8),
+  },
+  errorMessage: {
+    fontSize: getResponsiveSize(16),
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: getResponsiveSize(24),
+  },
+  errorButton: {
+    backgroundColor: '#E91E63',
+    paddingHorizontal: getResponsiveSize(24),
+    paddingVertical: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(8),
+  },
+  errorButtonText: {
+    color: '#fff',
+    fontSize: getResponsiveSize(16),
+    fontWeight: '600',
+  },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -472,145 +665,256 @@ const styles = StyleSheet.create({
     paddingHorizontal: getResponsiveSize(20),
     paddingTop: getResponsiveSize(50),
     paddingBottom: getResponsiveSize(20),
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    borderBottomColor: '#f0f0f0',
   },
+  backButton: {
+    backgroundColor: '#f5f5f5',
+    borderRadius: getResponsiveSize(10),
+    padding: getResponsiveSize(8),
+  },
+  headerTitle: {
+    fontSize: getResponsiveSize(18),
+    fontWeight: 'bold',
+    color: '#333',
+  },
+
+  // Content
   scrollView: {
     flex: 1,
   },
-  scrollViewContent: {
-    paddingBottom: getResponsiveSize(100),
+  scrollContent: {
+    paddingBottom: getResponsiveSize(120),
   },
+
+  // Card styles
   card: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#fff',
     marginHorizontal: getResponsiveSize(20),
-    marginTop: getResponsiveSize(20),
-    borderRadius: getResponsiveSize(20),
+    marginTop: getResponsiveSize(16),
+    borderRadius: getResponsiveSize(12),
     padding: getResponsiveSize(20),
-    borderWidth: 1,
-    borderColor: '#2A2A2A',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: getResponsiveSize(16),
   },
-  iconContainer: {
-    backgroundColor: 'rgba(20, 184, 166, 0.15)',
+  iconWrapper: {
+    backgroundColor: 'rgba(233, 30, 99, 0.1)',
     padding: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(10),
+    borderRadius: getResponsiveSize(8),
     marginRight: getResponsiveSize(12),
   },
   cardTitle: {
-    color: '#fff',
     fontSize: getResponsiveSize(16),
     fontWeight: 'bold',
+    color: '#333',
   },
-  locationInfo: {
-    marginTop: getResponsiveSize(16),
-    backgroundColor: '#1A1A1A',
-    borderRadius: getResponsiveSize(16),
+
+  // Photographer section
+  photographerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  photographerAvatar: {
+    width: getResponsiveSize(60),
+    height: getResponsiveSize(60),
+    borderRadius: getResponsiveSize(30),
+    marginRight: getResponsiveSize(16),
+    backgroundColor: '#f0f0f0',
+  },
+  photographerInfo: {
+    flex: 1,
+  },
+  photographerName: {
+    fontSize: getResponsiveSize(16),
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: getResponsiveSize(4),
+  },
+  photographerRate: {
+    fontSize: getResponsiveSize(14),
+    color: '#E91E63',
+    fontWeight: '600',
+  },
+
+  // Time section
+  timeInfoContainer: {
+    gap: getResponsiveSize(12),
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  timeLabel: {
+    fontSize: getResponsiveSize(14),
+    color: '#666',
+    fontWeight: '500',
+  },
+  timeValue: {
+    fontSize: getResponsiveSize(14),
+    fontWeight: '600',
+    color: '#333',
+    textAlign: 'right',
+    flex: 1,
+    marginLeft: getResponsiveSize(16),
+  },
+
+  // Location section
+  locationContainer: {
+    borderRadius: getResponsiveSize(8),
     overflow: 'hidden',
-    marginHorizontal: getResponsiveSize(20),
+    backgroundColor: '#f8f9fa',
   },
   locationImage: {
     width: '100%',
-    height: getResponsiveSize(160),
+    height: getResponsiveSize(120),
+    backgroundColor: '#f0f0f0',
   },
-  locationDetails: {
-    padding: getResponsiveSize(16),
+  locationInfo: {
+    padding: getResponsiveSize(12),
   },
   locationName: {
-    color: '#fff',
     fontSize: getResponsiveSize(16),
     fontWeight: 'bold',
+    color: '#333',
     marginBottom: getResponsiveSize(4),
   },
-  locationAddress: {
-    color: '#888',
+  locationPrice: {
     fontSize: getResponsiveSize(14),
+    color: '#E91E63',
+    fontWeight: '600',
   },
-  priceSection: {
-    backgroundColor: '#1A1A1A',
-    margin: getResponsiveSize(20),
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(20),
+
+  // Special requests section
+  requestsContainer: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: getResponsiveSize(8),
+    padding: getResponsiveSize(16),
+  },
+  requestsText: {
+    fontSize: getResponsiveSize(14),
+    color: '#333',
+    lineHeight: getResponsiveSize(20),
+  },
+
+  // Price section
+  priceContainer: {
+    gap: getResponsiveSize(12),
   },
   priceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: getResponsiveSize(12),
+    alignItems: 'center',
   },
   priceLabel: {
-    color: '#888',
     fontSize: getResponsiveSize(14),
+    color: '#666',
+    flex: 1,
   },
   priceValue: {
-    color: '#fff',
     fontSize: getResponsiveSize(14),
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#333',
   },
-  finalPrice: {
-    color: '#14B8A6',
+  priceDivider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: getResponsiveSize(8),
+  },
+  totalLabel: {
+    fontSize: getResponsiveSize(16),
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  totalValue: {
     fontSize: getResponsiveSize(18),
     fontWeight: 'bold',
+    color: '#E91E63',
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
+
+  // Payment note
+  paymentNote: {
+    flexDirection: 'row',
     alignItems: 'center',
-    padding: getResponsiveSize(20),
+    backgroundColor: '#FFF8E1',
+    borderRadius: getResponsiveSize(8),
+    padding: getResponsiveSize(12),
+    marginTop: getResponsiveSize(16),
   },
-  modalContent: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: getResponsiveSize(20),
-    padding: getResponsiveSize(24),
-    alignItems: 'center',
-    width: '100%',
-    maxWidth: getResponsiveSize(350),
-  },
-  successIcon: {
-    backgroundColor: 'rgba(20, 184, 166, 0.15)',
-    borderRadius: getResponsiveSize(50),
-    padding: getResponsiveSize(20),
-    marginBottom: getResponsiveSize(24),
-  },
-  successTitle: {
-    color: '#fff',
-    fontSize: getResponsiveSize(24),
-    fontWeight: 'bold',
-    marginBottom: getResponsiveSize(12),
-    textAlign: 'center',
-  },
-  successMessage: {
-    color: '#888',
-    fontSize: getResponsiveSize(16),
-    textAlign: 'center',
-    marginBottom: getResponsiveSize(20),
-    lineHeight: getResponsiveSize(24),
-  },
-  bookingSummary: {
-    backgroundColor: '#252525',
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(16),
-    width: '100%',
-    marginBottom: getResponsiveSize(24),
-  },
-  bookingReference: {
-    color: '#14B8A6',
-    fontSize: getResponsiveSize(14),
-    fontWeight: 'bold',
-    marginBottom: getResponsiveSize(8),
-  },
-  bookingDateTime: {
-    color: '#888',
+  paymentNoteText: {
     fontSize: getResponsiveSize(13),
+    color: '#F57C00',
+    marginLeft: getResponsiveSize(8),
+    flex: 1,
   },
-  redirectMessage: {
+
+  // Booking status section
+  bookingStatusContainer: {
+    gap: getResponsiveSize(8),
+  },
+  bookingStatusText: {
+    fontSize: getResponsiveSize(16),
+    fontWeight: '600',
+    color: '#333',
+  },
+  bookingAmountText: {
+    fontSize: getResponsiveSize(16),
+    fontWeight: 'bold',
+    color: '#4CAF50',
+  },
+
+  // Bottom actions
+  bottomActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: getResponsiveSize(20),
+    paddingVertical: getResponsiveSize(16),
+    paddingBottom: getResponsiveSize(8),
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: getResponsiveSize(16),
+    paddingVertical: getResponsiveSize(12),
+    backgroundColor: '#f8f9fa',
+    borderRadius: getResponsiveSize(8),
+    flex: 1,
+    marginRight: getResponsiveSize(12),
+  },
+  editButtonText: {
     color: '#666',
-    fontSize: getResponsiveSize(12),
-    textAlign: 'center',
+    fontWeight: '500',
+    marginLeft: getResponsiveSize(8),
+    fontSize: getResponsiveSize(16),
+  },
+  confirmButton: {
+    flex: 2,
+    borderRadius: getResponsiveSize(12),
+    overflow: 'hidden',
+  },
+  confirmButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: getResponsiveSize(15),
+    paddingHorizontal: getResponsiveSize(20),
+  },
+  confirmButtonText: {
+    color: '#fff',
+    fontSize: getResponsiveSize(16),
+    fontWeight: 'bold',
   },
 });

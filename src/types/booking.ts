@@ -1,55 +1,90 @@
-// types/booking.ts
+// types/booking.ts - UPDATED VERSION
+import type { PaymentResponse, CreatePaymentLinkRequest } from './payment';
+
 export interface CreateBookingRequest {
+  photographerId: number;
+  locationId?: number;
+  externalLocation?: ExternalLocationRequest;
+  startDatetime: string; // ISO datetime string
+  endDatetime: string;   // ISO datetime string
+  specialRequests?: string;
+}
+
+export interface UpdateBookingRequest {
+  startDatetime?: string;
+  endDatetime?: string;
+  specialRequests?: string;
+  status?: string;
+}
+
+export interface ExternalLocationRequest {
+  placeId: string;
+  name: string;
+  address: string;
+  description?: string;
+  latitude?: number;
+  longitude?: number;
+  photoReference?: string;
+  types?: string;
+}
+
+export interface BookingResponse {
+  id: number;
+  bookingId: number;
+  userId: number;
+  photographerId: number;
+  locationId?: number;
+  externalLocation?: ExternalLocationResponse;
+  startDatetime: string;
+  endDatetime: string;
+  specialRequests?: string;
+  status: BookingStatus;
+  totalAmount: number;
+  createdAt: string;
+  updatedAt: string;
+  // Extended fields
+  photographer?: {
     photographerId: number;
-    locationId?: number;
-    externalLocation?: ExternalLocationRequest;
-    startDatetime: string; // ISO datetime string
-    endDatetime: string;   // ISO datetime string
-    specialRequests?: string;
-  }
-  
-  export interface UpdateBookingRequest {
-    startDatetime?: string;
-    endDatetime?: string;
-    specialRequests?: string;
-    status?: string;
-  }
-  
-  export interface ExternalLocationRequest {
-    placeId: string;
+    fullName: string;
+    profileImage: string;
+    hourlyRate: number;
+  };
+  location?: {
+    locationId: number;
     name: string;
     address: string;
-    description?: string;
-    latitude?: number;
-    longitude?: number;
-    photoReference?: string;
-    types?: string;
-  }
-  
-  export interface BookingResponse {
-    id: number;
-    bookingId: number;
-    userId: number;
-    photographerId: number;
-    locationId?: number;
-    externalLocation?: ExternalLocationResponse;
-    startDatetime: string;
-    endDatetime: string;
-    specialRequests?: string;
-    status: BookingStatus;
-    totalAmount: number;
-    createdAt: string;
-    updatedAt: string;
-    // Extended fields
-    photographer?: {
-      photographerId: number;
-      fullName: string;
-      profileImage: string;
-      hourlyRate: number;
-    };
-    location?: {
-      locationId: number;
+    hourlyRate?: number;
+  };
+}
+
+export interface ExternalLocationResponse extends ExternalLocationRequest {
+  id: number;
+}
+
+export interface AvailabilityResponse {
+  available: boolean;
+  conflictingBookings?: BookingResponse[];
+  suggestedTimes?: string[];
+  message?: string;
+}
+
+// Alternative simple response for API that only returns boolean
+export interface SimpleAvailabilityResponse {
+  available: boolean;
+}
+
+export interface PriceCalculationResponse {
+  totalPrice: number;
+  photographerFee: number;
+  locationFee?: number;
+  serviceFee?: number;
+  duration: number; // in hours
+  breakdown: {
+    baseRate: number;
+    locationRate?: number;
+    additionalFees?: {
       name: string;
+
       address: string;
       hourlyRate?: number;
     };
@@ -188,9 +223,38 @@ export interface BookingListResponse {
 }
 
 export interface BookingQueryParams {
+      amount: number;
+    }[];
+  };
+}
+
+export interface BookingListResponse {
+  bookings: BookingResponse[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+export enum BookingStatus {
+  PENDING = 'pending',
+  CONFIRMED = 'confirmed',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled',
+  EXPIRED = 'expired'
+}
+
+export interface BookingFilters {
+  status?: BookingStatus;
+  startDate?: string;
+  endDate?: string;
+  photographerId?: number;
+  userId?: number;
   page?: number;
   pageSize?: number;
 }
+
 
 export interface UpdateBookingStatusRequest {
   bookingId: number;
@@ -225,3 +289,52 @@ export interface BookingCardData {
   paymentAmount: number | null;
   pricePerHour: number;
 }
+
+// Hook interfaces
+export interface UseBookingOptions {
+  userId?: number;
+  photographerId?: number;
+  autoFetch?: boolean;
+}
+
+export interface BookingFormData {
+  photographerId: number;
+  selectedDate: Date;
+  selectedStartTime: string;
+  selectedEndTime: string;
+  selectedLocation?: any; // From useLocations
+  specialRequests: string;
+  useExternalLocation: boolean;
+  externalLocation?: ExternalLocationRequest;
+}
+
+export interface BookingValidationErrors {
+  photographer?: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  general?: string;
+}
+
+// ===== TRANSACTION & WALLET TYPES =====
+export interface TransactionResponse {
+  id: number;
+  userId: number;
+  amount: number;
+  type: string;
+  status: string;
+  description: string;
+  bookingId?: number;
+  createdAt: string;
+}
+
+export interface WalletBalanceResponse {
+  userId: number;
+  balance: number;
+  currency: string;
+}
+
+// ===== RE-EXPORT PAYMENT TYPES for backward compatibility =====
+export type { PaymentResponse, CreatePaymentLinkRequest };
+

@@ -1,5 +1,7 @@
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { PriceCalculationResponse } from "../types/booking";
+import { PaymentFlowData } from "../types/payment";
 
 
 export interface Location {
@@ -39,9 +41,13 @@ export type RootStackParamList = {
     RecentlyViewedScreen: undefined;
     ProfilePhotographerScreen: undefined;
     OrderManagementScreen: undefined;
+
+    PaymentWaitingScreen: PaymentFlowData;
+
     PhotographerEventScreen: {
       photographerId: number;
   };
+
     // Customer  screens
     PhotographerCardDetail: { photographerId: string };
     LocationCardDetail: { locationId: string };
@@ -54,54 +60,59 @@ export type RootStackParamList = {
     ProfileUserScreen: undefined;
     Booking: {
       photographer: {
-          photographerId?: string;
-          id?: string;
-          userId?: string;
-          fullName: string;
-          name?: string; 
-          profileImage?: string;
-          avatar?: string; 
-          hourlyRate: number;
-          specialty?: string;
-          yearsExperience?: number;
-          equipment?: string;
-          availabilityStatus?: string;
-          rating?: number;
-          verificationStatus?: string;
-          email?: string;
-          phoneNumber?: string;
-          bio?: string;
-          styles?: string[];
-      };
-  };
-    OrderDetail: {
-      photographer: {
-        photographerId: number;
+        photographerId: number; // THAY ĐỔI: Từ number? thành number để match với OrderDetail
+        id?: string;
+        userId?: string;
         fullName: string;
+        name?: string; 
         profileImage?: string;
+        avatar?: string; 
         hourlyRate: number;
+        specialty?: string;
+        yearsExperience?: number;
+        equipment?: string;
+        availabilityStatus?: string;
+        rating?: number;
+        verificationStatus?: string;
+        email?: string;
+        phoneNumber?: string;
+        bio?: string;
+        styles?: string[];
       };
-      selectedDate: string;
-      selectedStartTime: string;
-      selectedEndTime: string;
-      selectedLocation?: {
-        id: number;
-        name: string;
-        hourlyRate?: number;
-      };
-      specialRequests?: string;
-      priceCalculation: {
-        totalPrice: number;
-        photographerFee: number;
-        locationFee?: number;
-        duration: number;
-        breakdown: {
-          baseRate: number;
-          locationRate?: number;
-          additionalFees?: Array<{ name: string; amount: number }>;
+      // THÊM: Support cho edit mode
+      editMode?: boolean;
+      existingBookingId?: number;
+      existingBookingData?: {
+        selectedDate: string;
+        selectedStartTime: string;
+        selectedEndTime: string;
+        selectedLocation?: {
+          id: number;
+          name: string;
+          hourlyRate?: number;
         };
+        specialRequests?: string;
       };
     };
+  OrderDetail: {
+    bookingId: number;
+    photographer: {
+      photographerId: number;
+      fullName: string;
+      profileImage?: string;
+      hourlyRate: number;
+    };
+    selectedDate: string;
+    selectedStartTime: string;
+    selectedEndTime: string;
+    selectedLocation?: {
+      id: number;
+      name: string;
+      hourlyRate?: number;
+    };
+    specialRequests?: string;
+    priceCalculation: PriceCalculationResponse
+  };
     ViewProfileUserScreen: { userId: number };
    
 

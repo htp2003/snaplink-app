@@ -1,4 +1,5 @@
-// services/bookingService.ts
+// services/bookingService.ts - ONLY BOOKING FUNCTIONS
+
 import { apiClient } from './base';
 import type {
   CreateBookingRequest,
@@ -6,11 +7,10 @@ import type {
   BookingResponse,
   BookingListResponse,
   AvailabilityResponse,
-  PriceCalculationResponse,
-  BookingFilters
+  PriceCalculationResponse
 } from '../types/booking';
 
-const ENDPOINTS = {
+const BOOKING_ENDPOINTS = {
   CREATE: (userId: number) => `/api/Booking/create?userId=${userId}`,
   GET_BY_ID: (bookingId: number) => `/api/Booking/${bookingId}`,
   UPDATE: (bookingId: number) => `/api/Booking/${bookingId}`,
@@ -27,137 +27,250 @@ const ENDPOINTS = {
 
 export class BookingService {
   
-  // Create new booking
+  // Helper method to extract booking ID from response
+  private extractBookingId(response: any): number {
+    if (response.bookingId) return response.bookingId;  // ✅ API trả về bookingId
+    if (response.id) return response.id;
+    if (response.data?.bookingId) return response.data.bookingId;
+    if (response.data?.id) return response.data.id;
+    
+    console.error('Could not extract booking ID from response:', response);
+    throw new Error('Invalid booking response - missing ID');
+  }
+
+  // ===== BOOKING CRUD METHODS =====
+  
   async createBooking(userId: number, data: CreateBookingRequest): Promise<BookingResponse> {
     try {
-      console.log('Creating booking for user:', userId, data);
-      const response = await apiClient.post<BookingResponse>(
-        ENDPOINTS.CREATE(userId), 
+      console.log('📝 Creating booking for user:', userId);
+      console.log('📝 Booking data:', JSON.stringify(data, null, 2));
+      
+      const response = await apiClient.post<any>(
+        BOOKING_ENDPOINTS.CREATE(userId), 
         data
       );
-      console.log('Booking created successfully:', response);
-      return response;
+      
+      console.log('📦 Raw booking creation response:', JSON.stringify(response, null, 2));
+      
+      // Handle different response structures
+      let bookingData;
+      if (response.data) {
+        bookingData = response.data;
+      } else if (response.booking) {
+        bookingData = response.booking;
+      } else {
+        bookingData = response;
+      }
+      
+      // Validate response has required ID
+      const bookingId = this.extractBookingId(bookingData);
+      console.log('📌 Extracted booking ID:', bookingId);
+      
+      // Ensure the response has the correct structure
+      const bookingResponse: BookingResponse = {
+        ...bookingData,
+        id: bookingId,
+        bookingId: bookingId, // Ensure both fields are present
+      };
+      
+      console.log('✅ Booking created successfully:', {
+        id: bookingResponse.id,
+        bookingId: bookingResponse.bookingId,
+        userId: bookingResponse.userId,
+        status: bookingResponse.status
+      });
+      
+      return bookingResponse;
     } catch (error) {
-      console.error('Error creating booking:', error);
+      console.error('❌ Error creating booking:', error);
       throw error;
     }
   }
 
-  // Get booking by ID
   async getBookingById(bookingId: number): Promise<BookingResponse> {
     try {
-      console.log('Fetching booking by ID:', bookingId);
-      const response = await apiClient.get<BookingResponse>(
-        ENDPOINTS.GET_BY_ID(bookingId)
+      console.log('🔍 Fetching booking by ID:', bookingId);
+      
+      const response = await apiClient.get<any>(
+        BOOKING_ENDPOINTS.GET_BY_ID(bookingId)
       );
-      console.log('Booking fetched:', response);
-      return response;
+      
+      console.log('📦 Raw getBookingById response:', JSON.stringify(response, null, 2));
+      
+      // Handle different response structures
+      let bookingData;
+      if (response.data) {
+        bookingData = response.data;
+      } else if (response.booking) {
+        bookingData = response.booking;
+      } else if (response.bookingId || response.id) {
+        bookingData = response;
+      } else {
+        console.error('❌ Unexpected response structure:', response);
+        throw new Error('Invalid booking response structure');
+      }
+      
+      // ✅ SỬA: Map đúng field names từ API response
+      const normalizedBooking: BookingResponse = {
+        // ✅ API trả về bookingId, map thành cả id và bookingId
+        id: bookingData.bookingId || bookingData.id || bookingId,
+        bookingId: bookingData.bookingId || bookingData.id || bookingId,
+        
+        // Required fields
+        userId: bookingData.userId || 0,
+        photographerId: bookingData.photographerId || 0,
+        
+        // DateTime fields  
+        startDatetime: bookingData.startDatetime || '',
+        endDatetime: bookingData.endDatetime || '',
+        
+        // Location
+        locationId: bookingData.locationId,
+        externalLocation: bookingData.externalLocation,
+        
+        // Requests
+        specialRequests: bookingData.specialRequests,
+        
+        // ✅ API trả về totalPrice, map thành totalAmount
+        status: bookingData.status || 'pending',
+        totalAmount: bookingData.totalPrice || bookingData.totalAmount || 0,
+        
+        // Timestamps
+        createdAt: bookingData.createdAt || new Date().toISOString(),
+        updatedAt: bookingData.updatedAt || new Date().toISOString(),
+        
+        // ✅ THÊM: Extended fields từ API response
+        photographer: bookingData.photographerName ? {
+          photographerId: bookingData.photographerId,
+          fullName: bookingData.photographerName,
+          profileImage: '', // API không trả về
+          hourlyRate: bookingData.pricePerHour || 0
+        } : undefined,
+        
+        location: bookingData.locationName ? {
+          locationId: bookingData.locationId,
+          name: bookingData.locationName,
+          address: bookingData.locationAddress,
+          hourlyRate: bookingData.pricePerHour
+        } : undefined
+      };
+      
+      console.log('✅ Booking normalized successfully:', {
+        id: normalizedBooking.id,
+        bookingId: normalizedBooking.bookingId,
+        userId: normalizedBooking.userId,
+        photographerId: normalizedBooking.photographerId,
+        status: normalizedBooking.status,
+        totalAmount: normalizedBooking.totalAmount,
+        originalTotalPrice: bookingData.totalPrice, // Original từ API
+        hasPayment: bookingData.hasPayment,
+        paymentStatus: bookingData.paymentStatus
+      });
+      
+      return normalizedBooking;
     } catch (error) {
-      console.error('Error fetching booking by ID:', error);
+      console.error('❌ Error fetching booking by ID:', error);
       throw error;
     }
   }
 
-  // Update booking
   async updateBooking(bookingId: number, data: UpdateBookingRequest): Promise<BookingResponse> {
     try {
-      console.log('Updating booking:', bookingId, data);
+      console.log('📝 Updating booking:', bookingId, data);
       const response = await apiClient.put<BookingResponse>(
-        ENDPOINTS.UPDATE(bookingId),
+        BOOKING_ENDPOINTS.UPDATE(bookingId),
         data
       );
-      console.log('Booking updated successfully:', response);
+      console.log('✅ Booking updated successfully:', response);
       return response;
     } catch (error) {
-      console.error('Error updating booking:', error);
+      console.error('❌ Error updating booking:', error);
       throw error;
     }
   }
 
-  // Get user bookings with pagination
   async getUserBookings(
     userId: number, 
     page: number = 1, 
     pageSize: number = 10
   ): Promise<BookingListResponse> {
     try {
-      console.log('Fetching user bookings:', { userId, page, pageSize });
+      console.log('📋 Fetching user bookings:', { userId, page, pageSize });
       const response = await apiClient.get<BookingListResponse>(
-        `${ENDPOINTS.GET_USER_BOOKINGS(userId)}?page=${page}&pageSize=${pageSize}`
+        `${BOOKING_ENDPOINTS.GET_USER_BOOKINGS(userId)}?page=${page}&pageSize=${pageSize}`
       );
-      console.log('User bookings fetched:', response);
+      console.log('✅ User bookings fetched:', response);
       return response;
     } catch (error) {
-      console.error('Error fetching user bookings:', error);
+      console.error('❌ Error fetching user bookings:', error);
       throw error;
     }
   }
 
-  // Get photographer bookings with pagination
   async getPhotographerBookings(
     photographerId: number,
     page: number = 1,
     pageSize: number = 10
   ): Promise<BookingListResponse> {
     try {
-      console.log('Fetching photographer bookings:', { photographerId, page, pageSize });
+      console.log('📋 Fetching photographer bookings:', { photographerId, page, pageSize });
       const response = await apiClient.get<BookingListResponse>(
-        `${ENDPOINTS.GET_PHOTOGRAPHER_BOOKINGS(photographerId)}?page=${page}&pageSize=${pageSize}`
+        `${BOOKING_ENDPOINTS.GET_PHOTOGRAPHER_BOOKINGS(photographerId)}?page=${page}&pageSize=${pageSize}`
       );
-      console.log('Photographer bookings fetched:', response);
+      console.log('✅ Photographer bookings fetched:', response);
       return response;
     } catch (error) {
-      console.error('Error fetching photographer bookings:', error);
+      console.error('❌ Error fetching photographer bookings:', error);
       throw error;
     }
   }
 
-  // Cancel booking
   async cancelBooking(bookingId: number): Promise<void> {
     try {
-      console.log('Cancelling booking:', bookingId);
-      await apiClient.put<void>(ENDPOINTS.CANCEL(bookingId));
-      console.log('Booking cancelled successfully');
+      console.log('❌ Cancelling booking:', bookingId);
+      await apiClient.put<void>(BOOKING_ENDPOINTS.CANCEL(bookingId));
+      console.log('✅ Booking cancelled successfully');
     } catch (error) {
-      console.error('Error cancelling booking:', error);
+      console.error('❌ Error cancelling booking:', error);
       throw error;
     }
   }
 
-  // Complete booking
   async completeBooking(bookingId: number): Promise<void> {
     try {
-      console.log('Completing booking:', bookingId);
-      await apiClient.put<void>(ENDPOINTS.COMPLETE(bookingId));
-      console.log('Booking completed successfully');
+      console.log('✅ Completing booking:', bookingId);
+      await apiClient.put<void>(BOOKING_ENDPOINTS.COMPLETE(bookingId));
+      console.log('✅ Booking completed successfully');
     } catch (error) {
-      console.error('Error completing booking:', error);
+      console.error('❌ Error completing booking:', error);
       throw error;
     }
   }
 
-  // Check photographer availability
+  // ===== AVAILABILITY METHODS =====
+  
   async checkPhotographerAvailability(
     photographerId: number,
     startTime: string,
     endTime: string
   ): Promise<AvailabilityResponse> {
     try {
-      console.log('Checking photographer availability:', { photographerId, startTime, endTime });
+      console.log('🔍 Checking photographer availability:', { photographerId, startTime, endTime });
       const params = new URLSearchParams({
         startTime,
         endTime
       });
       
-      const response = await apiClient.get<AvailabilityResponse | { available: boolean }>(
-        `${ENDPOINTS.PHOTOGRAPHER_AVAILABILITY(photographerId)}?${params}`
+      const response = await apiClient.get<any>(
+        `${BOOKING_ENDPOINTS.PHOTOGRAPHER_AVAILABILITY(photographerId)}?${params}`
       );
       
-      console.log('Raw photographer availability response:', response);
+      console.log('📦 Raw photographer availability response:', response);
       
-      // Handle different response formats from API
-      const responseData = (response as any).data || response;
+      // Normalize response format
+      const responseData = response.data || response;
       let available = false;
+      
       if (typeof responseData.available === 'boolean') {
         available = responseData.available;
       } else if (typeof responseData.isAvailable === 'boolean') {
@@ -165,76 +278,78 @@ export class BookingService {
       } else if (typeof responseData.isAvailable === 'string') {
         available = responseData.isAvailable === 'true';
       }
+      
       const normalizedResponse: AvailabilityResponse = {
         available,
         conflictingBookings: responseData.conflictingBookings || [],
-        suggestedTimes: responseData.suggestedTimes || []
+        suggestedTimes: responseData.suggestedTimes || [],
+        message: responseData.message
       };
       
-      console.log('Normalized photographer availability:', normalizedResponse);
+      console.log('✅ Normalized photographer availability:', normalizedResponse);
       return normalizedResponse;
     } catch (error) {
-      console.error('Error checking photographer availability:', error);
-      // Return default unavailable response on error
+      console.error('❌ Error checking photographer availability:', error);
       return { 
         available: false, 
         conflictingBookings: [], 
-        suggestedTimes: [] 
+        suggestedTimes: [],
+        message: 'Không thể kiểm tra tình trạng photographer'
       };
     }
   }
 
-  // Check location availability
   async checkLocationAvailability(
     locationId: number,
     startTime: string,
     endTime: string
   ): Promise<AvailabilityResponse> {
     try {
-      console.log('Checking location availability:', { locationId, startTime, endTime });
+      console.log('🔍 Checking location availability:', { locationId, startTime, endTime });
       const params = new URLSearchParams({
         startTime,
         endTime
       });
       
-      const response = await apiClient.get<AvailabilityResponse | { available: boolean }>(
-        `${ENDPOINTS.LOCATION_AVAILABILITY(locationId)}?${params}`
+      const response = await apiClient.get<any>(
+        `${BOOKING_ENDPOINTS.LOCATION_AVAILABILITY(locationId)}?${params}`
       );
       
-      console.log('Raw location availability response:', response);
+      console.log('📦 Raw location availability response:', response);
 
-      const responseData = (response as any).data || response;
-      console.log('responseData:', responseData);
-
+      const responseData = response.data || response;
       let available = false;
-if (typeof responseData.available === 'boolean') {
-  available = responseData.available;
-} else if (typeof responseData.isAvailable === 'boolean') {
-  available = responseData.isAvailable;
-} else if (typeof responseData.isAvailable === 'string') {
-  available = responseData.isAvailable === 'true';
-}
       
-      // Handle different response formats from API
+      if (typeof responseData.available === 'boolean') {
+        available = responseData.available;
+      } else if (typeof responseData.isAvailable === 'boolean') {
+        available = responseData.isAvailable;
+      } else if (typeof responseData.isAvailable === 'string') {
+        available = responseData.isAvailable === 'true';
+      }
+      
       const normalizedResponse: AvailabilityResponse = {
         available,
         conflictingBookings: responseData.conflictingBookings || [],
-        suggestedTimes: responseData.suggestedTimes || []
+        suggestedTimes: responseData.suggestedTimes || [],
+        message: responseData.message
       };
       
-      console.log('Normalized location availability:', normalizedResponse);
+      console.log('✅ Normalized location availability:', normalizedResponse);
       return normalizedResponse;
     } catch (error) {
-      console.error('Error checking location availability:', error);
+      console.error('❌ Error checking location availability:', error);
       return { 
         available: false, 
         conflictingBookings: [], 
-        suggestedTimes: [] 
+        suggestedTimes: [],
+        message: 'Không thể kiểm tra tình trạng địa điểm'
       };
     }
   }
 
-  // Calculate booking price
+  // ===== PRICING METHODS =====
+
   async calculatePrice(
     photographerId: number,
     startTime: string,
@@ -242,7 +357,7 @@ if (typeof responseData.available === 'boolean') {
     locationId?: number
   ): Promise<PriceCalculationResponse> {
     try {
-      console.log('Calculating booking price:', { photographerId, startTime, endTime, locationId });
+      console.log('💰 Calculating booking price:', { photographerId, startTime, endTime, locationId });
       
       const params = new URLSearchParams({
         photographerId: photographerId.toString(),
@@ -255,36 +370,63 @@ if (typeof responseData.available === 'boolean') {
       }
 
       const response = await apiClient.get<PriceCalculationResponse>(
-        `${ENDPOINTS.CALCULATE_PRICE}?${params}`
+        `${BOOKING_ENDPOINTS.CALCULATE_PRICE}?${params}`
       );
-      console.log('Price calculation result:', response);
+      console.log('✅ Price calculation result:', response);
       return response;
     } catch (error) {
-      console.error('Error calculating price:', error);
+      console.error('❌ Error calculating price:', error);
       throw error;
     }
   }
 
-  // Admin: Cleanup expired bookings
+  // ===== ADMIN METHODS =====
+  
   async cleanupExpiredBookings(): Promise<void> {
     try {
-      console.log('Cleaning up expired bookings');
-      await apiClient.post<void>(ENDPOINTS.CLEANUP_EXPIRED);
-      console.log('Expired bookings cleaned up successfully');
+      console.log('🧹 Cleaning up expired bookings');
+      await apiClient.post<void>(BOOKING_ENDPOINTS.CLEANUP_EXPIRED);
+      console.log('✅ Expired bookings cleaned up successfully');
     } catch (error) {
-      console.error('Error cleaning up expired bookings:', error);
+      console.error('❌ Error cleaning up expired bookings:', error);
       throw error;
     }
   }
 
-  // Admin: Cleanup all pending bookings
   async cleanupAllPendingBookings(): Promise<void> {
     try {
-      console.log('Cleaning up all pending bookings');
-      await apiClient.post<void>(ENDPOINTS.CLEANUP_PENDING);
-      console.log('All pending bookings cleaned up successfully');
+      console.log('🧹 Cleaning up all pending bookings');
+      await apiClient.post<void>(BOOKING_ENDPOINTS.CLEANUP_PENDING);
+      console.log('✅ All pending bookings cleaned up successfully');
     } catch (error) {
-      console.error('Error cleaning up pending bookings:', error);
+      console.error('❌ Error cleaning up pending bookings:', error);
+      throw error;
+    }
+  }
+
+  // ===== UTILITY METHODS =====
+  
+  async getBookingWithAvailabilityCheck(
+    bookingId: number,
+    photographerId: number,
+    startTime: string,
+    endTime: string,
+    locationId?: number
+  ): Promise<{
+    booking: BookingResponse;
+    availability: AvailabilityResponse;
+  }> {
+    try {
+      console.log('🔍 Fetching booking with availability check');
+      
+      const [booking, availability] = await Promise.all([
+        this.getBookingById(bookingId),
+        this.checkPhotographerAvailability(photographerId, startTime, endTime)
+      ]);
+      
+      return { booking, availability };
+    } catch (error) {
+      console.error('❌ Error fetching booking with availability:', error);
       throw error;
     }
   }

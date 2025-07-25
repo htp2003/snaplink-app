@@ -233,7 +233,7 @@ export default function PhotographerCardDetail() {
     navigation.navigate('Booking', {
       photographer: {
         ...photographerDetail,
-        photographerId: String(photographerDetail.photographerId),
+        photographerId: Number(photographerDetail.photographerId),
         userId: String(photographerDetail.userId),
         fullName: photographerDetail.fullName || 'Unknown Photographer',
         profileImage: photographerDetail.profileImage || '',

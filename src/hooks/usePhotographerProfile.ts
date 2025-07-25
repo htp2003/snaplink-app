@@ -1,311 +1,228 @@
 // hooks/usePhotographerProfile.ts
-import { useState, useEffect, useCallback } from 'react';
-import { photographerService } from '../services/photographerService';
+import { useState, useCallback } from 'react';
 import { 
-  Photographer, 
+  photographerService, 
   PhotographerProfile, 
-  PhotographerStats, 
-  PhotographerStyle,
-  Review,
-  UpdatePhotographerRequest 
-} from '../types/photographer';
+  CreatePhotographerRequest, 
+  UpdatePhotographerRequest,
+  PhotographerStyle
+} from '../services/photographerService';
 
-export const usePhotographerProfile = (photographerId?: number) => {
+interface UsePhotographerProfileReturn {
+  // State
+  photographer: PhotographerProfile | null;
+  styles: PhotographerStyle[];
+  loading: boolean;
+  error: string | null;
+  
+  // Actions
+  findByUserId: (userId: number) => Promise<void>;
+  createProfile: (data: CreatePhotographerRequest) => Promise<void>;
+  updatePhotographer: (data: UpdatePhotographerRequest) => Promise<void>;
+  addStyle: (styleId: number) => Promise<void>;
+  removeStyle: (styleId: number) => Promise<void>;
+  clearError: () => void;
+  
+  // Computed values
+  displayName: string;
+  hourlyRate: string;
+  yearsExperience: string;
+  equipment: string;
+  isAvailable: boolean;
+}
+
+export const usePhotographerProfile = (): UsePhotographerProfileReturn => {
   const [photographer, setPhotographer] = useState<PhotographerProfile | null>(null);
-  const [stats, setStats] = useState<PhotographerStats | null>(null);
-  const [reviews, setReviews] = useState<Review[]>([]);
   const [styles, setStyles] = useState<PhotographerStyle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  
 
-  // Fetch complete photographer profile data
-  const fetchPhotographerProfile = useCallback(async (id: number) => {
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const findByUserId = useCallback(async (userId: number) => {
     try {
       setLoading(true);
       setError(null);
-
-      // Try different API strategies since /detail endpoint returns 404
-      console.log('🔍 Fetching photographer data for ID:', id);
-
-      const [
-        photographerData,
-        reviewsData,
-        stylesData,
-        ratingData
-      ] = await Promise.allSettled([
-        // Use basic getById instead of getDetail since detail returns 404
-        photographerService.getById(id).catch(async () => {
-          console.log('📋 getById failed, trying getDetail...');
-          return photographerService.getDetail(id);
-        }),
-        photographerService.getReviews(id).catch(() => {
-          console.log('📝 Reviews failed, using empty array');
-          return [] as Review[];
-        }),
-        photographerService.getStyles(id).catch(() => {
-          console.log('🎨 Styles failed, using empty array');
-          return [] as PhotographerStyle[];
-        }),
-        photographerService.getAverageRating(id).catch(() => {
-          console.log('⭐ Rating failed, using default');
-          return { averageRating: 0 };
-        })
-      ]);
-
-      // Handle photographer data
-      if (photographerData.status === 'fulfilled') {
-        console.log('✅ Photographer data:', photographerData.value);
-        // Ensure the value is of type PhotographerProfile
-        if ('id' in photographerData.value) {
-          setPhotographer(photographerData.value as PhotographerProfile);
-        } else {
-          // If missing required fields, set to null or handle accordingly
-          setPhotographer(null);
+      
+      console.log('🔍 Looking for photographer profile with userId:', userId);
+      
+      const profile = await photographerService.findPhotographerByUserId(userId);
+      
+      if (profile) {
+        console.log('✅ Found photographer profile:', profile);
+        setPhotographer(profile);
+        
+        // Load photographer styles
+        try {
+          const photographerStyles = await photographerService.getPhotographerStyles(profile.photographerId);
+          console.log('✅ Loaded photographer styles:', photographerStyles);
+          setStyles(photographerStyles);
+        } catch (styleError) {
+          console.warn('⚠️ Could not load photographer styles:', styleError);
+          setStyles([]); // Set empty array if styles can't be loaded
         }
       } else {
-        console.error('❌ Failed to fetch photographer:', photographerData.reason);
-        throw new Error('Không thể tải thông tin photographer');
+        console.log('❌ No photographer profile found for userId:', userId);
+        setPhotographer(null);
+        setStyles([]);
       }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('❌ Error finding photographer profile:', errorMessage);
+      setError(errorMessage);
+      setPhotographer(null);
+      setStyles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-      // Handle reviews
-      const reviews = reviewsData.status === 'fulfilled' ? reviewsData.value : [];
-      console.log('📝 Reviews count:', reviews.length);
-      setReviews(reviews);
+  
 
-      // Handle styles
-      const styles = stylesData.status === 'fulfilled' ? stylesData.value : [];
-      console.log('🎨 Styles count:', styles.length);
-      setStyles(styles);
-
-      // Handle rating data - check different response formats
-      let averageRating = 0;
-      if (ratingData.status === 'fulfilled') {
-        const ratingResponse = ratingData.value;
-        console.log('⭐ Rating response:', ratingResponse);
-        
-        // Handle different response formats
-        if (typeof ratingResponse === 'number') {
-          averageRating = ratingResponse;
-        } else if (ratingResponse && typeof ratingResponse === 'object') {
-          averageRating = ratingResponse.averageRating || 0;
+  const createProfile = useCallback(async (data: CreatePhotographerRequest) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('📝 Creating photographer profile:', data);
+      
+      const newProfile = await photographerService.create(data);
+      console.log('✅ Created photographer profile:', newProfile);
+      
+      setPhotographer(newProfile);
+      
+      // Store photographerId for future use
+      await photographerService.storePhotographerId(data.userId, newProfile.photographerId);
+      
+      // Load styles if styleIds were provided
+      if (data.styleIds && data.styleIds.length > 0) {
+        try {
+          const photographerStyles = await photographerService.getPhotographerStyles(newProfile.photographerId);
+          setStyles(photographerStyles);
+        } catch (styleError) {
+          console.warn('⚠️ Could not load styles after creation:', styleError);
+          setStyles([]);
         }
       }
-
-      // Calculate stats
-      const photographer = photographerData.status === 'fulfilled' ? photographerData.value : null;
-      const statsData: PhotographerStats = {
-        totalBookings: photographer?.ratingCount || 0,
-        averageRating: averageRating || photographer?.rating || 0,
-        totalReviews: reviews.length,
-        favoriteCount: 0, // TODO: Add favorite endpoint when available
-      };
-
-      console.log('📊 Calculated stats:', statsData);
-      setStats(statsData);
-
-    } catch (err: any) {
-      console.error('❌ Error in fetchPhotographerProfile:', err);
-      setError(err.message || 'Không thể tải thông tin photographer');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Refresh data with pull-to-refresh
-  const refresh = useCallback(async () => {
-    if (!photographerId) return;
-    
-    try {
-      setRefreshing(true);
-      setError(null);
-      await fetchPhotographerProfile(photographerId);
+      
     } catch (err) {
-      console.error('Error refreshing photographer profile data:', err);
-    } finally {
-      setRefreshing(false);
-    }
-  }, [photographerId, fetchPhotographerProfile]);
-
-  // Update photographer information
-  const updatePhotographer = useCallback(async (data: UpdatePhotographerRequest) => {
-    if (!photographerId) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const updatedPhotographer = await photographerService.update(photographerId, data);
-      
-      // Refresh to get complete updated data
-      await fetchPhotographerProfile(photographerId);
-      
-      return updatedPhotographer;
-    } catch (err: any) {
-      setError(err.message || 'Không thể cập nhật thông tin');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create photographer profile';
+      console.error('❌ Error creating photographer profile:', errorMessage);
+      setError(errorMessage);
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [photographerId, fetchPhotographerProfile]);
-
-  // Update availability status
-  const updateAvailability = useCallback(async (status: string) => {
-    if (!photographerId) return;
-
-    try {
-      setError(null);
-      await photographerService.updateAvailability(photographerId, status);
-      
-      // Update local state immediately for better UX
-      if (photographer) {
-        setPhotographer(prev => prev ? { ...prev, availabilityStatus: status } : null);
-      }
-      
-    } catch (err: any) {
-      setError(err.message || 'Không thể cập nhật trạng thái');
-      throw err;
-    }
-  }, [photographerId, photographer]);
-
-  // Add style to photographer
-  const addStyle = useCallback(async (styleId: number) => {
-    if (!photographerId) return;
-
-    try {
-      setError(null);
-      await photographerService.addStyle(photographerId, styleId);
-      
-      // Refresh styles
-      const updatedStyles = await photographerService.getStyles(photographerId);
-      setStyles(updatedStyles);
-      
-    } catch (err: any) {
-      setError(err.message || 'Không thể thêm chuyên môn');
-      throw err;
-    }
-  }, [photographerId]);
-
-  // Remove style from photographer
-  const removeStyle = useCallback(async (styleId: number) => {
-    if (!photographerId) return;
-
-    try {
-      setError(null);
-      await photographerService.removeStyle(photographerId, styleId);
-      
-      // Refresh styles
-      const updatedStyles = await photographerService.getStyles(photographerId);
-      setStyles(updatedStyles);
-      
-    } catch (err: any) {
-      setError(err.message || 'Không thể xóa chuyên môn');
-      throw err;
-    }
-  }, [photographerId]);
-
-  // Update profile (photographer + user data)
-  const updateProfile = useCallback(async (data: {
-    photographer?: UpdatePhotographerRequest;
-    user?: {
-      fullName?: string;
-      bio?: string;
-      phoneNumber?: string;
-      profileImage?: string;
-    };
-  }) => {
-    if (!photographerId) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-      
-      await photographerService.updateProfile(photographerId, data);
-      
-      // Refresh complete profile
-      await fetchPhotographerProfile(photographerId);
-      
-    } catch (err: any) {
-      setError(err.message || 'Không thể cập nhật hồ sơ');
-      throw err;
-    } finally {
-      setLoading(false);
-    }
-  }, [photographerId, fetchPhotographerProfile]);
-
-  // Initial load
-  useEffect(() => {
-    if (photographerId) {
-      fetchPhotographerProfile(photographerId);
-    }
-  }, [photographerId, fetchPhotographerProfile]);
-
-  // Helper function to parse styles array
-  const parseStyles = useCallback((stylesData: any): PhotographerStyle[] => {
-    if (!stylesData) return [];
-    
-    // Handle different response formats
-    if (Array.isArray(stylesData)) {
-      return stylesData;
-    }
-    
-    // Handle $values format from API
-    if (stylesData.$values && Array.isArray(stylesData.$values)) {
-      return stylesData.$values;
-    }
-    
-    return [];
   }, []);
+
+  const updatePhotographer = useCallback(async (data: UpdatePhotographerRequest) => {
+    if (!photographer) {
+      throw new Error('No photographer profile to update');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('🔄 Updating photographer profile:', data);
+      
+      const updatedProfile = await photographerService.update(photographer.photographerId, data);
+      console.log('✅ Updated photographer profile:', updatedProfile);
+      
+      setPhotographer(updatedProfile);
+      
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update photographer profile';
+      console.error('❌ Error updating photographer profile:', errorMessage);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [photographer]);
+
+  const addStyle = useCallback(async (styleId: number) => {
+    if (!photographer) {
+      throw new Error('No photographer profile found');
+    }
+
+    try {
+      console.log('➕ Adding style:', styleId, 'to photographer:', photographer.photographerId);
+      
+      await photographerService.addStyle(photographer.photographerId, styleId);
+      
+      // Reload styles
+      const updatedStyles = await photographerService.getPhotographerStyles(photographer.photographerId);
+      setStyles(updatedStyles);
+      
+      console.log('✅ Style added successfully');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to add style';
+      console.error('❌ Error adding style:', errorMessage);
+      throw err;
+    }
+  }, [photographer]);
+
+  const removeStyle = useCallback(async (styleId: number) => {
+    if (!photographer) {
+      throw new Error('No photographer profile found');
+    }
+
+    try {
+      console.log('➖ Removing style:', styleId, 'from photographer:', photographer.photographerId);
+      
+      await photographerService.removeStyle(photographer.photographerId, styleId);
+      
+      // Reload styles
+      const updatedStyles = await photographerService.getPhotographerStyles(photographer.photographerId);
+      setStyles(updatedStyles);
+      
+      console.log('✅ Style removed successfully');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to remove style';
+      console.error('❌ Error removing style:', errorMessage);
+      throw err;
+    }
+  }, [photographer]);
+
+  // Computed values
+  const displayName = photographer?.user?.fullName || photographer?.fullName || 'Người dùng';
+  
+  const hourlyRate = photographer?.hourlyRate 
+    ? `${photographer.hourlyRate.toLocaleString('vi-VN')} VNĐ/giờ`
+    : 'Chưa thiết lập';
+    
+  const yearsExperience = photographer?.yearsExperience 
+    ? `${photographer.yearsExperience} năm`
+    : 'Chưa thiết lập';
+    
+  const equipment = photographer?.equipment || 'Chưa thiết lập';
+  
+  const isAvailable = photographer?.availabilityStatus === 'Available';
 
   return {
-    // Data
+    // State
     photographer,
-    stats,
-    reviews,
-    styles: parseStyles(styles),
-    
-    // Loading states
+    styles,
     loading,
     error,
-    refreshing,
     
     // Actions
-    refresh,
+    findByUserId,
+    createProfile,
     updatePhotographer,
-    updateAvailability,
-    updateProfile,
     addStyle,
     removeStyle,
+    clearError,
     
-    // Computed values for easy access
-    isAvailable: photographer?.availabilityStatus?.toLowerCase() === 'available',
-    isVerified: photographer?.verificationStatus?.toLowerCase() === 'verified',
-    isFeatured: photographer?.featuredStatus === true,
-    
-    // User info with multiple fallback strategies
-    displayName:  photographer?.user?.fullName || 'Photographer',
-    avatar: photographer?.user?.profileImage,
-    email: photographer?.user?.email,
-    phone: photographer?.user?.phoneNumber,
-    bio: photographer?.user?.bio,
-    
-    // Photographer specific info
-    specialty: photographer?.specialty,
-    hourlyRate: photographer?.hourlyRate,
-    yearsExperience: photographer?.yearsExperience,
-    equipment: photographer?.equipment,
-    portfolioUrl: photographer?.portfolioUrl,
-    
-    // Stats
-    totalRating: stats?.averageRating || 0,
-    totalBookings: stats?.totalBookings || 0,
-    totalReviews: stats?.totalReviews || 0,
-    favoriteCount: stats?.favoriteCount || 0,
-    
-    // Formatted values
-    formattedRating: (stats?.averageRating || 0).toFixed(1),
-    formattedHourlyRate: photographer?.hourlyRate ? `${photographer.hourlyRate.toLocaleString()}đ/giờ` : null,
-    experienceText: photographer?.yearsExperience ? `${photographer.yearsExperience} năm kinh nghiệm` : null,
+    // Computed values
+    displayName,
+    hourlyRate,
+    yearsExperience,
+    equipment,
+    isAvailable,
+
   };
 };

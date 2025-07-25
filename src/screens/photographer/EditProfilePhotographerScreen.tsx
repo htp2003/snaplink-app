@@ -14,16 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '../../navigation/types';
 import { useAuth } from '../../hooks/useAuth';
+import { usePhotographerProfile } from '../../hooks/usePhotographerProfile';
 import FieldEditModal from '../../components/Photographer/FileEditModal';
-import { photographerService, Style as ApiStyle, CreatePhotographerRequest, UpdatePhotographerRequest, PhotographerProfile as ApiPhotographerProfile } from '../../services/photographerService';
-
-
-interface Style {
-  styleId: number;
-  name: string;
-  description: string;
-  photographerCount: number;
-}
+import { photographerService, Style, CreatePhotographerRequest, UpdatePhotographerRequest } from '../../services/photographerService';
 
 interface ProfileField {
   id: string;
@@ -38,20 +31,39 @@ interface ProfileField {
   options?: string[];
 }
 
-const NewPhotographerEditProfile = () => {
+const EditProfilePhotographerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const { getCurrentUserId } = useAuth();
+  
+  // Sử dụng hook thay vì state và API calls trực tiếp
+  const {
+    photographer,
+    styles: photographerStyles,
+    loading,
+    error,
+    findByUserId,
+    createProfile,
+    updatePhotographer,
+    addStyle,
+    removeStyle,
+    // Computed values
+    displayName,
+    hourlyRate,
+    yearsExperience,
+    equipment,
+    isAvailable,
+  } = usePhotographerProfile();
+
+  // Local state cho form
   const [selectedField, setSelectedField] = useState<ProfileField | null>(null);
   const [isFieldModalVisible, setIsFieldModalVisible] = useState(false);
   const [isStyleModalVisible, setIsStyleModalVisible] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-
-  const [styles, setStyles] = useState<ApiStyle[]>([]);
+  const [allStyles, setAllStyles] = useState<Style[]>([]);
   const [selectedStyleIds, setSelectedStyleIds] = useState<number[]>([]);
-  const [currentPhotographerId, setCurrentPhotographerId] = useState<number | null>(null);
-  const [isEditMode, setIsEditMode] = useState(false); // Để biết là edit hay create
+  const [isEditMode, setIsEditMode] = useState(false);
 
+  // Form data state
   const [profileData, setProfileData] = useState<ProfileField[]>([
     {
       id: 'yearsExperience',
@@ -101,117 +113,93 @@ const NewPhotographerEditProfile = () => {
   ]);
 
   useEffect(() => {
-    loadPhotographerProfile();
+    initializeData();
   }, []);
+
+  // Load styles và photographer profile
+  const initializeData = async () => {
+    try {
+      // Load all available styles
+      await loadStyles();
+      
+      // Load photographer profile nếu có
+      const userId = getCurrentUserId();
+      if (userId) {
+        await findByUserId(userId);
+      }
+    } catch (error) {
+      console.error('Error initializing data:', error);
+    }
+  };
 
   const loadStyles = async () => {
     try {
       console.log('🎨 Fetching styles from API...');
       const stylesData = await photographerService.getStyles();
-      console.log('✅ Styles loaded:', stylesData);
-      setStyles(stylesData);
+      console.log('✅ All styles loaded:', stylesData);
+      setAllStyles(stylesData);
     } catch (error) {
       console.error('❌ Error loading styles:', error);
       Alert.alert('Lỗi', 'Không thể tải danh sách styles');
     }
   };
 
-  const loadPhotographerProfile = async () => {
-    try {
-      setIsLoading(true);
-      const userId = getCurrentUserId();
-      
-      if (!userId) {
-        setIsLoading(false);
-        return;
-      }
-
-      // Load styles first and wait for completion
-      console.log('🔄 Loading styles...');
-      await loadStyles();
-      
-      // Wait for styles state to update
-      // We'll move the profile loading to useEffect when styles change
-      
-    } catch (error) {
-      console.error('Error loading photographer profile:', error);
-      setIsLoading(false);
-    }
-  };
-
-  // Add separate effect to load profile when styles are ready
+  // Populate form khi có data từ hook
   useEffect(() => {
-    const loadProfileData = async () => {
-      if (styles.length === 0) return; // Wait until styles are loaded
+    if (photographer) {
+      populateFormData();
+      setIsEditMode(true);
+      console.log('✅ Loaded existing photographer profile for editing');
+    } else {
+      setIsEditMode(false);
+      console.log('❌ No photographer profile found - creating new profile');
+    }
+  }, [photographer]);
+
+  // Populate styles khi có data - FIX HERE
+  useEffect(() => {
+    console.log('🔍 Effect triggered - photographerStyles:', photographerStyles);
+    console.log('🔍 Effect triggered - allStyles:', allStyles);
+    
+    if (photographerStyles && photographerStyles.length > 0 && allStyles.length > 0) {
+      // Map photographer styles to styleIds using the loaded allStyles
+      const styleIds = photographerStyles
+        .map(photographerStyle => {
+          // Find matching style in allStyles by name
+          const matchingStyle = allStyles.find(style => 
+            style.name === photographerStyle.name || 
+            style.styleId === photographerStyle.styleId
+          );
+          
+          console.log('🔍 Matching style for', photographerStyle.name, ':', matchingStyle);
+          return matchingStyle?.styleId;
+        })
+        .filter(id => id !== undefined) as number[];
       
-      const userId = getCurrentUserId();
-      if (!userId) {
-        setIsLoading(false);
-        return;
-      }
+      console.log('📝 Final mapped style IDs:', styleIds);
+      setSelectedStyleIds(styleIds);
+    }
+  }, [photographerStyles, allStyles]);
 
-      try {
-        console.log('🔄 Loading photographer profile...');
-        const profileData = await photographerService.findPhotographerProfile(userId);
-        
-        if (profileData) {
-          populateFormData(profileData);
-          setIsEditMode(true);
-          console.log('✅ Loaded existing photographer profile for editing');
-        } else {
-          console.log('❌ No photographer profile found - creating new profile');
-          setIsEditMode(false);
-        }
-      } catch (error) {
-        console.error('Error loading photographer profile:', error);
-      }
-      
-      setIsLoading(false);
-    };
+  const populateFormData = () => {
+    if (!photographer) return;
 
-    loadProfileData();
-  }, [styles]); // Run when styles change
-
-  const populateFormData = (data: ApiPhotographerProfile) => {
-    console.log('🔍 populateFormData received data:', data);
-    console.log('🎨 Available styles:', styles);
+    console.log('🔍 populateFormData with photographer:', photographer);
     
     setProfileData(prev => prev.map(field => {
       switch (field.id) {
         case 'yearsExperience':
-          return { ...field, value: data.yearsExperience?.toString() || '' };
+          return { ...field, value: photographer.yearsExperience?.toString() || '' };
         case 'equipment':
-          return { ...field, value: data.equipment || '' };
+          return { ...field, value: photographer.equipment || '' };
         case 'hourlyRate':
-          return { ...field, value: data.hourlyRate?.toString() || '' };
+          return { ...field, value: photographer.hourlyRate?.toString() || '' };
         case 'availabilityStatus':
-          return { ...field, value: data.availabilityStatus || 'Available' };
+          return { ...field, value: photographer.availabilityStatus || 'Available' };
         default:
           return field;
       }
     }));
-    
-    // Convert style names to styleIds
-    if (data.styles && data.styles.length > 0) {
-      console.log('📝 Converting style names to IDs:', data.styles);
-      // Find matching styleIds from style names
-      const matchingStyleIds = data.styles.map(styleName => {
-        const style = styles.find(s => s.name === styleName);
-        console.log(`🔄 Style "${styleName}" → styleId: ${style?.styleId || 'NOT FOUND'}`);
-        return style ? style.styleId : null;
-      }).filter(Boolean) as number[];
-      
-      console.log('✅ Final styleIds:', matchingStyleIds);
-      setSelectedStyleIds(matchingStyleIds);
-    } else if (data.styleIds) {
-      console.log('📋 Using styleIds directly:', data.styleIds);
-      setSelectedStyleIds(data.styleIds);
-    } else {
-      console.log('❌ No styles found');
-      setSelectedStyleIds([]);
-    }
-    
-    setCurrentPhotographerId(data.photographerId);
   };
 
   const handleClose = () => {
@@ -266,23 +254,24 @@ const NewPhotographerEditProfile = () => {
       }
 
       // Validate required fields
-      const yearsExperience = parseInt(profileData.find(f => f.id === 'yearsExperience')?.value || '0');
-      const equipment = profileData.find(f => f.id === 'equipment')?.value || '';
-      const hourlyRate = parseInt(profileData.find(f => f.id === 'hourlyRate')?.value || '0');
+      const yearsExperienceValue = parseInt(profileData.find(f => f.id === 'yearsExperience')?.value || '0');
+      const equipmentValue = profileData.find(f => f.id === 'equipment')?.value || '';
+      const hourlyRateValue = parseInt(profileData.find(f => f.id === 'hourlyRate')?.value || '0');
+      const availabilityValue = profileData.find(f => f.id === 'availabilityStatus')?.value || 'Available';
 
-      if (yearsExperience <= 0) {
+      if (yearsExperienceValue <= 0) {
         Alert.alert('Lỗi', 'Vui lòng nhập số năm kinh nghiệm hợp lệ');
         setIsSaving(false);
         return;
       }
 
-      if (!equipment.trim()) {
+      if (!equipmentValue.trim()) {
         Alert.alert('Lỗi', 'Vui lòng nhập thông tin thiết bị');
         setIsSaving(false);
         return;
       }
 
-      if (hourlyRate <= 0) {
+      if (hourlyRateValue <= 0) {
         Alert.alert('Lỗi', 'Vui lòng nhập giá dịch vụ hợp lệ');
         setIsSaving(false);
         return;
@@ -294,46 +283,40 @@ const NewPhotographerEditProfile = () => {
         return;
       }
 
-      if (isEditMode && currentPhotographerId) {
-        // Update existing profile
-        const updatePayload: Partial<UpdatePhotographerRequest> = {
-          photographerId: currentPhotographerId,
-          userId: userId,
-          yearsExperience: yearsExperience,
-          equipment: equipment,
-          hourlyRate: hourlyRate,
-          availabilityStatus: profileData.find(f => f.id === 'availabilityStatus')?.value || 'Available',
-          styleIds: selectedStyleIds,
+      console.log('💾 Saving profile with styleIds:', selectedStyleIds);
+
+      if (isEditMode && photographer) {
+        // Update existing profile - DON'T include styleIds in main update
+        const updateData: UpdatePhotographerRequest = {
+          yearsExperience: yearsExperienceValue,
+          equipment: equipmentValue,
+          hourlyRate: hourlyRateValue,
+          availabilityStatus: availabilityValue,
+          // Remove styleIds from here - handle separately
         };
 
-        console.log('Updating photographer profile:', updatePayload);
-        await photographerService.updatePhotographerProfile(currentPhotographerId, updatePayload);
+        console.log('🔄 Updating photographer profile:', updateData);
+        await updatePhotographer(updateData);
         
-        // Update styles separately
-        await photographerService.updatePhotographerStyles(currentPhotographerId, selectedStyleIds);
+        // Update styles separately using the hook methods
+        await updatePhotographerStyles();
         
         Alert.alert('Thành công', 'Hồ sơ nhiếp ảnh gia đã được cập nhật', [
           { text: 'OK', onPress: () => navigation.goBack() }
         ]);
       } else {
-        // Create new profile
-        const createPayload: CreatePhotographerRequest = {
+        // Create new profile - include styleIds in creation
+        const createData: CreatePhotographerRequest = {
           userId: userId,
-          yearsExperience: yearsExperience,
-          equipment: equipment,
-          hourlyRate: hourlyRate,
-          availabilityStatus: profileData.find(f => f.id === 'availabilityStatus')?.value || 'Available',
-          rating: 5, // Default values
-          ratingSum: 0,
-          ratingCount: 0,
-          featuredStatus: false,
-          verificationStatus: 'Pending',
+          yearsExperience: yearsExperienceValue,
+          equipment: equipmentValue,
+          hourlyRate: hourlyRateValue,
+          availabilityStatus: availabilityValue,
           styleIds: selectedStyleIds,
         };
 
-        console.log('Creating photographer profile:', createPayload);
-        const result = await photographerService.createPhotographerProfile(createPayload);
-        console.log('Create result:', result);
+        console.log('📝 Creating photographer profile:', createData);
+        await createProfile(createData);
         
         Alert.alert('Thành công', 'Hồ sơ nhiếp ảnh gia đã được tạo thành công', [
           { text: 'OK', onPress: () => navigation.goBack() }
@@ -348,10 +331,54 @@ const NewPhotographerEditProfile = () => {
     }
   };
 
+  // Update styles using individual API calls
+  const updatePhotographerStyles = async () => {
+    if (!photographer) return;
+
+    try {
+      const currentStyleIds = photographerStyles.map(style => {
+        // Find the styleId from allStyles by matching name
+        const matchingStyle = allStyles.find(s => s.name === style.name);
+        return matchingStyle?.styleId || style.styleId;
+      });
+      
+      console.log('🔍 Current style IDs:', currentStyleIds);
+      console.log('🔍 Selected style IDs:', selectedStyleIds);
+      
+      // Find styles to add and remove
+      const stylesToAdd = selectedStyleIds.filter(id => !currentStyleIds.includes(id));
+      const stylesToRemove = currentStyleIds.filter(id => !selectedStyleIds.includes(id));
+
+      console.log('➕ Styles to add:', stylesToAdd);
+      console.log('➖ Styles to remove:', stylesToRemove);
+
+      // Remove old styles first
+      for (const styleId of stylesToRemove) {
+        if (styleId) {
+          await removeStyle(styleId);
+        }
+      }
+
+      // Add new styles
+      for (const styleId of stylesToAdd) {
+        await addStyle(styleId);
+      }
+    } catch (error) {
+      console.error('Error updating styles:', error);
+      throw error;
+    }
+  };
+
   const getSelectedStyleNames = () => {
-    return selectedStyleIds
-      .map(id => styles.find(style => style.styleId === id)?.name)
+    const names = selectedStyleIds
+      .map(id => {
+        const style = allStyles.find(style => style.styleId === id);
+        return style?.name;
+      })
       .filter(Boolean);
+    
+    console.log('🏷️ Selected style names:', names);
+    return names;
   };
 
   const renderProfileField = (field: ProfileField) => (
@@ -405,10 +432,11 @@ const NewPhotographerEditProfile = () => {
     </TouchableOpacity>
   );
 
-  if (isLoading) {
+  // Show loading state
+  if (loading && !photographer && !isEditMode) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#000000" />
+        <ActivityIndicator size="large" color="#E91E63" />
         <Text style={{ marginTop: 16, fontSize: 16, color: '#666666' }}>
           Đang tải hồ sơ...
         </Text>
@@ -446,6 +474,36 @@ const NewPhotographerEditProfile = () => {
       </View>
 
       <ScrollView style={{ flex: 1 }}>
+        {/* Error Message */}
+        {error && (
+          <View style={{
+            backgroundColor: '#FFE6E6',
+            margin: 16,
+            padding: 16,
+            borderRadius: 8,
+            borderLeftWidth: 4,
+            borderLeftColor: '#FF4444',
+          }}>
+            <Text style={{ color: '#CC0000', fontSize: 14 }}>{error}</Text>
+          </View>
+        )}
+
+        {/* DEBUG INFO */}
+        {__DEV__ && (
+          <View style={{
+            backgroundColor: '#E6F3FF',
+            margin: 16,
+            padding: 16,
+            borderRadius: 8,
+          }}>
+            <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>🐛 DEBUG INFO:</Text>
+            <Text>All styles count: {allStyles.length}</Text>
+            <Text>Photographer styles: {JSON.stringify(photographerStyles?.map(s => s.name))}</Text>
+            <Text>Selected style IDs: {JSON.stringify(selectedStyleIds)}</Text>
+            <Text>Selected style names: {JSON.stringify(getSelectedStyleNames())}</Text>
+          </View>
+        )}
+
         {/* Photographer Fields */}
         <View style={{ marginTop: 20 }}>
           <Text style={{
@@ -569,15 +627,15 @@ const NewPhotographerEditProfile = () => {
         <View style={{ padding: 20, paddingTop: 40 }}>
           <TouchableOpacity
             onPress={handleSaveProfile}
-            disabled={isSaving}
+            disabled={isSaving || loading}
             style={{
-              backgroundColor: isSaving ? '#CCCCCC' : '#000000',
+              backgroundColor: (isSaving || loading) ? '#CCCCCC' : '#E91E63',
               paddingVertical: 16,
               borderRadius: 8,
               alignItems: 'center',
             }}
           >
-            {isSaving ? (
+            {(isSaving || loading) ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
               <Text style={{
@@ -628,7 +686,7 @@ const NewPhotographerEditProfile = () => {
               fontWeight: '600',
               color: '#000000',
             }}>
-              Chỉnh sửa Hồ sơ
+              Chọn Concept
             </Text>
             
             <View style={{ width: 24 }} />
@@ -668,14 +726,14 @@ const NewPhotographerEditProfile = () => {
               gap: 12,
               marginBottom: 24,
             }}>
-              {styles.map((style) => (
+              {allStyles.map((style) => (
                 <TouchableOpacity
                   key={style.styleId}
                   onPress={() => toggleStyle(style.styleId)}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    backgroundColor: selectedStyleIds.includes(style.styleId) ? '#000000' : '#F5F5F5',
+                    backgroundColor: selectedStyleIds.includes(style.styleId) ? '#E91E63' : '#F5F5F5',
                     paddingHorizontal: 16,
                     paddingVertical: 12,
                     borderRadius: 25,
@@ -713,7 +771,7 @@ const NewPhotographerEditProfile = () => {
             <TouchableOpacity
               onPress={() => setIsStyleModalVisible(false)}
               style={{
-                backgroundColor: '#000000',
+                backgroundColor: '#E91E63',
                 paddingVertical: 16,
                 borderRadius: 8,
                 alignItems: 'center',
@@ -734,4 +792,4 @@ const NewPhotographerEditProfile = () => {
   );
 };
 
-export default NewPhotographerEditProfile;
+export default EditProfilePhotographerScreen;

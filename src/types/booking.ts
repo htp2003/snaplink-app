@@ -140,3 +140,88 @@ export interface CreateBookingRequest {
     location?: string;
     general?: string;
   }
+
+  // types/booking.ts
+
+export interface Booking {
+  bookingId: number;
+  userId: number;
+  userName: string;
+  userEmail: string;
+  photographerId: number;
+  photographerName: string;
+  photographerEmail: string;
+  locationId: number;
+  locationName: string;
+  locationAddress: string;
+  startDatetime: string;
+  endDatetime: string;
+  status: BookingStatusPhotographer;
+  specialRequests: string | null;
+  totalPrice: number;
+  createdAt: string;
+  updatedAt: string;
+  hasPayment: boolean;
+  paymentStatus: string;
+  paymentAmount: number | null;
+  durationHours: number;
+  pricePerHour: number;
+}
+
+export type BookingStatusPhotographer = 
+  | 'Pending' 
+  | 'Confirmed' 
+  | 'Cancelled' 
+  | 'Completed' 
+  | 'InProgress';
+
+export interface BookingListResponse {
+  error: number;
+  message: string;
+  data: {
+    bookings: Booking[];
+    totalCount: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+}
+
+export interface BookingQueryParams {
+  page?: number;
+  pageSize?: number;
+}
+
+export interface UpdateBookingStatusRequest {
+  bookingId: number;
+  status: BookingStatusPhotographer;
+}
+
+export interface ApiResponse<T> {
+  error: number;
+  message: string;
+  data: T;
+}
+
+// Mapped types for UI
+export interface BookingCardData {
+  id: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail: string;
+  serviceType: string;
+  location: string;
+  locationAddress: string;
+  date: string;
+  time: string;
+  duration: number;
+  price: number;
+  status: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'in-progress';
+  description: string;
+  createdAt: string;
+  specialRequests?: string;
+  hasPayment: boolean;
+  paymentStatus: string;
+  paymentAmount: number | null;
+  pricePerHour: number;
+}

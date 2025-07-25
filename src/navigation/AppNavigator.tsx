@@ -33,6 +33,7 @@ import ViewProfileUserScreen from '../screens/customer/ViewProfileUserScreen';
 import ProfilePhotographerScreen from '../screens/photographer/ProfilePhotographerScreen';
 import ViewProfilePhotographerScreen from '../screens/photographer/ViewProfilePhotographerScreen';
 import EditProfilePhotographerScreen from '../screens/photographer/EditProfilePhotographerScreen';
+import OrderManagementScreen from '../screens/photographer/OrderManagementScreen';
 
 
 
@@ -84,6 +85,7 @@ const AppNavigator = () => {
         <Stack.Screen name="RecentlyViewedScreen" component={RecentlyViewedScreen} />
         <Stack.Screen name="ViewProfilePhotographerScreen" component={ViewProfilePhotographerScreen} />
         <Stack.Screen name='PhotographerEventScreen' component={PhotographerEventScreen} />
+        
 
 
         {/* Các màn hình dành riêng cho VenueOwner */}

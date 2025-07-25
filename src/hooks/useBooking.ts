@@ -1,7 +1,8 @@
-// hooks/useBooking.ts
+// hooks/useBooking.ts - FIXED VERSION WITH setAvailability
+
 import { useState, useCallback, useEffect } from 'react';
 import { bookingService } from '../services/bookingService';
-import type {
+import {
   CreateBookingRequest,
   UpdateBookingRequest,
   BookingResponse,
@@ -10,23 +11,28 @@ import type {
   PriceCalculationResponse,
   BookingFormData,
   BookingValidationErrors,
-  UseBookingOptions
+  UseBookingOptions,
+  BookingStatus
 } from '../types/booking';
 
 export const useBooking = (options: UseBookingOptions = {}) => {
   const { userId, photographerId, autoFetch = false } = options;
 
-  // States
+  // ===== BOOKING STATES =====
   const [bookings, setBookings] = useState<BookingResponse[]>([]);
   const [currentBooking, setCurrentBooking] = useState<BookingResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // ===== AVAILABILITY & PRICING STATES =====
   const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
   const [priceCalculation, setPriceCalculation] = useState<PriceCalculationResponse | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [calculatingPrice, setCalculatingPrice] = useState(false);
+
+  // ===== PAGINATION STATES =====
   const [pagination, setPagination] = useState({
     page: 1,
     pageSize: 10,
@@ -34,7 +40,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     totalPages: 0
   });
 
-  // Validation
+  // ===== VALIDATION =====
   const validateBookingForm = useCallback((formData: BookingFormData): BookingValidationErrors => {
     const errors: BookingValidationErrors = {};
 
@@ -76,7 +82,8 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     return errors;
   }, []);
 
-  // Create booking
+  // ===== BOOKING CRUD METHODS =====
+  
   const createBooking = useCallback(async (
     userIdParam: number, 
     bookingData: CreateBookingRequest
@@ -87,27 +94,26 @@ export const useBooking = (options: UseBookingOptions = {}) => {
       setCreating(true);
       setError(null);
 
-      console.log('Creating booking with data:', bookingData);
+      console.log('🔧 Hook: Creating booking with data:', bookingData);
       const response = await bookingService.createBooking(userIdParam, bookingData);
       
       setCurrentBooking(response);
-      // Add to bookings list if we're tracking user bookings
       if (userId === userIdParam) {
         setBookings(prev => [response, ...prev]);
       }
 
+      console.log('✅ Hook: Booking created successfully');
       return response;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Không thể tạo booking';
       setError(errorMessage);
-      console.error('Error in createBooking hook:', err);
+      console.error('❌ Hook: Error in createBooking:', err);
       return null;
     } finally {
       setCreating(false);
     }
   }, [creating, userId]);
 
-  // Get booking by ID
   const getBookingById = useCallback(async (bookingId: number): Promise<BookingResponse | null> => {
     try {
       setLoading(true);
@@ -119,14 +125,13 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Không thể lấy thông tin booking';
       setError(errorMessage);
-      console.error('Error in getBookingById hook:', err);
+      console.error('❌ Hook: Error in getBookingById:', err);
       return null;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Update booking
   const updateBooking = useCallback(async (
     bookingId: number, 
     updateData: UpdateBookingRequest
@@ -140,7 +145,6 @@ export const useBooking = (options: UseBookingOptions = {}) => {
       const response = await bookingService.updateBooking(bookingId, updateData);
       
       setCurrentBooking(response);
-      // Update in bookings list
       setBookings(prev => prev.map(booking => 
         booking.id === bookingId ? response : booking
       ));
@@ -149,14 +153,13 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Không thể cập nhật booking';
       setError(errorMessage);
-      console.error('Error in updateBooking hook:', err);
+      console.error('❌ Hook: Error in updateBooking:', err);
       return null;
     } finally {
       setUpdating(false);
     }
   }, [updating]);
 
-  // Fetch user bookings
   const fetchUserBookings = useCallback(async (
     userIdParam: number,
     page: number = 1,
@@ -178,13 +181,12 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Không thể lấy danh sách booking';
       setError(errorMessage);
-      console.error('Error in fetchUserBookings hook:', err);
+      console.error('❌ Hook: Error in fetchUserBookings:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Fetch photographer bookings
   const fetchPhotographerBookings = useCallback(async (
     photographerIdParam: number,
     page: number = 1,
@@ -206,13 +208,70 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Không thể lấy danh sách booking';
       setError(errorMessage);
-      console.error('Error in fetchPhotographerBookings hook:', err);
+      console.error('❌ Hook: Error in fetchPhotographerBookings:', err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  // Check availability
+  const cancelBooking = useCallback(async (bookingId: number): Promise<boolean> => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      await bookingService.cancelBooking(bookingId);
+      
+      setBookings(prev => prev.map(booking => 
+        booking.id === bookingId 
+          ? { ...booking, status: BookingStatus.CANCELLED }
+          : booking
+      ));
+
+      if (currentBooking?.id === bookingId) {
+        setCurrentBooking(prev => prev ? { ...prev, status: BookingStatus.CANCELLED } : null);
+      }
+
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Không thể hủy booking';
+      setError(errorMessage);
+      console.error('❌ Hook: Error in cancelBooking:', err);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [currentBooking]);
+
+  const completeBooking = useCallback(async (bookingId: number): Promise<boolean> => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      await bookingService.completeBooking(bookingId);
+      
+      setBookings(prev => prev.map(booking => 
+        booking.id === bookingId 
+          ? { ...booking, status: BookingStatus.COMPLETED }
+          : booking
+      ));
+
+      if (currentBooking?.id === bookingId) {
+        setCurrentBooking(prev => prev ? { ...prev, status: BookingStatus.COMPLETED } : null);
+      }
+
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Không thể hoàn thành booking';
+      setError(errorMessage);
+      console.error('❌ Hook: Error in completeBooking:', err);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [currentBooking]);
+
+  // ===== AVAILABILITY & PRICING METHODS =====
+  
   const checkAvailability = useCallback(async (
     photographerIdParam: number,
     startTime: string,
@@ -228,14 +287,18 @@ export const useBooking = (options: UseBookingOptions = {}) => {
         locationId ? bookingService.checkLocationAvailability(locationId, startTime, endTime) : Promise.resolve({ available: true, conflictingBookings: [], suggestedTimes: [] } as AvailabilityResponse)
       ]);
 
-      // Safe spread with fallback arrays
       const combinedAvailability: AvailabilityResponse = {
         available: photographerResponse.available && locationResponse.available,
         conflictingBookings: [
           ...(photographerResponse.conflictingBookings || []),
           ...(locationResponse.conflictingBookings || [])
         ],
-        suggestedTimes: photographerResponse.suggestedTimes || []
+        suggestedTimes: photographerResponse.suggestedTimes || [],
+        message: !photographerResponse.available 
+          ? photographerResponse.message || 'Photographer không rảnh'
+          : !locationResponse.available 
+            ? locationResponse.message || 'Địa điểm không khả dụng'
+            : 'Có thể đặt lịch'
       };
 
       setAvailability(combinedAvailability);
@@ -243,18 +306,18 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Không thể kiểm tra tình trạng';
       setError(errorMessage);
-      console.error('Error in checkAvailability hook:', err);
+      console.error('❌ Hook: Error in checkAvailability:', err);
       return { 
         available: false, 
         conflictingBookings: [], 
-        suggestedTimes: [] 
+        suggestedTimes: [],
+        message: errorMessage
       } as AvailabilityResponse;
     } finally {
       setCheckingAvailability(false);
     }
   }, []);
 
-  // Calculate price
   const calculatePrice = useCallback(async (
     photographerIdParam: number,
     startTime: string,
@@ -277,80 +340,75 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Không thể tính giá';
       setError(errorMessage);
-      console.error('Error in calculatePrice hook:', err);
+      console.error('❌ Hook: Error in calculatePrice:', err);
       return null;
     } finally {
       setCalculatingPrice(false);
     }
   }, []);
 
-  // Cancel booking
-  const cancelBooking = useCallback(async (bookingId: number): Promise<boolean> => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      await bookingService.cancelBooking(bookingId);
-      
-      // Update booking status in state
-      setBookings(prev => prev.map(booking => 
-        booking.id === bookingId 
-          ? { ...booking, status: 'cancelled' as any }
-          : booking
-      ));
-
-      if (currentBooking?.id === bookingId) {
-        setCurrentBooking(prev => prev ? { ...prev, status: 'cancelled' as any } : null);
-      }
-
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Không thể hủy booking';
-      setError(errorMessage);
-      console.error('Error in cancelBooking hook:', err);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [currentBooking]);
-
-  // Complete booking
-  const completeBooking = useCallback(async (bookingId: number): Promise<boolean> => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      await bookingService.completeBooking(bookingId);
-      
-      // Update booking status in state
-      setBookings(prev => prev.map(booking => 
-        booking.id === bookingId 
-          ? { ...booking, status: 'completed' as any }
-          : booking
-      ));
-
-      if (currentBooking?.id === bookingId) {
-        setCurrentBooking(prev => prev ? { ...prev, status: 'completed' as any } : null);
-      }
-
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Không thể hoàn thành booking';
-      setError(errorMessage);
-      console.error('Error in completeBooking hook:', err);
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [currentBooking]);
-
-  // Clear states
+  // ===== UTILITY METHODS =====
+  
   const clearBookingData = useCallback(() => {
     setBookings([]);
     setCurrentBooking(null);
     setAvailability(null);
     setPriceCalculation(null);
     setError(null);
+  }, []);
+
+  const refreshCurrentBooking = useCallback(async () => {
+    if (currentBooking?.id) {
+      await getBookingById(currentBooking.id);
+    }
+  }, [currentBooking, getBookingById]);
+
+  // Booking status utilities
+  const canCancelBooking = useCallback((booking: BookingResponse): boolean => {
+    const cancelableStatuses = [BookingStatus.PENDING, BookingStatus.CONFIRMED];
+    return cancelableStatuses.includes(booking.status);
+  }, []);
+
+  const canCompleteBooking = useCallback((booking: BookingResponse): boolean => {
+    return booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.IN_PROGRESS;
+  }, []);
+
+  const getBookingStatusColor = useCallback((status: BookingStatus): string => {
+    switch (status) {
+      case BookingStatus.PENDING:
+        return '#FFA726';
+      case BookingStatus.CONFIRMED:
+        return '#42A5F5';
+      case BookingStatus.IN_PROGRESS:
+        return '#66BB6A';
+      case BookingStatus.COMPLETED:
+        return '#4CAF50';
+      case BookingStatus.CANCELLED:
+        return '#EF5350';
+      case BookingStatus.EXPIRED:
+        return '#BDBDBD';
+      default:
+        return '#757575';
+    }
+  }, []);
+
+  const getBookingStatusText = useCallback((status: BookingStatus): string => {
+    switch (status) {
+      case BookingStatus.PENDING:
+        return 'Đang chờ';
+      case BookingStatus.CONFIRMED:
+        return 'Đã xác nhận';
+      case BookingStatus.IN_PROGRESS:
+        return 'Đang thực hiện';
+      case BookingStatus.COMPLETED:
+        return 'Hoàn thành';
+      case BookingStatus.CANCELLED:
+        return 'Đã hủy';
+      case BookingStatus.EXPIRED:
+        return 'Đã hết hạn';
+      default:
+        return 'Không xác định';
+    }
   }, []);
 
   // Auto fetch on mount
@@ -363,15 +421,14 @@ export const useBooking = (options: UseBookingOptions = {}) => {
   }, [autoFetch, userId, photographerId, fetchUserBookings, fetchPhotographerBookings]);
 
   return {
-    // Data
+    // ===== DATA =====
     bookings,
     currentBooking,
     availability,
     priceCalculation,
-    setPriceCalculation, // Expose the setter
     pagination,
-    
-    // Loading states
+
+    // ===== LOADING STATES =====
     loading,
     creating,
     updating,
@@ -379,20 +436,36 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     calculatingPrice,
     error,
 
-    // Methods
+    // ===== BOOKING METHODS =====
     createBooking,
     getBookingById,
     updateBooking,
     fetchUserBookings,
     fetchPhotographerBookings,
-    checkAvailability,
-    calculatePrice,
     cancelBooking,
     completeBooking,
     validateBookingForm,
-    clearBookingData,
 
-    // Utilities
+    // ===== AVAILABILITY & PRICING METHODS =====
+    checkAvailability,
+    calculatePrice,
+
+    // ===== UTILITY METHODS =====
+    clearBookingData,
+    refreshCurrentBooking,
+    canCancelBooking,
+    canCompleteBooking,
+    getBookingStatusColor,
+    getBookingStatusText,
+
+    // ===== SETTER METHODS (for external updates) =====
+    setCurrentBooking,
+    setBookings,
+    setError,
+    setAvailability,        // ✅ THÊM: setAvailability
+    setPriceCalculation,    // ✅ ĐÃ CÓ: setPriceCalculation
+
+    // ===== REFRESH UTILITIES =====
     refreshUserBookings: () => userId && fetchUserBookings(userId, pagination.page, pagination.pageSize),
     refreshPhotographerBookings: () => photographerId && fetchPhotographerBookings(photographerId, pagination.page, pagination.pageSize),
   };

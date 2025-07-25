@@ -38,9 +38,9 @@ export type RootStackParamList = {
     ViewProfilePhotographerScreen: undefined;
     PhotographerHomeScreen: undefined;
     FavoritedBottomSheet: undefined;
-    OrderManagementScreen: undefined;
     RecentlyViewedScreen: undefined;
     ProfilePhotographerScreen: undefined;
+    OrderManagementScreen: undefined;
 
     PaymentWaitingScreen: PaymentFlowData;
 

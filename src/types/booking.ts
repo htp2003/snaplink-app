@@ -71,25 +71,7 @@ export interface AvailabilityResponse {
 // Alternative simple response for API that only returns boolean
 export interface SimpleAvailabilityResponse {
   available: boolean;
-}
-
-export interface PriceCalculationResponse {
-  totalPrice: number;
-  photographerFee: number;
-  locationFee?: number;
-  serviceFee?: number;
-  duration: number; // in hours
-  breakdown: {
-    baseRate: number;
-    locationRate?: number;
-    additionalFees?: {
-      name: string;
-
-      address: string;
-      hourlyRate?: number;
-    };
-  }
-  
+} 
   export interface ExternalLocationResponse extends ExternalLocationRequest {
     id: number;
   }
@@ -107,20 +89,21 @@ export interface PriceCalculationResponse {
   }
   
   export interface PriceCalculationResponse {
-    totalPrice: number;
-    photographerFee: number;
-    locationFee?: number;
-    serviceFee?: number;
-    duration: number; // in hours
-    breakdown: {
-      baseRate: number;
-      locationRate?: number;
-      additionalFees?: {
-        name: string;
-        amount: number;
-      }[];
-    };
-  }
+  totalPrice: number;
+  photographerFee: number;
+  locationFee?: number;
+  serviceFee?: number;
+  duration: number; // in hours
+  breakdown: {
+    baseRate: number;
+    locationRate?: number;
+    additionalFees?: {
+      name: string;
+      address: string;
+      hourlyRate: number;
+    }[];
+  };
+}
   
   export interface BookingListResponse {
     bookings: BookingResponse[];
@@ -223,10 +206,10 @@ export interface BookingListResponse {
 }
 
 export interface BookingQueryParams {
-      amount: number;
-    }[];
-  };
+  page?: number;
+  pageSize?: number;
 }
+
 
 export interface BookingListResponse {
   bookings: BookingResponse[];
@@ -236,14 +219,6 @@ export interface BookingListResponse {
   totalPages: number;
 }
 
-export enum BookingStatus {
-  PENDING = 'pending',
-  CONFIRMED = 'confirmed',
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled',
-  EXPIRED = 'expired'
-}
 
 export interface BookingFilters {
   status?: BookingStatus;

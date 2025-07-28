@@ -9,6 +9,7 @@ import {
   StatusBar,
   Dimensions,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from "@expo/vector-icons";
@@ -29,9 +30,10 @@ const ProfilePhotographerScreen = () => {
   const insets = useSafeAreaInsets();
   const { profileData } = useProfile();
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const { user, getCurrentUserId } = useAuth();
+  const { user, getCurrentUserId, logout } = useAuth();
   const [photographerData, setPhotographerData] = useState<PhotographerProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     loadPhotographerData();
@@ -98,6 +100,51 @@ const ProfilePhotographerScreen = () => {
     { useNativeDriver: false }
   );
 
+  const handleLogout = async () => {
+      Alert.alert(
+        'Đăng xuất',
+        'Bạn có chắc chắn muốn đăng xuất không?',
+        [
+          {
+            text: 'Hủy',
+            style: 'cancel',
+          },
+          {
+            text: 'Đăng xuất',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setIsLoggingOut(true);
+                console.log('🚪 Starting logout process...');
+                
+                await logout();
+                
+                console.log('✅ Logout completed, navigating to login...');
+                
+                // Navigate to login screen or reset navigation stack
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }], // Adjust route name as needed
+                });
+                
+              } catch (error) {
+                console.error('❌ Logout error:', error);
+                
+                // Show error alert
+                Alert.alert(
+                  'Lỗi đăng xuất',
+                  'Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.',
+                  [{ text: 'OK' }]
+                );
+              } finally {
+                setIsLoggingOut(false);
+              }
+            },
+          },
+        ]
+      );
+    };
+
   const menuItems = [
     {
       icon: "settings-outline",
@@ -138,9 +185,8 @@ const ProfilePhotographerScreen = () => {
     {
       icon: "log-out-outline",
       title: "Đăng xuất",
-      onPress: () => {
-        /* Handle logout */
-      },
+      onPress: handleLogout,
+      isLoading: isLoggingOut,
     },
   ];
 
@@ -155,6 +201,8 @@ const ProfilePhotographerScreen = () => {
   const handleNotificationPress = () => {
     // navigation.navigate('Notifications');
   };
+
+    
 
   const renderMenuItem = (item: any, index: number) => (
     <TouchableOpacity

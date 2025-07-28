@@ -1,9 +1,12 @@
+
+// components/Auth/RegisterForm.tsx - Fixed để sử dụng useAuth hook
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import InputField from '../InputField';
 import Button from '../Button';
-import { useAuth } from '../../hooks/useAuth';
+import { RootStackNavigationProp } from '../../navigation/types';
+import { useAuth } from '../../hooks/useAuth'; // ✨ Import useAuth
 
 interface RegisterFormProps {
   onSubmit?: (email: string, password: string, confirmPassword: string) => void;
@@ -23,8 +26,9 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
     password: '',
     confirmPassword: '',
   });
-  const { register, isLoading } = useAuth(); // Sử dụng useAuth hook
-  const navigation = useNavigation();
+  
+  const navigation = useNavigation<RootStackNavigationProp>();
+  const { register, isLoading } = useAuth(); // ✨ Use useAuth hook
 
   const updateFormData = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -87,37 +91,49 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
     }
 
     try {
-      const userData = {
+      console.log('🚀 Bắt đầu đăng ký với email:', formData.email);
+
+      const requestBody = {
         userName: formData.email,
         email: formData.email,
-        passwordHash: formData.password, // Backend sẽ hash
+        passwordHash: formData.password,
         fullName: formData.fullName,
         phoneNumber: formData.phoneNumber,
       };
 
-      // Sử dụng register từ useAuth
-      const response = await register(userData);
+      console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
+
+      // ✨ Use useAuth register method instead of direct API call
+      const userData = await register(requestBody);
       
-      // Call success callback with user data
-      const registrationData = { 
-        userId: response.id || response.userId, 
-        ...userData 
-      };
-      
+      console.log('✅ Đăng ký thành công với useAuth! UserData:', userData);
+
+      // Call success callback
       if (onSuccess) {
-        onSuccess(registrationData);
-      } else {
-        // Navigate to StepContainer (AuthFlow) với userId đã lưu trong useAuth
-        navigation.navigate('StepContainer' as never);
+        onSuccess(userData);
       }
-      
+
       // Call parent onSubmit for any additional handling
       onSubmit?.(formData.email, formData.password, formData.confirmPassword);
-      
+
     } catch (error: any) {
-      Alert.alert('Đăng ký thất bại', error.message || 'Có lỗi xảy ra');
+      console.error('💥 Registration error:', error);
+      
+      // ✨ Handle specific error messages with user-friendly text
+      let userFriendlyMessage = error.message || 'Có lỗi xảy ra khi đăng ký';
+      
+      if (userFriendlyMessage.toLowerCase().includes('email already exists')) {
+        userFriendlyMessage = 'Email này đã được sử dụng. Vui lòng sử dụng email khác hoặc đăng nhập.';
+      } else if (userFriendlyMessage.toLowerCase().includes('phone')) {
+        userFriendlyMessage = 'Số điện thoại không hợp lệ hoặc đã được sử dụng.';
+      } else if (userFriendlyMessage.toLowerCase().includes('password')) {
+        userFriendlyMessage = 'Mật khẩu không đáp ứng yêu cầu bảo mật.';
+      }
+      
+     
     }
   };
+  
 
   return (
     <View style={styles.container}>
@@ -133,7 +149,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         icon="mail-outline"
         placeholder="Email"
         value={formData.email}
-        onChangeText={(value) => updateFormData('email', value)}
+        onChangeText={(value) => updateFormData('email', value.toLowerCase())}
         keyboardType="email-address"
         autoCapitalize="none"
         editable={!isLoading}
@@ -176,6 +192,13 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Terms */}
+      <Text style={styles.termsText}>
+        Bằng việc đăng ký, bạn đồng ý với{' '}
+        <Text style={styles.linkText}>Điều khoản sử dụng</Text> và{' '}
+        <Text style={styles.linkText}>Chính sách bảo mật</Text> của SnapLink
+      </Text>
     </View>
   );
 };
@@ -194,12 +217,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   loginLink: {
-    color: '#000000',
+    color: '#10B981',
     fontSize: 14,
     fontWeight: '600',
   },
   disabled: {
     opacity: 0.5,
+  },
+  termsText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginTop: 16,
+  },
+  linkText: {
+    color: '#10B981',
+    fontWeight: '500',
   },
 });
 

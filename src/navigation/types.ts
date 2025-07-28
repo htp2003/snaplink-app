@@ -30,7 +30,9 @@ export type RootStackParamList = {
   Layout: undefined;
   Login: undefined;
   Register: undefined;
-
+  EmailVerification: {
+    email: string;
+  };
   // Photographer screens
   EditProfilePhotographer: undefined;
   Subscription: undefined;

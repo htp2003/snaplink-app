@@ -1,3 +1,4 @@
+// screens/RegisterScreen.tsx - Clean version sử dụng RegisterForm component
 import React from 'react';
 import {
   View,
@@ -16,9 +17,18 @@ import RegisterForm from '../components/Auth/RegisterForm';
 type Props = NativeStackScreenProps<RootStackParamList, 'Register'>;
 
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
-  const handleRegister = (email: string, password: string, confirmPassword: string) => {
-    // TODO: Implement register logic
-    console.log('Register:', email, password, confirmPassword);
+  // ✨ Handle register success - navigate to EmailVerification
+  const handleRegisterSuccess = (userData: any) => {
+    console.log('✅ Register success, navigate to EmailVerification with email:', userData.email);
+    
+    navigation.navigate('EmailVerification', {
+      email: userData.email
+    });
+  };
+
+  // Handle navigate to login
+  const handleNavigateToLogin = () => {
+    navigation.navigate('Login');
   };
 
   return (
@@ -57,9 +67,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             {/* Form Section */}
             <View style={styles.formSection}>
               <View style={styles.formContainer}>
+                {/* ✨ Sử dụng RegisterForm component với clean props */}
                 <RegisterForm
-                  onSubmit={handleRegister}
-                  onLogin={() => navigation.navigate('Login')}
+                  onSuccess={handleRegisterSuccess}
+                  onLogin={handleNavigateToLogin}
                 />
               </View>
             </View>

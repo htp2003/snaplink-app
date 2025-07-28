@@ -1,7 +1,8 @@
 // authService.ts - Updated with logout endpoint
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
+const API_BASE_URL =
+  "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 
 // Types
 export interface LoginRequest {
@@ -44,7 +45,7 @@ class ApiClient {
 
   private async getHeaders(): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
     };
 
     const token = await AuthService.getToken();
@@ -58,7 +59,7 @@ class ApiClient {
   async get(endpoint: string): Promise<any> {
     const headers = await this.getHeaders();
     const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'GET',
+      method: "GET",
       headers,
     });
 
@@ -73,7 +74,7 @@ class ApiClient {
   async post(endpoint: string, data?: any): Promise<any> {
     const headers = await this.getHeaders();
     const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'POST',
+      method: "POST",
       headers,
       body: data ? JSON.stringify(data) : undefined,
     });
@@ -84,8 +85,8 @@ class ApiClient {
     }
 
     // Handle both JSON and text responses
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
       return response.json();
     } else {
       return response.text();
@@ -95,7 +96,7 @@ class ApiClient {
   async put(endpoint: string, data: any): Promise<any> {
     const headers = await this.getHeaders();
     const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'PUT',
+      method: "PUT",
       headers,
       body: JSON.stringify(data),
     });
@@ -121,16 +122,16 @@ export class AuthService {
   // ✅ NEW: Logout with API endpoint
   static async logout(): Promise<void> {
     try {
-      console.log('📤 Calling logout API endpoint...');
-      
+      console.log("📤 Calling logout API endpoint...");
+
       // Call the logout endpoint
       await apiClient.post(`/api/Auth/Logout`);
-      
-      console.log('✅ Logout API call successful');
+
+      console.log("✅ Logout API call successful");
     } catch (error) {
-      console.error('❌ Logout API error:', error);
+      console.error("❌ Logout API error:", error);
       // Even if API fails, we still want to clear local storage
-      console.log('🔄 Continuing with local cleanup despite API error...');
+      console.log("🔄 Continuing with local cleanup despite API error...");
     } finally {
       // Always clear local storage regardless of API success/failure
       await this.clearLocalStorage();
@@ -139,19 +140,19 @@ export class AuthService {
 
   // ✅ NEW: Client-side logout (fallback)
   static async logoutLocal(): Promise<void> {
-    console.log('📱 Performing client-side logout...');
+    console.log("📱 Performing client-side logout...");
     await this.clearLocalStorage();
   }
 
   // ✅ NEW: Clear local storage helper
   private static async clearLocalStorage(): Promise<void> {
     try {
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('currentUserId');
-      console.log('✅ Local storage cleared successfully');
+      await AsyncStorage.removeItem("token");
+      await AsyncStorage.removeItem("user");
+      await AsyncStorage.removeItem("currentUserId");
+      console.log("✅ Local storage cleared successfully");
     } catch (error) {
-      console.error('❌ Error clearing local storage:', error);
+      console.error("❌ Error clearing local storage:", error);
     }
   }
 
@@ -160,35 +161,25 @@ export class AuthService {
     return apiClient.post(`/api/User/create-user`, userData);
   }
 
-  // Step 3: Assign role using existing API
-  static async assignRole(userId: number, roleType: 'user' | 'photographer' | 'locationowner'): Promise<any> {
-    const roleMap = {
-      'user': [2],
-      'photographer': [3],  
-      'locationowner': [4]
-    };
-
-    const assignRolesRequest: AssignRolesRequest = {
-      userId,
-      roleIds: roleMap[roleType]
-    };
-
-    return apiClient.post(`/api/User/assign-roles`, assignRolesRequest);
-  }
+  // ✅ REMOVED: assignRole - now handled directly in Step1 component
+  // Role assignment is now done directly using assign-roles API with correct roleIds
 
   // Step 4: Update user profile
-  static async updateUserProfile(userId: number, profileData: {
-    fullName?: string;
-    phoneNumber?: string;
-    bio?: string;
-    profileImage?: string;
-    gender?: string;
-    ageRange?: string;
-    interests?: string[];
-  }): Promise<any> {
-    return apiClient.put('/api/User/update', {
+  static async updateUserProfile(
+    userId: number,
+    profileData: {
+      fullName?: string;
+      phoneNumber?: string;
+      bio?: string;
+      profileImage?: string;
+      gender?: string;
+      ageRange?: string;
+      interests?: string[];
+    }
+  ): Promise<any> {
+    return apiClient.put("/api/User/update", {
       userId,
-      ...profileData
+      ...profileData,
     });
   }
 
@@ -200,28 +191,28 @@ export class AuthService {
   // Token management for React Native
   static async getToken(): Promise<string | null> {
     try {
-      return await AsyncStorage.getItem('token');
+      return await AsyncStorage.getItem("token");
     } catch (error) {
-      console.error('Error getting token:', error);
+      console.error("Error getting token:", error);
       return null;
     }
   }
 
   static async setToken(token: string): Promise<void> {
     try {
-      await AsyncStorage.setItem('token', token);
+      await AsyncStorage.setItem("token", token);
     } catch (error) {
-      console.error('Error setting token:', error);
+      console.error("Error setting token:", error);
     }
   }
 
   static async removeToken(): Promise<void> {
     try {
-      await AsyncStorage.removeItem('token');
-      await AsyncStorage.removeItem('user');
-      await AsyncStorage.removeItem('currentUserId');
+      await AsyncStorage.removeItem("token");
+      await AsyncStorage.removeItem("user");
+      await AsyncStorage.removeItem("currentUserId");
     } catch (error) {
-      console.error('Error removing token:', error);
+      console.error("Error removing token:", error);
     }
   }
 

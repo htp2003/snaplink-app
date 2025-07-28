@@ -5,7 +5,7 @@ const API_BASE_URL =
   "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 export interface User {
   id: number;
-  photographerId?: number; 
+  photographerId?: number;
   email: string;
   fullName: string;
   phoneNumber?: string;
@@ -29,10 +29,6 @@ interface AuthContextType extends AuthState {
   register: (userData: any) => Promise<any>;
   logout: () => Promise<void>;
   updateProfile: (userId: number, profileData: any) => Promise<void>;
-  assignRole: (
-    userId: number,
-    roleType: "user" | "photographer" | "locationowner"
-  ) => Promise<any>;
   checkAuthState: () => Promise<void>;
   currentUserId: number | null;
   getCurrentUserId: () => number | null;
@@ -58,8 +54,8 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     if (authState.user?.id) {
       setCurrentUserId(authState.user.id);
       // Also save to AsyncStorage for persistence
-      AsyncStorage.setItem('currentUserId', authState.user.id.toString());
-      console.log('🔄 Synced currentUserId with user.id:', authState.user.id);
+      AsyncStorage.setItem("currentUserId", authState.user.id.toString());
+      console.log("🔄 Synced currentUserId with user.id:", authState.user.id);
     }
   }, [authState.user]);
 
@@ -102,46 +98,54 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
   const login = async (email: string, password: string) => {
     try {
-      setAuthState(prev => ({ ...prev, isLoading: true }));
-      
+      setAuthState((prev) => ({ ...prev, isLoading: true }));
+
       const response = await fetch(`${API_BASE_URL}/api/Auth/login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
-      
-      console.log('📥 Login response status:', response.status);
-      
+
+      console.log("📥 Login response status:", response.status);
+
       if (!response.ok) {
         const errorText = await response.text();
         throw new Error(errorText || `HTTP ${response.status}`);
       }
-      
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType && contentType.includes('application/json')) {
+
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
         const data = await response.json();
-        console.log('✅ Login success (JSON):', data);
-        
+        console.log("✅ Login success (JSON):", data);
+
         if (data.token) {
-          await AsyncStorage.setItem('token', data.token);
-          
-          console.log('🔍 Getting user data using getUserByEmail API...');
-          
+          await AsyncStorage.setItem("token", data.token);
+
+          console.log("🔍 Getting user data using getUserByEmail API...");
+
           try {
-            const userResponse = await fetch(`${API_BASE_URL}/api/User/GetUserByEmail?email=${encodeURIComponent(email)}`, {
-              method: 'GET',
-              headers: {
-                'Authorization': `Bearer ${data.token}`,
-                'Content-Type': 'application/json'
+            const userResponse = await fetch(
+              `${API_BASE_URL}/api/User/GetUserByEmail?email=${encodeURIComponent(
+                email
+              )}`,
+              {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${data.token}`,
+                  "Content-Type": "application/json",
+                },
               }
-            });
-            
+            );
+
             if (userResponse.ok) {
               const userData = await userResponse.json();
-              console.log('✅ Retrieved user data from getUserByEmail:', userData);
+              console.log(
+                "✅ Retrieved user data from getUserByEmail:",
+                userData
+              );
 
               // Parse roles correctly
               let userRoles = [];
@@ -150,50 +154,59 @@ export function AuthProvider(props: { children: React.ReactNode }) {
               } else if (userData.roles && Array.isArray(userData.roles)) {
                 userRoles = userData.roles;
               }
-              
+
               const normalizedUser = {
                 ...userData,
                 id: userData.userId || userData.id,
-                roles: userRoles
+                roles: userRoles,
               };
-              
-              console.log('✅ Normalized user:', normalizedUser);
-              
+
+              console.log("✅ Normalized user:", normalizedUser);
+
               // ✅ CRITICAL: Save both user data and currentUserId consistently
-              await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
-              await AsyncStorage.setItem('currentUserId', normalizedUser.id.toString());
-              
+              await AsyncStorage.setItem(
+                "user",
+                JSON.stringify(normalizedUser)
+              );
+              await AsyncStorage.setItem(
+                "currentUserId",
+                normalizedUser.id.toString()
+              );
+
               setCurrentUserId(normalizedUser.id);
-              console.log('💾 Saved userId to state and AsyncStorage:', normalizedUser.id);
-              
+              console.log(
+                "💾 Saved userId to state and AsyncStorage:",
+                normalizedUser.id
+              );
+
               setAuthState({
                 user: normalizedUser,
                 token: data.token,
                 isLoading: false,
                 isAuthenticated: true,
               });
-              
+
               return normalizedUser;
-              
             } else {
-              throw new Error('Could not retrieve user data');
+              throw new Error("Could not retrieve user data");
             }
           } catch (userFetchError) {
-            console.error('❌ Error fetching user data:', userFetchError);
+            console.error("❌ Error fetching user data:", userFetchError);
             throw userFetchError;
           }
         } else {
-          throw new Error('No token in login response');
+          throw new Error("No token in login response");
         }
       } else {
         const textResponse = await response.text();
-        console.log('✅ Login success (text):', textResponse);
-        throw new Error('Login successful but user data unavailable. Please contact support.');
+        console.log("✅ Login success (text):", textResponse);
+        throw new Error(
+          "Login successful but user data unavailable. Please contact support."
+        );
       }
-      
     } catch (error) {
-      console.error('❌ Login error:', error);
-      setAuthState(prev => ({ ...prev, isLoading: false }));
+      console.error("❌ Login error:", error);
+      setAuthState((prev) => ({ ...prev, isLoading: false }));
       throw error;
     }
   };
@@ -202,40 +215,40 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     try {
       setAuthState((prev) => ({ ...prev, isLoading: true }));
 
-      console.log('📤 Starting logout process...');
-      
+      console.log("📤 Starting logout process...");
+
       // Get token before clearing it
       const token = await AsyncStorage.getItem("token");
-      
+
       if (token) {
         try {
-          console.log('📤 Calling logout API endpoint...');
-          
+          console.log("📤 Calling logout API endpoint...");
+
           // Call the logout API endpoint
           const response = await fetch(`${API_BASE_URL}/api/Auth/Logout`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
           });
-          
-          console.log('📥 Logout API response status:', response.status);
-          
+
+          console.log("📥 Logout API response status:", response.status);
+
           if (response.ok) {
-            console.log('✅ Logout API call successful');
+            console.log("✅ Logout API call successful");
           } else {
             const errorText = await response.text();
-            console.warn('⚠️ Logout API returned error:', errorText);
+            console.warn("⚠️ Logout API returned error:", errorText);
             // Continue with local cleanup even if API fails
           }
         } catch (apiError) {
-          console.error('❌ Logout API error:', apiError);
+          console.error("❌ Logout API error:", apiError);
           // Continue with local cleanup even if API fails
-          console.log('🔄 Continuing with local cleanup despite API error...');
+          console.log("🔄 Continuing with local cleanup despite API error...");
         }
       } else {
-        console.log('ℹ️ No token found, skipping API call');
+        console.log("ℹ️ No token found, skipping API call");
       }
 
       // Always clear local storage regardless of API success/failure
@@ -252,10 +265,10 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         isAuthenticated: false,
       });
 
-      console.log('✅ Logout completed successfully');
+      console.log("✅ Logout completed successfully");
     } catch (error) {
       console.error("❌ Error during logout:", error);
-      
+
       // Even if there's an error, still clear local state
       setCurrentUserId(null);
       setAuthState({
@@ -264,7 +277,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         isLoading: false,
         isAuthenticated: false,
       });
-      
+
       // Try to clear AsyncStorage anyway
       try {
         await AsyncStorage.removeItem("token");
@@ -320,11 +333,14 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
         if (userId) {
           console.log("✅ Using userId:", userId);
-          
+
           // ✅ CRITICAL: Set currentUserId immediately after registration
           setCurrentUserId(userId);
-          await AsyncStorage.setItem('currentUserId', userId.toString());
-          console.log('💾 Saved registered userId to state and AsyncStorage:', userId);
+          await AsyncStorage.setItem("currentUserId", userId.toString());
+          console.log(
+            "💾 Saved registered userId to state and AsyncStorage:",
+            userId
+          );
 
           const normalizedUser = {
             ...realUser,
@@ -333,15 +349,15 @@ export function AuthProvider(props: { children: React.ReactNode }) {
           };
 
           // ✅ Also save user data for consistency
-          await AsyncStorage.setItem('user', JSON.stringify(normalizedUser));
+          await AsyncStorage.setItem("user", JSON.stringify(normalizedUser));
 
-          setAuthState((prev) => ({ 
-            ...prev, 
+          setAuthState((prev) => ({
+            ...prev,
             isLoading: false,
             user: normalizedUser, // Set user in state
-            isAuthenticated: true // Mark as authenticated
+            isAuthenticated: true, // Mark as authenticated
           }));
-          
+
           return normalizedUser;
         } else {
           console.error("❌ No userId found in response");
@@ -389,78 +405,13 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     }
   };
 
-  const assignRole = async (
-    userId: number,
-    roleType: "user" | "photographer" | "locationowner"
-  ) => {
-    try {
-      // ✅ ALWAYS use the provided userId parameter, not getCurrentUserId()
-      const userIdInt = parseInt(userId.toString());
-      if (isNaN(userIdInt)) {
-        throw new Error("Invalid userId");
-      }
-
-      console.log("🔍 Assigning role:", roleType, "to userId:", userIdInt);
-      console.log("🔍 Current authState.user.id:", authState.user?.id);
-      console.log("🔍 Current currentUserId:", currentUserId);
-
-      const token = await AsyncStorage.getItem("token");
-
-      const roleMap = {
-        user: [2],
-        photographer: [3],
-        locationowner: [4],
-      };
-
-      const requestBody = {
-        userId: userIdInt,
-        roleIds: roleMap[roleType],
-      };
-
-      console.log("📤 Assign role request:", JSON.stringify(requestBody));
-
-      const response = await fetch(`${API_BASE_URL}/api/User/assign-roles`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      console.log("📥 Assign role response status:", response.status);
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("❌ Assign role API error:", errorText);
-        throw new Error(`API Error: ${response.status} - ${errorText}`);
-      }
-
-      const contentType = response.headers.get("content-type");
-      console.log("📥 Response content-type:", contentType);
-
-      if (contentType && contentType.includes("text/plain")) {
-        const textResponse = await response.text();
-        console.log("✅ Assign role success (text):", textResponse);
-        return { message: textResponse, success: true };
-      } else {
-        const data = await response.json();
-        console.log("✅ Assign role success (JSON):", data);
-        return data;
-      }
-    } catch (error) {
-      console.error("❌ Assign role error:", error);
-      throw error;
-    }
-  };
-
   const getCurrentUserId = () => {
     // ✅ Priority: authState.user.id > currentUserId > AsyncStorage
     const userId = authState.user?.id || currentUserId;
-    console.log('🔍 getCurrentUserId called:', {
-      'authState.user.id': authState.user?.id,
-      'currentUserId': currentUserId,
-      'returned': userId
+    console.log("🔍 getCurrentUserId called:", {
+      "authState.user.id": authState.user?.id,
+      currentUserId: currentUserId,
+      returned: userId,
     });
     return userId;
   };
@@ -474,7 +425,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     register,
     logout,
     updateProfile,
-    assignRole,
     checkAuthState,
     currentUserId,
     getCurrentUserId,
@@ -520,10 +470,11 @@ export function useUserRole() {
     return user.roles.includes(role);
   };
 
-  const isUser = () => hasRole("user");
-  const isPhotographer = () => hasRole("photographer");
-  const isLocationOwner = () => hasRole("locationowner");
-  const isAdmin = () => hasRole("admin");
+  const isUser = () => hasRole("User");
+  const isPhotographer = () => hasRole("Photographer");
+  const isLocationOwner = () => hasRole("Owner");
+  const isAdmin = () => hasRole("Admin");
+  const isModerator = () => hasRole("Moderator");
 
   return {
     roles: user?.roles || [],
@@ -532,5 +483,6 @@ export function useUserRole() {
     isPhotographer,
     isLocationOwner,
     isAdmin,
+    isModerator,
   };
 }

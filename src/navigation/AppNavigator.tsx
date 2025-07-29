@@ -26,7 +26,7 @@ import PhotographerHomeScreen from "../screens/photographer/PhotographerHomeScre
 import RecentlyViewedScreen from "../screens/customer/RecentlyViewedScreen";
 import PhotographerEventScreen from "../screens/photographer/PhotographerEventScreen";
 import VenueManagementScreen from "../screens/venueOwner/VenueManagementScreen";
-import VenueOwnerHomeScreen from "../screens/venueOwner/VenueOwnerHomeScreen";
+
 import ProfileUserScreen from "../screens/customer/ProfileUserScreen";
 import ViewProfileUserScreen from "../screens/customer/ViewProfileUserScreen";
 import ProfilePhotographerScreen from "../screens/photographer/ProfilePhotographerScreen";
@@ -35,6 +35,7 @@ import EditProfilePhotographerScreen from "../screens/photographer/EditProfilePh
 import OrderManagementScreen from "../screens/photographer/OrderManagementScreen";
 import VenueOwnerProfileScreen from "../screens/venueOwner/VenueOwnerProfileScreen";
 import EmailVerificationScreen from "../screens/EmailVerificationScreen";
+
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -123,10 +124,7 @@ const AppNavigator = () => {
         name="VenueOwnerProfile"
         component={VenueOwnerProfileScreen}
       />
-      <Stack.Screen
-        name="VenueOwnerHomeScreen"
-        component={VenueOwnerHomeScreen}
-      />
+
       <Stack.Screen name="VenueManagement" component={VenueManagementScreen} />
     </Stack.Navigator>
   );

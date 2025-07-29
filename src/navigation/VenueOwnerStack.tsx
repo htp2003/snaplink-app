@@ -6,10 +6,11 @@ import { customTabScreenOptions } from "./tabBarOptions";
 import { Ionicons } from "@expo/vector-icons";
 
 // Import screens
-import VenueOwnerHomeScreen from "../screens/venueOwner/VenueOwnerHomeScreen";
+
 import VenueManagementScreen from "../screens/venueOwner/VenueManagementScreen";
 import VenueOwnerProfileScreen from "../screens/venueOwner/VenueOwnerProfileScreen";
 import VenueOwnerEventsScreen from "../screens/venueOwner/VenueOwnerEventsScreen";
+import VenueOwnerHomeScreen from "../screens/venueOwner/venueOwnerHomeScreen";
 
 const Tab = createBottomTabNavigator<VenueOwnerTabParamList>();
 

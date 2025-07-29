@@ -267,46 +267,46 @@ export const usePhotographers = () => {
     }
   }, [loading, processApiResponse, transformPhotographerData, createFallbackPhotographer]);
 
-  const fetchPhotographersBySpecialty = useCallback(async (specialty: string) => {
-    if (loading) return;
+  // const fetchPhotographersBySpecialty = useCallback(async (specialty: string) => {
+  //   if (loading) return;
     
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('=== Fetching Photographers by Specialty ===');
+  //   try {
+  //     setLoading(true);
+  //     setError(null);
+  //     console.log('=== Fetching Photographers by Specialty ===');
       
-      const photographersResponse = await photographerService.getBySpecialty(specialty);
-      const photographersArray = processApiResponse(photographersResponse);
-      console.log('Photographers by specialty data received:', photographersArray.length);
+  //     const photographersResponse = await photographerService.getBySpecialty(specialty);
+  //     const photographersArray = processApiResponse(photographersResponse);
+  //     console.log('Photographers by specialty data received:', photographersArray.length);
       
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (error) {
-            console.error('Error transforming photographer by specialty:', photographer.photographerId, error);
-            transformedData.push(createFallbackPhotographer(photographer));
-          }
-        }
-      }
+  //     const transformedData: PhotographerData[] = [];
+  //     for (const photographer of photographersArray) {
+  //       if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
+  //         try {
+  //           const transformed = transformPhotographerData(photographer);
+  //           transformedData.push(transformed);
+  //         } catch (error) {
+  //           console.error('Error transforming photographer by specialty:', photographer.photographerId, error);
+  //           transformedData.push(createFallbackPhotographer(photographer));
+  //         }
+  //       }
+  //     }
       
-      console.log('Final transformed photographers by specialty:', transformedData);
-      setPhotographers(transformedData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch photographers by specialty');
-      console.error('Error fetching photographers by specialty:', err);
-      setPhotographers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [loading, processApiResponse, transformPhotographerData, createFallbackPhotographer]);
+  //     console.log('Final transformed photographers by specialty:', transformedData);
+  //     setPhotographers(transformedData);
+  //   } catch (err) {
+  //     setError(err instanceof Error ? err.message : 'Failed to fetch photographers by specialty');
+  //     console.error('Error fetching photographers by specialty:', err);
+  //     setPhotographers([]);
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // }, [loading, processApiResponse, transformPhotographerData, createFallbackPhotographer]);
 
   // Get photographer by ID
   const getPhotographerById = useCallback(async (id: number): Promise<PhotographerData | null> => {
     try {
-      const photographerData = await photographerService.getPhotographerProfile(id);
+      const photographerData = await photographerService.getById(id);
       return transformPhotographerData(photographerData);
     } catch (err) {
       console.error('Error fetching photographer by id:', err);
@@ -316,7 +316,7 @@ export const usePhotographers = () => {
 
   const getPhotographerDetail = useCallback(async (id: number): Promise<PhotographerData | null> => {
     try {
-      const photographerData = await photographerService.getPhotographerProfile(id);
+      const photographerData = await photographerService.getById(id);
       return transformPhotographerData(photographerData);
     } catch (err) {
       console.error('Error fetching photographer detail:', err);
@@ -337,7 +337,7 @@ export const usePhotographers = () => {
     fetchAllPhotographers,
     fetchFeaturedPhotographers,
     fetchAvailablePhotographers,
-    fetchPhotographersBySpecialty,
+    // fetchPhotographersBySpecialty,
     getPhotographerById,
     getPhotographerDetail,
   };

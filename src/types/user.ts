@@ -2,6 +2,9 @@
 import { Location, LocationOwner } from './location';
 import { Photographer } from './photographer';
 import { Review } from './review';
+import { Booking } from './booking';
+import { UserStyle } from './userProfile';
+
 
 export interface User {
   $id: string;
@@ -80,26 +83,6 @@ export interface Administrator {
   adminLevel: string;
   permissions: string;
   assignedDate: string;
-}
-
-export interface Booking {
-  id: number;
-  userId: number;
-  photographerId: number;
-  locationId: number;
-  bookingDate: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-  totalAmount: number;
-  notes?: string;
-  createdAt: string;
-  updatedAt: string;
-  // Extended fields for display
-  photographerName?: string;
-  service?: string;
-  rating?: number;
-  locationName?: string;
 }
 
 export interface ComplaintReportedUser {
@@ -228,13 +211,7 @@ export interface UserRole {
   isActive: boolean;
 }
 
-export interface UserStyle {
-  id: number;
-  userId: number;
-  styleId: number;
-  styleName: string;
-  assignedDate: string;
-}
+
 
 // DTOs for API requests
 export interface CreateUserDto {

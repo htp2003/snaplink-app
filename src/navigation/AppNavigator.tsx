@@ -35,6 +35,7 @@ import EditProfilePhotographerScreen from "../screens/photographer/EditProfilePh
 import OrderManagementScreen from "../screens/photographer/OrderManagementScreen";
 import VenueOwnerProfileScreen from "../screens/venueOwner/VenueOwnerProfileScreen";
 import EmailVerificationScreen from "../screens/EmailVerificationScreen";
+import EditProfileUserScreen from "../screens/customer/EditProifileUserScreen";
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -83,6 +84,7 @@ const AppNavigator = () => {
       />
       <Stack.Screen name="Booking" component={BookingScreen} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
+      <Stack.Screen name="EditProfileUserScreen" component={EditProfileUserScreen} />
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen

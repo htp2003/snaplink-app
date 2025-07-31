@@ -25,3 +25,4 @@ export {
   export {ImageResponse, CreateImageRequest, UpdateImageRequest} from './image';
   export * from './notification';
   export * from './booking';
+  export * from './userStyle';

@@ -37,7 +37,7 @@ import VenueOwnerProfileScreen from "../screens/venueOwner/VenueOwnerProfileScre
 import EmailVerificationScreen from "../screens/EmailVerificationScreen";
 import EditProfileUserScreen from "../screens/customer/EditProifileUserScreen";
 import OrderHistoryScreen from "../screens/customer/OrderHistoryScreen";
-
+import PortfolioScreen from "../screens/photographer/PortfolioScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -125,6 +125,7 @@ const AppNavigator = () => {
         name="ManageAvailabilityScreen"
         component={ManageAvailabilityScreen}
       />
+      <Stack.Screen name="PortfolioScreen" component={PortfolioScreen} />
 
       {/* Các màn hình dành riêng cho VenueOwner */}
       <Stack.Screen

@@ -44,7 +44,7 @@ export type RootStackParamList = {
   ProfilePhotographerScreen: undefined;
   OrderManagementScreen: undefined;
   ManageAvailabilityScreen: undefined;
-
+  PortfolioScreen: undefined;
   PaymentWaitingScreen: PaymentFlowData;
 
   PhotographerEventScreen: {

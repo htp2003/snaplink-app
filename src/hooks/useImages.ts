@@ -11,7 +11,8 @@ export interface UseImagesReturn {
   error: string | null;
   fetchImages: () => Promise<void>;
   refresh: () => Promise<void>;
-  createImage: (file: File, isPrimary?: boolean, caption?: string) => Promise<ImageResponse | null>;
+  // FIXED: Accept File object (like from ImagePicker) instead of separate URI/fileName
+  createImage: (file: any, isPrimary?: boolean, caption?: string) => Promise<ImageResponse | null>;
   updateImage: (imageId: number, options?: {
     photographerId?: number;
     locationId?: number;
@@ -22,7 +23,8 @@ export interface UseImagesReturn {
   }) => Promise<ImageResponse | null>;
   deleteImage: (imageId: number) => Promise<boolean>;
   setPrimaryImage: (imageId: number) => Promise<boolean>;
-  uploadMultiple: (files: File[], primaryIndex?: number) => Promise<ImageResponse[]>;
+  // FIXED: Accept array of File objects
+  uploadMultiple: (files: any[], primaryIndex?: number) => Promise<ImageResponse[]>;
   clear: () => void;
 }
 
@@ -36,6 +38,33 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
   const imageUrls = imageService.extractImageUrls(images);
   const primaryImageUrl = primaryImage?.url || null;
 
+  // Helper function to extract file info from various input formats
+  const extractFileInfo = (file: any): { uri: string; fileName: string } => {
+    console.log('🔍 Extracting file info from:', typeof file, file);
+    
+    // Handle different input formats
+    if (typeof file === 'string') {
+      // Direct URI string
+      const fileName = file.split('/').pop() || 'image.jpg';
+      return { uri: file, fileName };
+    }
+    
+    if (file && typeof file === 'object') {
+      // File object with uri property (from ImagePicker)
+      if (file.uri) {
+        const fileName = file.name || file.uri.split('/').pop() || 'image.jpg';
+        return { uri: file.uri, fileName };
+      }
+      
+      // Web File object
+      if (file.name && file.size) {
+        return { uri: file.uri || '', fileName: file.name };
+      }
+    }
+    
+    throw new Error(`Invalid file format: ${typeof file}. Expected File object or URI string.`);
+  };
+
   // Fetch images for the specified type and reference ID
   const fetchImages = useCallback(async () => {
     if (!refId || refId <= 0) {
@@ -48,7 +77,7 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
     setError(null);
     
     try {
-      console.log(`Fetching ${type} images for ID ${refId}...`);
+      console.log(`🔍 Fetching ${type} images for ID ${refId}...`);
       
       // Fetch both images and primary image in parallel
       const [imagesData, primaryImageData] = await Promise.all([
@@ -56,9 +85,9 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
         imageService.getPrimaryImageByType(type, refId)
       ]);
       
-      console.log(`${type} images fetched:`, {
+      console.log(`✅ ${type} images fetched:`, {
         totalImages: imagesData.length,
-        primaryImage: primaryImageData?.url || 'none',
+        primaryImage: primaryImageData?.url ? 'found' : 'none',
         imageUrls: imagesData.map(img => img.url)
       });
 
@@ -68,7 +97,7 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch images';
       setError(errorMessage);
-      console.error(`Error fetching ${type} images:`, err);
+      console.error(`❌ Error fetching ${type} images:`, err);
     } finally {
       setLoading(false);
     }
@@ -89,47 +118,63 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
   // Refresh images (alias for fetchImages)
   const refresh = useCallback(() => fetchImages(), [fetchImages]);
 
-  // Create new image - Updated to use File instead of URL
+  // Create new image - FIXED VERSION
   const createImage = useCallback(async (
-    file: File, 
+    file: any, // Accept any file format
     isPrimary: boolean = false, 
     caption?: string
   ): Promise<ImageResponse | null> => {
-    if (!refId || refId <= 0) return null;
+    if (!refId || refId <= 0) {
+      console.error('❌ Invalid refId for creating image');
+      return null;
+    }
     
     try {
       setLoading(true);
       setError(null);
+      
+      // Extract file info safely
+      const { uri, fileName } = extractFileInfo(file);
+      
+      console.log(`🚀 Creating ${type} image:`, {
+        uri: uri.substring(0, 50) + '...',
+        fileName,
+        refId,
+        isPrimary,
+        caption
+      });
       
       let newImage: ImageResponse | null = null;
       
       // Call appropriate create method based on type
       switch (type) {
         case 'photographer':
-          newImage = await imageService.photographer.createImage(file, refId, isPrimary, caption);
+          newImage = await imageService.photographer.createImage(uri, fileName, refId, isPrimary, caption);
           break;
         case 'location':
-          newImage = await imageService.location.createImage(file, refId, isPrimary, caption);
+          newImage = await imageService.location.createImage(uri, fileName, refId, isPrimary, caption);
           break;
         case 'event':
-          newImage = await imageService.event.createImage(file, refId, isPrimary, caption);
+          newImage = await imageService.event.createImage(uri, fileName, refId, isPrimary, caption);
           break;
         default:
-          console.error(`Unknown image type: ${type}`);
+          console.error(`❌ Unknown image type: ${type}`);
           return null;
       }
       
       if (newImage) {
         // Refresh images to get updated list
         await fetchImages();
-        console.log(`Created new ${type} image:`, newImage.url);
+        console.log(`✅ Created new ${type} image:`, newImage.url);
+      } else {
+        console.error('❌ Failed to create image - service returned null');
       }
       
       return newImage;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create image';
       setError(errorMessage);
-      console.error(`Error creating ${type} image:`, err);
+      console.error(`❌ Error creating ${type} image:`, err);
       return null;
     } finally {
       setLoading(false);
@@ -152,6 +197,8 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       setLoading(true);
       setError(null);
       
+      console.log(`🔄 Updating ${type} image ${imageId}:`, options);
+      
       const updatedImage = await imageService.updateImage(
         imageId,
         options?.photographerId,
@@ -165,14 +212,14 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       if (updatedImage) {
         // Refresh images to get updated list
         await fetchImages();
-        console.log(`Updated ${type} image:`, updatedImage.url);
+        console.log(`✅ Updated ${type} image:`, updatedImage.url);
       }
       
       return updatedImage;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update image';
       setError(errorMessage);
-      console.error(`Error updating ${type} image:`, err);
+      console.error(`❌ Error updating ${type} image:`, err);
       return null;
     } finally {
       setLoading(false);
@@ -185,19 +232,21 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       setLoading(true);
       setError(null);
       
+      console.log(`🗑️  Deleting ${type} image ${imageId}`);
+      
       const success = await imageService.deleteImage(imageId);
       
       if (success) {
         // Refresh images to get updated list
         await fetchImages();
-        console.log(`Deleted ${type} image ID:`, imageId);
+        console.log(`✅ Deleted ${type} image ID:`, imageId);
       }
       
       return success;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete image';
       setError(errorMessage);
-      console.error(`Error deleting ${type} image:`, err);
+      console.error(`❌ Error deleting ${type} image:`, err);
       return false;
     } finally {
       setLoading(false);
@@ -210,35 +259,48 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       setLoading(true);
       setError(null);
       
+      console.log(`⭐ Setting primary ${type} image ${imageId}`);
+      
       const success = await imageService.setPrimaryImage(imageId);
       
       if (success) {
         // Refresh images to get updated primary status
         await fetchImages();
-        console.log(`Set primary ${type} image ID:`, imageId);
+        console.log(`✅ Set primary ${type} image ID:`, imageId);
       }
       
       return success;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to set primary image';
       setError(errorMessage);
-      console.error(`Error setting primary ${type} image:`, err);
+      console.error(`❌ Error setting primary ${type} image:`, err);
       return false;
     } finally {
       setLoading(false);
     }
   }, [type, fetchImages]);
 
-  // Upload multiple images - Updated to use Files
+  // Upload multiple images - FIXED VERSION
   const uploadMultiple = useCallback(async (
-    files: File[], 
+    files: any[], // Accept array of any file format
     primaryIndex?: number
   ): Promise<ImageResponse[]> => {
-    if (!refId || refId <= 0) return [];
+    if (!refId || refId <= 0) {
+      console.error('❌ Invalid refId for uploading multiple images');
+      return [];
+    }
     
     try {
       setLoading(true);
       setError(null);
+      
+      console.log(`🚀 Uploading ${files.length} ${type} images for ID ${refId}`);
+      
+      // Convert files to proper format
+      const imageAssets = files.map(file => {
+        const { uri, fileName } = extractFileInfo(file);
+        return { uri, fileName };
+      });
       
       let uploadedImages: ImageResponse[] = [];
       
@@ -246,35 +308,35 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
       switch (type) {
         case 'photographer':
           uploadedImages = await imageService.uploadMultipleImages(
-            files, refId, undefined, undefined, primaryIndex
+            imageAssets, refId, undefined, undefined, primaryIndex
           );
           break;
         case 'location':
           uploadedImages = await imageService.uploadMultipleImages(
-            files, undefined, refId, undefined, primaryIndex
+            imageAssets, undefined, refId, undefined, primaryIndex
           );
           break;
         case 'event':
           uploadedImages = await imageService.uploadMultipleImages(
-            files, undefined, undefined, refId, primaryIndex
+            imageAssets, undefined, undefined, refId, primaryIndex
           );
           break;
         default:
-          console.error(`Unknown image type: ${type}`);
+          console.error(`❌ Unknown image type: ${type}`);
           return [];
       }
       
       if (uploadedImages.length > 0) {
         // Refresh images to get updated list
         await fetchImages();
-        console.log(`Uploaded ${uploadedImages.length} ${type} images`);
+        console.log(`✅ Uploaded ${uploadedImages.length} ${type} images`);
       }
       
       return uploadedImages;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to upload images';
       setError(errorMessage);
-      console.error(`Error uploading multiple ${type} images:`, err);
+      console.error(`❌ Error uploading multiple ${type} images:`, err);
       return [];
     } finally {
       setLoading(false);
@@ -283,10 +345,11 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
 
   // Clear state
   const clear = useCallback(() => {
+    console.log(`🧹 Clearing ${type} images state`);
     setImages([]);
     setPrimaryImageState(null);
     setError(null);
-  }, []);
+  }, [type]);
 
   return {
     images,

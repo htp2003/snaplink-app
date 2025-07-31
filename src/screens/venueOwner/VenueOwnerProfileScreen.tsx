@@ -10,6 +10,8 @@ import {
   Modal,
   TextInput,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { RootStackNavigationProp } from "../../navigation/types";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../hooks/useAuth";
@@ -27,12 +29,13 @@ export default function VenueOwnerProfileScreen() {
     error,
     clearError,
   } = useVenueOwnerProfile();
-
+  const navigation = useNavigation<RootStackNavigationProp>();
   const [venueOwner, setVenueOwner] = useState<LocationOwner | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [locationOwnerId, setLocationOwnerId] = useState<number | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -161,9 +164,41 @@ export default function VenueOwnerProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Đăng xuất", "Bạn có chắc muốn đăng xuất?", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Đăng xuất", style: "destructive", onPress: logout },
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
+      {
+        text: "Hủy",
+        style: "cancel",
+      },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setIsLoggingOut(true);
+            console.log("🚪 Starting logout process...");
+
+            await logout();
+
+            console.log("✅ Logout completed, navigating to login...");
+
+            // Reset navigation stack về Login
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }], // nhớ đổi nếu Login có tên route khác
+            });
+          } catch (error) {
+            console.error("❌ Logout error:", error);
+
+            Alert.alert(
+              "Lỗi đăng xuất",
+              "Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.",
+              [{ text: "OK" }]
+            );
+          } finally {
+            setIsLoggingOut(false);
+          }
+        },
+      },
     ]);
   };
 
@@ -209,6 +244,7 @@ export default function VenueOwnerProfileScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        contentContainerStyle={{ paddingBottom: 80 }}
       >
         {/* Header */}
         <View className="bg-white px-4 py-6">

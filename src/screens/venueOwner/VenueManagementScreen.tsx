@@ -1,3 +1,4 @@
+// screens/venueOwner/VenueManagementScreen.tsx - Back to working version
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -12,33 +13,40 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocationManagement } from "../../hooks/useLocationManagement";
-import { useVenueImageManagement } from "../../hooks/useVenueImageManagement";
+import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
+import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
 import { useAuth } from "../../hooks/useAuth";
 import {
-  Venue,
-  CreateVenueRequest,
-  UpdateVenueRequest,
-} from "../../services/locationManagementService";
+  VenueLocation,
+  CreateLocationRequest,
+  UpdateLocationRequest,
+} from "../../types/venueLocation";
 
 export default function VenueManagementScreen() {
   const { user } = useAuth();
+  const { getProfileByUserId } = useVenueOwnerProfile();
   const {
-    venues,
+    locations,
     loading,
     error,
-    fetchVenues,
-    createVenue,
-    updateVenue,
-    deleteVenue,
-  } = useLocationManagement();
-  const { images, fetchVenueImages, getPrimaryImage } =
-    useVenueImageManagement();
+    refreshing,
+    getAllLocations,
+    createLocation,
+    updateLocation,
+    deleteLocation,
+    getPrimaryImage,
+    refreshLocations,
+  } = useVenueOwnerLocation();
 
-  const [refreshing, setRefreshing] = useState(false);
+  const [locationOwnerId, setLocationOwnerId] = useState<number | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
-  const [venueImages, setVenueImages] = useState<Record<number, string>>({});
+  const [editingLocation, setEditingLocation] = useState<VenueLocation | null>(
+    null
+  );
+  const [locationImages, setLocationImages] = useState<Record<number, string>>(
+    {}
+  );
 
   // Form state
   const [formData, setFormData] = useState({
@@ -52,45 +60,88 @@ export default function VenueManagementScreen() {
     outdoor: false,
   });
 
-  const myVenues = venues.filter(
-    (venue) => venue.locationOwnerId === user?.venueOwnerId
-  );
+  // Filter locations by actual locationOwnerId from profile
+  const myLocations = locationOwnerId
+    ? locations.filter(
+        (location) => location.locationOwnerId === locationOwnerId
+      )
+    : [];
 
   const onRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await fetchVenues();
-    } catch (err) {
-      Alert.alert("Lỗi", "Không thể tải lại danh sách địa điểm");
-    } finally {
-      setRefreshing(false);
-    }
+    await refreshLocations();
   };
 
-  const loadVenueImages = async () => {
-    if (!myVenues.length) return;
+  const loadLocationImages = async () => {
+    // TEMPORARILY DISABLED to stop API spam
+    console.log("🖼️ Image loading disabled to prevent API spam");
+    return;
 
-    const imagePromises = myVenues.map(async (venue) => {
+    if (!myLocations.length) return;
+
+    console.log("🖼️ Loading images for locations:", myLocations.length);
+
+    const imagePromises = myLocations.map(async (location) => {
       try {
-        const primaryImage = await getPrimaryImage(venue.id);
-        return { venueId: venue.id, imageUrl: primaryImage?.imageUrl || "" };
+        const imageUrl = await getPrimaryImage(location.locationId);
+        return { locationId: location.locationId, imageUrl: imageUrl || "" };
       } catch {
-        return { venueId: venue.id, imageUrl: "" };
+        return { locationId: location.locationId, imageUrl: "" };
       }
     });
 
     const images = await Promise.all(imagePromises);
-    const imageMap = images.reduce((acc, { venueId, imageUrl }) => {
-      acc[venueId] = imageUrl;
+    const imageMap = images.reduce((acc, { locationId, imageUrl }) => {
+      acc[locationId] = imageUrl;
       return acc;
     }, {} as Record<number, string>);
 
-    setVenueImages(imageMap);
+    console.log("🖼️ Images loaded:", Object.keys(imageMap).length);
+    setLocationImages(imageMap);
   };
 
+  // Get venue owner profile to extract locationOwnerId
   useEffect(() => {
-    loadVenueImages();
-  }, [myVenues]);
+    const fetchVenueOwnerProfile = async () => {
+      if (!user?.id) return;
+
+      setProfileLoading(true);
+      try {
+        console.log("🔍 Getting venue owner profile for userId:", user.id);
+        const profile = await getProfileByUserId(user.id);
+
+        if (profile) {
+          console.log("✅ Found venue owner profile:", profile);
+          setLocationOwnerId(profile.locationOwnerId);
+        } else {
+          console.log("ℹ️ No venue owner profile found");
+          setLocationOwnerId(null);
+        }
+      } catch (error) {
+        console.error("❌ Error getting venue owner profile:", error);
+        setLocationOwnerId(null);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    fetchVenueOwnerProfile();
+  }, [user?.id, getProfileByUserId]);
+
+  // Load all locations after we have the profile
+  useEffect(() => {
+    if (!profileLoading) {
+      console.log("📍 Loading all locations...");
+      getAllLocations();
+    }
+  }, [profileLoading]); // Load locations after profile is loaded
+
+  useEffect(() => {
+    // TEMPORARILY DISABLED - Load images when myLocations changes
+    // if (myLocations.length > 0) {
+    //   loadLocationImages();
+    // }
+    console.log("📍 Locations updated:", myLocations.length);
+  }, [myLocations.length]);
 
   const resetForm = () => {
     setFormData({
@@ -103,7 +154,7 @@ export default function VenueManagementScreen() {
       indoor: false,
       outdoor: false,
     });
-    setEditingVenue(null);
+    setEditingLocation(null);
   };
 
   const openCreateModal = () => {
@@ -111,18 +162,18 @@ export default function VenueManagementScreen() {
     setShowCreateModal(true);
   };
 
-  const openEditModal = (venue: Venue) => {
+  const openEditModal = (location: VenueLocation) => {
     setFormData({
-      name: venue.name || "",
-      address: venue.address || "",
-      description: venue.description || "",
-      amenities: venue.amenities || "",
-      hourlyRate: venue.hourlyRate?.toString() || "",
-      capacity: venue.capacity?.toString() || "",
-      indoor: venue.indoor || false,
-      outdoor: venue.outdoor || false,
+      name: location.name || "",
+      address: location.address || "",
+      description: location.description || "",
+      amenities: location.amenities || "",
+      hourlyRate: location.hourlyRate?.toString() || "",
+      capacity: location.capacity?.toString() || "",
+      indoor: location.indoor || false,
+      outdoor: location.outdoor || false,
     });
-    setEditingVenue(venue);
+    setEditingLocation(location);
     setShowCreateModal(true);
   };
 
@@ -132,14 +183,14 @@ export default function VenueManagementScreen() {
       return;
     }
 
-    if (!user?.venueOwnerId) {
+    if (!locationOwnerId) {
       Alert.alert("Lỗi", "Không tìm thấy thông tin venue owner");
       return;
     }
 
     try {
-      if (editingVenue) {
-        const updateData: UpdateVenueRequest = {
+      if (editingLocation) {
+        const updateData: UpdateLocationRequest = {
           name: formData.name,
           address: formData.address,
           description: formData.description || undefined,
@@ -152,11 +203,16 @@ export default function VenueManagementScreen() {
           outdoor: formData.outdoor,
         };
 
-        await updateVenue(editingVenue.id, updateData);
-        Alert.alert("Thành công", "Cập nhật địa điểm thành công");
+        const result = await updateLocation(
+          editingLocation.locationId,
+          updateData
+        );
+        if (result) {
+          Alert.alert("Thành công", "Cập nhật địa điểm thành công");
+        }
       } else {
-        const createData: CreateVenueRequest = {
-          locationOwnerId: user.venueOwnerId,
+        const createData: CreateLocationRequest = {
+          locationOwnerId: locationOwnerId,
           name: formData.name,
           address: formData.address,
           description: formData.description || undefined,
@@ -167,13 +223,16 @@ export default function VenueManagementScreen() {
           capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
           indoor: formData.indoor,
           outdoor: formData.outdoor,
-          availabilityStatus: "available",
+          availabilityStatus: "Available",
           featuredStatus: false,
           verificationStatus: "pending",
+          locationType: "Registered",
         };
 
-        await createVenue(createData);
-        Alert.alert("Thành công", "Tạo địa điểm thành công");
+        const result = await createLocation(createData);
+        if (result) {
+          Alert.alert("Thành công", "Tạo địa điểm thành công");
+        }
       }
 
       setShowCreateModal(false);
@@ -184,10 +243,10 @@ export default function VenueManagementScreen() {
     }
   };
 
-  const handleDelete = (venue: Venue) => {
+  const handleDelete = (location: VenueLocation) => {
     Alert.alert(
       "Xác nhận xóa",
-      `Bạn có chắc muốn xóa địa điểm "${venue.name}"?`,
+      `Bạn có chắc muốn xóa địa điểm "${location.name}"?`,
       [
         { text: "Hủy", style: "cancel" },
         {
@@ -195,7 +254,7 @@ export default function VenueManagementScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const success = await deleteVenue(venue.id);
+              const success = await deleteLocation(location.locationId);
               if (success) {
                 Alert.alert("Thành công", "Xóa địa điểm thành công");
                 await onRefresh();
@@ -217,6 +276,46 @@ export default function VenueManagementScreen() {
       currency: "VND",
     }).format(amount);
   };
+
+  // Show loading state while getting profile
+  if (profileLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center px-4">
+          <Text className="text-lg text-gray-600">
+            Đang tải hồ sơ venue owner...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show proper state based on venue owner profile
+  if (!user?.id) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center px-4">
+          <Text className="text-lg text-gray-600">Đang tải...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!locationOwnerId) {
+    return (
+      <SafeAreaView className="flex-1 bg-gray-50">
+        <View className="flex-1 justify-center items-center px-4">
+          <Ionicons name="business-outline" size={64} color="#6B7280" />
+          <Text className="text-xl font-semibold text-gray-900 mt-4 text-center">
+            Cần tạo hồ sơ venue owner
+          </Text>
+          <Text className="text-gray-600 mt-2 text-center">
+            Bạn cần tạo hồ sơ venue owner trước khi quản lý địa điểm
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (error) {
     return (
@@ -253,7 +352,7 @@ export default function VenueManagementScreen() {
                 Địa điểm của tôi
               </Text>
               <Text className="text-gray-600 mt-1">
-                Quản lý địa điểm cho thuê
+                Quản lý địa điểm cho thuê ({myLocations.length} địa điểm)
               </Text>
             </View>
             <TouchableOpacity
@@ -284,18 +383,18 @@ export default function VenueManagementScreen() {
                 </View>
               ))}
             </View>
-          ) : myVenues.length > 0 ? (
+          ) : myLocations.length > 0 ? (
             <View className="space-y-4 mb-6">
-              {myVenues.map((venue) => (
+              {myLocations.map((location) => (
                 <View
-                  key={venue.id}
+                  key={location.locationId}
                   className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden"
                 >
                   <View className="flex-row">
                     <View className="w-24 h-24">
-                      {venueImages[venue.id] ? (
+                      {locationImages[location.locationId] ? (
                         <Image
-                          source={{ uri: venueImages[venue.id] }}
+                          source={{ uri: locationImages[location.locationId] }}
                           className="w-full h-full"
                           resizeMode="cover"
                         />
@@ -313,11 +412,11 @@ export default function VenueManagementScreen() {
                     <View className="flex-1 p-4">
                       <View className="flex-row justify-between items-start mb-2">
                         <Text className="text-lg font-semibold text-gray-900 flex-1 mr-2">
-                          {venue.name}
+                          {location.name}
                         </Text>
                         <View className="flex-row space-x-2">
                           <TouchableOpacity
-                            onPress={() => openEditModal(venue)}
+                            onPress={() => openEditModal(location)}
                             className="p-2"
                           >
                             <Ionicons
@@ -327,7 +426,7 @@ export default function VenueManagementScreen() {
                             />
                           </TouchableOpacity>
                           <TouchableOpacity
-                            onPress={() => handleDelete(venue)}
+                            onPress={() => handleDelete(location)}
                             className="p-2"
                           >
                             <Ionicons
@@ -343,28 +442,28 @@ export default function VenueManagementScreen() {
                         className="text-gray-600 text-sm mb-2"
                         numberOfLines={2}
                       >
-                        {venue.address}
+                        {location.address}
                       </Text>
 
                       <View className="flex-row justify-between items-center">
                         <Text className="text-blue-600 font-semibold">
-                          {venue.hourlyRate
-                            ? formatCurrency(venue.hourlyRate)
+                          {location.hourlyRate
+                            ? formatCurrency(location.hourlyRate)
                             : "Chưa có giá"}
                           /giờ
                         </Text>
                         <View className="flex-row items-center">
                           <View
                             className={`w-2 h-2 rounded-full mr-2 ${
-                              venue.availabilityStatus === "available"
+                              location.availabilityStatus === "Available"
                                 ? "bg-green-500"
-                                : venue.availabilityStatus === "unavailable"
+                                : location.availabilityStatus === "Unavailable"
                                 ? "bg-red-500"
                                 : "bg-yellow-500"
                             }`}
                           />
                           <Text className="text-xs text-gray-500 capitalize">
-                            {venue.availabilityStatus}
+                            {location.availabilityStatus}
                           </Text>
                         </View>
                       </View>
@@ -410,7 +509,7 @@ export default function VenueManagementScreen() {
               <Text className="text-blue-500 font-medium">Hủy</Text>
             </TouchableOpacity>
             <Text className="text-lg font-semibold">
-              {editingVenue ? "Chỉnh sửa địa điểm" : "Thêm địa điểm"}
+              {editingLocation ? "Chỉnh sửa địa điểm" : "Thêm địa điểm"}
             </Text>
             <TouchableOpacity onPress={handleSave}>
               <Text className="text-blue-500 font-medium">Lưu</Text>

@@ -7,13 +7,13 @@ import {
   UpdateBookingRequest,
   BookingResponse,
   BookingListResponse,
-  AvailabilityResponse,
   PriceCalculationResponse,
   BookingFormData,
   BookingValidationErrors,
   UseBookingOptions,
   BookingStatus
 } from '../types/booking';
+import type { CheckAvailabilityResponse } from '../types/availability';
 
 export const useBooking = (options: UseBookingOptions = {}) => {
   const { userId, photographerId, autoFetch = false } = options;
@@ -27,7 +27,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
   const [error, setError] = useState<string | null>(null);
   
   // ===== AVAILABILITY & PRICING STATES =====
-  const [availability, setAvailability] = useState<AvailabilityResponse | null>(null);
+  const [availability, setAvailability] = useState<CheckAvailabilityResponse | null>(null);
   const [priceCalculation, setPriceCalculation] = useState<PriceCalculationResponse | null>(null);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [calculatingPrice, setCalculatingPrice] = useState(false);
@@ -284,10 +284,10 @@ export const useBooking = (options: UseBookingOptions = {}) => {
 
       const [photographerResponse, locationResponse] = await Promise.all([
         bookingService.checkPhotographerAvailability(photographerIdParam, startTime, endTime),
-        locationId ? bookingService.checkLocationAvailability(locationId, startTime, endTime) : Promise.resolve({ available: true, conflictingBookings: [], suggestedTimes: [] } as AvailabilityResponse)
+        locationId ? bookingService.checkLocationAvailability(locationId, startTime, endTime) : Promise.resolve({ available: true, conflictingBookings: [], suggestedTimes: [] } as CheckAvailabilityResponse)
       ]);
 
-      const combinedAvailability: AvailabilityResponse = {
+      const combinedAvailability: CheckAvailabilityResponse = {
         available: photographerResponse.available && locationResponse.available,
         conflictingBookings: [
           ...(photographerResponse.conflictingBookings || []),
@@ -312,7 +312,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
         conflictingBookings: [], 
         suggestedTimes: [],
         message: errorMessage
-      } as AvailabilityResponse;
+      } as CheckAvailabilityResponse;
     } finally {
       setCheckingAvailability(false);
     }

@@ -61,6 +61,8 @@ export type RootStackParamList = {
   ViewAllLocations: undefined;
   ProfileUserScreen: undefined;
   EditProfileUserScreen: undefined;
+  OrderHistoryScreen: { userId: number };
+  BookingDetailScreen: { bookingId: number };
   Booking: {
     photographer: {
       photographerId: number;

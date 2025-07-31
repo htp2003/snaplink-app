@@ -1,4 +1,4 @@
-// screens/venueOwner/VenueManagementScreen.tsx - Back to working version
+// screens/venueOwner/VenueManagementScreen.tsx - With Image Upload
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -10,12 +10,15 @@ import {
   RefreshControl,
   Modal,
   TextInput,
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
 import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
 import { useAuth } from "../../hooks/useAuth";
+import { useVenueOwnerLocationImages } from "../../hooks/useVenueOwnerLocationImages";
 import {
   VenueLocation,
   CreateLocationRequest,
@@ -34,19 +37,31 @@ export default function VenueManagementScreen() {
     createLocation,
     updateLocation,
     deleteLocation,
-    getPrimaryImage,
     refreshLocations,
   } = useVenueOwnerLocation();
 
   const [locationOwnerId, setLocationOwnerId] = useState<number | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [selectedLocation, setSelectedLocation] =
+    useState<VenueLocation | null>(null);
   const [editingLocation, setEditingLocation] = useState<VenueLocation | null>(
     null
   );
-  const [locationImages, setLocationImages] = useState<Record<number, string>>(
-    {}
-  );
+
+  // Image hook for selected location
+  const {
+    images: locationImages,
+    primaryImage,
+    loading: imageLoading,
+    uploadImage,
+    uploadMultipleImages,
+    fetchImages,
+    setPrimaryImage,
+    deleteImage,
+    clearError: clearImageError,
+  } = useVenueOwnerLocationImages(selectedLocation?.locationId || 0);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -69,34 +84,6 @@ export default function VenueManagementScreen() {
 
   const onRefresh = async () => {
     await refreshLocations();
-  };
-
-  const loadLocationImages = async () => {
-    // TEMPORARILY DISABLED to stop API spam
-    console.log("🖼️ Image loading disabled to prevent API spam");
-    return;
-
-    if (!myLocations.length) return;
-
-    console.log("🖼️ Loading images for locations:", myLocations.length);
-
-    const imagePromises = myLocations.map(async (location) => {
-      try {
-        const imageUrl = await getPrimaryImage(location.locationId);
-        return { locationId: location.locationId, imageUrl: imageUrl || "" };
-      } catch {
-        return { locationId: location.locationId, imageUrl: "" };
-      }
-    });
-
-    const images = await Promise.all(imagePromises);
-    const imageMap = images.reduce((acc, { locationId, imageUrl }) => {
-      acc[locationId] = imageUrl;
-      return acc;
-    }, {} as Record<number, string>);
-
-    console.log("🖼️ Images loaded:", Object.keys(imageMap).length);
-    setLocationImages(imageMap);
   };
 
   // Get venue owner profile to extract locationOwnerId
@@ -133,15 +120,7 @@ export default function VenueManagementScreen() {
       console.log("📍 Loading all locations...");
       getAllLocations();
     }
-  }, [profileLoading]); // Load locations after profile is loaded
-
-  useEffect(() => {
-    // TEMPORARILY DISABLED - Load images when myLocations changes
-    // if (myLocations.length > 0) {
-    //   loadLocationImages();
-    // }
-    console.log("📍 Locations updated:", myLocations.length);
-  }, [myLocations.length]);
+  }, [profileLoading]);
 
   const resetForm = () => {
     setFormData({
@@ -175,6 +154,12 @@ export default function VenueManagementScreen() {
     });
     setEditingLocation(location);
     setShowCreateModal(true);
+  };
+
+  const openImageModal = (location: VenueLocation) => {
+    setSelectedLocation(location);
+    setShowImageModal(true);
+    clearImageError();
   };
 
   const handleSave = async () => {
@@ -268,6 +253,78 @@ export default function VenueManagementScreen() {
         },
       ]
     );
+  };
+
+  const handlePickImages = async () => {
+    try {
+      // Request permission
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert("Lỗi", "Cần quyền truy cập thư viện ảnh để upload hình");
+        return;
+      }
+
+      // Pick multiple images
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        aspect: [16, 9],
+      });
+
+      if (!result.canceled && result.assets) {
+        const imageUris = result.assets.map((asset) => asset.uri);
+
+        if (imageUris.length > 0) {
+          try {
+            await uploadMultipleImages(imageUris, 0); // First image as primary
+            Alert.alert("Thành công", `Đã upload ${imageUris.length} hình ảnh`);
+          } catch (error) {
+            Alert.alert("Lỗi", "Có lỗi xảy ra khi upload hình ảnh");
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Image picker error:", error);
+      Alert.alert("Lỗi", "Có lỗi xảy ra khi chọn hình ảnh");
+    }
+  };
+
+  const handleSetPrimaryImage = async (imageId: number) => {
+    try {
+      const success = await setPrimaryImage(imageId);
+      if (success) {
+        Alert.alert("Thành công", "Đã đặt làm hình ảnh chính");
+      } else {
+        Alert.alert("Lỗi", "Không thể đặt làm hình ảnh chính");
+      }
+    } catch (error) {
+      Alert.alert("Lỗi", "Có lỗi xảy ra");
+    }
+  };
+
+  const handleDeleteImage = async (imageId: number) => {
+    Alert.alert("Xác nhận xóa", "Bạn có chắc muốn xóa hình ảnh này?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const success = await deleteImage(imageId);
+            if (success) {
+              Alert.alert("Thành công", "Đã xóa hình ảnh");
+            } else {
+              Alert.alert("Lỗi", "Không thể xóa hình ảnh");
+            }
+          } catch (error) {
+            Alert.alert("Lỗi", "Có lỗi xảy ra khi xóa hình ảnh");
+          }
+        },
+      },
+    ]);
   };
 
   const formatCurrency = (amount: number) => {
@@ -391,23 +448,33 @@ export default function VenueManagementScreen() {
                   className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden"
                 >
                   <View className="flex-row">
-                    <View className="w-24 h-24">
-                      {locationImages[location.locationId] ? (
+                    <TouchableOpacity
+                      className="w-24 h-24"
+                      onPress={() => openImageModal(location)}
+                    >
+                      {location.images && location.images.length > 0 ? (
                         <Image
-                          source={{ uri: locationImages[location.locationId] }}
+                          source={{
+                            uri:
+                              location.images.find((img) => img.isPrimary)
+                                ?.url || location.images[0].url,
+                          }}
                           className="w-full h-full"
                           resizeMode="cover"
                         />
                       ) : (
                         <View className="w-full h-full bg-gray-200 items-center justify-center">
                           <Ionicons
-                            name="image-outline"
+                            name="camera-outline"
                             size={24}
                             color="#9CA3AF"
                           />
+                          <Text className="text-xs text-gray-500 mt-1">
+                            Thêm ảnh
+                          </Text>
                         </View>
                       )}
-                    </View>
+                    </TouchableOpacity>
 
                     <View className="flex-1 p-4">
                       <View className="flex-row justify-between items-start mb-2">
@@ -415,6 +482,16 @@ export default function VenueManagementScreen() {
                           {location.name}
                         </Text>
                         <View className="flex-row space-x-2">
+                          <TouchableOpacity
+                            onPress={() => openImageModal(location)}
+                            className="p-2"
+                          >
+                            <Ionicons
+                              name="image-outline"
+                              size={16}
+                              color="#6B7280"
+                            />
+                          </TouchableOpacity>
                           <TouchableOpacity
                             onPress={() => openEditModal(location)}
                             className="p-2"
@@ -498,6 +575,7 @@ export default function VenueManagementScreen() {
         </View>
       </ScrollView>
 
+      {/* Create/Edit Location Modal */}
       <Modal
         visible={showCreateModal}
         animationType="slide"
@@ -680,6 +758,139 @@ export default function VenueManagementScreen() {
               </View>
             </View>
           </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Image Management Modal */}
+      <Modal
+        visible={showImageModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <SafeAreaView className="flex-1 bg-white">
+          <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
+            <TouchableOpacity onPress={() => setShowImageModal(false)}>
+              <Text className="text-blue-500 font-medium">Đóng</Text>
+            </TouchableOpacity>
+            <Text className="text-lg font-semibold">
+              Quản lý hình ảnh - {selectedLocation?.name}
+            </Text>
+            <TouchableOpacity onPress={handlePickImages}>
+              <Ionicons name="add" size={24} color="#3B82F6" />
+            </TouchableOpacity>
+          </View>
+
+          <View className="flex-1">
+            {imageLoading ? (
+              <View className="flex-1 justify-center items-center">
+                <Text className="text-gray-600">Đang tải hình ảnh...</Text>
+              </View>
+            ) : locationImages.length > 0 ? (
+              <FlatList
+                data={locationImages}
+                numColumns={2}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={{ padding: 16 }}
+                renderItem={({ item }) => (
+                  <View className="flex-1 m-2">
+                    <View className="relative">
+                      <Image
+                        source={{ uri: item.url }}
+                        className="w-full h-40 rounded-lg"
+                        resizeMode="cover"
+                      />
+
+                      {/* Primary badge */}
+                      {item.isPrimary && (
+                        <View className="absolute top-2 left-2 bg-green-500 px-2 py-1 rounded">
+                          <Text className="text-white text-xs font-medium">
+                            Chính
+                          </Text>
+                        </View>
+                      )}
+
+                      {/* Action buttons */}
+                      <View className="absolute top-2 right-2 flex-row space-x-1">
+                        {!item.isPrimary && (
+                          <TouchableOpacity
+                            onPress={() => handleSetPrimaryImage(item.id)}
+                            className="bg-white p-1 rounded"
+                          >
+                            <Ionicons
+                              name="star-outline"
+                              size={16}
+                              color="#3B82F6"
+                            />
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          onPress={() => handleDeleteImage(item.id)}
+                          className="bg-white p-1 rounded"
+                        >
+                          <Ionicons
+                            name="trash-outline"
+                            size={16}
+                            color="#EF4444"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    {/* Caption */}
+                    {item.caption && (
+                      <Text
+                        className="text-sm text-gray-600 mt-2"
+                        numberOfLines={2}
+                      >
+                        {item.caption}
+                      </Text>
+                    )}
+
+                    {/* Upload date */}
+                    <Text className="text-xs text-gray-400 mt-1">
+                      {new Date(item.createdAt).toLocaleDateString("vi-VN")}
+                    </Text>
+                  </View>
+                )}
+              />
+            ) : (
+              <View className="flex-1 justify-center items-center px-8">
+                <View className="bg-gray-100 p-6 rounded-full mb-4">
+                  <Ionicons name="image-outline" size={48} color="#6B7280" />
+                </View>
+                <Text className="text-xl font-semibold text-gray-900 mb-2 text-center">
+                  Chưa có hình ảnh
+                </Text>
+                <Text className="text-gray-600 text-center mb-6">
+                  Thêm hình ảnh để khách hàng có thể xem địa điểm của bạn
+                </Text>
+                <TouchableOpacity
+                  onPress={handlePickImages}
+                  className="bg-blue-500 px-6 py-3 rounded-lg flex-row items-center"
+                >
+                  <Ionicons name="camera" size={20} color="white" />
+                  <Text className="text-white font-semibold ml-2">
+                    Thêm hình ảnh
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Upload button at bottom */}
+          {locationImages.length > 0 && (
+            <View className="p-4 border-t border-gray-200">
+              <TouchableOpacity
+                onPress={handlePickImages}
+                className="bg-blue-500 px-6 py-3 rounded-lg flex-row items-center justify-center"
+              >
+                <Ionicons name="add" size={20} color="white" />
+                <Text className="text-white font-semibold ml-2">
+                  Thêm hình ảnh khác
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

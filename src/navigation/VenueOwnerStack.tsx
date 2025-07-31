@@ -10,7 +10,8 @@ import { Ionicons } from "@expo/vector-icons";
 import VenueManagementScreen from "../screens/venueOwner/VenueManagementScreen";
 import VenueOwnerProfileScreen from "../screens/venueOwner/VenueOwnerProfileScreen";
 import VenueOwnerEventsScreen from "../screens/venueOwner/VenueOwnerEventsScreen";
-import VenueOwnerHomeScreen from "../screens/venueOwner/venueOwnerHomeScreen";
+import VenueOwnerHomeScreen from "../screens/venueOwner/VenueOwnerHomeScreen";
+
 
 const Tab = createBottomTabNavigator<VenueOwnerTabParamList>();
 

@@ -55,8 +55,7 @@ const AppNavigator = () => {
       <Stack.Screen name="CustomerMain" component={CustomerStack} />
       <Stack.Screen name="PhotographerMain" component={PhotographerStack} />
       <Stack.Screen name="VenueOwnerMain" component={VenueOwnerStack} />
-
-      {/* Các màn hình chung */}
+{/* Các màn hình chung */}
       <Stack.Screen name="Layout" component={LayoutPage} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />

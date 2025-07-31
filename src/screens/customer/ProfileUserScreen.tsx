@@ -20,9 +20,7 @@ import FavoritedModal from "../../components/FavoritedModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import NotificationBell from "../../components/Notification/NotificationBell";
 import NotificationModal from "../../components/Notification/NotificationModal";
-import { useCurrentUserId, User } from "../../hooks/useAuth";
 import { userService } from "../../services/userService";
-import { User as ApiUser } from "../../types/user";
 import { UserProfile } from "../../types/userProfile";
 import { useAuth, User as AuthUser } from "../../hooks/useAuth";
 

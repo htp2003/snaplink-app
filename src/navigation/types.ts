@@ -60,6 +60,7 @@ export type RootStackParamList = {
   };
   ViewAllLocations: undefined;
   ProfileUserScreen: undefined;
+  EditProfileUserScreen: undefined;
   Booking: {
     photographer: {
       photographerId: number;

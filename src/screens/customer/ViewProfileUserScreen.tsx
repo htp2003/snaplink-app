@@ -15,7 +15,9 @@ import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { userService } from "../../services/userService";
+import { userStyleService } from "../../services/userStyleService";
 import { UserProfile } from "../../types/userProfile";
+import { UserStyle } from "../../types/userStyle";
 import { useAuth, User as AuthUser } from "../../hooks/useAuth";
 import { getResponsiveSize } from "../../utils/responsive";
 
@@ -30,18 +32,26 @@ const ViewProfileUserScreen = () => {
   const route = useRoute<ViewProfileRouteProp>();
   const insets = useSafeAreaInsets();
   const { userId } = route.params || { userId: 0 };
+  const { user: currentUser, getCurrentUserId } = useAuth();
 
   const [userProfile, setUserProfile] = useState<UserProfile | AuthUser | null>(
     null
   );
+  const [userStyles, setUserStyles] = useState<UserStyle[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingStyles, setLoadingStyles] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if viewing own profile
+  const isOwnProfile = currentUser && userId === currentUser.id;
 
   // Fetch user profile data
   useEffect(() => {
     const fetchUserProfile = async () => {
       console.log("🔍 Route params:", route.params);
       console.log("🔍 userId from params:", userId, typeof userId);
+      console.log("🔍 Current user ID:", currentUser?.id);
+      console.log("🔍 Is own profile:", isOwnProfile);
 
       if (!userId || typeof userId !== "number" || userId <= 0) {
         setError("Invalid user ID");
@@ -51,13 +61,24 @@ const ViewProfileUserScreen = () => {
 
       try {
         setLoading(true);
-        console.log("📡 Calling userService.getUserById with userId:", userId);
 
-        const userData = await userService.getUserById(userId);
-        console.log("✅ User data received:", userData);
+        // If viewing own profile and we have current user data, use it
+        if (isOwnProfile && currentUser) {
+          console.log("✅ Using current user data for own profile");
+          setUserProfile(currentUser);
+          setError(null);
+        } else {
+          // Fetch other user's profile
+          console.log("📡 Calling userService.getUserById with userId:", userId);
+          const userData = await userService.getUserById(userId);
+          console.log("✅ User data received:", userData);
+          setUserProfile(userData);
+          setError(null);
+        }
 
-        setUserProfile(userData);
-        setError(null);
+        // Load user styles
+        await loadUserStyles(userId);
+
       } catch (err) {
         console.error("❌ Error fetching user profile:", err);
         console.error("❌ Error details:", {
@@ -72,7 +93,22 @@ const ViewProfileUserScreen = () => {
     };
 
     fetchUserProfile();
-  }, [userId]);
+  }, [userId, currentUser, isOwnProfile]);
+
+  const loadUserStyles = async (userId: number) => {
+    try {
+      setLoadingStyles(true);
+      console.log("🎨 Loading user styles for profile view...");
+      const styles = await userStyleService.getUserStyles(userId);
+      console.log("✅ User styles loaded for profile:", styles);
+      setUserStyles(styles);
+    } catch (error) {
+      console.error("❌ Error loading user styles:", error);
+      setUserStyles([]);
+    } finally {
+      setLoadingStyles(false);
+    }
+  };
 
   // Helper functions
   const getUserDisplayName = (user: UserProfile | AuthUser | null): string => {
@@ -163,12 +199,27 @@ const ViewProfileUserScreen = () => {
     return "Khách";
   };
 
+  const getUserBio = (user: UserProfile | AuthUser | null): string => {
+    if (!user) return "Chưa có mô tả";
+
+    if ("bio" in user && user.bio) {
+      return user.bio;
+    }
+
+    return "Chưa có mô tả";
+  };
+
   const handleGoBack = () => {
     navigation.goBack();
   };
 
   const handleEditPress = () => {
-    Alert.alert("Chỉnh sửa", "Tính năng chỉnh sửa đang được phát triển");
+    if (isOwnProfile) {
+      // Navigate to edit profile screen
+      navigation.navigate('EditProfileUserScreen' as any);
+    } else {
+      Alert.alert("Thông báo", "Bạn chỉ có thể chỉnh sửa hồ sơ của chính mình");
+    }
   };
 
   if (loading) {
@@ -182,28 +233,28 @@ const ViewProfileUserScreen = () => {
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            paddingHorizontal: 16,
-            paddingVertical: 12,
+            paddingHorizontal: getResponsiveSize(16),
+            paddingVertical: getResponsiveSize(12),
             backgroundColor: "#F7F7F7",
           }}
         >
           <TouchableOpacity
             onPress={handleGoBack}
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
+              width: getResponsiveSize(40),
+              height: getResponsiveSize(40),
+              borderRadius: getResponsiveSize(20),
               backgroundColor: "#E5E5E5",
               justifyContent: "center",
               alignItems: "center",
             }}
           >
-            <Ionicons name="chevron-back" size={24} color="#000000" />
+            <Ionicons name="chevron-back" size={getResponsiveSize(24)} color="#000000" />
           </TouchableOpacity>
 
           <Text
             style={{
-              fontSize: 18,
+              fontSize: getResponsiveSize(18),
               fontWeight: "600",
               color: "#000000",
             }}
@@ -211,14 +262,14 @@ const ViewProfileUserScreen = () => {
             Hồ sơ
           </Text>
 
-          <View style={{ width: 40 }} />
+          <View style={{ width: getResponsiveSize(40) }} />
         </View>
 
         <View
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
           <ActivityIndicator size="large" color="#000000" />
-          <Text style={{ marginTop: 16, fontSize: 16, color: "#666666" }}>
+          <Text style={{ marginTop: getResponsiveSize(16), fontSize: getResponsiveSize(16), color: "#666666" }}>
             Đang tải hồ sơ...
           </Text>
         </View>
@@ -237,28 +288,28 @@ const ViewProfileUserScreen = () => {
             flexDirection: "row",
             justifyContent: "space-between",
             alignItems: "center",
-            paddingHorizontal: 16,
-            paddingVertical: 12,
+            paddingHorizontal: getResponsiveSize(16),
+            paddingVertical: getResponsiveSize(12),
             backgroundColor: "#F7F7F7",
           }}
         >
           <TouchableOpacity
             onPress={handleGoBack}
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
+              width: getResponsiveSize(40),
+              height: getResponsiveSize(40),
+              borderRadius: getResponsiveSize(20),
               backgroundColor: "#E5E5E5",
               justifyContent: "center",
               alignItems: "center",
             }}
           >
-            <Ionicons name="chevron-back" size={24} color="#000000" />
+            <Ionicons name="chevron-back" size={getResponsiveSize(24)} color="#000000" />
           </TouchableOpacity>
 
           <Text
             style={{
-              fontSize: 18,
+              fontSize: getResponsiveSize(18),
               fontWeight: "600",
               color: "#000000",
             }}
@@ -266,7 +317,7 @@ const ViewProfileUserScreen = () => {
             Hồ sơ
           </Text>
 
-          <View style={{ width: 40 }} />
+          <View style={{ width: getResponsiveSize(40) }} />
         </View>
 
         <View
@@ -274,14 +325,14 @@ const ViewProfileUserScreen = () => {
             flex: 1,
             justifyContent: "center",
             alignItems: "center",
-            paddingHorizontal: 20,
+            paddingHorizontal: getResponsiveSize(20),
           }}
         >
-          <Ionicons name="alert-circle-outline" size={64} color="#FF385C" />
+          <Ionicons name="alert-circle-outline" size={getResponsiveSize(64)} color="#FF385C" />
           <Text
             style={{
-              marginTop: 16,
-              fontSize: 18,
+              marginTop: getResponsiveSize(16),
+              fontSize: getResponsiveSize(18),
               fontWeight: "600",
               color: "#FF385C",
             }}
@@ -290,28 +341,28 @@ const ViewProfileUserScreen = () => {
           </Text>
           <Text
             style={{
-              marginTop: 8,
+              marginTop: getResponsiveSize(8),
               color: "#666666",
               textAlign: "center",
-              fontSize: 14,
+              fontSize: getResponsiveSize(14),
             }}
           >
             {error}
           </Text>
           <TouchableOpacity
             style={{
-              marginTop: 20,
-              paddingHorizontal: 24,
-              paddingVertical: 12,
+              marginTop: getResponsiveSize(20),
+              paddingHorizontal: getResponsiveSize(24),
+              paddingVertical: getResponsiveSize(12),
               backgroundColor: "#FF385C",
-              borderRadius: 8,
+              borderRadius: getResponsiveSize(8),
             }}
             onPress={handleGoBack}
           >
             <Text
               style={{
                 color: "#FFFFFF",
-                fontSize: 16,
+                fontSize: getResponsiveSize(16),
                 fontWeight: "600",
               }}
             >
@@ -327,6 +378,7 @@ const ViewProfileUserScreen = () => {
   const displayName = getUserDisplayName(userProfile);
   const userRole = getUserRole(userProfile);
   const initials = getUserInitials(userProfile);
+  const userBio = getUserBio(userProfile);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F7F7F7" }}>
@@ -338,28 +390,28 @@ const ViewProfileUserScreen = () => {
           flexDirection: "row",
           justifyContent: "space-between",
           alignItems: "center",
-          paddingHorizontal: 16,
-          paddingVertical: 12,
+          paddingHorizontal: getResponsiveSize(16),
+          paddingVertical: getResponsiveSize(12),
           backgroundColor: "#F7F7F7",
         }}
       >
         <TouchableOpacity
           onPress={handleGoBack}
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
+            width: getResponsiveSize(40),
+            height: getResponsiveSize(40),
+            borderRadius: getResponsiveSize(20),
             backgroundColor: "#E5E5E5",
             justifyContent: "center",
             alignItems: "center",
           }}
         >
-          <Ionicons name="chevron-back" size={24} color="#000000" />
+          <Ionicons name="chevron-back" size={getResponsiveSize(24)} color="#000000" />
         </TouchableOpacity>
 
         <Text
           style={{
-            fontSize: 18,
+            fontSize: getResponsiveSize(18),
             fontWeight: "600",
             color: "#000000",
           }}
@@ -367,41 +419,45 @@ const ViewProfileUserScreen = () => {
           Hồ sơ
         </Text>
 
-        <TouchableOpacity
-          onPress={handleEditPress}
-          style={{
-            paddingHorizontal: 16,
-            paddingVertical: 8,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 20,
-            borderWidth: 1,
-            borderColor: "#E5E5E5",
-          }}
-        >
-          <Text
+        {isOwnProfile && (
+          <TouchableOpacity
+            onPress={handleEditPress}
             style={{
-              fontSize: 14,
-              fontWeight: "500",
-              color: "#000000",
+              paddingHorizontal: getResponsiveSize(16),
+              paddingVertical: getResponsiveSize(8),
+              backgroundColor: "#FFFFFF",
+              borderRadius: getResponsiveSize(20),
+              borderWidth: 1,
+              borderColor: "#E5E5E5",
             }}
           >
-            Chỉnh sửa
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={{
+                fontSize: getResponsiveSize(14),
+                fontWeight: "500",
+                color: "#000000",
+              }}
+            >
+              Chỉnh sửa
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {!isOwnProfile && <View style={{ width: getResponsiveSize(40) }} />}
       </View>
 
       {/* Content */}
       <View style={{ flex: 1 }}>
-        {/* Profile Avatar Section - Same style as photographer */}
+        {/* Profile Avatar Section */}
         <View
           style={{
             alignItems: "center",
-            paddingTop: 40,
-            paddingBottom: 30,
+            paddingTop: getResponsiveSize(40),
+            paddingBottom: getResponsiveSize(30),
             backgroundColor: "#FFFFFF",
-            marginHorizontal: 16,
-            marginTop: 16,
-            borderRadius: 12,
+            marginHorizontal: getResponsiveSize(16),
+            marginTop: getResponsiveSize(16),
+            borderRadius: getResponsiveSize(12),
             shadowColor: "#000",
             shadowOffset: { width: 0, height: 2 },
             shadowOpacity: 0.1,
@@ -411,26 +467,30 @@ const ViewProfileUserScreen = () => {
         >
           <View
             style={{
-              width: 120,
-              height: 120,
-              borderRadius: 60,
+              width: getResponsiveSize(120),
+              height: getResponsiveSize(120),
+              borderRadius: getResponsiveSize(60),
               backgroundColor: "#333333",
               justifyContent: "center",
               alignItems: "center",
-              marginBottom: 20,
+              marginBottom: getResponsiveSize(20),
             }}
           >
             {avatarUrl ? (
               <Image
                 source={{ uri: avatarUrl }}
-                style={{ width: 120, height: 120, borderRadius: 60 }}
+                style={{
+                  width: getResponsiveSize(120),
+                  height: getResponsiveSize(120),
+                  borderRadius: getResponsiveSize(60)
+                }}
                 resizeMode="cover"
               />
             ) : (
               <Text
                 style={{
                   color: "#FFFFFF",
-                  fontSize: 48,
+                  fontSize: getResponsiveSize(48),
                   fontWeight: "bold",
                 }}
               >
@@ -441,10 +501,10 @@ const ViewProfileUserScreen = () => {
 
           <Text
             style={{
-              fontSize: 28,
+              fontSize: getResponsiveSize(28),
               fontWeight: "bold",
               color: "#000000",
-              marginBottom: 8,
+              marginBottom: getResponsiveSize(8),
             }}
           >
             {displayName}
@@ -452,7 +512,7 @@ const ViewProfileUserScreen = () => {
 
           <Text
             style={{
-              fontSize: 16,
+              fontSize: getResponsiveSize(16),
               color: "#666666",
             }}
           >
@@ -460,38 +520,38 @@ const ViewProfileUserScreen = () => {
           </Text>
         </View>
 
-        {/* User Info Section - Same list style as photographer */}
+        {/* User Info Section */}
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <View style={{ paddingHorizontal: 24, paddingTop: 40 }}>
-            <View style={{ marginBottom: 30 }}>
+          <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(40) }}>
+            <View style={{ marginBottom: getResponsiveSize(30) }}>
               {/* Email */}
               {userProfile && "email" in userProfile && userProfile.email && (
                 <View
                   style={{
                     flexDirection: "row",
                     alignItems: "center",
-                    paddingVertical: 20,
+                    paddingVertical: getResponsiveSize(20),
                     borderBottomWidth: 1,
                     borderBottomColor: "#F0F0F0",
                   }}
                 >
                   <View
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
+                      width: getResponsiveSize(40),
+                      height: getResponsiveSize(40),
+                      borderRadius: getResponsiveSize(20),
                       backgroundColor: "#F5F5F5",
                       justifyContent: "center",
                       alignItems: "center",
-                      marginRight: 16,
+                      marginRight: getResponsiveSize(16),
                     }}
                   >
-                    <Ionicons name="mail-outline" size={20} color="#666666" />
+                    <Ionicons name="mail-outline" size={getResponsiveSize(20)} color="#666666" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text
                       style={{
-                        fontSize: 16,
+                        fontSize: getResponsiveSize(16),
                         color: "#000000",
                         fontWeight: "500",
                       }}
@@ -510,28 +570,28 @@ const ViewProfileUserScreen = () => {
                     style={{
                       flexDirection: "row",
                       alignItems: "center",
-                      paddingVertical: 20,
+                      paddingVertical: getResponsiveSize(20),
                       borderBottomWidth: 1,
                       borderBottomColor: "#F0F0F0",
                     }}
                   >
                     <View
                       style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 20,
+                        width: getResponsiveSize(40),
+                        height: getResponsiveSize(40),
+                        borderRadius: getResponsiveSize(20),
                         backgroundColor: "#F5F5F5",
                         justifyContent: "center",
                         alignItems: "center",
-                        marginRight: 16,
+                        marginRight: getResponsiveSize(16),
                       }}
                     >
-                      <Ionicons name="call-outline" size={20} color="#666666" />
+                      <Ionicons name="call-outline" size={getResponsiveSize(20)} color="#666666" />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text
                         style={{
-                          fontSize: 16,
+                          fontSize: getResponsiveSize(16),
                           color: "#000000",
                           fontWeight: "500",
                         }}
@@ -547,189 +607,143 @@ const ViewProfileUserScreen = () => {
                 style={{
                   flexDirection: "row",
                   alignItems: "center",
-                  paddingVertical: 20,
+                  paddingVertical: getResponsiveSize(20),
                   borderBottomWidth: 1,
                   borderBottomColor: "#F0F0F0",
                 }}
               >
                 <View
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    borderRadius: getResponsiveSize(20),
                     backgroundColor: "#F5F5F5",
                     justifyContent: "center",
                     alignItems: "center",
-                    marginRight: 16,
+                    marginRight: getResponsiveSize(16),
+                    marginTop: getResponsiveSize(2),
                   }}
                 >
                   <Ionicons
                     name="briefcase-outline"
-                    size={20}
+                    size={getResponsiveSize(20)}
                     color="#666666"
                   />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      fontSize: 16,
+                      fontSize: getResponsiveSize(16),
                       color: "#000000",
                       fontWeight: "500",
+                      lineHeight: getResponsiveSize(22),
                     }}
                   >
-                    Công việc:{" "}
-                    {(userProfile && "bio" in userProfile && userProfile.bio) ||
-                      "Công nghệ thông tin"}
+                    Mô tả: {userBio}
                   </Text>
                 </View>
               </View>
-
-              {/* Location */}
+              {/* User Styles */}
               <View
                 style={{
                   flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 20,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#F0F0F0",
+                  alignItems: "flex-start",
+                  paddingVertical: getResponsiveSize(20),
                 }}
               >
                 <View
                   style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    borderRadius: getResponsiveSize(20),
                     backgroundColor: "#F5F5F5",
                     justifyContent: "center",
                     alignItems: "center",
-                    marginRight: 16,
+                    marginRight: getResponsiveSize(16),
+                    marginTop: getResponsiveSize(2),
                   }}
                 >
-                  <Ionicons name="location-outline" size={20} color="#666666" />
+                  <Ionicons
+                    name="camera-outline"
+                    size={getResponsiveSize(20)}
+                    color="#666666"
+                  />
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginTop: getResponsiveSize(10) }}>
                   <Text
                     style={{
-                      fontSize: 16,
+                      fontSize: getResponsiveSize(16),
                       color: "#000000",
                       fontWeight: "500",
+                      marginBottom: getResponsiveSize(12),
                     }}
                   >
-                    Địa điểm yêu thích: Hà Nội
+                    Styles của bạn:
                   </Text>
-                </View>
-              </View>
 
-              {/* Fun Fact */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 20,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#F0F0F0",
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "#F5F5F5",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginRight: 16,
-                  }}
-                >
-                  <Ionicons name="bulb-outline" size={20} color="#666666" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      color: "#000000",
-                      fontWeight: "500",
-                    }}
-                  >
-                    Sự thật thú vị: Hông có
-                  </Text>
-                </View>
-              </View>
-
-              {/* Pet */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 20,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#F0F0F0",
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "#F5F5F5",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginRight: 16,
-                  }}
-                >
-                  <Ionicons name="paw-outline" size={20} color="#666666" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      color: "#000000",
-                      fontWeight: "500",
-                    }}
-                  >
-                    Thú cưng: Rùa
-                  </Text>
-                </View>
-              </View>
-
-              {/* Birth Decade */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  paddingVertical: 20,
-                }}
-              >
-                <View
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 20,
-                    backgroundColor: "#F5F5F5",
-                    justifyContent: "center",
-                    alignItems: "center",
-                    marginRight: 16,
-                  }}
-                >
-                  <Ionicons name="calendar-outline" size={20} color="#666666" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      fontSize: 16,
-                      color: "#000000",
-                      fontWeight: "500",
-                    }}
-                  >
-                    Sinh ra vào thập niên:{" "}
-                    {userProfile &&
-                    "createAt" in userProfile &&
-                    userProfile.createAt
-                      ? Math.floor(
-                          new Date(userProfile.createAt).getFullYear() / 10
-                        ) * 10
-                      : "20"}
-                  </Text>
+                  {loadingStyles ? (
+                    <View style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: getResponsiveSize(4),
+                    }}>
+                      <ActivityIndicator size="small" color="#E91E63" />
+                      <Text style={{
+                        marginLeft: getResponsiveSize(8),
+                        fontSize: getResponsiveSize(14),
+                        color: "#666666"
+                      }}>
+                        Đang tải...
+                      </Text>
+                    </View>
+                  ) : userStyles.length > 0 ? (
+                    <View style={{
+                      flexDirection: 'row',
+                      flexWrap: 'wrap',
+                      gap: getResponsiveSize(8),
+                      marginTop: getResponsiveSize(4),
+                    }}>
+                      {userStyles.map((style, index) => (
+                        <View
+                          key={style.styleId}
+                          style={{
+                            backgroundColor: '#F0F8FF',
+                            paddingHorizontal: getResponsiveSize(16),
+                            paddingVertical: getResponsiveSize(8),
+                            borderRadius: getResponsiveSize(20),
+                            borderWidth: 1,
+                            borderColor: '#E0F2FE',
+                            shadowColor: '#000',
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.1,
+                            shadowRadius: 2,
+                            elevation: 1,
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: getResponsiveSize(14),
+                              color: '#0369A1',
+                              fontWeight: '600',
+                            }}
+                          >
+                            {style.styleName}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text
+                      style={{
+                        fontSize: getResponsiveSize(14),
+                        color: "#999999",
+                        fontStyle: 'italic',
+                        paddingVertical: getResponsiveSize(4),
+                      }}
+                    >
+                      Chưa có sở thích nào
+                    </Text>
+                  )}
                 </View>
               </View>
             </View>

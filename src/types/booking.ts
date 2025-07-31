@@ -1,4 +1,3 @@
-// types/booking.ts - UPDATED VERSION
 import type { PaymentResponse, CreatePaymentLinkRequest } from './payment';
 
 export interface CreateBookingRequest {

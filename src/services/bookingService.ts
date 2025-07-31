@@ -6,9 +6,9 @@ import type {
   UpdateBookingRequest,
   BookingResponse,
   BookingListResponse,
-  AvailabilityResponse,
   PriceCalculationResponse
 } from '../types/booking';
+import type { CheckAvailabilityResponse } from '../types/availability'; 
 
 const BOOKING_ENDPOINTS = {
   CREATE: (userId: number) => `/api/Booking/create?userId=${userId}`,
@@ -29,7 +29,7 @@ export class BookingService {
   
   // Helper method to extract booking ID from response
   private extractBookingId(response: any): number {
-    if (response.bookingId) return response.bookingId;  // ✅ API trả về bookingId
+    if (response.bookingId) return response.bookingId;  
     if (response.id) return response.id;
     if (response.data?.bookingId) return response.data.bookingId;
     if (response.data?.id) return response.data.id;
@@ -253,7 +253,7 @@ export class BookingService {
     photographerId: number,
     startTime: string,
     endTime: string
-  ): Promise<AvailabilityResponse> {
+  ): Promise<CheckAvailabilityResponse> {
     try {
       console.log('🔍 Checking photographer availability:', { photographerId, startTime, endTime });
       const params = new URLSearchParams({
@@ -279,7 +279,7 @@ export class BookingService {
         available = responseData.isAvailable === 'true';
       }
       
-      const normalizedResponse: AvailabilityResponse = {
+      const normalizedResponse: CheckAvailabilityResponse = {
         available,
         conflictingBookings: responseData.conflictingBookings || [],
         suggestedTimes: responseData.suggestedTimes || [],
@@ -303,7 +303,7 @@ export class BookingService {
     locationId: number,
     startTime: string,
     endTime: string
-  ): Promise<AvailabilityResponse> {
+  ): Promise<CheckAvailabilityResponse> {
     try {
       console.log('🔍 Checking location availability:', { locationId, startTime, endTime });
       const params = new URLSearchParams({
@@ -328,7 +328,7 @@ export class BookingService {
         available = responseData.isAvailable === 'true';
       }
       
-      const normalizedResponse: AvailabilityResponse = {
+      const normalizedResponse: CheckAvailabilityResponse = {
         available,
         conflictingBookings: responseData.conflictingBookings || [],
         suggestedTimes: responseData.suggestedTimes || [],
@@ -414,7 +414,7 @@ export class BookingService {
     locationId?: number
   ): Promise<{
     booking: BookingResponse;
-    availability: AvailabilityResponse;
+    availability: CheckAvailabilityResponse;
   }> {
     try {
       console.log('🔍 Fetching booking with availability check');

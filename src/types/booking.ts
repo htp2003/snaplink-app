@@ -4,8 +4,8 @@ export interface CreateBookingRequest {
   photographerId: number;
   locationId?: number;
   externalLocation?: ExternalLocationRequest;
-  startDatetime: string; // ISO datetime string
-  endDatetime: string;   // ISO datetime string
+  startDatetime: string; 
+  endDatetime: string;   
   specialRequests?: string;
 }
 
@@ -60,34 +60,12 @@ export interface ExternalLocationResponse extends ExternalLocationRequest {
   id: number;
 }
 
-export interface AvailabilityResponse {
-  available: boolean;
-  conflictingBookings?: BookingResponse[];
-  suggestedTimes?: string[];
-  message?: string;
-}
-
-// Alternative simple response for API that only returns boolean
+// Simple response for API that only returns boolean
 export interface SimpleAvailabilityResponse {
   available: boolean;
-} 
-  export interface ExternalLocationResponse extends ExternalLocationRequest {
-    id: number;
-  }
-  
-  export interface AvailabilityResponse {
-    available: boolean;
-    conflictingBookings?: BookingResponse[];
-    suggestedTimes?: string[];
-    message?: string;
-  }
-  
-  // Alternative simple response for API that only returns boolean
-  export interface SimpleAvailabilityResponse {
-    available: boolean;
-  }
-  
-  export interface PriceCalculationResponse {
+}
+
+export interface PriceCalculationResponse {
   totalPrice: number;
   photographerFee: number;
   locationFee?: number;

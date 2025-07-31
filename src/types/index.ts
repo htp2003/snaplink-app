@@ -24,5 +24,8 @@ export {
   } from './userProfile';
   export {ImageResponse, CreateImageRequest, UpdateImageRequest} from './image';
   export * from './notification';
+  
+  // Xuất tất cả từ booking, trừ AvailabilityResponse để tránh xung đột
   export * from './booking';
   export * from './userStyle';
+  export * from './availability';

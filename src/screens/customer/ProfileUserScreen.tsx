@@ -638,7 +638,7 @@ const ProfileUserScreen = () => {
           <View
             style={{ flexDirection: "row", justifyContent: "space-between" }}
           >
-            {/* Chuyến di trước đây */}
+            {/* Đơn hàng gần đây  */}
             <TouchableOpacity
               style={{
                 flex: 0.48,
@@ -652,6 +652,17 @@ const ProfileUserScreen = () => {
                 shadowRadius: 4,
                 elevation: 3,
               }}
+              onPress={() => {
+                if (currentUserId && typeof currentUserId === 'number' && currentUserId > 0) {
+                  navigation.navigate('OrderHistoryScreen', { userId: currentUserId });
+                } else {
+                  Alert.alert(
+                    'Thông báo',
+                    'Không thể tải thông tin đơn hàng. Vui lòng thử lại sau.',
+                    [{ text: 'OK' }]
+                  );
+                }
+              }}
             >
               <View
                 style={{
@@ -664,21 +675,6 @@ const ProfileUserScreen = () => {
               >
                 <Ionicons name="briefcase" size={32} color="#8B7355" />
               </View>
-              <View
-                style={{
-                  backgroundColor: "#6B73FF",
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 12,
-                  marginBottom: 8,
-                }}
-              >
-                <Text
-                  style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "bold" }}
-                >
-                  MỚI
-                </Text>
-              </View>
               <Text
                 style={{
                   fontSize: 16,
@@ -687,7 +683,7 @@ const ProfileUserScreen = () => {
                   textAlign: "center",
                 }}
               >
-                Chuyến đi{"\n"}trước đây
+                Đơn hàng{"\n"}gần đây
               </Text>
             </TouchableOpacity>
 

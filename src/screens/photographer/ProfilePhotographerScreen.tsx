@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
@@ -20,7 +20,10 @@ import { useProfile } from "../../context/ProfileContext";
 import FavoritedModal from "../../components/FavoritedModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
-import { photographerService, PhotographerProfile } from "../../services/photographerService";
+import {
+  photographerService,
+  PhotographerProfile,
+} from "../../services/photographerService";
 
 const { width } = Dimensions.get("window");
 const HEADER_HEIGHT = 60;
@@ -31,7 +34,8 @@ const ProfilePhotographerScreen = () => {
   const { profileData } = useProfile();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const { user, getCurrentUserId, logout } = useAuth();
-  const [photographerData, setPhotographerData] = useState<PhotographerProfile | null>(null);
+  const [photographerData, setPhotographerData] =
+    useState<PhotographerProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -43,27 +47,30 @@ const ProfilePhotographerScreen = () => {
     try {
       setIsLoadingProfile(true);
       const userId = getCurrentUserId();
-      
+
       if (!userId) {
-        console.log('No userId found');
+        console.log("No userId found");
         setIsLoadingProfile(false);
         return;
       }
 
       // Use the new findPhotographerProfile method that includes fallback logic
-      const photographerProfile = await photographerService.findPhotographerByUserId(userId);
-      
+      const photographerProfile =
+        await photographerService.findPhotographerByUserId(userId);
+
       if (photographerProfile) {
         setPhotographerData(photographerProfile);
-        console.log('Loaded photographer profile:', photographerProfile);
+        console.log("Loaded photographer profile:", photographerProfile);
       } else {
-        console.log('No photographer profile found - user is not a photographer yet');
+        console.log(
+          "No photographer profile found - user is not a photographer yet"
+        );
         setPhotographerData(null);
       }
-      
+
       setIsLoadingProfile(false);
     } catch (error) {
-      console.error('Error loading photographer data:', error);
+      console.error("Error loading photographer data:", error);
       setIsLoadingProfile(false);
     }
   };
@@ -101,49 +108,44 @@ const ProfilePhotographerScreen = () => {
   );
 
   const handleLogout = async () => {
-      Alert.alert(
-        'Đăng xuất',
-        'Bạn có chắc chắn muốn đăng xuất không?',
-        [
-          {
-            text: 'Hủy',
-            style: 'cancel',
-          },
-          {
-            text: 'Đăng xuất',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                setIsLoggingOut(true);
-                console.log('🚪 Starting logout process...');
-                
-                await logout();
-                
-                console.log('✅ Logout completed, navigating to login...');
-                
-                // Navigate to login screen or reset navigation stack
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Login' }], // Adjust route name as needed
-                });
-                
-              } catch (error) {
-                console.error('❌ Logout error:', error);
-                
-                // Show error alert
-                Alert.alert(
-                  'Lỗi đăng xuất',
-                  'Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.',
-                  [{ text: 'OK' }]
-                );
-              } finally {
-                setIsLoggingOut(false);
-              }
-            },
-          },
-        ]
-      );
-    };
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
+      {
+        text: "Hủy",
+        style: "cancel",
+      },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setIsLoggingOut(true);
+            console.log("🚪 Starting logout process...");
+
+            await logout();
+
+            console.log("✅ Logout completed, navigating to login...");
+
+            // Navigate to login screen or reset navigation stack
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }], // Adjust route name as needed
+            });
+          } catch (error) {
+            console.error("❌ Logout error:", error);
+
+            // Show error alert
+            Alert.alert(
+              "Lỗi đăng xuất",
+              "Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.",
+              [{ text: "OK" }]
+            );
+          } finally {
+            setIsLoggingOut(false);
+          }
+        },
+      },
+    ]);
+  };
 
   const menuItems = [
     {
@@ -201,8 +203,6 @@ const ProfilePhotographerScreen = () => {
   const handleNotificationPress = () => {
     // navigation.navigate('Notifications');
   };
-
-    
 
   const renderMenuItem = (item: any, index: number) => (
     <TouchableOpacity
@@ -450,7 +450,7 @@ const ProfilePhotographerScreen = () => {
                     style={{ fontSize: 14, color: "#666666", marginBottom: 4 }}
                   >
                     ⭐ {photographerData.rating?.toFixed(1) || "5.0"} •{" "}
-                    {photographerData.ratingCount  || 0} đánh giá
+                    {photographerData.ratingCount || 0} đánh giá
                   </Text>
                   <Text
                     style={{ fontSize: 14, color: "#666666", marginBottom: 4 }}
@@ -487,7 +487,7 @@ const ProfilePhotographerScreen = () => {
           <View
             style={{ flexDirection: "row", justifyContent: "space-between" }}
           >
-            {/* Chuyến di trước đây */}
+            {/* Lịch rảnh của bạn - CẬP NHẬT */}
             <TouchableOpacity
               style={{
                 flex: 0.48,
@@ -501,6 +501,25 @@ const ProfilePhotographerScreen = () => {
                 shadowRadius: 4,
                 elevation: 3,
               }}
+              onPress={() => {
+                // THÊM NAVIGATION ĐẾN TRANG QUẢN LÝ LỊCH
+                if (photographerData) {
+                  navigation.navigate("ManageAvailabilityScreen");
+                } else {
+                  Alert.alert(
+                    "Thông báo",
+                    "Bạn cần trở thành nhiếp ảnh gia trước khi quản lý lịch làm việc.",
+                    [
+                      { text: "Hủy", style: "cancel" },
+                      {
+                        text: "Đăng ký",
+                        onPress: () =>
+                          navigation.navigate("EditProfilePhotographer"),
+                      },
+                    ]
+                  );
+                }
+              }}
             >
               <View
                 style={{
@@ -511,7 +530,7 @@ const ProfilePhotographerScreen = () => {
                   alignItems: "center",
                 }}
               >
-                <Ionicons name="briefcase" size={32} color="#8B7355" />
+                <Ionicons name="calendar" size={32} color="#8B7355" />
               </View>
               <View
                 style={{
@@ -525,7 +544,7 @@ const ProfilePhotographerScreen = () => {
                 <Text
                   style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "bold" }}
                 >
-                  MỚI
+                  {photographerData ? "QUẢN LÝ" : "MỚI"}
                 </Text>
               </View>
               <Text
@@ -536,11 +555,11 @@ const ProfilePhotographerScreen = () => {
                   textAlign: "center",
                 }}
               >
-                Chuyến đi{"\n"}trước đây
+                Lịch rảnh{"\n"}của bạn
               </Text>
             </TouchableOpacity>
 
-            {/* Kết nối */}
+            {/* Kết nối - GIỮ NGUYÊN */}
             <TouchableOpacity
               style={{
                 flex: 0.48,
@@ -621,76 +640,6 @@ const ProfilePhotographerScreen = () => {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        {/* Host Invitation Card */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
-          <View
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderRadius: 12,
-              padding: 20,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 3,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "#FF385C",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginRight: 16,
-                }}
-              >
-                <Ionicons name="home" size={20} color="#FFFFFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "600",
-                    color: "#000000",
-                    marginBottom: 4,
-                  }}
-                >
-                  Trở thành host
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: "#666666",
-                    lineHeight: 20,
-                  }}
-                >
-                  Bắt đầu đón tiếp khách và kiếm thêm thu nhập thật dễ dàng.
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Menu Items */}
-        <View
-          style={{
-            backgroundColor: "#FFFFFF",
-            marginHorizontal: 16,
-            borderRadius: 12,
-            overflow: "hidden",
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}
-        >
-          {menuItems.map((item, index) => renderMenuItem(item, index))}
         </View>
       </ScrollView>
 

@@ -26,7 +26,7 @@ import PhotographerHomeScreen from "../screens/photographer/PhotographerHomeScre
 import RecentlyViewedScreen from "../screens/customer/RecentlyViewedScreen";
 import PhotographerEventScreen from "../screens/photographer/PhotographerEventScreen";
 import VenueManagementScreen from "../screens/venueOwner/VenueManagementScreen";
-
+import ManageAvailabilityScreen from "../screens/photographer/ManageAvailabilityScreen";
 import ProfileUserScreen from "../screens/customer/ProfileUserScreen";
 import ViewProfileUserScreen from "../screens/customer/ViewProfileUserScreen";
 import ProfilePhotographerScreen from "../screens/photographer/ProfilePhotographerScreen";
@@ -120,6 +120,10 @@ const AppNavigator = () => {
       <Stack.Screen
         name="OrderManagementScreen"
         component={OrderManagementScreen}
+      />
+      <Stack.Screen
+        name="ManageAvailabilityScreen"
+        component={ManageAvailabilityScreen}
       />
 
       {/* Các màn hình dành riêng cho VenueOwner */}

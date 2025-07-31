@@ -106,6 +106,23 @@ const ProfilePhotographerScreen = () => {
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
     { useNativeDriver: false }
   );
+  const handlePortfolioPress = () => {
+    if (photographerData) {
+      navigation.navigate("PortfolioScreen");
+    } else {
+      Alert.alert(
+        "Thông báo",
+        "Bạn cần trở thành nhiếp ảnh gia trước khi quản lý portfolio.",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Đăng ký",
+            onPress: () => navigation.navigate("EditProfilePhotographer"),
+          },
+        ]
+      );
+    }
+  };
 
   const handleLogout = async () => {
     Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
@@ -573,7 +590,7 @@ const ProfilePhotographerScreen = () => {
                 shadowRadius: 4,
                 elevation: 3,
               }}
-              onPress={handleFavoritedPress}
+              onPress={handlePortfolioPress} // Updated this line
             >
               <View
                 style={{
@@ -584,34 +601,7 @@ const ProfilePhotographerScreen = () => {
                   alignItems: "center",
                 }}
               >
-                <View style={{ flexDirection: "row" }}>
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: "#4A90E2",
-                      marginRight: -5,
-                    }}
-                  />
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: "#F5A623",
-                      marginRight: -5,
-                    }}
-                  />
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: "#7ED321",
-                    }}
-                  />
-                </View>
+                <Ionicons name="camera" size={32} color="#8B7355" />
               </View>
               <View
                 style={{
@@ -625,7 +615,7 @@ const ProfilePhotographerScreen = () => {
                 <Text
                   style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "bold" }}
                 >
-                  MỚI
+                  {photographerData ? "QUẢN LÝ" : "MỚI"}
                 </Text>
               </View>
               <Text
@@ -636,7 +626,7 @@ const ProfilePhotographerScreen = () => {
                   textAlign: "center",
                 }}
               >
-                Kết nối
+                Portfolio
               </Text>
             </TouchableOpacity>
           </View>

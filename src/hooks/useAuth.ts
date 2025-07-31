@@ -6,6 +6,7 @@ const API_BASE_URL =
 export interface User {
   id: number;
   photographerId?: number;
+  venueOwnerId?: number;
   email: string;
   fullName: string;
   phoneNumber?: string;

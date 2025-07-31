@@ -1,4 +1,4 @@
-// screens/venueOwner/VenueOwnerProfileScreen.tsx - COMPLETED
+// screens/venueOwner/VenueOwnerProfileScreen.tsx - COMPLETED with new API
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -13,20 +13,26 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../hooks/useAuth";
-import { useVenueOwnerData } from "../../hooks/useVenueOwnerData";
-import {
-  VenueOwner,
-  UpdateVenueOwnerRequest,
-} from "../../services/venueOwnerService";
+import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
+import { LocationOwner } from "../../types/venueOwner";
 
 export default function VenueOwnerProfileScreen() {
   const { user, logout } = useAuth();
-  const { getVenueOwnerById, updateVenueOwner } = useVenueOwnerData();
+  const {
+    createProfile,
+    getProfileById,
+    getProfileByUserId,
+    updateProfile,
+    loading,
+    error,
+    clearError,
+  } = useVenueOwnerProfile();
 
-  const [venueOwner, setVenueOwner] = useState<VenueOwner | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [venueOwner, setVenueOwner] = useState<LocationOwner | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [locationOwnerId, setLocationOwnerId] = useState<number | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -35,52 +41,122 @@ export default function VenueOwnerProfileScreen() {
     businessRegistrationNumber: "",
   });
 
-  const fetchVenueOwnerProfile = async () => {
-    if (!user?.venueOwnerId) return;
+  // Check if user has existing venue owner profile
+  const checkExistingProfile = async () => {
+    if (!user?.id) return;
 
-    setLoading(true);
-    try {
-      const data = await getVenueOwnerById(user.venueOwnerId);
-      if (data) {
-        setVenueOwner(data);
-        setFormData({
-          businessName: data.businessName || "",
-          businessAddress: data.businessAddress || "",
-          businessRegistrationNumber: data.businessRegistrationNumber || "",
-        });
-      }
-    } catch (error) {
-      Alert.alert("Lỗi", "Không thể tải thông tin hồ sơ");
-    } finally {
-      setLoading(false);
+    console.log("🔍 Checking existing profile for userId:", user.id);
+
+    // Try to find existing profile by userId
+    const existingProfile = await getProfileByUserId(user.id);
+
+    if (existingProfile) {
+      console.log("✅ Found existing profile:", existingProfile);
+      setVenueOwner(existingProfile);
+      setLocationOwnerId(existingProfile.locationOwnerId);
+      setFormData({
+        businessName: existingProfile.businessName || "",
+        businessAddress: existingProfile.businessAddress || "",
+        businessRegistrationNumber:
+          existingProfile.businessRegistrationNumber || "",
+      });
+      setShowCreateModal(false);
+    } else {
+      console.log("ℹ️ No existing profile found, showing create form");
+      setVenueOwner(null);
+      setLocationOwnerId(null);
+      setShowCreateModal(true);
+    }
+  };
+
+  const fetchVenueOwnerProfile = async (ownerIdToFetch?: number) => {
+    if (!ownerIdToFetch && !locationOwnerId) {
+      console.log("ℹ️ No locationOwnerId available, showing create form");
+      setShowCreateModal(true);
+      return;
+    }
+
+    const idToUse = ownerIdToFetch || locationOwnerId;
+    if (!idToUse) return;
+
+    const data = await getProfileById(idToUse);
+    if (data) {
+      setVenueOwner(data);
+      setLocationOwnerId(data.locationOwnerId);
+      setFormData({
+        businessName: data.businessName || "",
+        businessAddress: data.businessAddress || "",
+        businessRegistrationNumber: data.businessRegistrationNumber || "",
+      });
+      setShowCreateModal(false);
+    } else {
+      // Profile not found, show create form
+      setShowCreateModal(true);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchVenueOwnerProfile();
+    await checkExistingProfile();
     setRefreshing(false);
   };
 
-  const handleUpdateProfile = async () => {
-    if (!venueOwner) return;
+  const handleCreateProfile = async () => {
+    if (!user?.id) {
+      Alert.alert("Lỗi", "Không thể xác định thông tin người dùng");
+      return;
+    }
 
-    try {
-      const updateData: UpdateVenueOwnerRequest = {
-        businessName: formData.businessName || undefined,
-        businessAddress: formData.businessAddress || undefined,
-        businessRegistrationNumber:
-          formData.businessRegistrationNumber || undefined,
-      };
+    if (!formData.businessName.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên doanh nghiệp");
+      return;
+    }
 
-      const updated = await updateVenueOwner(venueOwner.id, updateData);
-      if (updated) {
-        setVenueOwner(updated);
-        setShowEditModal(false);
-        Alert.alert("Thành công", "Cập nhật hồ sơ thành công");
+    const result = await createProfile({
+      userId: user.id,
+      businessName: formData.businessName,
+      businessAddress: formData.businessAddress,
+      businessRegistrationNumber: formData.businessRegistrationNumber,
+    });
+
+    if (result) {
+      console.log("✅ Profile created successfully:", result);
+      setVenueOwner(result);
+      setLocationOwnerId(result.locationOwnerId);
+      setShowCreateModal(false);
+      Alert.alert("Thành công", "Tạo hồ sơ venue owner thành công!");
+
+      // If ID is 0 (temporary), try to fetch the real profile
+      if (result.locationOwnerId === 0) {
+        console.log("🔄 ID is temporary, refreshing profile...");
+        setTimeout(() => {
+          checkExistingProfile();
+        }, 1000);
       }
-    } catch (error) {
-      Alert.alert("Lỗi", "Có lỗi xảy ra khi cập nhật hồ sơ");
+    } else if (error) {
+      Alert.alert("Lỗi", error);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    if (!locationOwnerId) {
+      Alert.alert("Lỗi", "Không thể xác định hồ sơ cần cập nhật");
+      return;
+    }
+
+    const result = await updateProfile(locationOwnerId, {
+      businessName: formData.businessName || undefined,
+      businessAddress: formData.businessAddress || undefined,
+      businessRegistrationNumber:
+        formData.businessRegistrationNumber || undefined,
+    });
+
+    if (result) {
+      setVenueOwner(result);
+      setShowEditModal(false);
+      Alert.alert("Thành công", "Cập nhật hồ sơ thành công");
+    } else if (error) {
+      Alert.alert("Lỗi", error);
     }
   };
 
@@ -92,7 +168,7 @@ export default function VenueOwnerProfileScreen() {
   };
 
   const getVerificationStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) {
       case "verified":
         return { color: "#10B981", bg: "#D1FAE5", text: "Đã xác minh" };
       case "pending":
@@ -104,12 +180,26 @@ export default function VenueOwnerProfileScreen() {
     }
   };
 
+  const resetForm = () => {
+    setFormData({
+      businessName: "",
+      businessAddress: "",
+      businessRegistrationNumber: "",
+    });
+  };
+
   useEffect(() => {
-    fetchVenueOwnerProfile();
-  }, [user?.venueOwnerId]);
+    checkExistingProfile();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (error) {
+      clearError();
+    }
+  }, [showEditModal, showCreateModal]);
 
   const verificationStatus = venueOwner
-    ? getVerificationStatusColor(venueOwner.verificationStatus)
+    ? getVerificationStatusColor(venueOwner.verificationStatus || "")
     : null;
 
   return (
@@ -123,10 +213,10 @@ export default function VenueOwnerProfileScreen() {
         {/* Header */}
         <View className="bg-white px-4 py-6">
           <Text className="text-2xl font-bold text-gray-900">
-            Hồ sơ của tôi
+            Hồ sơ Venue Owner
           </Text>
           <Text className="text-gray-600 mt-1">
-            Quản lý thông tin tài khoản
+            Quản lý thông tin venue owner
           </Text>
         </View>
 
@@ -168,8 +258,8 @@ export default function VenueOwnerProfileScreen() {
               <View className="space-y-4">
                 {[1, 2, 3].map((i) => (
                   <View key={i} className="space-y-2">
-                    <View className="bg-gray-200 h-4 w-20 rounded" />
-                    <View className="bg-gray-200 h-6 w-full rounded" />
+                    <View className="bg-gray-200 h-4 w-20 rounded animate-pulse" />
+                    <View className="bg-gray-200 h-6 w-full rounded animate-pulse" />
                   </View>
                 ))}
               </View>
@@ -205,6 +295,7 @@ export default function VenueOwnerProfileScreen() {
                 <TouchableOpacity
                   onPress={() => setShowEditModal(true)}
                   className="bg-blue-500 py-3 rounded-lg mt-4"
+                  disabled={loading}
                 >
                   <Text className="text-white font-semibold text-center">
                     Chỉnh sửa thông tin
@@ -213,14 +304,22 @@ export default function VenueOwnerProfileScreen() {
               </View>
             ) : (
               <View className="items-center py-8">
-                <Ionicons
-                  name="alert-circle-outline"
-                  size={48}
-                  color="#6B7280"
-                />
-                <Text className="text-gray-500 mt-2">
-                  Không thể tải thông tin hồ sơ
+                <Ionicons name="business-outline" size={48} color="#6B7280" />
+                <Text className="text-gray-500 mt-2 text-center">
+                  Chưa có hồ sơ venue owner
                 </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    resetForm();
+                    setShowCreateModal(true);
+                  }}
+                  className="bg-blue-500 py-3 px-6 rounded-lg mt-4"
+                  disabled={loading}
+                >
+                  <Text className="text-white font-semibold">
+                    Tạo hồ sơ venue owner
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -233,6 +332,27 @@ export default function VenueOwnerProfileScreen() {
           </Text>
 
           <View className="space-y-3">
+            <TouchableOpacity
+              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
+              onPress={() =>
+                Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
+              }
+            >
+              <View className="flex-row items-center">
+                <View className="bg-green-100 p-3 rounded-full mr-4">
+                  <Ionicons
+                    name="storefront-outline"
+                    size={20}
+                    color="#10B981"
+                  />
+                </View>
+                <Text className="text-gray-900 font-medium">
+                  Quản lý venues
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+            </TouchableOpacity>
+
             <TouchableOpacity
               className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
               onPress={() =>
@@ -314,20 +434,120 @@ export default function VenueOwnerProfileScreen() {
         <View className="h-6" />
       </ScrollView>
 
-      {/* Edit Modal */}
+      {/* Create Profile Modal */}
+      <Modal
+        visible={showCreateModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowCreateModal(false)}
+      >
+        <SafeAreaView className="flex-1 bg-white">
+          <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
+            <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+              <Text className="text-gray-500 font-medium">Hủy</Text>
+            </TouchableOpacity>
+            <Text className="text-lg font-semibold">Tạo hồ sơ Venue Owner</Text>
+            <TouchableOpacity onPress={handleCreateProfile} disabled={loading}>
+              <Text
+                className={`font-medium ${
+                  loading ? "text-gray-400" : "text-blue-500"
+                }`}
+              >
+                {loading ? "Đang tạo..." : "Tạo"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView className="flex-1 px-4 py-6">
+            <View className="space-y-6">
+              <View>
+                <Text className="text-gray-900 font-medium mb-2">
+                  Tên doanh nghiệp *
+                </Text>
+                <TextInput
+                  value={formData.businessName}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, businessName: text })
+                  }
+                  placeholder="Nhập tên doanh nghiệp"
+                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
+                />
+              </View>
+
+              <View>
+                <Text className="text-gray-900 font-medium mb-2">
+                  Địa chỉ doanh nghiệp
+                </Text>
+                <TextInput
+                  value={formData.businessAddress}
+                  onChangeText={(text) =>
+                    setFormData({ ...formData, businessAddress: text })
+                  }
+                  placeholder="Nhập địa chỉ doanh nghiệp"
+                  multiline
+                  numberOfLines={2}
+                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
+                />
+              </View>
+
+              <View>
+                <Text className="text-gray-900 font-medium mb-2">
+                  Số đăng ký kinh doanh
+                </Text>
+                <TextInput
+                  value={formData.businessRegistrationNumber}
+                  onChangeText={(text) =>
+                    setFormData({
+                      ...formData,
+                      businessRegistrationNumber: text,
+                    })
+                  }
+                  placeholder="Nhập số đăng ký kinh doanh"
+                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
+                />
+              </View>
+
+              <View className="bg-blue-50 p-4 rounded-lg">
+                <View className="flex-row items-start">
+                  <Ionicons
+                    name="information-circle"
+                    size={20}
+                    color="#3B82F6"
+                    className="mr-2 mt-0.5"
+                  />
+                  <Text className="text-blue-800 text-sm flex-1">
+                    Hồ sơ venue owner cho phép bạn tạo và quản lý các địa điểm
+                    cho thuê chụp ảnh. Thông tin này sẽ được sử dụng để xác minh
+                    tài khoản của bạn.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Edit Profile Modal */}
       <Modal
         visible={showEditModal}
         animationType="slide"
         presentationStyle="pageSheet"
+        onRequestClose={() => setShowEditModal(false)}
       >
         <SafeAreaView className="flex-1 bg-white">
           <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
             <TouchableOpacity onPress={() => setShowEditModal(false)}>
-              <Text className="text-blue-500 font-medium">Hủy</Text>
+              <Text className="text-gray-500 font-medium">Hủy</Text>
             </TouchableOpacity>
             <Text className="text-lg font-semibold">Chỉnh sửa hồ sơ</Text>
-            <TouchableOpacity onPress={handleUpdateProfile}>
-              <Text className="text-blue-500 font-medium">Lưu</Text>
+            <TouchableOpacity onPress={handleUpdateProfile} disabled={loading}>
+              <Text
+                className={`font-medium ${
+                  loading ? "text-gray-400" : "text-blue-500"
+                }`}
+              >
+                {loading ? "Đang lưu..." : "Lưu"}
+              </Text>
             </TouchableOpacity>
           </View>
 

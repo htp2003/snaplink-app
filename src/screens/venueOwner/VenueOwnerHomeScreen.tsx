@@ -21,15 +21,22 @@ export default function VenueOwnerHomeScreen() {
     error: walletError,
     fetchBalance,
   } = useVenueWallet(user?.id);
+
   const {
-    transactions = [], // Default to empty array
+    transactions = [],
     loading: transactionLoading,
     error: transactionError,
     refreshTransactions,
     totalCount,
-  } = useVenueTransactions(undefined, user?.id, 1, 5);
+  } = useVenueTransactions(user?.id, 1, 5); // Only get 5 recent transactions
 
   const [refreshing, setRefreshing] = useState(false);
+
+  console.log("👤 User ID:", user?.id);
+  console.log("💰 Wallet Balance:", balance);
+  console.log("📋 Transactions:", transactions);
+  console.log("⚠️ Wallet Error:", walletError);
+  console.log("⚠️ Transaction Error:", transactionError);
 
   const onRefresh = async () => {
     if (!user?.id) {
@@ -62,19 +69,44 @@ export default function VenueOwnerHomeScreen() {
   };
 
   const getTransactionIcon = (type: string) => {
-    switch (type.toLowerCase()) {
-      case "earning":
+    switch (type) {
+      case "VenueFee":
         return { name: "trending-up-outline", color: "#10B981" };
-      case "deposit":
-        return { name: "add-circle-outline", color: "#3B82F6" };
-      case "withdrawal":
-        return { name: "remove-circle-outline", color: "#EF4444" };
-      case "payment":
-        return { name: "card-outline", color: "#F59E0B" };
-      case "refund":
+      case "Purchase":
+        return { name: "card-outline", color: "#3B82F6" };
+      case "Refund":
         return { name: "return-up-back-outline", color: "#8B5CF6" };
+      case "Deposit":
+        return { name: "add-circle-outline", color: "#3B82F6" };
+      case "Withdrawal":
+        return { name: "remove-circle-outline", color: "#EF4444" };
+      case "PhotographerFee":
+        return { name: "camera-outline", color: "#F59E0B" };
+      case "PlatformFee":
+        return { name: "business-outline", color: "#6B7280" };
       default:
         return { name: "swap-horizontal-outline", color: "#6B7280" };
+    }
+  };
+
+  const getTransactionDisplayName = (type: string) => {
+    switch (type) {
+      case "VenueFee":
+        return "Thu nhập từ địa điểm";
+      case "Purchase":
+        return "Thanh toán";
+      case "Refund":
+        return "Hoàn tiền";
+      case "Deposit":
+        return "Nạp tiền";
+      case "Withdrawal":
+        return "Rút tiền";
+      case "PhotographerFee":
+        return "Phí nhiếp ảnh";
+      case "PlatformFee":
+        return "Phí nền tảng";
+      default:
+        return type;
     }
   };
 
@@ -134,41 +166,61 @@ export default function VenueOwnerHomeScreen() {
 
         {/* Wallet Balance Card */}
         <View className="mx-4 mt-4">
-          <View className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl p-6 shadow-lg">
+          <View
+            className="rounded-xl p-6 shadow-lg"
+            style={{
+              backgroundColor: "#3B82F6", // Blue background as fallback
+              // You can add LinearGradient component here later
+            }}
+          >
             <View className="flex-row justify-between items-start">
               <View className="flex-1">
-                <Text className="text-white/80 text-sm font-medium">
+                <Text className="text-white opacity-80 text-sm font-medium">
                   Số dư khả dụng
                 </Text>
                 {walletLoading ? (
-                  <View className="bg-white/20 h-8 w-32 rounded mt-2" />
+                  <View
+                    className="h-8 w-32 rounded mt-2"
+                    style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+                  />
                 ) : (
                   <Text className="text-white text-3xl font-bold mt-1">
-                    {balance ? formatCurrency(balance.balance) : "0 ₫"}
+                    {formatCurrency(balance?.balance || 0)}
                   </Text>
                 )}
               </View>
-              <View className="bg-white/20 p-3 rounded-full">
+              <View
+                className="p-3 rounded-full"
+                style={{ backgroundColor: "rgba(255,255,255,0.2)" }}
+              >
                 <Ionicons name="wallet" size={24} color="white" />
               </View>
             </View>
 
-            {balance && (
-              <View className="flex-row justify-between mt-6 pt-4 border-t border-white/20">
-                <View>
-                  <Text className="text-white/80 text-xs">Đang chờ xử lý</Text>
-                  <Text className="text-white font-semibold">
-                    {formatCurrency(balance.pendingAmount)}
-                  </Text>
-                </View>
-                <View>
-                  <Text className="text-white/80 text-xs">Tổng thu nhập</Text>
-                  <Text className="text-white font-semibold">
-                    {formatCurrency(balance.totalEarned)}
-                  </Text>
-                </View>
+            <View
+              className="flex-row justify-between mt-6 pt-4"
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.2)",
+              }}
+            >
+              <View>
+                <Text className="text-white opacity-80 text-xs">
+                  Đang chờ xử lý
+                </Text>
+                <Text className="text-white font-semibold">
+                  {formatCurrency(balance?.pendingAmount || 0)}
+                </Text>
               </View>
-            )}
+              <View>
+                <Text className="text-white opacity-80 text-xs">
+                  Tổng thu nhập
+                </Text>
+                <Text className="text-white font-semibold">
+                  {formatCurrency(balance?.totalEarned || 0)}
+                </Text>
+              </View>
+            </View>
           </View>
         </View>
 
@@ -202,29 +254,6 @@ export default function VenueOwnerHomeScreen() {
               onPress={() => {
                 Alert.alert(
                   "Thông báo",
-                  "Tính năng chuyển khoản sẽ được cập nhật sớm"
-                );
-              }}
-            >
-              <View className="items-center">
-                <View className="bg-blue-100 p-3 rounded-full mb-2">
-                  <Ionicons
-                    name="swap-horizontal-outline"
-                    size={24}
-                    color="#3B82F6"
-                  />
-                </View>
-                <Text className="text-sm font-medium text-gray-900">
-                  Chuyển tiền
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="flex-1 bg-white p-4 rounded-lg shadow-sm border border-gray-100"
-              onPress={() => {
-                Alert.alert(
-                  "Thông báo",
                   "Tính năng lịch sử sẽ được cập nhật sớm"
                 );
               }}
@@ -235,6 +264,29 @@ export default function VenueOwnerHomeScreen() {
                 </View>
                 <Text className="text-sm font-medium text-gray-900">
                   Lịch sử
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              className="flex-1 bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+              onPress={() => {
+                Alert.alert(
+                  "Thông báo",
+                  "Tính năng báo cáo sẽ được cập nhật sớm"
+                );
+              }}
+            >
+              <View className="items-center">
+                <View className="bg-blue-100 p-3 rounded-full mb-2">
+                  <Ionicons
+                    name="stats-chart-outline"
+                    size={24}
+                    color="#3B82F6"
+                  />
+                </View>
+                <Text className="text-sm font-medium text-gray-900">
+                  Báo cáo
                 </Text>
               </View>
             </TouchableOpacity>
@@ -283,8 +335,8 @@ export default function VenueOwnerHomeScreen() {
             <View className="space-y-3">
               {transactions.map((transaction) => {
                 const icon = getTransactionIcon(transaction.type);
-                const isPositive = ["earning", "deposit", "refund"].includes(
-                  transaction.type.toLowerCase()
+                const isPositive = ["VenueFee", "Deposit", "Refund"].includes(
+                  transaction.type
                 );
 
                 return (
@@ -311,8 +363,8 @@ export default function VenueOwnerHomeScreen() {
                       </View>
 
                       <View className="flex-1">
-                        <Text className="font-medium text-gray-900 capitalize">
-                          {transaction.type}
+                        <Text className="font-medium text-gray-900">
+                          {getTransactionDisplayName(transaction.type)}
                         </Text>
                         <Text className="text-sm text-gray-500">
                           {formatDate(transaction.createdAt)}
@@ -339,7 +391,13 @@ export default function VenueOwnerHomeScreen() {
                             }`}
                           />
                           <Text className="text-xs text-gray-500 capitalize">
-                            {transaction.status}
+                            {transaction.status === "completed"
+                              ? "Hoàn thành"
+                              : transaction.status === "pending"
+                              ? "Đang xử lý"
+                              : transaction.status === "failed"
+                              ? "Thất bại"
+                              : transaction.status}
                           </Text>
                         </View>
                       </View>

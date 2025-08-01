@@ -2,29 +2,26 @@
 import { apiClient } from "./base";
 
 export interface WalletBalance {
+  userId: number;
   balance: number;
-  currency: string;
-  totalEarned: number;
-  totalSpent: number;
-  pendingAmount: number;
+  currency?: string;
+  totalEarned?: number;
+  totalSpent?: number;
+  pendingAmount?: number;
 }
 
-export interface TransferRequest {
-  fromUserId: number;
-  toUserId: number;
-  amount: number;
+export interface ApiResponse<T> {
+  error: number;
+  message: string;
+  data: T;
 }
 
 class VenueWalletService {
-  async getBalance(userId?: number): Promise<WalletBalance> {
-    if (userId) {
-      return apiClient.get<WalletBalance>(`/api/Wallet/balance/${userId}`);
-    }
-    return apiClient.get<WalletBalance>("/api/Wallet/balance");
-  }
-
-  async transferFunds(data: TransferRequest): Promise<any> {
-    return apiClient.post<any>("/api/Wallet/transfer", data);
+  async getBalance(userId: number): Promise<WalletBalance> {
+    const response = await apiClient.get<ApiResponse<WalletBalance>>(
+      `/api/Wallet/balance/${userId}`
+    );
+    return response.data;
   }
 }
 

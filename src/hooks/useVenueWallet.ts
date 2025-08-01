@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import {
   venueWalletService,
   WalletBalance,
-  TransferRequest,
 } from "../services/venueWalletService";
 
 export const useVenueWallet = (userId?: number) => {
@@ -12,6 +11,11 @@ export const useVenueWallet = (userId?: number) => {
   const [error, setError] = useState<string | null>(null);
 
   const fetchBalance = async () => {
+    if (!userId) {
+      setError("User ID is required");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
@@ -26,24 +30,10 @@ export const useVenueWallet = (userId?: number) => {
     }
   };
 
-  const transferFunds = async (data: TransferRequest): Promise<boolean> => {
-    try {
-      setLoading(true);
-      setError(null);
-      await venueWalletService.transferFunds(data);
-      // Refresh balance after transfer
-      await fetchBalance();
-      return true;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to transfer funds");
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchBalance();
+    if (userId) {
+      fetchBalance();
+    }
   }, [userId]);
 
   return {
@@ -51,6 +41,5 @@ export const useVenueWallet = (userId?: number) => {
     loading,
     error,
     fetchBalance,
-    transferFunds,
   };
 };

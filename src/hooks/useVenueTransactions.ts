@@ -8,40 +8,39 @@ import {
 
 export const useVenueTransactions = (
   userId?: number,
-  locationOwnerId?: number,
   initialPage: number = 1,
-  pageSize: number = 10
+  pageSize: number = 10,
+  year?: number,
+  month?: number
 ) => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchTransactions = async (page: number = currentPage) => {
+    if (!userId) {
+      setError("User ID is required");
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      let data: TransactionHistory;
-      if (locationOwnerId) {
-        data = await venueTransactionService.getLocationOwnerTransactionHistory(
-          locationOwnerId,
-          page,
-          pageSize
-        );
-      } else if (userId) {
-        data = await venueTransactionService.getUserTransactionHistory(
-          userId,
-          page,
-          pageSize
-        );
-      } else {
-        throw new Error("Either userId or locationOwnerId must be provided");
-      }
+      const data = await venueTransactionService.getUserTransactionHistory(
+        userId,
+        page,
+        pageSize,
+        year,
+        month
+      );
 
       setTransactions(data.transactions);
       setTotalCount(data.totalCount);
+      setTotalPages(data.totalPages);
       setCurrentPage(data.currentPage);
     } catch (err) {
       setError(
@@ -69,7 +68,7 @@ export const useVenueTransactions = (
   };
 
   const loadNextPage = async () => {
-    if (currentPage * pageSize < totalCount) {
+    if (currentPage < totalPages) {
       await fetchTransactions(currentPage + 1);
     }
   };
@@ -85,14 +84,15 @@ export const useVenueTransactions = (
   };
 
   useEffect(() => {
-    if (userId || locationOwnerId) {
+    if (userId) {
       fetchTransactions();
     }
-  }, [userId, locationOwnerId]);
+  }, [userId, year, month]);
 
   return {
     transactions,
     totalCount,
+    totalPages,
     currentPage,
     loading,
     error,
@@ -101,7 +101,7 @@ export const useVenueTransactions = (
     loadNextPage,
     loadPreviousPage,
     refreshTransactions,
-    hasNextPage: currentPage * pageSize < totalCount,
+    hasNextPage: currentPage < totalPages,
     hasPreviousPage: currentPage > 1,
   };
 };

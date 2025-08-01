@@ -38,6 +38,7 @@ import EmailVerificationScreen from "../screens/EmailVerificationScreen";
 import EditProfileUserScreen from "../screens/customer/EditProifileUserScreen";
 import OrderHistoryScreen from "../screens/customer/OrderHistoryScreen";
 import PortfolioScreen from "../screens/photographer/PortfolioScreen";
+import PaymentWaitingScreen from "../screens/customer/PaymentWaitingScreen ";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -86,6 +87,7 @@ const AppNavigator = () => {
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
       <Stack.Screen name="EditProfileUserScreen" component={EditProfileUserScreen} />
       <Stack.Screen name="OrderHistoryScreen" component={OrderHistoryScreen} />
+      <Stack.Screen name="PaymentWaitingScreen" component={PaymentWaitingScreen} />
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen

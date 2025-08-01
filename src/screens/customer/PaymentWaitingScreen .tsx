@@ -1,5 +1,3 @@
-// PaymentWaitingScreen.tsx - COMPLETE VERSION WITH CANCEL API
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
@@ -23,6 +21,7 @@ import type { RootStackNavigationProp } from '../../navigation/types';
 import { usePayment } from '../../hooks/usePayment';
 import type { PaymentFlowData } from '../../types/payment';
 import { EnhancedQRDisplay } from '../../components/EnhancedQRDisplay';
+import { handleDeepLink } from '../../config/deepLinks'; // ✅ THÊM
 
 type PaymentWaitingRouteParams = PaymentFlowData;
 type PaymentWaitingScreenRouteProp = RouteProp<{ PaymentWaiting: PaymentWaitingRouteParams }, 'PaymentWaiting'>;
@@ -51,9 +50,7 @@ export default function PaymentWaitingScreen() {
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
 
-  // Hooks
   const { 
-    handlePaymentSuccess, 
     getPayment, 
     cancelPayment,
     loadingPayment 
@@ -97,13 +94,28 @@ export default function PaymentWaitingScreen() {
   // Handle cancel payment with API call
   const handleCancelPayment = useCallback(async (isAutoCancel: boolean = false) => {
     if (isCancelling) return;
-
+  
     try {
       setIsCancelling(true);
-      console.log('❌ Cancelling payment:', payment.id);
-
-      // Call API to cancel payment
-      const cancelSuccess = await cancelPayment(payment.id);
+      console.log('❌ Cancelling payment for booking:', booking.id);
+  
+      // ✅ Kiểm tra payment có tồn tại không
+      console.log('🔍 Checking if payment exists before cancelling...');
+      const existingPayment = await getPayment(payment.id);
+      
+      if (!existingPayment) {
+        throw new Error('Payment không tồn tại hoặc đã bị xóa');
+      }
+      
+      console.log('✅ Payment exists, current status:', existingPayment.status);
+      
+      // Kiểm tra status có thể cancel không
+      if (['CANCELLED', 'COMPLETED', 'PAID', 'SUCCESS'].includes(existingPayment.status)) {
+        throw new Error(`Không thể hủy payment với trạng thái: ${existingPayment.status}`);
+      }
+  
+      // ✅ Call API to cancel payment và kiểm tra kết quả
+      const cancelSuccess = await cancelPayment(booking.id);
       
       if (cancelSuccess) {
         console.log('✅ Payment cancelled successfully');
@@ -113,7 +125,7 @@ export default function PaymentWaitingScreen() {
         setIsPaymentComplete(true);
         stopPolling();
         stopCountdown();
-
+  
         // Show success message for manual cancel
         if (!isAutoCancel) {
           Alert.alert(
@@ -133,7 +145,8 @@ export default function PaymentWaitingScreen() {
           }, 1000);
         }
       } else {
-        console.error('❌ Failed to cancel payment');
+        // ✅ Handle trường hợp cancel không thành công
+        console.error('❌ Cancel payment returned false');
         Alert.alert(
           'Lỗi',
           'Không thể hủy thanh toán. Vui lòng thử lại hoặc liên hệ hỗ trợ.',
@@ -143,11 +156,12 @@ export default function PaymentWaitingScreen() {
           ]
         );
       }
+      
     } catch (error) {
       console.error('❌ Error cancelling payment:', error);
       Alert.alert(
-        'Lỗi',
-        'Có lỗi xảy ra khi hủy thanh toán. Vui lòng thử lại.',
+        'Lỗi hủy thanh toán',
+        error instanceof Error ? error.message : 'Có lỗi xảy ra khi hủy thanh toán. Vui lòng thử lại.',
         [
           { text: 'Thử lại', onPress: () => handleCancelPayment(isAutoCancel) },
           { text: 'Đóng', style: 'cancel' }
@@ -156,7 +170,7 @@ export default function PaymentWaitingScreen() {
     } finally {
       setIsCancelling(false);
     }
-  }, [payment.id, cancelPayment, isCancelling, stopPolling, stopCountdown, navigation]);
+  }, [booking.id, payment.id, getPayment, cancelPayment, isCancelling, stopPolling, stopCountdown, navigation]);
 
   const checkPaymentStatus = useCallback(async () => {
     if (!payment?.id || isPaymentComplete) return;
@@ -293,6 +307,36 @@ export default function PaymentWaitingScreen() {
 
   }, [isPolling, payment?.id, paymentStatus, statusCheckCount, isPaymentComplete, checkPaymentStatus, stopPolling]);
 
+  // ✅ THÊM: Handle deep links
+  useEffect(() => {
+    const handleURL = (event: { url: string }) => {
+      const result = handleDeepLink(event.url);
+      
+      if (result.type === 'PAYMENT_SUCCESS') {
+        console.log('✅ Payment success via deep link');
+        setPaymentStatus('SUCCESS');
+        setIsPaymentComplete(true);
+        stopPolling();
+        stopCountdown();
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setShowSuccessModal(true);
+          }
+        }, 500);
+      } else if (result.type === 'PAYMENT_CANCEL') {
+        console.log('❌ Payment cancelled via deep link');
+        setPaymentStatus('CANCELLED');
+        setIsPaymentComplete(true);
+        stopPolling();
+        stopCountdown();
+        Alert.alert('Thanh toán đã bị hủy', 'Bạn đã hủy thanh toán từ ứng dụng banking.');
+      }
+    };
+
+    const subscription = Linking.addEventListener('url', handleURL);
+    return () => subscription?.remove();
+  }, [stopPolling, stopCountdown]);
+
   // Component initialization
   useEffect(() => {
     console.log('💳 PaymentWaitingScreen mounted');
@@ -411,7 +455,7 @@ export default function PaymentWaitingScreen() {
       default:
         return {
           title: '⏳ Đang chờ thanh toán',
-          subtitle: isPolling
+          subtitle: isPolling ? 'Đang kiểm tra trạng thái thanh toán...' : 'Vui lòng thực hiện thanh toán'
         };
     }
   }, [paymentStatus, isPolling]);
@@ -481,23 +525,15 @@ export default function PaymentWaitingScreen() {
     );
   }, [handleCancelPayment]);
 
-  const handlePaymentComplete = useCallback(async () => {
-    try {
-      await handlePaymentSuccess({
-        id: payment.id.toString(),
-        orderCode: payment.orderCode,
-        status: 'success'
-      });
-
-      setIsPaymentComplete(true);
-      setPaymentStatus('SUCCESS');
-      stopPolling();
-      stopCountdown();
-      setShowSuccessModal(true);
-    } catch (error) {
-      console.error('❌ Error handling payment success:', error);
-    }
-  }, [payment.id, payment.orderCode, handlePaymentSuccess, stopPolling, stopCountdown]);
+  // ✅ SỬA: Simplified handlePaymentComplete
+  const handlePaymentComplete = useCallback(() => {
+    console.log('✅ Payment completed manually');
+    setIsPaymentComplete(true);
+    setPaymentStatus('SUCCESS');
+    stopPolling();
+    stopCountdown();
+    setShowSuccessModal(true);
+  }, [stopPolling, stopCountdown]);
 
   const handleManualStatusCheck = useCallback(async () => {
     if (!payment?.id || loadingPayment) return;
@@ -546,9 +582,13 @@ export default function PaymentWaitingScreen() {
               setShowSuccessModal(false);
               stopCountdown();
               stopPolling();
+              // ✅ SỬA: Navigation về CustomerHomeScreen
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'CustomerMain', params: { screen: 'CustomerHomeScreen' } }],
+                routes: [{ 
+                  name: 'CustomerMain', 
+                  params: { screen: 'CustomerHomeScreen' } 
+                }],
               });
             }}
             style={styles.completeButton}
@@ -604,6 +644,23 @@ export default function PaymentWaitingScreen() {
             <Text style={styles.statusTitle}>{statusMessage.title}</Text>
             <Text style={styles.statusSubtitle}>{statusMessage.subtitle}</Text>
             <Text style={styles.orderCode}>Mã đơn hàng: {payment.orderCode}</Text>
+
+            {/* ✅ THÊM: Time left display */}
+            {paymentStatus === 'PENDING' && timeLeft > 0 && (
+              <Text style={styles.timeLeft}>
+                Thời gian còn lại: {formatTime(timeLeft)}
+              </Text>
+            )}
+
+            {/* ✅ THÊM: Polling indicator */}
+            {isPolling && paymentStatus === 'PENDING' && (
+              <View style={styles.pollingIndicator}>
+                <ActivityIndicator size="small" color="#E91E63" />
+                <Text style={styles.pollingText}>
+                  Đang kiểm tra ({statusCheckCount}/{maxPollingAttempts})
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -650,6 +707,7 @@ export default function PaymentWaitingScreen() {
 
         {/* Payment Actions */}
         <View style={styles.actionsContainer}>
+          {/* ✅ SỬA: Success button navigation */}
           {(paymentStatus === 'SUCCESS' || paymentStatus === 'PAID' || paymentStatus === 'COMPLETED') && (
             <TouchableOpacity
               onPress={() => {
@@ -657,7 +715,10 @@ export default function PaymentWaitingScreen() {
                 stopPolling();
                 navigation.reset({
                   index: 0,
-                  routes: [{ name: 'CustomerMain', params: { screen: 'CustomerHomeScreen' } }],
+                  routes: [{ 
+                    name: 'CustomerMain', 
+                    params: { screen: 'CustomerHomeScreen' } 
+                  }],
                 });
               }}
               style={styles.primaryAction}
@@ -673,21 +734,54 @@ export default function PaymentWaitingScreen() {
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            onPress={handleCancel}
-            style={[styles.cancelAction, isCancelling && styles.cancelActionDisabled]}
-            activeOpacity={0.7}
-            disabled={isCancelling}
-          >
-            {isCancelling ? (
-              <>
-                <ActivityIndicator size="small" color="#999" style={{ marginRight: 8 }} />
-                <Text style={styles.cancelActionText}>Đang hủy...</Text>
-              </>
-            ) : (
-              <Text style={styles.cancelActionText}>Hủy thanh toán</Text>
-            )}
-          </TouchableOpacity>
+          {/* Manual status check button */}
+          {paymentStatus === 'PENDING' && (
+            <TouchableOpacity
+              onPress={handleManualStatusCheck}
+              style={styles.checkStatusAction}
+              activeOpacity={0.7}
+              disabled={loadingPayment}
+            >
+              {loadingPayment ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <MaterialIcons name="refresh" size={getResponsiveSize(20)} color="#666" />
+              )}
+              <Text style={styles.checkStatusText}>
+                {loadingPayment ? 'Đang kiểm tra...' : 'Kiểm tra trạng thái'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ✅ THÊM: Test complete button (for testing only) */}
+          {paymentStatus === 'PENDING' && __DEV__ && (
+            <TouchableOpacity
+              onPress={handlePaymentComplete}
+              style={styles.testCompleteButton}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.testCompleteText}>🧪 Test Complete Payment</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Cancel button - now fixed */}
+          {paymentStatus === 'PENDING' && (
+            <TouchableOpacity
+              onPress={handleCancel}
+              style={[styles.cancelAction, isCancelling && styles.cancelActionDisabled]}
+              activeOpacity={0.7}
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <>
+                  <ActivityIndicator size="small" color="#999" style={{ marginRight: 8 }} />
+                  <Text style={styles.cancelActionText}>Đang hủy...</Text>
+                </>
+              ) : (
+                <Text style={styles.cancelActionText}>Hủy thanh toán</Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 
@@ -782,6 +876,12 @@ const styles = StyleSheet.create({
     fontSize: getResponsiveSize(14),
     color: '#E91E63',
     fontWeight: 'bold',
+    marginTop: getResponsiveSize(8),
+  },
+  timeLeft: {
+    fontSize: getResponsiveSize(14),
+    color: '#FF9800',
+    fontWeight: '600',
     marginTop: getResponsiveSize(8),
   },
   pollingIndicator: {

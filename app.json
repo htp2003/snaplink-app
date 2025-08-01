@@ -1,12 +1,13 @@
 {
   "expo": {
     "name": "snaplink-app",
-    "slug": "snaplink-app",
+    "slug": "snaplink-app", 
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "snaplink",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",

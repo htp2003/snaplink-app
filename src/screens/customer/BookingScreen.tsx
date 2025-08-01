@@ -13,6 +13,7 @@ import type { CreateBookingRequest } from '../../types/booking';
 import type { DayOfWeek, AvailabilityResponse } from '../../types/availability';
 import { useAuth } from '../../hooks/useAuth';
 import { bookingService } from '../../services/bookingService';
+import { cleanupService } from '../../services/cleanupService';
 
 // Route params interface - match với actual data structure
 interface RouteParams {
@@ -498,7 +499,6 @@ export default function BookingScreen() {
       return;
     }
 
-    // 🆕 REMOVED: Bỏ availability check
     if (!availability?.available) {
       Alert.alert('Không khả dụng', 'Photographer không rảnh trong khung giờ này.');
       return;
@@ -510,7 +510,7 @@ export default function BookingScreen() {
     }
 
     try {
-      const dateString = selectedDate.toISOString().split('T')[0]; 
+      const dateString = selectedDate.toISOString().split('T')[0];
       const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
       const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
 
@@ -621,7 +621,170 @@ export default function BookingScreen() {
 
     } catch (error) {
       console.error('❌ Error in booking operation:', error);
-      Alert.alert('Lỗi', 'Có lỗi xảy ra. Vui lòng thử lại.');
+      const isConflictError =
+        (error as any).status === 409 ||
+        (error as any).message?.toLowerCase().includes('not available') ||
+        (error as any).message?.toLowerCase().includes('conflict') ||
+        (error as any).message?.toLowerCase().includes('unavailable') ||
+        (error as any).message?.toLowerCase().includes('slot');
+
+      if (isConflictError && !isEditMode) {
+        // ✅ THÊM: Show cleanup dialog
+        Alert.alert(
+          'Khung giờ không khả dụng ⏰',
+          'Có thể có booking cũ chưa được xử lý. Bạn có muốn thử làm mới và đặt lại không?',
+          [
+            {
+              text: 'Chọn giờ khác',
+              style: 'cancel'
+            },
+            {
+              text: 'Thử lại',
+              onPress: () => handleCleanupAndRetry()
+            }
+          ]
+        );
+      } else {
+        // ✅ THÊM: Other errors
+        Alert.alert(
+          'Lỗi đặt lịch',
+          (error as any).message || 'Có lỗi xảy ra khi đặt lịch. Vui lòng thử lại.',
+          [{ text: 'OK' }]
+        );
+      }
+    }
+  };
+
+  const handleCleanupAndRetry = async () => {
+    try {
+      console.log('🔄 Starting cleanup and retry flow...');
+
+      // Kiểm tra photographerId có tồn tại không
+      if (!photographerId) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin photographer');
+        return;
+      }
+
+      // Prepare booking data
+      const dateString = selectedDate.toISOString().split('T')[0];
+      const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
+      const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
+
+      const startDateTimeString = `${dateString}T${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}:00`;
+      const endDateTimeString = `${dateString}T${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
+
+      const bookingData: CreateBookingRequest = {
+        photographerId: photographerId, // Đã được kiểm tra không null ở trên
+        startDatetime: startDateTimeString,
+        endDatetime: endDateTimeString,
+        ...(selectedLocation?.id && { locationId: selectedLocation.id }),
+        ...(specialRequests && { specialRequests })
+      };
+
+      if (!photographerId) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin photographer');
+        return;
+      }
+      if (!user) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
+        return;
+      }
+
+      // ✅ THÊM: Use cleanup service
+      const createdBooking = await cleanupService.cleanupAndRetryBooking(
+        () => createBooking(user.id, bookingData)
+      );
+
+      // Add null check
+      if (!createdBooking) {
+        Alert.alert('Lỗi', 'Không thể tạo đơn đặt lịch. Vui lòng thử lại sau.');
+        return;
+      }
+
+      // ✅ THÊM: Success after cleanup
+      Alert.alert(
+        'Đặt lịch thành công! 🎉',
+        'Đã đặt lịch thành công sau khi làm mới dữ liệu.',
+        [{
+          text: 'OK',
+          onPress: () => navigation.navigate('OrderDetail', {
+
+            bookingId: createdBooking.id || createdBooking.bookingId,
+            photographer: {
+              photographerId: photographer.photographerId,
+              fullName: photographer.fullName || photographer.name || 'Unknown Photographer',
+              profileImage: photographer.profileImage || photographer.avatar,
+              hourlyRate: photographer.hourlyRate
+            },
+            selectedDate: selectedDate.toISOString(),
+            selectedStartTime,
+            selectedEndTime,
+            selectedLocation: selectedLocation ? {
+              id: selectedLocation.locationId,
+              name: selectedLocation.name,
+              hourlyRate: selectedLocation.hourlyRate
+            } : undefined,
+            specialRequests: specialRequests || undefined,
+            priceCalculation: priceCalculation || {
+              totalPrice: 0,
+              photographerFee: 0,
+              locationFee: 0,
+              duration: 0,
+              breakdown: {
+                baseRate: 0,
+                locationRate: 0,
+                additionalFees: []
+              }
+            }
+          })
+        }]
+      );
+
+      // ✅ THÊM: Success after cleanup
+      Alert.alert(
+        'Đặt lịch thành công! 🎉',
+        'Đã đặt lịch thành công sau khi làm mới dữ liệu.',
+        [{
+          text: 'OK',
+          onPress: () => navigation.navigate('OrderDetail', {
+            bookingId: createdBooking.id || createdBooking.bookingId,
+            photographer: {
+              photographerId: photographer.photographerId,
+              fullName: photographer.fullName || photographer.name || 'Unknown Photographer',
+              profileImage: photographer.profileImage || photographer.avatar,
+              hourlyRate: photographer.hourlyRate
+            },
+            selectedDate: selectedDate.toISOString(),
+            selectedStartTime,
+            selectedEndTime,
+            selectedLocation: selectedLocation ? {
+              id: selectedLocation.locationId,
+              name: selectedLocation.name,
+              hourlyRate: selectedLocation.hourlyRate
+            } : undefined,
+            specialRequests: specialRequests || undefined,
+            priceCalculation: priceCalculation || {
+              totalPrice: 0,
+              photographerFee: 0,
+              locationFee: 0,
+              duration: 0,
+              breakdown: {
+                baseRate: 0,
+                locationRate: 0,
+                additionalFees: []
+              }
+            }
+          })
+        }]
+      );
+
+    } catch (retryError) {
+      console.error('❌ Cleanup retry failed:', retryError);
+      Alert.alert(
+        'Vẫn không thể đặt lịch ❌',
+        'Khung giờ này thực sự đã có người đặt hoặc có vấn đề khác. Vui lòng chọn khung giờ khác.',
+        [{ text: 'OK' }]
+      );
     }
   };
 
@@ -957,25 +1120,25 @@ export default function BookingScreen() {
               </>
             )}
 
-                          {/* Availability Status */}
-                          {availability && selectedStartTime && selectedEndTime && (
-                <View style={{
-                  marginTop: getResponsiveSize(15),
-                  padding: getResponsiveSize(12),
-                  borderRadius: getResponsiveSize(8),
-                  backgroundColor: availability.available ? '#E8F5E8' : '#FFF3F3',
-                  borderWidth: 1,
-                  borderColor: availability.available ? '#4CAF50' : '#F44336'
+            {/* Availability Status */}
+            {availability && selectedStartTime && selectedEndTime && (
+              <View style={{
+                marginTop: getResponsiveSize(15),
+                padding: getResponsiveSize(12),
+                borderRadius: getResponsiveSize(8),
+                backgroundColor: availability.available ? '#E8F5E8' : '#FFF3F3',
+                borderWidth: 1,
+                borderColor: availability.available ? '#4CAF50' : '#F44336'
+              }}>
+                <Text style={{
+                  color: availability.available ? '#2E7D32' : '#C62828',
+                  fontSize: getResponsiveSize(14),
+                  fontWeight: 'bold'
                 }}>
-                  <Text style={{
-                    color: availability.available ? '#2E7D32' : '#C62828',
-                    fontSize: getResponsiveSize(14),
-                    fontWeight: 'bold'
-                  }}>
-                    {availability.available ? '✓ Có thể đặt lịch' : '✗ Không khả dụng'}
-                  </Text>
-                </View>
-              )}
+                  {availability.available ? '✓ Có thể đặt lịch' : '✗ Không khả dụng'}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Location Selection */}
@@ -1205,6 +1368,32 @@ export default function BookingScreen() {
           }}>{error}</Text>
         </View>
       )}
+
+<TouchableOpacity
+      onPress={async () => {
+        try {
+          const success = await cleanupService.manualCleanup();
+          if (success) {
+            Alert.alert('Success', 'Cleaned up pending bookings!');
+            // Reload booked slots
+            const booked = await getBookedSlotsForDate(photographerId, selectedDate);
+            setBookedSlots(booked);
+          }
+        } catch (error) {
+          Alert.alert('Error', 'Cleanup failed');
+        }
+      }}
+      style={{
+        backgroundColor: '#FF6B35',
+        padding: getResponsiveSize(8),
+        borderRadius: getResponsiveSize(4),
+        marginTop: getResponsiveSize(8)
+      }}
+    >
+      <Text style={{ color: '#fff', fontSize: getResponsiveSize(12), textAlign: 'center' }}>
+        🧹 Cleanup Pending Bookings
+      </Text>
+    </TouchableOpacity>
     </View>
   );
 }

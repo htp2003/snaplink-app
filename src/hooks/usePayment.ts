@@ -12,6 +12,7 @@ import type {
   PaymentTestResult
 } from '../types/payment';
 import { PaymentStatus } from '../types/payment';
+import { DEEP_LINKS } from '../config/deepLinks';
 
 export const usePayment = (options: UsePaymentOptions = {}) => {
   const { userId, autoRefresh = false, refreshInterval = 5000 } = options;
@@ -87,83 +88,6 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
     }
   }, []);
 
-  const cancelPayment = useCallback(async (paymentId: number): Promise<boolean> => {
-    try {
-      setLoadingPayment(true);
-      setError(null);
-
-      console.log('❌ Hook: Cancelling payment:', paymentId);
-      
-      // Ensure it's a valid number
-      if (!paymentId || isNaN(paymentId) || paymentId <= 0) {
-        throw new Error('Invalid orderCode for cancellation');
-      }
-      
-      await paymentService.cancelPayment(paymentId);
-      
-      setPayment(prev => prev ? { ...prev, status: PaymentStatus.CANCELLED } : null);
-      
-      return true;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Không thể hủy thanh toán';
-      setError(errorMessage);
-      console.error('❌ Hook: Error in cancelPayment:', err);
-      return false;
-    } finally {
-      setLoadingPayment(false);
-    }
-  }, []);
-
-  // ===== PAYMENT CALLBACK HANDLERS =====
-
-  const handlePaymentSuccess = useCallback(async (params: PaymentCallbackParams): Promise<PaymentSuccessResponse | null> => {
-    try {
-      setLoadingPayment(true);
-      setError(null);
-
-      console.log('✅ Hook: Handling payment success:', params);
-      const response = await paymentService.handlePaymentSuccess(params);
-      
-      // Update payment status
-      if (payment && response.bookingId) {
-        setPayment(prev => prev ? { ...prev, status: PaymentStatus.SUCCESS } : null);
-      }
-      
-      return response;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Không thể xử lý thanh toán thành công';
-      setError(errorMessage);
-      console.error('❌ Hook: Error in handlePaymentSuccess:', err);
-      return null;
-    } finally {
-      setLoadingPayment(false);
-    }
-  }, [payment]);
-
-  const handlePaymentCancel = useCallback(async (params: PaymentCallbackParams): Promise<any> => {
-    try {
-      setLoadingPayment(true);
-      setError(null);
-
-      console.log('❌ Hook: Handling payment cancel:', params);
-      const response = await paymentService.handlePaymentCancel(params);
-      
-      // Update payment status
-      if (payment) {
-        setPayment(prev => prev ? { ...prev, status: PaymentStatus.CANCELLED } : null);
-      }
-      
-      return response;
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Không thể xử lý hủy thanh toán';
-      setError(errorMessage);
-      console.error('❌ Hook: Error in handlePaymentCancel:', err);
-      return null;
-    } finally {
-      setLoadingPayment(false);
-    }
-  }, [payment]);
-
   // ===== UTILITY METHODS =====
 
   const createPaymentForBooking = useCallback(async (
@@ -215,7 +139,9 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
       const paymentData: CreatePaymentLinkRequest = {
         productName,
         description,
-        bookingId
+        bookingId,
+        successUrl: DEEP_LINKS.PAYMENT_SUCCESS,
+        cancelUrl: DEEP_LINKS.PAYMENT_CANCEL
       };
 
       console.log('🔧 Hook: Creating payment for existing booking:', { userIdParam, paymentData });
@@ -262,8 +188,45 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
     if (!paymentData.bookingId || paymentData.bookingId <= 0) {
       errors.bookingId = 'Booking ID không hợp lệ';
     }
+    
+    if (!paymentData.successUrl || paymentData.successUrl.trim() === '') {
+      errors.successUrl = 'Success URL là bắt buộc';
+    }
+    
+    if (!paymentData.cancelUrl || paymentData.cancelUrl.trim() === '') {
+      errors.cancelUrl = 'Cancel URL là bắt buộc';
+    }
+
+
 
     return errors;
+  }, []);
+
+  const cancelPayment = useCallback(async (bookingId: number): Promise<boolean> => {
+    try {
+      setLoadingPayment(true);
+      setError(null);
+  
+      console.log('❌ Hook: Cancelling payment for booking:', bookingId);
+      
+      // Validate bookingId
+      if (!bookingId || isNaN(bookingId) || bookingId <= 0) {
+        throw new Error('Invalid booking ID for cancellation');
+      }
+      
+      await paymentService.cancelPayment(bookingId);
+      
+      setPayment(prev => prev ? { ...prev, status: 'CANCELLED' } : null);
+      
+      return true;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Không thể hủy thanh toán';
+      setError(errorMessage);
+      console.error('❌ Hook: Error in cancelPayment:', err);
+      return false;
+    } finally {
+      setLoadingPayment(false);
+    }
   }, []);
 
   // ===== TESTING METHODS =====
@@ -402,9 +365,8 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
     getPayment,
     cancelPayment,
 
-    // ===== CALLBACK HANDLERS =====
-    handlePaymentSuccess,
-    handlePaymentCancel,
+
+    // ===== CALLBACK HANDLERS ====
 
     // ===== UTILITY METHODS =====
     createPaymentForBooking,

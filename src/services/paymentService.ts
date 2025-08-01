@@ -1,5 +1,3 @@
-// services/paymentService.ts - COMPLETE VERSION WITH QR FIXES
-
 import { apiClient } from './base';
 import type {
   PaymentResponse,
@@ -8,15 +6,14 @@ import type {
   PaymentSuccessResponse,
   PaymentStatusResponse
 } from '../types/payment';
+import { DEEP_LINKS } from '../config/deepLinks';
 
 const PAYMENT_ENDPOINTS = {
   CREATE: (userId: number) => `/api/Payment/create?userId=${userId}`,
   GET: (paymentId: number) => `/api/Payment/${paymentId}`,
-  CANCEL: (paymentId: number) => `/api/Payment/${paymentId}/cancel`,
-  SUCCESS: '/api/Payment/success',
-  CANCEL_CALLBACK: '/api/Payment/cancel'
+  CANCEL: (bookingId: number) => `/api/Payment/booking/${bookingId}/cancel`,
+  WEBHOOK: '/api/Payment/webhook'
 };
-
 export class PaymentService {
 
   // ✅ NEW: Helper method to analyze QR code format
@@ -102,11 +99,21 @@ export class PaymentService {
         throw new Error('bookingId is required and must be a positive number');
       }
 
+      if (!paymentData.successUrl || typeof paymentData.successUrl !== 'string' || paymentData.successUrl.trim() === '') {
+        throw new Error('successUrl is required and must be a non-empty string');
+      }
+  
+      if (!paymentData.cancelUrl || typeof paymentData.cancelUrl !== 'string' || paymentData.cancelUrl.trim() === '') {
+        throw new Error('cancelUrl is required and must be a non-empty string');
+      }
+
       // Prepare final payload
       const finalPayload = {
         productName: paymentData.productName.trim(),
         description: paymentData.description.trim(),
-        bookingId: parseInt(paymentData.bookingId.toString())
+        bookingId: parseInt(paymentData.bookingId.toString()),
+        successUrl: paymentData.successUrl.trim(),
+        cancelUrl: paymentData.cancelUrl.trim()
       };
 
       console.log('💳 Final payload:', JSON.stringify(finalPayload, null, 2));
@@ -333,60 +340,19 @@ export class PaymentService {
     }
   }
 
-  // ✅ Cancel payment method
-  async cancelPayment(paymentId: number): Promise<void> {
+  async cancelPayment(bookingId: number): Promise<void> {
     try {
-      console.log('❌ Cancelling payment:', paymentId);
-      await apiClient.put<void>(PAYMENT_ENDPOINTS.CANCEL(paymentId));
+      console.log('❌ Cancelling payment for booking:', bookingId);
+      
+      // Validate bookingId
+      if (!bookingId || isNaN(bookingId) || bookingId <= 0) {
+        throw new Error('Invalid booking ID for cancellation');
+      }
+      
+      await apiClient.put<void>(PAYMENT_ENDPOINTS.CANCEL(bookingId));
       console.log('✅ Payment cancelled successfully');
     } catch (error) {
       console.error('❌ Error cancelling payment:', error);
-      throw error;
-    }
-  }
-
-  // ✅ Handle payment success
-  async handlePaymentSuccess(params: PaymentCallbackParams): Promise<PaymentSuccessResponse> {
-    try {
-      console.log('✅ Handling payment success:', params);
-      
-      const queryParams = new URLSearchParams();
-      if (params.code) queryParams.append('code', params.code);
-      if (params.id) queryParams.append('id', params.id);
-      if (params.orderCode) queryParams.append('orderCode', params.orderCode);
-      if (params.status) queryParams.append('status', params.status);
-      
-      const response = await apiClient.get<PaymentSuccessResponse>(
-        `${PAYMENT_ENDPOINTS.SUCCESS}?${queryParams}`
-      );
-      
-      console.log('✅ Payment success handled:', response);
-      return response;
-    } catch (error) {
-      console.error('❌ Error handling payment success:', error);
-      throw error;
-    }
-  }
-
-  // ✅ Handle payment cancel
-  async handlePaymentCancel(params: PaymentCallbackParams): Promise<any> {
-    try {
-      console.log('❌ Handling payment cancel:', params);
-      
-      const queryParams = new URLSearchParams();
-      if (params.code) queryParams.append('code', params.code);
-      if (params.id) queryParams.append('id', params.id);
-      if (params.orderCode) queryParams.append('orderCode', params.orderCode);
-      if (params.status) queryParams.append('status', params.status);
-      
-      const response = await apiClient.get<any>(
-        `${PAYMENT_ENDPOINTS.CANCEL_CALLBACK}?${queryParams}`
-      );
-      
-      console.log('✅ Payment cancel handled:', response);
-      return response;
-    } catch (error) {
-      console.error('❌ Error handling payment cancel:', error);
       throw error;
     }
   }
@@ -409,6 +375,10 @@ export class PaymentService {
       const productName = `Dịch vụ chụp ảnh - ${photographerName}`;
       const description = `Thanh toán`;
 
+    // ✅ THÊM: Sử dụng deep link URLs
+    const successUrl = DEEP_LINKS.PAYMENT_SUCCESS;
+    const cancelUrl = DEEP_LINKS.PAYMENT_CANCEL;
+
       console.log('📝 Payment data:', {
         productName,
         productNameLength: productName.length,
@@ -421,7 +391,9 @@ export class PaymentService {
       const paymentData: CreatePaymentLinkRequest = {
         productName,
         description,
-        bookingId
+        bookingId,
+        successUrl,
+        cancelUrl
       };
 
       return await this.createPaymentLink(userId, paymentData);
@@ -444,7 +416,9 @@ export class PaymentService {
       const paymentPayload: CreatePaymentLinkRequest = {
         productName: "Test Service",
         description: "Test payment creation",
-        bookingId: testBookingId
+        bookingId: testBookingId,
+        successUrl: DEEP_LINKS.PAYMENT_SUCCESS,
+        cancelUrl: DEEP_LINKS.PAYMENT_CANCEL
       };
 
       const result = await this.createPaymentLink(userId, paymentPayload);

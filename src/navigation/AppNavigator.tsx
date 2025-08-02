@@ -39,6 +39,7 @@ import EditProfileUserScreen from "../screens/customer/EditProifileUserScreen";
 import OrderHistoryScreen from "../screens/customer/OrderHistoryScreen";
 import PortfolioScreen from "../screens/photographer/PortfolioScreen";
 import PaymentWaitingScreen from "../screens/customer/PaymentWaitingScreen ";
+import PhotoDeliveryScreen from "../screens/photographer/PhotoDeliveryScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -58,7 +59,7 @@ const AppNavigator = () => {
       <Stack.Screen name="CustomerMain" component={CustomerStack} />
       <Stack.Screen name="PhotographerMain" component={PhotographerStack} />
       <Stack.Screen name="VenueOwnerMain" component={VenueOwnerStack} />
-{/* Các màn hình chung */}
+      {/* Các màn hình chung */}
       <Stack.Screen name="Layout" component={LayoutPage} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
@@ -85,9 +86,15 @@ const AppNavigator = () => {
       />
       <Stack.Screen name="Booking" component={BookingScreen} />
       <Stack.Screen name="OrderDetail" component={OrderDetailScreen} />
-      <Stack.Screen name="EditProfileUserScreen" component={EditProfileUserScreen} />
+      <Stack.Screen
+        name="EditProfileUserScreen"
+        component={EditProfileUserScreen}
+      />
       <Stack.Screen name="OrderHistoryScreen" component={OrderHistoryScreen} />
-      <Stack.Screen name="PaymentWaitingScreen" component={PaymentWaitingScreen} />
+      <Stack.Screen
+        name="PaymentWaitingScreen"
+        component={PaymentWaitingScreen}
+      />
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen
@@ -128,6 +135,9 @@ const AppNavigator = () => {
         component={ManageAvailabilityScreen}
       />
       <Stack.Screen name="PortfolioScreen" component={PortfolioScreen} />
+      <Stack.Screen
+        name="PhotoDeliveryScreen"
+        component={PhotoDeliveryScreen}/>
 
       {/* Các màn hình dành riêng cho VenueOwner */}
       <Stack.Screen

@@ -9,7 +9,7 @@ export enum DayOfWeek {
   }
   
   export enum AvailabilityStatus {
-    AVAILABLE = 'available',
+    AVAILABLE = 'Available',
     UNAVAILABLE = 'unavailable',
     BUSY = 'busy',
     BREAK = 'break'

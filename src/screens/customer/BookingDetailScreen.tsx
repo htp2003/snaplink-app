@@ -105,7 +105,7 @@ const BookingDetailScreen = () => {
 
   // Handle confirm received photos
   const handleConfirmReceived = async () => {
-    if (!photoDelivery) return;
+    if (!booking) return;
 
     Alert.alert(
       'Xác nhận nhận ảnh',
@@ -120,13 +120,10 @@ const BookingDetailScreen = () => {
           onPress: async () => {
             try {
               setUpdating(true);
-              await photoDeliveryService.updatePhotoDelivery(photoDelivery.photoDeliveryId, {
-                status: 'Delivered',
-                notes: 'Khách hàng đã xác nhận nhận ảnh thành công',
-              });
+              await bookingService.completeBooking(booking.id || booking.bookingId);
 
               // Refresh photo delivery data
-              await fetchPhotoDelivery();
+              await fetchBookingDetails();
 
               Alert.alert(
                 'Thành công',
@@ -134,8 +131,8 @@ const BookingDetailScreen = () => {
                 [{ text: 'OK' }]
               );
             } catch (error: any) {
-              console.error('Error updating delivery status:', error);
-              Alert.alert('Lỗi', 'Không thể cập nhật trạng thái đơn hàng');
+              console.error('Error completing booking:', error);
+              Alert.alert('Lỗi', 'Không thể hoàn thành đơn hàng');
             } finally {
               setUpdating(false);
             }
@@ -236,15 +233,12 @@ const BookingDetailScreen = () => {
     }).format(price);
   };
 
-  const canShowDriveLink = () => {
-    return photoDelivery && photoDelivery.driveLink;
-  };
-
   const canConfirmReceived = () => {
     return (
+      booking &&
       photoDelivery &&
-      photoDelivery.status.toLowerCase() === 'pending' &&
-      photoDelivery.driveLink
+      photoDelivery.driveLink &&
+      (booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.IN_PROGRESS)
     );
   };
 
@@ -399,7 +393,7 @@ const BookingDetailScreen = () => {
             <Ionicons name="cash-outline" size={20} color="#666666" />
             <View className="flex-1 ml-3">
               <Text className="text-sm text-gray-600 mb-1">Tổng tiền</Text>
-              <Text className="text-base text-black font-medium">{formatPrice(booking.totalAmount || 0)}</Text>
+              <Text className="text-base text-black font-medium">{formatPrice(booking.totalPrice || 0)}</Text>
             </View>
           </View>
 
@@ -517,7 +511,7 @@ const BookingDetailScreen = () => {
               )}
 
               {/* Confirm Button - Chỉ hiện khi status là Pending và có drive link */}
-              {photoDelivery.status.toLowerCase() === 'pending' && photoDelivery.driveLink && (
+              {canConfirmReceived() && (
                 <TouchableOpacity
                   className={`bg-green-500 flex-row items-center justify-center py-3 rounded-lg mt-3 ${updating ? 'opacity-60' : ''}`}
                   onPress={handleConfirmReceived}
@@ -534,17 +528,15 @@ const BookingDetailScreen = () => {
                 </TouchableOpacity>
               )}
 
-              {/* Already Downloaded */}
-              {photoDelivery.status.toLowerCase() === 'delivered' && (
+              {/* Already Completed */}
+              {booking.status === BookingStatus.COMPLETED && (
                 <View className="flex-row items-center bg-green-50 p-3 rounded-lg mt-4">
                   <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
                   <View className="flex-1 ml-2">
-                    <Text className="text-green-600 text-base font-medium">Đã tải ảnh thành công</Text>
-                    {photoDelivery.deliveredAt && (
-                      <Text className="text-green-600 text-xs mt-1">
-                        Ngày tải: {formatDate(photoDelivery.deliveredAt)}
-                      </Text>
-                    )}
+                    <Text className="text-green-600 text-base font-medium">Đơn hàng đã hoàn thành</Text>
+                    <Text className="text-green-600 text-xs mt-1">
+                      Cảm ơn bạn đã sử dụng dịch vụ
+                    </Text>
                   </View>
                 </View>
               )}

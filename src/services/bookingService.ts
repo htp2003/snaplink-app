@@ -133,7 +133,7 @@ export class BookingService {
         
         // ✅ API trả về totalPrice, map thành totalAmount
         status: bookingData.status || 'pending',
-        totalAmount: bookingData.totalPrice || bookingData.totalAmount || 0,
+        totalPrice: bookingData.totalPrice || bookingData.totalAmount || 0,
         
         // Timestamps
         createdAt: bookingData.createdAt || new Date().toISOString(),
@@ -161,7 +161,7 @@ export class BookingService {
         userId: normalizedBooking.userId,
         photographerId: normalizedBooking.photographerId,
         status: normalizedBooking.status,
-        totalAmount: normalizedBooking.totalAmount,
+        totalPrice: normalizedBooking.totalPrice,
         originalTotalPrice: bookingData.totalPrice, // Original từ API
         hasPayment: bookingData.hasPayment,
         paymentStatus: bookingData.paymentStatus
@@ -200,15 +200,38 @@ export class BookingService {
         `${BOOKING_ENDPOINTS.GET_USER_BOOKINGS(userId)}?page=${page}&pageSize=${pageSize}`
       );
       
-      console.log('✅ Raw API response:', JSON.stringify(response, null, 2));
       
-      // ✅ SỬA: Trả về đúng structure từ response.data
       if (response.data && response.error === 0) {
-        return response.data; // Trả về { bookings: [...], page, pageSize, totalCount, totalPages }
-      } else {
-        // Fallback
-        return response;
+        const normalizedBookings = response.data.bookings.map((bookingData: any) => ({
+          
+          ...bookingData,
+          id: bookingData.bookingId || bookingData.id,
+          bookingId: bookingData.bookingId || bookingData.id,
+          totalPrice: bookingData.totalPrice || bookingData.totalAmount || 0,
+          
+          
+          photographer: bookingData.photographerName ? {
+            photographerId: bookingData.photographerId,
+            fullName: bookingData.photographerName,
+            profileImage: '',
+            hourlyRate: bookingData.pricePerHour || 0
+          } : undefined,
+          
+          location: bookingData.locationName ? {
+            locationId: bookingData.locationId,
+            name: bookingData.locationName,
+            address: bookingData.locationAddress,
+            hourlyRate: bookingData.pricePerHour
+          } : undefined
+        }));
+        
+        return {
+          ...response.data,
+          bookings: normalizedBookings
+        };
       }
+      
+      return response;
     } catch (error) {
       console.error('❌ Error fetching user bookings:', error);
       throw error;

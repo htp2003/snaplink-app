@@ -38,7 +38,7 @@ export interface BookingResponse {
   endDatetime: string;
   specialRequests?: string;
   status: BookingStatus;
-  totalAmount: number;
+  totalPrice: number;
   createdAt: string;
   updatedAt: string;
   // Extended fields
@@ -70,7 +70,7 @@ export interface PriceCalculationResponse {
   photographerFee: number;
   locationFee?: number;
   serviceFee?: number;
-  duration: number; // in hours
+  duration: number; 
   breakdown: {
     baseRate: number;
     locationRate?: number;
@@ -91,12 +91,12 @@ export interface PriceCalculationResponse {
   }
   
   export enum BookingStatus {
-    PENDING = 'pending',
-    CONFIRMED = 'confirmed',
-    IN_PROGRESS = 'in_progress',
-    COMPLETED = 'completed',
-    CANCELLED = 'cancelled',
-    EXPIRED = 'expired'
+    PENDING = 'Pending',
+    CONFIRMED = 'Confirmed',
+    IN_PROGRESS = 'In Progress',
+    COMPLETED = 'Completed',
+    CANCELLED = 'Cancelled',
+    EXPIRED = 'Expired'
   }
   
   export interface BookingFilters {

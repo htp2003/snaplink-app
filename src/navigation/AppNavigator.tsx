@@ -95,15 +95,8 @@ const AppNavigator = () => {
         component={EditProfileUserScreen}
       />
       <Stack.Screen name="OrderHistoryScreen" component={OrderHistoryScreen} />
-
       <Stack.Screen name="PaymentWaitingScreen" component={PaymentWaitingScreen} />
       <Stack.Screen name="BookingDetailScreen" component={BookingDetailScreen} />
-
-      <Stack.Screen
-        name="PaymentWaitingScreen"
-        component={PaymentWaitingScreen}
-      />
-
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen

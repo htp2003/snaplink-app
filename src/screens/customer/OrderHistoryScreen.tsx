@@ -35,7 +35,7 @@ const OrderHistoryScreen = () => {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const pageSize = 10;
+  const pageSize = 50;
 
   // Fetch bookings from API
   const fetchBookings = async (pageNum: number = 1, isRefresh: boolean = false) => {

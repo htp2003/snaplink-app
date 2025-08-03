@@ -192,15 +192,23 @@ export class BookingService {
   async getUserBookings(
     userId: number, 
     page: number = 1, 
-    pageSize: number = 10
+    pageSize: number = 50
   ): Promise<BookingListResponse> {
     try {
       console.log('📋 Fetching user bookings:', { userId, page, pageSize });
-      const response = await apiClient.get<BookingListResponse>(
+      const response = await apiClient.get<any>(
         `${BOOKING_ENDPOINTS.GET_USER_BOOKINGS(userId)}?page=${page}&pageSize=${pageSize}`
       );
-      console.log('✅ User bookings fetched:', response);
-      return response;
+      
+      console.log('✅ Raw API response:', JSON.stringify(response, null, 2));
+      
+      // ✅ SỬA: Trả về đúng structure từ response.data
+      if (response.data && response.error === 0) {
+        return response.data; // Trả về { bookings: [...], page, pageSize, totalCount, totalPages }
+      } else {
+        // Fallback
+        return response;
+      }
     } catch (error) {
       console.error('❌ Error fetching user bookings:', error);
       throw error;

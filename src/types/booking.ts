@@ -222,11 +222,11 @@ export interface ApiResponse<T> {
 // Mapped types for UI
 export interface BookingCardData {
   id: string;
-  customerName: string;
+  userName: string;
   customerPhone: string;
   customerEmail: string;
   serviceType: string;
-  location: string;
+  locationName: string;
   locationAddress: string;
   date: string;
   time: string;

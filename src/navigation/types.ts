@@ -48,6 +48,13 @@ export type RootStackParamList = {
   PaymentWaitingScreen: PaymentFlowData;
 
 
+
+
+  PhotoDeliveryScreen: {
+    bookingId: number;
+    customerName: string;
+  };
+
   PhotographerEventScreen: {
     photographerId: number;
   };

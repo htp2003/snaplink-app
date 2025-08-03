@@ -16,9 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Import services and hooks
 import { bookingService } from '../../services/bookingService';
-
+import { usePhotoDelivery } from '../../hooks/usePhotoDelivery';
+import photoDeliveryService from '../../services/photoDeliveryService';
 import { BookingResponse, BookingStatus } from '../../types/booking';
-
+import { PhotoDeliveryData } from '../../types/photoDelivery';
 
 interface RouteParams {
   bookingId: number;
@@ -36,15 +37,11 @@ const BookingDetailScreen = () => {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Photo delivery hook
-  const {
-    photoDelivery,
-    isLoading: deliveryLoading,
-    error: deliveryError,
-    update,
-    isUpdating,
-    fetchByBookingId,
-  } = usePhotoDeliveryByBooking(bookingId);
+  // State for photo delivery
+  const [photoDelivery, setPhotoDelivery] = useState<PhotoDeliveryData | null>(null);
+  const [deliveryLoading, setDeliveryLoading] = useState(true);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [updating, setUpdating] = useState(false);
 
   // Fetch booking details
   const fetchBookingDetails = async () => {
@@ -61,8 +58,24 @@ const BookingDetailScreen = () => {
     }
   };
 
+  // Fetch photo delivery details
+  const fetchPhotoDelivery = async () => {
+    try {
+      setDeliveryLoading(true);
+      setDeliveryError(null);
+      const deliveryData = await photoDeliveryService.getPhotoDeliveryByBooking(bookingId);
+      setPhotoDelivery(deliveryData);
+    } catch (error: any) {
+      console.error('Error fetching photo delivery:', error);
+      setDeliveryError('Chưa có thông tin về ảnh chụp');
+    } finally {
+      setDeliveryLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchBookingDetails();
+    fetchPhotoDelivery();
   }, [bookingId]);
 
   // Handle refresh
@@ -70,71 +83,66 @@ const BookingDetailScreen = () => {
     setRefreshing(true);
     await Promise.all([
       fetchBookingDetails(),
-      fetchByBookingId(bookingId),
+      fetchPhotoDelivery(),
     ]);
     setRefreshing(false);
   };
 
-  // Handle download photos
-  const handleDownloadPhotos = async () => {
-    if (!photoDelivery?.driveLink) {
-      Alert.alert('Thông báo', 'Không có link tải ảnh');
-      return;
-    }
-
+  // Handle open Google Drive link
+  const handleOpenDriveLink = async (driveLink: string) => {
     try {
-      const supported = await Linking.canOpenURL(photoDelivery.driveLink);
+      const supported = await Linking.canOpenURL(driveLink);
       if (supported) {
-        await Linking.openURL(photoDelivery.driveLink);
-        
-        // Show confirm dialog after opening link
-        Alert.alert(
-          'Xác nhận tải ảnh',
-          'Bạn đã tải ảnh thành công? Chúng tôi sẽ cập nhật trạng thái đơn hàng.',
-          [
-            {
-              text: 'Chưa tải',
-              style: 'cancel',
-            },
-            {
-              text: 'Đã tải xong',
-              onPress: handleConfirmDownload,
-            },
-          ]
-        );
+        await Linking.openURL(driveLink);
       } else {
-        Alert.alert('Lỗi', 'Không thể mở link tải ảnh');
+        Alert.alert('Lỗi', 'Không thể mở link Google Drive');
       }
     } catch (error) {
-      console.error('Error opening link:', error);
-      Alert.alert('Lỗi', 'Không thể mở link tải ảnh');
+      console.error('Error opening drive link:', error);
+      Alert.alert('Lỗi', 'Không thể mở link Google Drive');
     }
   };
 
-  // Handle confirm download
-  const handleConfirmDownload = async () => {
+  // Handle confirm received photos
+  const handleConfirmReceived = async () => {
     if (!photoDelivery) return;
 
-    try {
-      await update(photoDelivery.photoDeliveryId, {
-        status: photoDelivery.DELIVERED,
-        notes: 'Khách hàng đã xác nhận tải ảnh thành công',
-      });
+    Alert.alert(
+      'Xác nhận nhận ảnh',
+      'Bạn đã xem và nhận được ảnh chụp? Sau khi xác nhận, đơn hàng sẽ được hoàn tất.',
+      [
+        {
+          text: 'Chưa nhận',
+          style: 'cancel',
+        },
+        {
+          text: 'Đã nhận ảnh',
+          onPress: async () => {
+            try {
+              setUpdating(true);
+              await photoDeliveryService.updatePhotoDelivery(photoDelivery.photoDeliveryId, {
+                status: 'Delivered',
+                notes: 'Khách hàng đã xác nhận nhận ảnh thành công',
+              });
 
-      Alert.alert(
-        'Thành công',
-        'Cảm ơn bạn đã xác nhận! Đơn hàng đã được hoàn thành.',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
+              // Refresh photo delivery data
+              await fetchPhotoDelivery();
+
+              Alert.alert(
+                'Thành công',
+                'Cảm ơn bạn đã xác nhận! Đơn hàng đã được hoàn thành.',
+                [{ text: 'OK' }]
+              );
+            } catch (error: any) {
+              console.error('Error updating delivery status:', error);
+              Alert.alert('Lỗi', 'Không thể cập nhật trạng thái đơn hàng');
+            } finally {
+              setUpdating(false);
+            }
           },
-        ]
-      );
-    } catch (error: any) {
-      console.error('Error updating delivery status:', error);
-      Alert.alert('Lỗi', 'Không thể cập nhật trạng thái đơn hàng');
-    }
+        },
+      ]
+    );
   };
 
   // Utility functions
@@ -176,31 +184,35 @@ const BookingDetailScreen = () => {
     }
   };
 
-  const getDeliveryStatusColor = (status: PhotoDeliveryStatus) => {
-    switch (status) {
-      case PhotoDeliveryStatus.PENDING:
+  const getDeliveryStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
         return 'bg-orange-500';
-      case PhotoDeliveryStatus.UPLOADED:
+      case 'uploaded':
         return 'bg-blue-500';
-      case PhotoDeliveryStatus.DELIVERED:
+      case 'delivered':
         return 'bg-green-500';
-      case PhotoDeliveryStatus.EXPIRED:
+      case 'expired':
         return 'bg-red-500';
+      case 'notrequired':
+        return 'bg-gray-500';
       default:
         return 'bg-gray-400';
     }
   };
 
-  const getDeliveryStatusText = (status: PhotoDeliveryStatus) => {
-    switch (status) {
-      case PhotoDeliveryStatus.PENDING:
+  const getDeliveryStatusText = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'pending':
         return 'Đang chuẩn bị ảnh';
-      case PhotoDeliveryStatus.UPLOADED:
+      case 'uploaded':
         return 'Ảnh đã sẵn sàng';
-      case PhotoDeliveryStatus.DELIVERED:
+      case 'delivered':
         return 'Đã giao ảnh';
-      case PhotoDeliveryStatus.EXPIRED:
+      case 'expired':
         return 'Đã hết hạn';
+      case 'notrequired':
+        return 'Không yêu cầu';
       default:
         return status;
     }
@@ -224,12 +236,15 @@ const BookingDetailScreen = () => {
     }).format(price);
   };
 
-  const canDownloadPhotos = () => {
+  const canShowDriveLink = () => {
+    return photoDelivery && photoDelivery.driveLink;
+  };
+
+  const canConfirmReceived = () => {
     return (
       photoDelivery &&
-      photoDelivery.status === PhotoDeliveryStatus.UPLOADED &&
-      photoDelivery.driveLink &&
-      !isExpired()
+      photoDelivery.status.toLowerCase() === 'pending' &&
+      photoDelivery.driveLink
     );
   };
 
@@ -408,17 +423,15 @@ const BookingDetailScreen = () => {
               <ActivityIndicator size="small" color="#FF385C" />
               <Text className="ml-3 text-gray-600">Đang tải thông tin ảnh...</Text>
             </View>
-          ) : deliveryError ? (
-            <View className="items-center py-5">
-              <Ionicons name="alert-circle-outline" size={32} color="#FF9800" />
-              <Text className="text-base text-orange-500 mt-2 text-center">
-                Chưa có thông tin về ảnh chụp
-              </Text>
-              <Text className="text-sm text-gray-500 mt-1 text-center">
+          ) : !photoDelivery ? (
+            <View className="items-center py-10">
+              <Ionicons name="camera-outline" size={48} color="#C0C0C0" />
+              <Text className="text-lg text-gray-300 mt-4">Chưa có ảnh</Text>
+              <Text className="text-sm text-gray-400 mt-2 text-center">
                 Photographer sẽ upload ảnh sau khi hoàn thành chụp
               </Text>
             </View>
-          ) : photoDelivery ? (
+          ) : (
             <>
               <View className="flex-row justify-between items-center mb-3">
                 <Text className="text-base text-black font-medium">Trạng thái:</Text>
@@ -429,6 +442,15 @@ const BookingDetailScreen = () => {
                 </View>
               </View>
 
+              {photoDelivery.deliveryMethod && (
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="cloud-outline" size={20} color="#666666" />
+                  <Text className="ml-2 text-sm text-gray-600">
+                    Phương thức: {photoDelivery.deliveryMethod}
+                  </Text>
+                </View>
+              )}
+
               {photoDelivery.photoCount && (
                 <View className="flex-row items-center mb-2">
                   <Ionicons name="images-outline" size={20} color="#666666" />
@@ -438,11 +460,29 @@ const BookingDetailScreen = () => {
                 </View>
               )}
 
+              {photoDelivery.driveFolderName && (
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="folder-outline" size={20} color="#666666" />
+                  <Text className="ml-2 text-sm text-gray-600">
+                    Thư mục: {photoDelivery.driveFolderName}
+                  </Text>
+                </View>
+              )}
+
               {photoDelivery.notes && (
                 <View className="flex-row items-center mb-2">
                   <Ionicons name="document-text-outline" size={20} color="#666666" />
                   <Text className="ml-2 text-sm text-gray-600">
                     Ghi chú: {photoDelivery.notes}
+                  </Text>
+                </View>
+              )}
+
+              {photoDelivery.uploadedAt && (
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="cloud-upload-outline" size={20} color="#666666" />
+                  <Text className="ml-2 text-sm text-gray-600">
+                    Ngày upload: {formatDate(photoDelivery.uploadedAt)}
                   </Text>
                 </View>
               )}
@@ -463,26 +503,39 @@ const BookingDetailScreen = () => {
                 </View>
               )}
 
-              {/* Download Button */}
-              {canDownloadPhotos() && (
+              {/* Google Drive Link */}
+              {photoDelivery.driveLink && (
                 <TouchableOpacity
-                  className={`bg-red-500 flex-row items-center justify-center py-3 rounded-lg mt-4 ${isUpdating ? 'opacity-60' : ''}`}
-                  onPress={handleDownloadPhotos}
-                  disabled={isUpdating}
+                  className="bg-blue-500 flex-row items-center justify-center py-3 rounded-lg mt-4"
+                  onPress={() => handleOpenDriveLink(photoDelivery.driveLink!)}
                 >
-                  {isUpdating ? (
+                  <Ionicons name="link-outline" size={24} color="#FFFFFF" />
+                  <Text className="text-white text-base font-semibold ml-2">
+                    Xem ảnh trên Google Drive
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {/* Confirm Button - Chỉ hiện khi status là Pending và có drive link */}
+              {photoDelivery.status.toLowerCase() === 'pending' && photoDelivery.driveLink && (
+                <TouchableOpacity
+                  className={`bg-green-500 flex-row items-center justify-center py-3 rounded-lg mt-3 ${updating ? 'opacity-60' : ''}`}
+                  onPress={handleConfirmReceived}
+                  disabled={updating}
+                >
+                  {updating ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
                   ) : (
-                    <Ionicons name="cloud-download-outline" size={24} color="#FFFFFF" />
+                    <Ionicons name="checkmark-circle-outline" size={24} color="#FFFFFF" />
                   )}
                   <Text className="text-white text-base font-semibold ml-2">
-                    {isUpdating ? 'Đang xử lý...' : 'Tải ảnh về'}
+                    {updating ? 'Đang xử lý...' : 'Xác nhận đã nhận ảnh'}
                   </Text>
                 </TouchableOpacity>
               )}
 
               {/* Already Downloaded */}
-              {photoDelivery.status === PhotoDeliveryStatus.DELIVERED && (
+              {photoDelivery.status.toLowerCase() === 'delivered' && (
                 <View className="flex-row items-center bg-green-50 p-3 rounded-lg mt-4">
                   <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
                   <View className="flex-1 ml-2">
@@ -508,15 +561,20 @@ const BookingDetailScreen = () => {
                   </View>
                 </View>
               )}
+
+              {/* Pending State */}
+              {photoDelivery.status.toLowerCase() === 'pending' && (
+                <View className="flex-row items-center bg-orange-50 p-3 rounded-lg mt-4">
+                  <Ionicons name="time-outline" size={24} color="#FF9800" />
+                  <View className="flex-1 ml-2">
+                    <Text className="text-orange-600 text-base font-medium">Đang chuẩn bị ảnh</Text>
+                    <Text className="text-orange-600 text-xs mt-1">
+                      Photographer đang xử lý và sẽ upload ảnh sớm nhất có thể
+                    </Text>
+                  </View>
+                </View>
+              )}
             </>
-          ) : (
-            <View className="items-center py-10">
-              <Ionicons name="camera-outline" size={48} color="#C0C0C0" />
-              <Text className="text-lg text-gray-300 mt-4">Chưa có ảnh</Text>
-              <Text className="text-sm text-gray-400 mt-2 text-center">
-                Photographer sẽ upload ảnh sau khi hoàn thành
-              </Text>
-            </View>
           )}
         </View>
       </ScrollView>
@@ -525,7 +583,3 @@ const BookingDetailScreen = () => {
 };
 
 export default BookingDetailScreen;
-
-function usePhotoDeliveryByBooking(bookingId: number): { photoDelivery: any; isLoading: any; error: any; update: any; isUpdating: any; fetchByBookingId: any; } {
-    throw new Error('Function not implemented.');
-}

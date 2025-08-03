@@ -249,7 +249,7 @@ export default function BookingScreen() {
     }
   }, [isAuthenticated, navigation]);
 
-  const allTimes = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
+  const allTimes = ["06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
 
   // Safe data extraction từ photographer object
   const photographerName = photographer?.fullName || photographer?.name || 'Unknown Photographer';
@@ -288,11 +288,9 @@ export default function BookingScreen() {
 
   // 🆕 THÊM: Helper để convert JS date sang backend dayOfWeek
   const getDateDayOfWeek = (date: Date): DayOfWeek => {
-    const jsDay = date.getDay(); // 0=Sunday, 1=Monday... 5=Friday, 6=Saturday
+    const jsDay = date.getDay();
 
-    // Convert JS day to Backend day: 0=Monday, 1=Tuesday... 6=Sunday
-    if (jsDay === 0) return 6; // Sunday -> 6
-    return (jsDay - 1) as DayOfWeek; // Monday=1->0, Friday=5->4
+    return jsDay as DayOfWeek;
   };
 
   // 🆕 UPDATE: getFilteredTimes với availability + booked slots
@@ -312,7 +310,7 @@ export default function BookingScreen() {
 
     // Tìm availability cho ngày được chọn
     const dayAvailability = photographerSchedule.find(
-      av => av.dayOfWeek === selectedDayOfWeek && av.status === 'Available'
+      av => av.dayOfWeek === selectedDayOfWeek && av.status === 'available'
     );
 
     console.log('Found availability:', dayAvailability);

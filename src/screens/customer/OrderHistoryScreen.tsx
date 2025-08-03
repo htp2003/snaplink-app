@@ -31,45 +31,59 @@ const OrderHistoryScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // ✅ PAGINATION STATE
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [totalCount, setTotalCount] = useState(0);
 
-  const pageSize = 50;
+  const pageSize = 10; // ✅ GIẢM xuống 15 cho UX tốt hơn
 
   // Fetch bookings from API
   const fetchBookings = async (pageNum: number = 1, isRefresh: boolean = false) => {
     try {
       if (pageNum === 1) {
         setLoading(true);
+        setError(null);
       } else {
         setLoadingMore(true);
       }
 
-      // Use existing bookingService
+      console.log(`📥 Fetching bookings - Page: ${pageNum}, PageSize: ${pageSize}`);
+      
       const response = await bookingService.getUserBookings(userId, pageNum, pageSize);
       
-      // Handle response structure from your service
       const bookingsData = response.bookings || response.data || [];
+      console.log(`📦 Received ${bookingsData.length} bookings for page ${pageNum}`);
       
       if (isRefresh || pageNum === 1) {
         setBookings(bookingsData);
+        setTotalCount(response.totalCount || 0);
       } else {
         setBookings(prev => [...prev, ...bookingsData]);
       }
 
-      // Check if has more data based on your API response structure
-      const totalCount = response.totalCount || 0;
+      // ✅ TÍNH TOÁN hasMore chính xác
       const currentTotal = (pageNum - 1) * pageSize + bookingsData.length;
-      setHasMore(currentTotal < totalCount);
+      const apiTotalCount = response.totalCount || 0;
+      setHasMore(currentTotal < apiTotalCount && bookingsData.length === pageSize);
+      
+      console.log(`📊 Pagination info:`, {
+        currentTotal,
+        apiTotalCount,
+        hasMore: currentTotal < apiTotalCount && bookingsData.length === pageSize,
+        receivedItemsCount: bookingsData.length
+      });
       
       setError(null);
     } catch (err) {
-      console.error('Error fetching bookings:', err);
+      console.error('❌ Error fetching bookings:', err);
       setError('Không thể tải danh sách đơn hàng');
       
       if (pageNum === 1) {
         setBookings([]);
+        setTotalCount(0);
       }
     } finally {
       setLoading(false);
@@ -83,54 +97,77 @@ const OrderHistoryScreen = () => {
   }, [userId]);
 
   const handleRefresh = () => {
+    console.log('🔄 Refreshing bookings...');
     setRefreshing(true);
     setPage(1);
+    setHasMore(true);
     fetchBookings(1, true);
   };
 
   const handleLoadMore = () => {
-    if (!loadingMore && hasMore) {
+    if (!loadingMore && hasMore && !loading) {
       const nextPage = page + 1;
+      console.log(`📄 Loading more - Next page: ${nextPage}`);
       setPage(nextPage);
       fetchBookings(nextPage);
     }
   };
 
+  // ✅ STATUS STYLING - giữ nguyên code cũ
   const getStatusColor = (status: BookingStatus) => {
     switch (status) {
-      case BookingStatus.CONFIRMED:
-        return '#4CAF50';
       case BookingStatus.PENDING:
-        return '#FF9800';
-      case BookingStatus.CANCELLED:
-        return '#F44336';
-      case BookingStatus.COMPLETED:
-        return '#2196F3';
+        return 'bg-orange-500';
+      case BookingStatus.CONFIRMED:
+        return 'bg-blue-500';
       case BookingStatus.IN_PROGRESS:
-        return '#9C27B0';
+        return 'bg-purple-500';
+      case BookingStatus.COMPLETED:
+        return 'bg-green-500';
+      case BookingStatus.CANCELLED:
+        return 'bg-red-500';
       case BookingStatus.EXPIRED:
-        return '#757575';
+        return 'bg-gray-500';
       default:
-        return '#9E9E9E';
+        return 'bg-gray-400';
     }
   };
 
   const getStatusText = (status: BookingStatus) => {
     switch (status) {
-      case BookingStatus.CONFIRMED:
-        return 'Đã xác nhận';
       case BookingStatus.PENDING:
         return 'Chờ xác nhận';
-      case BookingStatus.CANCELLED:
-        return 'Đã hủy';
-      case BookingStatus.COMPLETED:
-        return 'Hoàn thành';
+      case BookingStatus.CONFIRMED:
+        return 'Đã xác nhận';
       case BookingStatus.IN_PROGRESS:
         return 'Đang thực hiện';
+      case BookingStatus.COMPLETED:
+        return 'Hoàn thành';
+      case BookingStatus.CANCELLED:
+        return 'Đã hủy';
       case BookingStatus.EXPIRED:
         return 'Đã hết hạn';
       default:
         return status;
+    }
+  };
+
+  const getStatusIcon = (status: BookingStatus) => {
+    switch (status) {
+      case BookingStatus.PENDING:
+        return 'time-outline';
+      case BookingStatus.CONFIRMED:
+        return 'checkmark-circle-outline';
+      case BookingStatus.IN_PROGRESS:
+        return 'play-circle-outline';
+      case BookingStatus.COMPLETED:
+        return 'checkmark-done-circle';
+      case BookingStatus.CANCELLED:
+        return 'close-circle-outline';
+      case BookingStatus.EXPIRED:
+        return 'alert-circle-outline';
+      default:
+        return 'help-circle-outline';
     }
   };
 
@@ -152,203 +189,203 @@ const OrderHistoryScreen = () => {
     }).format(price);
   };
 
-  const renderBookingItem = ({ item }: { item: BookingResponse }) => (
-    <TouchableOpacity
-      style={{
-        backgroundColor: '#FFFFFF',
-        marginHorizontal: 16,
-        marginVertical: 8,
-        borderRadius: 12,
-        padding: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-        elevation: 3,
-      }}
-      onPress={() => {
-        // Navigate to booking detail
-        navigation.navigate('BookingDetailScreen', { 
-          bookingId: item.id || item.bookingId 
-        });
-      }}
-    >
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: '#000000', flex: 1 }}>
-          Đơn hàng #{item.id || item.bookingId}
-        </Text>
-        <View
-          style={{
-            backgroundColor: getStatusColor(item.status),
-            paddingHorizontal: 8,
-            paddingVertical: 4,
-            borderRadius: 12,
-          }}
-        >
-          <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '500' }}>
-            {getStatusText(item.status)}
+  const renderBookingItem = ({ item }: { item: BookingResponse }) => {
+    return (
+      <TouchableOpacity
+        className="bg-white mx-4 my-2 rounded-xl p-4 shadow-sm border border-gray-100"
+        onPress={() => {
+          navigation.navigate('BookingDetailScreen', { 
+            bookingId: item.id || item.bookingId 
+          });
+        }}
+      >
+        {/* Header with booking ID and status */}
+        <View className="flex-row justify-between items-start mb-3">
+          <Text className="text-lg font-semibold text-black flex-1">
+            Đơn hàng #{item.id || item.bookingId}
+          </Text>
+          <View className={`flex-row items-center px-3 py-1.5 rounded-full ${getStatusColor(item.status)}`}>
+            <Ionicons 
+              name={getStatusIcon(item.status)} 
+              size={14} 
+              color="#FFFFFF"
+              style={{ marginRight: 4 }}
+            />
+            <Text className="text-white text-xs font-medium ml-1">
+              {getStatusText(item.status)}
+            </Text>
+          </View>
+        </View>
+
+        {/* Booking time */}
+        <View className="flex-row items-center mb-2">
+          <Ionicons name="calendar-outline" size={18} color="#6B7280" />
+          <Text className="ml-3 text-sm text-gray-600 mb-1">Thời gian chụp:  <Text className="text-sm font-medium text-gray-800">
+            {formatDate(item.startDatetime)} đến {formatDate(item.endDatetime)}
+          </Text></Text>
+        </View>
+
+        {/* Photographer info */}
+        {item.photographer && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="camera-outline" size={18} color="#6B7280" />
+            <Text className="ml-3 text-sm text-gray-600">
+              Photographer: <Text className="font-medium text-gray-800">{item.photographer.fullName}</Text>
+            </Text>
+          </View>
+        )}
+
+        {/* Location info */}
+        {item.location ? (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="location-outline" size={18} color="#6B7280" />
+            <Text className="ml-3 text-sm text-gray-600">
+              Địa điểm: <Text className="font-medium text-gray-800">{item.location.name}</Text>
+            </Text>
+          </View>
+        ) : item.externalLocation && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="location-outline" size={18} color="#6B7280" />
+            <Text className="ml-3 text-sm text-gray-600">
+              Địa điểm: <Text className="font-medium text-gray-800">{item.externalLocation.name}</Text>
+            </Text>
+          </View>
+        )}
+
+        {/* Price */}
+        <View className="flex-row items-center mb-3">
+          <Ionicons name="cash-outline" size={18} color="#6B7280" />
+          <Text className="ml-3 text-base font-semibold text-gray-800">
+            {formatPrice(item.totalPrice || 0)}
           </Text>
         </View>
-      </View>
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-        <Ionicons name="calendar-outline" size={16} color="#666666" />
-        <Text style={{ marginLeft: 8, fontSize: 14, color: '#666666' }}>
-          {formatDate(item.startDatetime)} - {formatDate(item.endDatetime)}
-        </Text>
-      </View>
+        {/* Special requests */}
+        {item.specialRequests && (
+          <View className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-100">
+            <Text className="text-xs text-blue-700">
+              <Text className="font-medium">Yêu cầu đặc biệt:</Text> {item.specialRequests}
+            </Text>
+          </View>
+        )}
 
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-        <Ionicons name="cash-outline" size={16} color="#666666" />
-        <Text style={{ marginLeft: 8, fontSize: 14, color: '#666666' }}>
-          {formatPrice(item.totalAmount || 0)}
-        </Text>
-      </View>
-
-      {/* Show photographer info if available */}
-      {item.photographer && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-          <Ionicons name="camera-outline" size={16} color="#666666" />
-          <Text style={{ marginLeft: 8, fontSize: 14, color: '#666666' }}>
-            {item.photographer.fullName}
-          </Text>
+        {/* View details indicator */}
+        <View className="flex-row justify-end items-center mt-3 pt-2 border-t border-gray-100">
+          <Text className="text-xs text-gray-500 mr-2">Xem chi tiết</Text>
+          <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
         </View>
-      )}
-
-      {/* Show location info if available */}
-      {item.location ? (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-          <Ionicons name="location-outline" size={16} color="#666666" />
-          <Text style={{ marginLeft: 8, fontSize: 14, color: '#666666' }}>
-            {item.location.name}
-          </Text>
-        </View>
-      ) : item.externalLocation && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-          <Ionicons name="location-outline" size={16} color="#666666" />
-          <Text style={{ marginLeft: 8, fontSize: 14, color: '#666666' }}>
-            {item.externalLocation.name}
-          </Text>
-        </View>
-      )}
-
-      {item.specialRequests && (
-        <Text style={{ fontSize: 12, color: '#999999', fontStyle: 'italic', marginBottom: 8 }}>
-          Yêu cầu: {item.specialRequests}
-        </Text>
-      )}
-
-      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 8 }}>
-        <Ionicons name="chevron-forward" size={20} color="#C0C0C0" />
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderEmptyState = () => (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
-      <Ionicons name="document-text-outline" size={64} color="#C0C0C0" />
-      <Text style={{ fontSize: 18, color: '#666666', marginTop: 16, textAlign: 'center' }}>
+    <View className="flex-1 justify-center items-center py-16">
+      <View className="bg-gray-100 rounded-full p-6 mb-4">
+        <Ionicons name="document-text-outline" size={48} color="#9CA3AF" />
+      </View>
+      <Text className="text-xl font-medium text-gray-700 mb-2">
         Chưa có đơn hàng nào
       </Text>
-      <Text style={{ fontSize: 14, color: '#999999', marginTop: 8, textAlign: 'center' }}>
-        Các đơn hàng của bạn sẽ hiển thị ở đây
+      <Text className="text-sm text-gray-500 text-center px-8">
+        Các đơn hàng của bạn sẽ hiển thị ở đây sau khi bạn đặt lịch chụp ảnh
       </Text>
     </View>
   );
 
   const renderError = () => (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
-      <Ionicons name="alert-circle-outline" size={64} color="#FF385C" />
-      <Text style={{ fontSize: 18, color: '#FF385C', marginTop: 16, textAlign: 'center' }}>
+    <View className="flex-1 justify-center items-center py-16 px-8">
+      <View className="bg-red-100 rounded-full p-6 mb-4">
+        <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
+      </View>
+      <Text className="text-xl font-medium text-red-600 mb-2 text-center">
         {error}
       </Text>
       <TouchableOpacity
-        style={{
-          backgroundColor: '#FF385C',
-          paddingHorizontal: 24,
-          paddingVertical: 12,
-          borderRadius: 8,
-          marginTop: 16,
-        }}
-        onPress={() => fetchBookings(1)}
+        className="bg-red-500 px-6 py-3 rounded-lg mt-4"
+        onPress={handleRefresh}
       >
-        <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '500' }}>
+        <Text className="text-white text-base font-medium">
           Thử lại
         </Text>
       </TouchableOpacity>
     </View>
   );
 
+  // ✅ FOOTER với pagination info
   const renderFooter = () => {
-    if (!loadingMore) return null;
-    
-    return (
-      <View style={{ paddingVertical: 20, alignItems: 'center' }}>
-        <ActivityIndicator size="small" color="#FF385C" />
-      </View>
-    );
+    if (loadingMore) {
+      return (
+        <View className="py-4 items-center">
+          <ActivityIndicator size="small" color="#FF385C" />
+          <Text className="text-sm text-gray-500 mt-2">Đang tải thêm...</Text>
+        </View>
+      );
+    }
+
+    if (!hasMore && bookings.length > 0) {
+      return (
+        <View className="py-6 items-center">
+          <View className="flex-row items-center">
+            <View className="h-px bg-gray-300 flex-1" />
+            <Text className="text-sm text-gray-500 mx-4">
+              Đã hiển thị tất cả {bookings.length} đơn hàng
+            </Text>
+            <View className="h-px bg-gray-300 flex-1" />
+          </View>
+        </View>
+      );
+    }
+
+    return null;
   };
+
+  // ✅ HEADER với counter
+  const renderHeader = () => (
+    <View 
+      className="bg-white px-4 pb-4 border-b border-gray-200"
+      style={{ paddingTop: insets.top }}
+    >
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center">
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            className="mr-4"
+          >
+            <Ionicons name="arrow-back" size={24} color="#000000" />
+          </TouchableOpacity>
+          <Text className="text-xl font-semibold text-black">
+            Đơn hàng của tôi
+          </Text>
+        </View>
+        {/* ✅ COUNTER */}
+        {totalCount > 0 && (
+          <View className="bg-gray-100 px-3 py-1 rounded-full">
+            <Text className="text-sm text-gray-600 font-medium">
+              {bookings.length}/{totalCount}
+            </Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
-        {/* Header */}
-        <View
-          style={{
-            backgroundColor: '#FFFFFF',
-            paddingTop: insets.top,
-            paddingBottom: 16,
-            paddingHorizontal: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: '#F0F0F0',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <TouchableOpacity
-              onPress={() => navigation.goBack()}
-              style={{ marginRight: 16 }}
-            >
-              <Ionicons name="arrow-back" size={24} color="#000000" />
-            </TouchableOpacity>
-            <Text style={{ fontSize: 20, fontWeight: '600', color: '#000000' }}>
-              Đơn hàng của tôi
-            </Text>
-          </View>
-        </View>
-
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View className="flex-1 bg-gray-50">
+        {renderHeader()}
+        <View className="flex-1 justify-center items-center">
           <ActivityIndicator size="large" color="#FF385C" />
-          <Text style={{ marginTop: 16, color: '#666666' }}>Đang tải...</Text>
+          <Text className="mt-4 text-gray-600 text-base">
+            Đang tải danh sách đơn hàng...
+          </Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
-      {/* Header */}
-      <View
-        style={{
-          backgroundColor: '#FFFFFF',
-          paddingTop: insets.top,
-          paddingBottom: 16,
-          paddingHorizontal: 16,
-          borderBottomWidth: 1,
-          borderBottomColor: '#F0F0F0',
-        }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={{ marginRight: 16 }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#000000" />
-          </TouchableOpacity>
-          <Text style={{ fontSize: 20, fontWeight: '600', color: '#000000' }}>
-            Đơn hàng của tôi
-          </Text>
-        </View>
-      </View>
+    <View className="flex-1 bg-gray-50">
+      {renderHeader()}
 
       {/* Content */}
       {error ? (
@@ -369,13 +406,19 @@ const OrderHistoryScreen = () => {
             />
           }
           onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5}
+          onEndReachedThreshold={0.3} // ✅ GIẢM threshold để tải sớm hơn
           contentContainerStyle={{
             paddingTop: 8,
             paddingBottom: insets.bottom + 20,
             flexGrow: 1,
           }}
           showsVerticalScrollIndicator={false}
+          // ✅ PERFORMANCE OPTIMIZATION
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={15}
+          windowSize={10}
         />
       )}
     </View>

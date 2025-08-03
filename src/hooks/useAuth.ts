@@ -379,29 +379,97 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
   const updateProfile = async (userId: number, profileData: any) => {
     try {
+      console.log('🔧 updateProfile called with:', {
+        userId,
+        profileData: JSON.stringify(profileData, null, 2)
+      });
+  
       const token = await AsyncStorage.getItem("token");
-
+      console.log('🔑 Token exists:', !!token);
+  
+      // ✅ VALIDATE: Prepare request body theo UpdateUserDto schema
+      const requestBody = {
+        userId: userId,                              // ✅ Required integer
+        fullName: profileData.fullName || null,     // ✅ nullable string  
+        phoneNumber: profileData.phoneNumber || null, // ✅ nullable string
+        bio: profileData.bio || null,               // ✅ nullable string
+        profileImage: profileData.profileImage || null // ✅ nullable string
+      };
+  
+      console.log('📤 Request details:', {
+        url: `${API_BASE_URL}/api/User/update`,
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token ? '***' : 'MISSING'}`
+        },
+        body: JSON.stringify(requestBody, null, 2)
+      });
+  
       const response = await fetch(`${API_BASE_URL}/api/User/update`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          userId,
-          ...profileData,
-        }),
+        body: JSON.stringify(requestBody),  // ✅ Use validated requestBody
       });
-
+  
+      console.log('📥 Response status:', response.status);
+      console.log('📥 Response headers:', response.headers);
+  
       if (!response.ok) {
-        throw new Error("Update profile failed");
+        // ✅ DETAILED ERROR LOGGING
+        const errorText = await response.text();
+        console.error('❌ API Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+          url: response.url
+        });
+  
+        // Try to parse error as JSON if possible
+        try {
+          const errorJson = JSON.parse(errorText);
+          console.error('❌ Parsed error JSON:', errorJson);
+        } catch (e) {
+          console.error('❌ Error is not JSON:', errorText);
+        }
+  
+        throw new Error(`Update profile failed: ${response.status} - ${errorText}`);
       }
-
+  
+      // ✅ LOG SUCCESS RESPONSE
+      const responseText = await response.text();
+      console.log('✅ Update successful, raw response:', responseText);
+  
+      let responseData;
+      try {
+        responseData = JSON.parse(responseText);
+        console.log('✅ Parsed response data:', responseData);
+      } catch (e) {
+        console.log('ℹ️ Response is not JSON, treating as success');
+        responseData = null;
+      }
+  
       // Refresh user data
       const updatedUser = { ...authState.user, ...profileData };
+      console.log('💾 Updating local user data:', updatedUser);
+      
       await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
       setAuthState((prev) => ({ ...prev, user: updatedUser }));
-    } catch (error) {
+  
+      console.log('✅ Profile update completed successfully');
+      return responseData;
+  
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ updateProfile error:', {
+        message: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        userId,
+        profileData
+      });
       throw error;
     }
   };

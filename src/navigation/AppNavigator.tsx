@@ -39,7 +39,11 @@ import EditProfileUserScreen from "../screens/customer/EditProifileUserScreen";
 import OrderHistoryScreen from "../screens/customer/OrderHistoryScreen";
 import PortfolioScreen from "../screens/photographer/PortfolioScreen";
 import PaymentWaitingScreen from "../screens/customer/PaymentWaitingScreen ";
+
+import BookingDetailScreen from "../screens/customer/BookingDetailScreen";
+
 import PhotoDeliveryScreen from "../screens/photographer/PhotoDeliveryScreen";
+
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -91,10 +95,15 @@ const AppNavigator = () => {
         component={EditProfileUserScreen}
       />
       <Stack.Screen name="OrderHistoryScreen" component={OrderHistoryScreen} />
+
+      <Stack.Screen name="PaymentWaitingScreen" component={PaymentWaitingScreen} />
+      <Stack.Screen name="BookingDetailScreen" component={BookingDetailScreen} />
+
       <Stack.Screen
         name="PaymentWaitingScreen"
         component={PaymentWaitingScreen}
       />
+
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen

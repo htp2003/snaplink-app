@@ -46,10 +46,15 @@ export type RootStackParamList = {
   ManageAvailabilityScreen: undefined;
   PortfolioScreen: undefined;
   PaymentWaitingScreen: PaymentFlowData;
+
+
+
+
   PhotoDeliveryScreen: {
     bookingId: number;
     customerName: string;
   };
+
   PhotographerEventScreen: {
     photographerId: number;
   };

@@ -1,5 +1,5 @@
 import { View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl, ActivityIndicator } from 'react-native'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { RootStackParamList, PhotographerTabParamList } from '../../navigation/types';
@@ -7,6 +7,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookings } from '../../hooks/useBookingPhotographer';
+import { usePhotoDelivery } from '../../hooks/usePhotoDelivery';
 import { BookingCardData } from '../../types/booking';
 
 type Props = CompositeScreenProps<
@@ -19,7 +20,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   const [activeTab, setActiveTab] = useState<'confirmed' | 'completed'>('confirmed');
   
   // Replace with actual photographer ID (from auth context or props)
-  const photographerId = 2;
+  const photographerId = 17;
   
   const {
     loading,
@@ -33,7 +34,30 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     getBookingCounts,
     hasMorePages,
     loadMoreBookings,
+    bookings, // Raw bookings data
+    getBookingsForUI, // UI transformed data
   } = useBookings(photographerId);
+
+  // Photo Delivery hook
+  const {
+    hasPhotoDelivery,
+    getPhotoDeliveryForBooking,
+    refreshPhotoDeliveries,
+  } = usePhotoDelivery(photographerId);
+
+  // Debug logs
+  useEffect(() => {
+    console.log('=== OrderManagementScreen Debug ===');
+    console.log('Photographer ID:', photographerId);
+    console.log('Active Tab:', activeTab);
+    console.log('Loading:', loading);
+    console.log('Error:', error);
+    console.log('Raw bookings:', bookings);
+    console.log('UI bookings:', getBookingsForUI());
+    console.log('Booking counts:', getBookingCounts());
+    console.log('Filtered orders for activeTab:', getBookingsByStatus(activeTab));
+    console.log('=====================================');
+  }, [bookings, activeTab, loading, error, getBookingsForUI, getBookingCounts, getBookingsByStatus]);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -72,6 +96,10 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   const filteredOrders = getBookingsByStatus(activeTab);
   const bookingCounts = getBookingCounts();
 
+  // Debug filtered orders
+  console.log('Filtered orders for render:', filteredOrders);
+  console.log('Filtered orders length:', filteredOrders.length);
+
   const handleCompleteOrder = async (bookingId: string) => {
     Alert.alert(
       'Hoàn thành đơn hàng',
@@ -91,6 +119,55 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     );
   };
 
+  const handlePhotoDelivery = (order: BookingCardData) => {
+    const bookingId = parseInt(order.id);
+    
+    // Navigate to PhotoDeliveryScreen
+    navigation.navigate('PhotoDeliveryScreen', {
+      bookingId: bookingId,
+      customerName: order.userName,
+    });
+  };
+
+  const getPhotoDeliveryButtonText = (order: BookingCardData): string => {
+    const bookingId = parseInt(order.id);
+    const hasDelivery = hasPhotoDelivery(bookingId);
+    
+    if (hasDelivery) {
+      const delivery = getPhotoDeliveryForBooking(bookingId);
+      if (delivery?.status.toLowerCase() === 'delivered') {
+        return 'Đã gửi ảnh';
+      }
+      return 'Cập nhật ảnh';
+    }
+    
+    return 'Gửi ảnh';
+  };
+
+  const getPhotoDeliveryButtonStyle = (order: BookingCardData) => {
+    const bookingId = parseInt(order.id);
+    const hasDelivery = hasPhotoDelivery(bookingId);
+    
+    if (hasDelivery) {
+      const delivery = getPhotoDeliveryForBooking(bookingId);
+      if (delivery?.status.toLowerCase() === 'delivered') {
+        return {
+          backgroundColor: '#F3F4F6',
+          textColor: '#6B7280'
+        };
+      }
+      return {
+        backgroundColor: '#FEF3E2',
+        textColor: '#F59E0B'
+      };
+    }
+    
+    return {
+      backgroundColor: '#D1FAE5',
+      textColor: '#059669'
+    };
+  };
+
   const handleViewDetails = (order: BookingCardData) => {
     const paymentInfo = order.hasPayment 
       ? `\n\nThông tin thanh toán:\nTrạng thái: ${order.paymentStatus}\nSố tiền: ${order.paymentAmount ? formatCurrency(order.paymentAmount) : 'Chưa có'}`
@@ -98,7 +175,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
 
     Alert.alert(
       `Chi tiết đơn hàng #${order.id}`,
-      `Khách hàng: ${order.customerName}\nEmail: ${order.customerEmail}\n\nDịch vụ: ${order.serviceType}\nĐịa điểm: ${order.location}\nĐịa chỉ: ${order.locationAddress}\nThời gian: ${formatDateTime(order.date, order.time)}\nThời lượng: ${order.duration} giờ\n\nGiá: ${formatCurrency(order.price)}\nGiá/giờ: ${formatCurrency(order.pricePerHour)}\n\nMô tả: ${order.description}${order.specialRequests ? `\n\nYêu cầu đặc biệt: ${order.specialRequests}` : ''}${paymentInfo}`,
+      `Khách hàng: ${order.userName}\nEmail: ${order.customerEmail}\n\nDịch vụ: ${order.serviceType}\nĐịa điểm: ${order.locationName}\nĐịa chỉ: ${order.locationAddress}\nThời gian: ${formatDateTime(order.date, order.time)}\nThời lượng: ${order.duration} giờ\n\nGiá: ${formatCurrency(order.price)}\nGiá/giờ: ${formatCurrency(order.pricePerHour)}\n\nMô tả: ${order.description}${order.specialRequests ? `\n\nYêu cầu đặc biệt: ${order.specialRequests}` : ''}${paymentInfo}`,
       [
         { text: 'Đóng', style: 'cancel' },
         { 
@@ -130,6 +207,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
 
   // Show loading for initial screen load
   if (loading && filteredOrders.length === 0) {
+    console.log('Showing loading screen');
     return (
       <View style={{ 
         flex: 1, 
@@ -175,7 +253,10 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
               shadowRadius: 4,
               elevation: 3,
             }}
-            onPress={refreshBookings}
+            onPress={async () => {
+              await refreshBookings();
+              await refreshPhotoDeliveries();
+            }}
             disabled={refreshing}
           >
             <Ionicons 
@@ -214,7 +295,10 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
-              onPress={() => setActiveTab(tab.key as any)}
+              onPress={() => {
+                console.log('Tab changed to:', tab.key);
+                setActiveTab(tab.key as any);
+              }}
             >
               <Text style={{
                 fontWeight: '600',
@@ -244,6 +328,18 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
             </TouchableOpacity>
           ))}
         </View>
+      </View>
+
+      {/* Debug Info - Remove in production */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+        <Text style={{ fontSize: 12, color: '#666' }}>
+          Debug: Raw bookings: {bookings.length}, UI bookings: {getBookingsForUI().length}, Filtered: {filteredOrders.length}
+        </Text>
+        {bookings.length > 0 && (
+          <Text style={{ fontSize: 12, color: '#666' }}>
+            First booking status: {bookings[0]?.status}
+          </Text>
+        )}
       </View>
 
       {/* Error State */}
@@ -285,7 +381,10 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 
-            onRefresh={refreshBookings} 
+            onRefresh={async () => {
+              await refreshBookings();
+              await refreshPhotoDeliveries();
+            }} 
             colors={['#FF385C']}
             tintColor="#FF385C"
           />
@@ -311,194 +410,250 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
               marginTop: 16,
               textAlign: 'center'
             }}>
-              {loading ? 'Đang tải...' : 'Không có đơn hàng nào'}
+              {loading ? 'Đang tải...' : `Không có đơn hàng ${activeTab === 'confirmed' ? 'đã nhận' : 'hoàn thành'}`}
             </Text>
+            {bookings.length > 0 && (
+              <Text style={{ 
+                color: '#666666', 
+                fontSize: 14,
+                marginTop: 8,
+                textAlign: 'center'
+              }}>
+                Tổng {bookings.length} đơn hàng, nhưng không có đơn nào ở trạng thái này
+              </Text>
+            )}
           </View>
         ) : (
           <>
-            {filteredOrders.map((order, index) => (
-              <View
-                key={order.id}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderRadius: 12,
-                  padding: 16,
-                  marginBottom: 16,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 4,
-                  elevation: 3,
-                }}
-              >
-                {/* Order Header */}
-                <View style={{ 
-                  flexDirection: 'row', 
-                  justifyContent: 'space-between', 
-                  alignItems: 'flex-start', 
-                  marginBottom: 12 
-                }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ 
-                      fontSize: 18, 
-                      fontWeight: 'bold', 
-                      color: '#000000',
-                      marginBottom: 4 
-                    }}>
-                      {order.customerName}
-                    </Text>
-                    <Text style={{ color: '#666666', fontSize: 14 }}>
-                      Đơn hàng #{order.id}
-                    </Text>
-                  </View>
-                  <View style={{
-                    backgroundColor: getStatusColor(order.status).bg,
-                    paddingHorizontal: 12,
-                    paddingVertical: 6,
-                    borderRadius: 20,
-                  }}>
-                    <Text style={{
-                      color: getStatusColor(order.status).text,
-                      fontSize: 12,
-                      fontWeight: '600'
-                    }}>
-                      {getStatusText(order.status)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Payment Status */}
-                {order.hasPayment && (
-                  <View style={{
-                    backgroundColor: '#D1FAE5',
-                    borderRadius: 8,
-                    padding: 12,
-                    marginBottom: 12,
-                    flexDirection: 'row',
-                    alignItems: 'center'
-                  }}>
-                    <Ionicons name="card" size={16} color="#059669" />
-                    <Text style={{ 
-                      color: '#059669', 
-                      fontSize: 14, 
-                      fontWeight: '600',
-                      marginLeft: 8 
-                    }}>
-                      Đã thanh toán: {order.paymentStatus}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Service Info */}
-                <View style={{ marginBottom: 16 }}>
+            {filteredOrders.map((order, index) => {
+              console.log(`Rendering order ${index}:`, order);
+              return (
+                <View
+                  key={order.id}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderRadius: 12,
+                    padding: 16,
+                    marginBottom: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                >
+                  {/* Order Header */}
                   <View style={{ 
                     flexDirection: 'row', 
-                    alignItems: 'center', 
-                    marginBottom: 8 
+                    justifyContent: 'space-between', 
+                    alignItems: 'flex-start', 
+                    marginBottom: 12 
                   }}>
-                    <Ionicons name="camera" size={16} color="#666666" />
-                    <Text style={{ 
-                      color: '#000000', 
-                      fontWeight: '600', 
-                      marginLeft: 8,
-                      flex: 1 
-                    }}>
-                      {order.serviceType}
-                    </Text>
-                  </View>
-                  
-                  <View style={{ 
-                    flexDirection: 'row', 
-                    alignItems: 'center', 
-                    marginBottom: 8 
-                  }}>
-                    <Ionicons name="location" size={16} color="#666666" />
-                    <Text style={{ 
-                      color: '#666666', 
-                      marginLeft: 8,
-                      flex: 1 
-                    }}>
-                      {order.location}
-                    </Text>
-                  </View>
-                  
-                  <View style={{ 
-                    flexDirection: 'row', 
-                    alignItems: 'center', 
-                    marginBottom: 8 
-                  }}>
-                    <Ionicons name="time" size={16} color="#666666" />
-                    <Text style={{ 
-                      color: '#666666', 
-                      marginLeft: 8,
-                      flex: 1 
-                    }}>
-                      {formatDateTime(order.date, order.time)} ({order.duration}h)
-                    </Text>
-                  </View>
-                  
-                  <View style={{ 
-                    flexDirection: 'row', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between'
-                  }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Ionicons name="cash" size={16} color="#10B981" />
+                    <View style={{ flex: 1 }}>
                       <Text style={{ 
-                        color: '#10B981', 
+                        fontSize: 18, 
                         fontWeight: 'bold', 
-                        fontSize: 18,
-                        marginLeft: 8 
+                        color: '#000000',
+                        marginBottom: 4 
                       }}>
-                        {formatCurrency(order.price)}
+                        {order.userName}
+                      </Text>
+                      <Text style={{ color: '#666666', fontSize: 14 }}>
+                        Đơn hàng #{order.id}
                       </Text>
                     </View>
-                    <Text style={{ 
-                      color: '#10B981', 
-                      fontSize: 14,
-                      opacity: 0.8 
+                    <View style={{
+                      backgroundColor: getStatusColor(order.status).bg,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 20,
                     }}>
-                      {formatCurrency(order.pricePerHour)}/giờ
-                    </Text>
+                      <Text style={{
+                        color: getStatusColor(order.status).text,
+                        fontSize: 12,
+                        fontWeight: '600'
+                      }}>
+                        {getStatusText(order.status)}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                {/* Description */}
-                <Text style={{ 
-                  color: '#666666', 
-                  fontSize: 14, 
-                  lineHeight: 20,
-                  marginBottom: 16 
-                }}>
-                  {order.description}
-                </Text>
-
-                {/* Action Buttons */}
-                <View style={{ 
-                  flexDirection: 'row', 
-                  justifyContent: 'space-between',
-                  gap: 12 
-                }}>
-                  <TouchableOpacity
-                    style={{
-                      flex: 1,
-                      paddingVertical: 12,
+                  {/* Payment Status */}
+                  {order.hasPayment && (
+                    <View style={{
+                      backgroundColor: '#D1FAE5',
                       borderRadius: 8,
-                      backgroundColor: '#F3F4F6',
-                      alignItems: 'center',
-                    }}
-                    onPress={() => handleViewDetails(order)}
-                  >
-                    <Text style={{ 
-                      color: '#374151', 
-                      fontWeight: '600' 
+                      padding: 12,
+                      marginBottom: 12,
+                      flexDirection: 'row',
+                      alignItems: 'center'
                     }}>
-                      Chi tiết
-                    </Text>
-                  </TouchableOpacity>
+                      <Ionicons name="card" size={16} color="#059669" />
+                      <Text style={{ 
+                        color: '#059669', 
+                        fontSize: 14, 
+                        fontWeight: '600',
+                        marginLeft: 8 
+                      }}>
+                        Đã thanh toán: {order.paymentStatus}
+                      </Text>
+                    </View>
+                  )}
 
-                  {order.status === 'confirmed' && (
-                    <>
+                  {/* Service Info */}
+                  <View style={{ marginBottom: 16 }}>
+                    <View style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center', 
+                      marginBottom: 8 
+                    }}>
+                      <Ionicons name="camera" size={16} color="#666666" />
+                      <Text style={{ 
+                        color: '#000000', 
+                        fontWeight: '600', 
+                        marginLeft: 8,
+                        flex: 1 
+                      }}>
+                        {order.serviceType}
+                      </Text>
+                    </View>
+                    
+                    <View style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center', 
+                      marginBottom: 8 
+                    }}>
+                      <Ionicons name="location" size={16} color="#666666" />
+                      <Text style={{ 
+                        color: '#666666', 
+                        marginLeft: 8,
+                        flex: 1 
+                      }}>
+                        {order.locationName}
+                      </Text>
+                    </View>
+                    
+                    <View style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center', 
+                      marginBottom: 8 
+                    }}>
+                      <Ionicons name="time" size={16} color="#666666" />
+                      <Text style={{ 
+                        color: '#666666', 
+                        marginLeft: 8,
+                        flex: 1 
+                      }}>
+                        {formatDateTime(order.date, order.time)} ({order.duration}h)
+                      </Text>
+                    </View>
+                    
+                    <View style={{ 
+                      flexDirection: 'row', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between'
+                    }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="cash" size={16} color="#10B981" />
+                        <Text style={{ 
+                          color: '#10B981', 
+                          fontWeight: 'bold', 
+                          fontSize: 18,
+                          marginLeft: 8 
+                        }}>
+                          {formatCurrency(order.price)}
+                        </Text>
+                      </View>
+                      <Text style={{ 
+                        color: '#10B981', 
+                        fontSize: 14,
+                        opacity: 0.8 
+                      }}>
+                        {formatCurrency(order.pricePerHour)}/giờ
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Description */}
+                  <Text style={{ 
+                    color: '#666666', 
+                    fontSize: 14, 
+                    lineHeight: 20,
+                    marginBottom: 16 
+                  }}>
+                    {order.description}
+                  </Text>
+
+                  {/* Action Buttons */}
+                  <View style={{ 
+                    flexDirection: 'row', 
+                    justifyContent: 'space-between',
+                    gap: 12 
+                  }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        paddingVertical: 12,
+                        borderRadius: 8,
+                        backgroundColor: '#F3F4F6',
+                        alignItems: 'center',
+                      }}
+                      onPress={() => handleViewDetails(order)}
+                    >
+                      <Text style={{ 
+                        color: '#374151', 
+                        fontWeight: '600' 
+                      }}>
+                        Chi tiết
+                      </Text>
+                    </TouchableOpacity>
+
+                    {order.status === 'confirmed' && (
+                      <>
+                        <TouchableOpacity
+                          style={{
+                            flex: 1,
+                            paddingVertical: 12,
+                            borderRadius: 8,
+                            backgroundColor: '#DBEAFE',
+                            alignItems: 'center',
+                          }}
+                          onPress={() => Alert.alert('Liên hệ', `Email: ${order.customerEmail}`)}
+                        >
+                          <Text style={{ 
+                            color: '#2563EB', 
+                            fontWeight: '600' 
+                          }}>
+                            Liên hệ
+                          </Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity
+                          style={{
+                            flex: 1,
+                            paddingVertical: 12,
+                            borderRadius: 8,
+                            backgroundColor: getPhotoDeliveryButtonStyle(order).backgroundColor,
+                            alignItems: 'center',
+                          }}
+                          onPress={() => handlePhotoDelivery(order)}
+                          disabled={(() => {
+                            const bookingId = parseInt(order.id);
+                            const delivery = getPhotoDeliveryForBooking(bookingId);
+                            return delivery?.status.toLowerCase() === 'delivered';
+                          })()}
+                        >
+                          <Text style={{ 
+                            color: getPhotoDeliveryButtonStyle(order).textColor, 
+                            fontWeight: '600' 
+                          }}>
+                            {getPhotoDeliveryButtonText(order)}
+                          </Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+
+                    {(order.status === 'completed' || order.status === 'rejected') && (
                       <TouchableOpacity
                         style={{
                           flex: 1,
@@ -513,51 +668,14 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                           color: '#2563EB', 
                           fontWeight: '600' 
                         }}>
-                          Liên hệ
+                          Liên hệ khách hàng
                         </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity
-                        style={{
-                          flex: 1,
-                          paddingVertical: 12,
-                          borderRadius: 8,
-                          backgroundColor: '#D1FAE5',
-                          alignItems: 'center',
-                        }}
-                        onPress={() => handleCompleteOrder(order.id)}
-                      >
-                        <Text style={{ 
-                          color: '#059669', 
-                          fontWeight: '600' 
-                        }}>
-                          Hoàn thành
-                        </Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-
-                  {(order.status === 'completed' || order.status === 'rejected') && (
-                    <TouchableOpacity
-                      style={{
-                        flex: 1,
-                        paddingVertical: 12,
-                        borderRadius: 8,
-                        backgroundColor: '#DBEAFE',
-                        alignItems: 'center',
-                      }}
-                      onPress={() => Alert.alert('Liên hệ', `Email: ${order.customerEmail}`)}
-                    >
-                      <Text style={{ 
-                        color: '#2563EB', 
-                        fontWeight: '600' 
-                      }}>
-                        Liên hệ khách hàng
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                    )}
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
 
             {/* Loading more indicator */}
             {loading && filteredOrders.length > 0 && (

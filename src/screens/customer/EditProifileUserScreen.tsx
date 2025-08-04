@@ -21,6 +21,9 @@ import { useUserStyle } from '../../hooks/useUserStyle';
 import { userService } from '../../services/userService';
 import FieldEditModal from '../../components/Photographer/FileEditModal';
 import { getResponsiveSize } from '../../utils/responsive';
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -40,7 +43,7 @@ interface ProfileField {
 const EditProfileCustomerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const { user, updateProfile, getCurrentUserId } = useAuth();
-  
+
   // Use UserStyle hook
   const {
     userStyles,
@@ -56,7 +59,7 @@ const EditProfileCustomerScreen = () => {
     toggleStyle,
     resetError,
   } = useUserStyle();
-  
+
   // Local state
   const [selectedField, setSelectedField] = useState<ProfileField | null>(null);
   const [isFieldModalVisible, setIsFieldModalVisible] = useState(false);
@@ -126,7 +129,7 @@ const EditProfileCustomerScreen = () => {
     if (!user) return;
 
     console.log('🔍 Populating form with user data:', user);
-    
+
     setProfileData(prev => prev.map(field => {
       switch (field.id) {
         case 'fullName':
@@ -153,11 +156,11 @@ const EditProfileCustomerScreen = () => {
     setSelectedField(field);
     setIsFieldModalVisible(true);
   };
-  
+
   const handleSaveField = (fieldId: string, value: string) => {
-    setProfileData(prev => 
-      prev.map(item => 
-        item.id === fieldId 
+    setProfileData(prev =>
+      prev.map(item =>
+        item.id === fieldId
           ? { ...item, value: value }
           : item
       )
@@ -206,154 +209,199 @@ const EditProfileCustomerScreen = () => {
 
   const pickImageFromLibrary = async () => {
     try {
-      // Request permission
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
       if (permissionResult.granted === false) {
         Alert.alert('Lỗi', 'Cần cấp quyền truy cập thư viện ảnh');
         return;
       }
-
-      // Pick image
+  
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.8, // Good quality for upload
+        allowsMultipleSelection: false,
       });
-
+  
       if (!result.canceled && result.assets[0]) {
-        setIsUploadingImage(true);
         const imageUri = result.assets[0].uri;
+        console.log('📱 Selected image URI:', imageUri);
         
-        // TODO: Upload image to server here
-        // For now, just set the local URI
+        // Upload to server and get URL
         await uploadImageToServer(imageUri);
-        
-        setIsUploadingImage(false);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
+      console.error('❌ Error picking image:', error);
       Alert.alert('Lỗi', 'Không thể chọn ảnh');
-      setIsUploadingImage(false);
     }
   };
 
   const takePhoto = async () => {
     try {
-      // Request permission
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
       
       if (permissionResult.granted === false) {
         Alert.alert('Lỗi', 'Cần cấp quyền truy cập camera');
         return;
       }
-
-      // Take photo
+  
       const result = await ImagePicker.launchCameraAsync({
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 0.8,
+        quality: 0.8, // Good quality for upload
       });
-
+  
       if (!result.canceled && result.assets[0]) {
-        setIsUploadingImage(true);
         const imageUri = result.assets[0].uri;
+        console.log('📷 Captured image URI:', imageUri);
         
-        // TODO: Upload image to server here
-        // For now, just set the local URI
+        // Upload to server and get URL
         await uploadImageToServer(imageUri);
-        
-        setIsUploadingImage(false);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
+      console.error('❌ Error taking photo:', error);
       Alert.alert('Lỗi', 'Không thể chụp ảnh');
-      setIsUploadingImage(false);
     }
   };
 
   const uploadImageToServer = async (imageUri: string) => {
     try {
-      // TODO: Implement actual image upload to your server
-      // This is a placeholder - you'll need to implement the actual upload logic
-      console.log('📸 Uploading image:', imageUri);
-      
-      // For now, just set the local URI
-      // In production, you would upload to your server and get back the URL
-      setProfileImage(imageUri);
-      
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('✅ Image uploaded successfully');
-    } catch (error) {
-      console.error('❌ Error uploading image:', error);
-      throw error;
-    }
-  };
+      console.log('📸 Uploading image to server...', imageUri);
+      setIsUploadingImage(true);
 
-  const handleSaveProfile = async () => {
-    try {
-      setIsSaving(true);
+      // Get token for authorization
+      const token = await AsyncStorage.getItem("token");
       const userId = getCurrentUserId();
-      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
       if (!userId) {
-        Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
-        return;
+        throw new Error('Không tìm thấy thông tin user');
       }
+      const formData = new FormData();
+      // Add the image file
+      formData.append('File', {
+        uri: imageUri,
+        type: 'image/jpeg', // or determine from file extension
+        name: 'profile_image.jpg',
+      } as any);
+      formData.append('UserId', userId.toString());
 
-      // Get form values
-      const fullNameValue = profileData.find(f => f.id === 'fullName')?.value || '';
-      const phoneNumberValue = profileData.find(f => f.id === 'phoneNumber')?.value || '';
-      const bioValue = profileData.find(f => f.id === 'bio')?.value || '';
+      formData.append('IsPrimary', 'true');
 
-      // Validate required fields
-      if (!fullNameValue.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập họ và tên');
-        setIsSaving(false);
-        return;
-      }
-
-      if (!phoneNumberValue.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập số điện thoại');
-        setIsSaving(false);
-        return;
-      }
-
-      // Phone number validation
-      const phoneRegex = /^[0-9]{10,11}$/;
-      if (!phoneRegex.test(phoneNumberValue.trim())) {
-        Alert.alert('Lỗi', 'Số điện thoại không hợp lệ');
-        setIsSaving(false);
-        return;
-      }
-
-      console.log('💾 Saving profile...');
-
-      // Update profile using auth context
-      await updateProfile(userId, {
-        fullName: fullNameValue.trim(),
-        phoneNumber: phoneNumberValue.trim(),
-        bio: bioValue.trim(),
-        profileImage: profileImage,
+      console.log('📤 Uploading to /api/Image with:', {
+        userId,
+        isPrimary: true,
+        caption: 'Profile Image'
       });
 
-      Alert.alert('Thành công', 'Hồ sơ đã được cập nhật thành công', [
-        { text: 'OK', onPress: () => navigation.goBack() }
-      ]);
+      // Call the API endpoint
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_BASE_URL}/api/Image`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // Don't set Content-Type for FormData, let the browser set it
+        },
+        body: formData,
+      });
 
-      setIsSaving(false);
-    } catch (error) {
-      console.error('Error saving profile:', error);
-      Alert.alert('Lỗi', 'Không thể lưu hồ sơ. Vui lòng thử lại.');
-      setIsSaving(false);
+      console.log('📥 Upload response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Upload failed:', errorText);
+        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+      }
+      // Parse the response to get the image data
+    const imageResponse = await response.json();
+    console.log('✅ Upload successful:', imageResponse);
+    
+    // Extract the URL from the response
+    const imageUrl = imageResponse.url;
+    if (!imageUrl) {
+      throw new Error('No URL returned from image upload');
     }
-  };
+
+    console.log('🔗 Got image URL:', imageUrl);
+    
+    // Set the profile image to the URL returned from server
+    setProfileImage(imageUrl);
+    setIsUploadingImage(false);
+    
+    return imageUrl;
+    
+  } catch (error) {
+    console.error('❌ Error uploading image:', error);
+    setIsUploadingImage(false);
+    Alert.alert('Lỗi', 'Không thể tải ảnh lên server. Vui lòng thử lại.');
+    throw error;
+  }
+};
+
+const handleSaveProfile = async () => {
+  try {
+    setIsSaving(true);
+    const userId = getCurrentUserId();
+
+    if (!userId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
+      return;
+    }
+
+    // Get form values
+    const fullNameValue = profileData.find(f => f.id === 'fullName')?.value || '';
+    const phoneNumberValue = profileData.find(f => f.id === 'phoneNumber')?.value || '';
+    const bioValue = profileData.find(f => f.id === 'bio')?.value || '';
+
+    // Validate required fields
+    if (!fullNameValue.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập họ và tên');
+      setIsSaving(false);
+      return;
+    }
+
+    if (!phoneNumberValue.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập số điện thoại');
+      setIsSaving(false);
+      return;
+    }
+
+    // Phone number validation
+    const phoneRegex = /^[0-9]{10,11}$/;
+    if (!phoneRegex.test(phoneNumberValue.trim())) {
+      Alert.alert('Lỗi', 'Số điện thoại không hợp lệ');
+      setIsSaving(false);
+      return;
+    }
+
+    console.log('💾 Saving profile with image URL:', profileImage);
+
+    // Update profile using auth context
+    // profileImage is now a URL from the server, not base64
+    await updateProfile(userId, {
+      fullName: fullNameValue.trim(),
+      phoneNumber: phoneNumberValue.trim(),
+      bio: bioValue.trim(),
+      profileImage: profileImage, // This will be the URL from server
+    });
+
+    Alert.alert('Thành công', 'Hồ sơ đã được cập nhật thành công', [
+      { text: 'OK', onPress: () => navigation.goBack() }
+    ]);
+
+    setIsSaving(false);
+  } catch (error) {
+    console.error('Error saving profile:', error);
+    Alert.alert('Lỗi', 'Không thể lưu hồ sơ. Vui lòng thử lại.');
+    setIsSaving(false);
+  }
+};
 
   const getUserInitials = (): string => {
     if (!user) return 'U';
-    
+
     const fullName = profileData.find(f => f.id === 'fullName')?.value || user.fullName || '';
     if (fullName) {
       return fullName
@@ -363,7 +411,7 @@ const EditProfileCustomerScreen = () => {
         .toUpperCase()
         .slice(0, 2);
     }
-    
+
     return user.email?.[0]?.toUpperCase() || 'U';
   };
 
@@ -380,10 +428,10 @@ const EditProfileCustomerScreen = () => {
         borderBottomColor: '#F0F0F0',
       }}
     >
-      <Ionicons 
-        name={field.icon} 
-        size={getResponsiveSize(24)} 
-        color="#666666" 
+      <Ionicons
+        name={field.icon}
+        size={getResponsiveSize(24)}
+        color="#666666"
         style={{ marginRight: getResponsiveSize(16) }}
       />
       <View style={{ flex: 1 }}>
@@ -418,7 +466,7 @@ const EditProfileCustomerScreen = () => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
+
       {/* Header */}
       <View style={{
         flexDirection: 'row',
@@ -432,7 +480,7 @@ const EditProfileCustomerScreen = () => {
         <TouchableOpacity onPress={handleClose}>
           <Ionicons name="close" size={getResponsiveSize(24)} color="#000000" />
         </TouchableOpacity>
-        
+
         <Text style={{
           fontSize: getResponsiveSize(18),
           fontWeight: '600',
@@ -440,7 +488,7 @@ const EditProfileCustomerScreen = () => {
         }}>
           Chỉnh sửa hồ sơ
         </Text>
-        
+
         <View style={{ width: getResponsiveSize(24) }} />
       </View>
 
@@ -481,10 +529,10 @@ const EditProfileCustomerScreen = () => {
               {profileImage ? (
                 <Image
                   source={{ uri: profileImage }}
-                  style={{ 
-                    width: getResponsiveSize(120), 
-                    height: getResponsiveSize(120), 
-                    borderRadius: getResponsiveSize(60) 
+                  style={{
+                    width: getResponsiveSize(120),
+                    height: getResponsiveSize(120),
+                    borderRadius: getResponsiveSize(60)
                   }}
                   resizeMode="cover"
                 />
@@ -574,7 +622,7 @@ const EditProfileCustomerScreen = () => {
           }}>
             Sở thích của tôi
           </Text>
-          
+
           <Text style={{
             fontSize: getResponsiveSize(14),
             color: '#666666',
@@ -616,10 +664,10 @@ const EditProfileCustomerScreen = () => {
             {stylesLoading ? (
               <View style={{ alignItems: 'center', paddingVertical: getResponsiveSize(20) }}>
                 <ActivityIndicator size="small" color="#E91E63" />
-                <Text style={{ 
-                  marginTop: getResponsiveSize(8), 
-                  fontSize: getResponsiveSize(14), 
-                  color: '#666666' 
+                <Text style={{
+                  marginTop: getResponsiveSize(8),
+                  fontSize: getResponsiveSize(14),
+                  color: '#666666'
                 }}>
                   Đang tải sở thích...
                 </Text>
@@ -641,17 +689,17 @@ const EditProfileCustomerScreen = () => {
                         borderRadius: getResponsiveSize(20),
                       }}
                     >
-                      <Text style={{ 
-                        fontSize: getResponsiveSize(14), 
-                        color: '#000000' 
+                      <Text style={{
+                        fontSize: getResponsiveSize(14),
+                        color: '#000000'
                       }}>
                         {styleName}
                       </Text>
                     </View>
                   ))}
-                  
-                  {Array.from({ 
-                    length: Math.max(0, 3 - getSelectedStyleNames().length) 
+
+                  {Array.from({
+                    length: Math.max(0, 3 - getSelectedStyleNames().length)
                   }).map((_, index) => (
                     <TouchableOpacity
                       key={`empty-${index}`}
@@ -669,16 +717,16 @@ const EditProfileCustomerScreen = () => {
                         opacity: stylesSaving ? 0.5 : 1,
                       }}
                     >
-                      <Text style={{ 
-                        fontSize: getResponsiveSize(20), 
-                        color: '#C0C0C0' 
+                      <Text style={{
+                        fontSize: getResponsiveSize(20),
+                        color: '#C0C0C0'
                       }}>
                         +
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
-                
+
                 <TouchableOpacity
                   onPress={handleStylePress}
                   disabled={stylesSaving}
@@ -732,10 +780,10 @@ const EditProfileCustomerScreen = () => {
               borderBottomWidth: 1,
               borderBottomColor: '#F0F0F0',
             }}>
-              <Ionicons 
-                name="mail-outline" 
-                size={getResponsiveSize(24)} 
-                color="#666666" 
+              <Ionicons
+                name="mail-outline"
+                size={getResponsiveSize(24)}
+                color="#666666"
                 style={{ marginRight: getResponsiveSize(16) }}
               />
               <View style={{ flex: 1 }}>
@@ -775,10 +823,10 @@ const EditProfileCustomerScreen = () => {
               paddingVertical: getResponsiveSize(20),
               paddingHorizontal: getResponsiveSize(20),
             }}>
-              <Ionicons 
-                name="calendar-outline" 
-                size={getResponsiveSize(24)} 
-                color="#666666" 
+              <Ionicons
+                name="calendar-outline"
+                size={getResponsiveSize(24)}
+                color="#666666"
                 style={{ marginRight: getResponsiveSize(16) }}
               />
               <View style={{ flex: 1 }}>
@@ -801,8 +849,8 @@ const EditProfileCustomerScreen = () => {
         </View>
 
         {/* Save Button */}
-        <View style={{ 
-          padding: getResponsiveSize(20), 
+        <View style={{
+          padding: getResponsiveSize(20),
           paddingTop: getResponsiveSize(40),
           paddingBottom: getResponsiveSize(40),
         }}>
@@ -850,7 +898,7 @@ const EditProfileCustomerScreen = () => {
             <TouchableOpacity onPress={() => setIsStyleModalVisible(false)}>
               <Ionicons name="close" size={getResponsiveSize(24)} color="#000000" />
             </TouchableOpacity>
-            
+
             <Text style={{
               fontSize: getResponsiveSize(18),
               fontWeight: '600',
@@ -858,7 +906,7 @@ const EditProfileCustomerScreen = () => {
             }}>
               Chọn sở thích
             </Text>
-            
+
             <View style={{ width: getResponsiveSize(24) }} />
           </View>
 
@@ -871,7 +919,7 @@ const EditProfileCustomerScreen = () => {
             }}>
               Bạn thích gì?
             </Text>
-            
+
             <Text style={{
               fontSize: getResponsiveSize(16),
               color: '#666666',
@@ -909,10 +957,10 @@ const EditProfileCustomerScreen = () => {
             {stylesLoading ? (
               <View style={{ alignItems: 'center', paddingVertical: getResponsiveSize(40) }}>
                 <ActivityIndicator size="large" color="#E91E63" />
-                <Text style={{ 
-                  marginTop: getResponsiveSize(16), 
-                  fontSize: getResponsiveSize(16), 
-                  color: '#666666' 
+                <Text style={{
+                  marginTop: getResponsiveSize(16),
+                  fontSize: getResponsiveSize(16),
+                  color: '#666666'
                 }}>
                   Đang tải sở thích...
                 </Text>
@@ -942,10 +990,10 @@ const EditProfileCustomerScreen = () => {
                         opacity: stylesSaving ? 0.5 : 1,
                       }}
                     >
-                      <Ionicons 
-                        name="camera" 
-                        size={getResponsiveSize(16)} 
-                        color={selectedStyleIds.includes(style.styleId) ? '#FFFFFF' : '#666666'} 
+                      <Ionicons
+                        name="camera"
+                        size={getResponsiveSize(16)}
+                        color={selectedStyleIds.includes(style.styleId) ? '#FFFFFF' : '#666666'}
                         style={{ marginRight: getResponsiveSize(8) }}
                       />
                       <Text style={{
@@ -956,9 +1004,9 @@ const EditProfileCustomerScreen = () => {
                         {style.name}
                       </Text>
                       {stylesSaving && selectedStyleIds.includes(style.styleId) && (
-                        <ActivityIndicator 
-                          size="small" 
-                          color="#FFFFFF" 
+                        <ActivityIndicator
+                          size="small"
+                          color="#FFFFFF"
                           style={{ marginLeft: getResponsiveSize(8) }}
                         />
                       )}
@@ -979,8 +1027,8 @@ const EditProfileCustomerScreen = () => {
             </Text>
           </View>
 
-          <View style={{ 
-            padding: getResponsiveSize(20), 
+          <View style={{
+            padding: getResponsiveSize(20),
             paddingTop: 0,
             borderTopWidth: 1,
             borderTopColor: '#F0F0F0',

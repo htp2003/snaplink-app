@@ -44,6 +44,7 @@ import BookingDetailScreen from "../screens/customer/BookingDetailScreen";
 
 import PhotoDeliveryScreen from "../screens/photographer/PhotoDeliveryScreen";
 import ChatScreen from "../screens/customer/ChatScreen";
+import MessagesScreen from "../screens/customer/MessagesScreen";
 
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -99,6 +100,7 @@ const AppNavigator = () => {
       <Stack.Screen name="PaymentWaitingScreen" component={PaymentWaitingScreen} />
       <Stack.Screen name="BookingDetailScreen" component={BookingDetailScreen} />
       <Stack.Screen name="ChatScreen" component={ChatScreen} />
+      <Stack.Screen name="NewChatScreen" component={MessagesScreen}/>
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen

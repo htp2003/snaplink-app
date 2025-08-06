@@ -1,5 +1,6 @@
 // services/transactionService.ts
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   Transaction, 
   TransactionHistoryResponse,
@@ -11,30 +12,63 @@ import {
   DisplayTransaction
 } from '../types/transaction';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://your-api-base-url.com';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
 
 class TransactionService {
-  private getAuthToken(): string {
-    // Replace with your actual token management logic
-    // This could come from AsyncStorage, SecureStore, or a context
-    return 'YOUR_JWT_TOKEN';
+  // ✅ FIX: Get token from AsyncStorage instead of hardcoded
+  private async getAuthToken(): Promise<string | null> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('🔑 TransactionService - Retrieved token:', token ? '***EXISTS***' : 'NULL');
+      return token;
+    } catch (error) {
+      console.error('❌ Error getting token from AsyncStorage:', error);
+      return null;
+    }
   }
 
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const token = await this.getAuthToken(); // ✅ Await token
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please login again.');
+    }
+
     const url = `${API_BASE_URL}${endpoint}`;
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.getAuthToken()}`,
+        'Authorization': `Bearer ${token}`, // ✅ Use real token
         ...options.headers,
       },
       ...options,
     };
 
+    console.log('🌐 TransactionService API Request:', {
+      url,
+      method: config.method || 'GET',
+      hasAuth: !!token,
+      headers: {
+        ...config.headers,
+        'Authorization': token ? 'Bearer ***' : 'MISSING'
+      }
+    });
+
     const response = await fetch(url, config);
+
+    console.log('📥 TransactionService API Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      url
+    });
 
     if (!response.ok) {
       const errorData = await response.text();
+      console.error('❌ TransactionService API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorData
+      });
       throw new Error(`API Error: ${response.status} - ${errorData}`);
     }
 
@@ -47,7 +81,11 @@ class TransactionService {
     const endpoint = `/api/Transaction/history/photographer/${photographerId}?page=${page}&pageSize=${pageSize}`;
     
     try {
+      console.log('📊 Fetching photographer transaction history:', { photographerId, page, pageSize });
+      
       const response = await this.makeRequest<TransactionHistoryResponse>(endpoint);
+      
+      console.log('✅ Transaction history response:', response);
       
       // Check if API call was successful
       if (response.error !== 0) {
@@ -57,7 +95,7 @@ class TransactionService {
       // Return the data part of response
       return response.data;
     } catch (error) {
-      console.error('Error fetching photographer transaction history:', error);
+      console.error('❌ Error fetching photographer transaction history:', error);
       // Return empty result on error
       return {
         transactions: [],
@@ -137,10 +175,14 @@ class TransactionService {
 
   // Get wallet balance
   async getWalletBalance(userId: number): Promise<WalletBalance> {
-    const endpoint = `/api/Wallet/balance/${userId}`;
+    const endpoint = `/api/Wallet/balance`;
     
     try {
+      console.log('💰 Fetching wallet balance for user:', userId);
+      
       const response = await this.makeRequest<WalletBalanceResponse>(endpoint);
+      
+      console.log('✅ Wallet balance response:', response);
       
       if (response.error !== 0) {
         throw new Error(response.message || 'API returned error');
@@ -153,7 +195,7 @@ class TransactionService {
         totalBalance: response.data.balance || 0,
       };
     } catch (error) {
-      console.error('Error fetching wallet balance:', error);
+      console.error('❌ Error fetching wallet balance:', error);
       return {
         availableBalance: 0,
         pendingBalance: 0,

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { chatService } from '../services/chatService';
+import { signalRManager, SignalREventHandlers } from '../services/signalRManager';
 import {
   Message,
   Conversation,
@@ -42,6 +43,8 @@ export const useChat = (options: UseChatOptions = {}) => {
     photographers: [],
     totalResults: 0
   });
+
+  
   
   // Loading states
   const [loadingConversations, setLoadingConversations] = useState(false);

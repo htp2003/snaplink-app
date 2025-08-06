@@ -1,5 +1,6 @@
 // services/photographerBookingService.ts
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { 
   Booking, 
   BookingListResponse, 
@@ -11,32 +12,71 @@ import {
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
 
 class BookingService {
+  // ✅ FIX: Get token from AsyncStorage
+  private async getAuthToken(): Promise<string | null> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('🔑 BookingService - Retrieved token:', token ? '***EXISTS***' : 'NULL');
+      return token;
+    } catch (error) {
+      console.error('❌ Error getting token from AsyncStorage:', error);
+      return null;
+    }
+  }
+
   private async makeRequest<T>(
     endpoint: string, 
     options: RequestInit = {}
   ): Promise<T> {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const token = await this.getAuthToken(); // ✅ Get real token
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+
+      const config: RequestInit = {
         headers: {
           'Content-Type': 'application/json',
-          // Add authorization header if needed
-          // 'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${token}`, // ✅ Add real token
           ...options.headers,
         },
         ...options,
+      };
+
+      console.log('🌐 BookingService API Request:', {
+        url: `${API_BASE_URL}${endpoint}`,
+        method: config.method || 'GET',
+        hasAuth: !!token,
+        headers: {
+          ...config.headers,
+          'Authorization': token ? 'Bearer ***' : 'MISSING'
+        }
+      });
+
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+
+      console.log('📥 BookingService API Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: `${API_BASE_URL}${endpoint}`
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`HTTP error! status: ${response.status}, body: ${errorText}`);
-        throw new Error(`HTTP error! status: ${response.status}`);
+        console.error('❌ BookingService HTTP error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
-      console.log('API Response:', data); // Debug log
+      console.log('✅ BookingService Response data:', data);
       return data;
     } catch (error) {
-      console.error('API Request failed:', error);
+      console.error('❌ BookingService API Request failed:', error);
       throw error;
     }
   }
@@ -45,7 +85,7 @@ class BookingService {
   async getPhotographerBookings(
     photographerId: number, 
     params: BookingQueryParams = {}
-  ): Promise<any> { // Changed return type to any for now
+  ): Promise<any> {
     const queryParams = new URLSearchParams();
     
     if (params.page) queryParams.append('page', params.page.toString());
@@ -127,7 +167,7 @@ class BookingService {
   // Get single booking details
   async getBookingById(bookingId: number): Promise<any> {
     const response = await this.makeRequest<any>(`/api/Booking/${bookingId}`);
-    console.log('Single booking response:', response); // Debug log
+    console.log('Single booking response:', response);
     return response;
   }
 
@@ -136,7 +176,7 @@ class BookingService {
     bookingId: number, 
     statusData: Partial<UpdateBookingStatusRequest>
   ): Promise<any> {
-    console.log('Updating booking status:', bookingId, statusData); // Debug log
+    console.log('🔄 Updating booking status:', bookingId, statusData);
     
     const response = await this.makeRequest<any>(`/api/Booking/${bookingId}`, {
       method: 'PUT',
@@ -152,7 +192,7 @@ class BookingService {
 
   // Cancel booking
   async cancelBooking(bookingId: number): Promise<any> {
-    console.log('Cancelling booking:', bookingId); // Debug log
+    console.log('❌ Cancelling booking:', bookingId);
     
     const response = await this.makeRequest<any>(`/api/Booking/${bookingId}/cancel`, {
       method: 'PUT',
@@ -167,9 +207,9 @@ class BookingService {
 
   // Complete booking
   async completeBooking(bookingId: number): Promise<any> {
-    console.log('Completing booking:', bookingId); // Debug log
+    console.log('✅ Completing booking:', bookingId);
     
-    const response = await this.makeRequest<any>(`/api/Booking/${bookingId}/complete`, {
+    const response = await this.makeRequest<any>(`/api/Booking/${bookingId}/Complete`, {
       method: 'PUT',
     });
     

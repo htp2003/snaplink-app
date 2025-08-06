@@ -1,4 +1,5 @@
 import { apiClient } from './base';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   Message,
   MessageResponse,
@@ -58,10 +59,86 @@ const CHAT_ENDPOINTS = {
   GET_ALL_PHOTOGRAPHERS: '/api/Photographer',
 } as const;
 
-
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
 export class ChatService {
   
   // ===== MESSAGE METHODS =====
+    private async getAuthToken(): Promise<string | null> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('🔑 ChatService - Retrieved token:', token ? '***EXISTS***' : 'NULL');
+      return token;
+    } catch (error) {
+      console.error('❌ Error getting token from AsyncStorage:', error);
+      return null;
+    }
+  }
+
+  async get<T>(endpoint: string): Promise<T> {
+    return this.makeRequest<T>(endpoint, { method: 'GET' });
+  }
+
+  async post<T>(endpoint: string, data?: any): Promise<T> {
+    return this.makeRequest<T>(endpoint, {
+      method: 'POST',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async put<T>(endpoint: string, data?: any): Promise<T> {
+    return this.makeRequest<T>(endpoint, {
+      method: 'PUT',
+      body: data ? JSON.stringify(data) : undefined,
+    });
+  }
+
+  async delete<T>(endpoint: string): Promise<T> {
+    return this.makeRequest<T>(endpoint, { method: 'DELETE' });
+  }
+
+  private async makeRequest<T>(endpoint: string, options: RequestInit): Promise<T> {
+    const token = await this.getAuthToken();
+    
+    if (!token) {
+      throw new Error('No authentication token found. Please login again.');
+    }
+
+    const url = `${API_BASE_URL}${endpoint}`;
+    const config: RequestInit = {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers,
+      },
+      ...options,
+    };
+
+    console.log('🌐 ChatService API Request:', {
+      url,
+      method: config.method || 'GET',
+      hasAuth: !!token,
+    });
+
+    const response = await fetch(url, config);
+
+    console.log('📥 ChatService API Response:', {
+      status: response.status,
+      statusText: response.statusText,
+      url
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error('❌ ChatService API Error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorData
+      });
+      throw new Error(`API Error: ${response.status} - ${errorData}`);
+    }
+
+    return response.json();
+  }
   
   async sendMessage(messageData: SendMessageRequest): Promise<SendMessageResponse> {
     try {

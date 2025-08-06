@@ -164,6 +164,7 @@ export type PhotographerTabParamList = {
   PhotographerEventScreen: {
     photographerId: number;
   };
+  Messages: undefined;
 };
 
 export type VenueOwnerTabParamList = {

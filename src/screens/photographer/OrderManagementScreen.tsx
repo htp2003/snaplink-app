@@ -9,6 +9,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookings } from '../../hooks/useBookingPhotographer';
 import { usePhotoDelivery } from '../../hooks/usePhotoDelivery';
 import { BookingCardData } from '../../types/booking';
+// ✅ ADD THESE IMPORTS:
+import { useChat } from '../../hooks/useChat';
+import { useAuth } from '../../hooks/useAuth';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PhotographerTabParamList, 'OrderManagementScreen'>,
@@ -19,8 +22,12 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'confirmed' | 'completed'>('confirmed');
   
-  // Replace with actual photographer ID (from auth context or props)
-  const photographerId = 17;
+  // ✅ ADD AUTH CONTEXT:
+  const { getCurrentUserId, user } = useAuth();
+  const currentUserId = getCurrentUserId();
+  
+  // ✅ GET REAL PHOTOGRAPHER ID:
+  const photographerId = user?.photographerId || 2; // Fallback to 2 for testing
   
   const {
     loading,
@@ -45,19 +52,31 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     refreshPhotoDeliveries,
   } = usePhotoDelivery(photographerId);
 
+  // ✅ ADD CHAT HOOK:
+  const {
+    createDirectConversation,
+    error: chatError,
+    creatingConversation,
+  } = useChat({
+    userId: currentUserId || 0,
+    autoRefresh: false,
+  });
+
   // Debug logs
   useEffect(() => {
     console.log('=== OrderManagementScreen Debug ===');
     console.log('Photographer ID:', photographerId);
+    console.log('Current User ID:', currentUserId); // ✅ ADD
     console.log('Active Tab:', activeTab);
     console.log('Loading:', loading);
     console.log('Error:', error);
+    console.log('Chat Error:', chatError); // ✅ ADD
     console.log('Raw bookings:', bookings);
     console.log('UI bookings:', getBookingsForUI());
     console.log('Booking counts:', getBookingCounts());
     console.log('Filtered orders for activeTab:', getBookingsByStatus(activeTab));
     console.log('=====================================');
-  }, [bookings, activeTab, loading, error, getBookingsForUI, getBookingCounts, getBookingsByStatus]);
+  }, [bookings, activeTab, loading, error, chatError, getBookingsForUI, getBookingCounts, getBookingsByStatus, currentUserId]); // ✅ ADD DEPS
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -129,6 +148,84 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     });
   };
 
+  // ✅ ADD NEW CHAT FUNCTION:
+  const handleContactCustomer = async (order: BookingCardData) => {
+    if (!currentUserId) {
+      Alert.alert('Lỗi', 'Vui lòng đăng nhập lại để sử dụng tính năng chat.');
+      return;
+    }
+
+    try {
+      console.log('💬 Starting chat with customer:', {
+        customerName: order.userName,
+        customerEmail: order.customerEmail,
+        bookingId: order.id,
+        currentUserId
+      });
+
+      // Get customer userId from booking
+      const rawBooking = bookings.find(b => b.bookingId.toString() === order.id);
+      
+      if (!rawBooking || !rawBooking.userId) {
+        Alert.alert(
+          'Thông báo',
+          'Chat chưa khả dụng cho đơn hàng này. Bạn có muốn liên hệ qua email?',
+          [
+            { text: 'Hủy', style: 'cancel' },
+            { 
+              text: 'Gửi Email', 
+              onPress: () => Alert.alert('Liên hệ Email', `Email: ${order.customerEmail}`) 
+            }
+          ]
+        );
+        return;
+      }
+
+      const customerId = rawBooking.userId;
+      const customerName = order.userName|| order.userName || 'Khách hàng';
+
+      console.log('✅ Found customer data:', { customerId, customerName });
+
+      // Create or get direct conversation with customer
+      const conversation = await createDirectConversation(
+        customerId,
+        customerName
+      );
+
+      if (conversation) {
+        console.log('✅ Conversation created/found:', conversation.conversationId);
+
+        // Navigate to chat screen
+        navigation.navigate('ChatScreen', {
+          conversationId: conversation.conversationId,
+          title: `Chat với ${customerName}`,
+          otherUser: {
+            userId: customerId,
+            userName: customerName,
+            userFullName: customerName,
+            userProfileImage: undefined
+          }
+        });
+      } else {
+        throw new Error('Could not create conversation');
+      }
+    } catch (err) {
+      console.error('❌ Error creating conversation:', err);
+      
+      Alert.alert(
+        'Không thể kết nối chat',
+        'Bạn có muốn liên hệ qua email thay thế?',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          { 
+            text: 'Gửi Email', 
+            onPress: () => Alert.alert('Liên hệ Email', `Email: ${order.customerEmail}`) 
+          }
+        ]
+      );
+    }
+  };
+
   const getPhotoDeliveryButtonText = (order: BookingCardData): string => {
     const bookingId = parseInt(order.id);
     const hasDelivery = hasPhotoDelivery(bookingId);
@@ -168,6 +265,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     };
   };
 
+  // ✅ UPDATE VIEW DETAILS TO USE CHAT:
   const handleViewDetails = (order: BookingCardData) => {
     const paymentInfo = order.hasPayment 
       ? `\n\nThông tin thanh toán:\nTrạng thái: ${order.paymentStatus}\nSố tiền: ${order.paymentAmount ? formatCurrency(order.paymentAmount) : 'Chưa có'}`
@@ -180,7 +278,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
         { text: 'Đóng', style: 'cancel' },
         { 
           text: 'Liên hệ khách hàng', 
-          onPress: () => Alert.alert('Liên hệ', `Email: ${order.customerEmail}`) 
+          onPress: () => handleContactCustomer(order) // ✅ USE CHAT FUNCTION
         }
       ]
     );
@@ -239,32 +337,60 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
           <Text style={{ color: '#000000', fontSize: 32, fontWeight: 'bold' }}>
             Quản lý đơn hàng
           </Text>
-          <TouchableOpacity 
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: '#FFFFFF',
-              justifyContent: 'center',
-              alignItems: 'center',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 3,
-            }}
-            onPress={async () => {
-              await refreshBookings();
-              await refreshPhotoDeliveries();
-            }}
-            disabled={refreshing}
-          >
-            <Ionicons 
-              name={refreshing ? "reload" : "filter"} 
-              size={24} 
-              color="#000000" 
-            />
-          </TouchableOpacity>
+          {/* ✅ UPDATE HEADER WITH CHAT BUTTON: */}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {/* Chat button */}
+            <TouchableOpacity 
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#FFFFFF',
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+              onPress={() => navigation.navigate('NewChatScreen')}
+            >
+              <Ionicons 
+                name="chatbubble-outline" 
+                size={24} 
+                color="#000000" 
+              />
+            </TouchableOpacity>
+
+            {/* Refresh button */}
+            <TouchableOpacity 
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                backgroundColor: '#FFFFFF',
+                justifyContent: 'center',
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+              onPress={async () => {
+                await refreshBookings();
+                await refreshPhotoDeliveries();
+              }}
+              disabled={refreshing}
+            >
+              <Ionicons 
+                name={refreshing ? "reload" : "filter"} 
+                size={24} 
+                color="#000000" 
+              />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Tab Navigation */}
@@ -340,10 +466,16 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
             First booking status: {bookings[0]?.status}
           </Text>
         )}
+        {/* ✅ ADD CHAT DEBUG INFO: */}
+        {chatError && (
+          <Text style={{ fontSize: 12, color: '#ff0000' }}>
+            Chat Error: {chatError}
+          </Text>
+        )}
       </View>
 
       {/* Error State */}
-      {error && (
+      {(error || chatError) && (
         <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
           <View style={{
             backgroundColor: '#FEE2E2',
@@ -353,7 +485,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
             borderColor: '#FECACA'
           }}>
             <Text style={{ color: '#DC2626', textAlign: 'center', marginBottom: 12 }}>
-              {error}
+              {error || chatError}
             </Text>
             <TouchableOpacity 
               style={{
@@ -584,7 +716,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                     {order.description}
                   </Text>
 
-                  {/* Action Buttons */}
+                  {/* ✅ UPDATE ACTION BUTTONS WITH CHAT: */}
                   <View style={{ 
                     flexDirection: 'row', 
                     justifyContent: 'space-between',
@@ -618,14 +750,19 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                             backgroundColor: '#DBEAFE',
                             alignItems: 'center',
                           }}
-                          onPress={() => Alert.alert('Liên hệ', `Email: ${order.customerEmail}`)}
+                          onPress={() => handleContactCustomer(order)} // ✅ USE CHAT FUNCTION
+                          disabled={creatingConversation}
                         >
-                          <Text style={{ 
-                            color: '#2563EB', 
-                            fontWeight: '600' 
-                          }}>
-                            Liên hệ
-                          </Text>
+                          {creatingConversation ? (
+                            <ActivityIndicator size="small" color="#2563EB" />
+                          ) : (
+                            <Text style={{ 
+                              color: '#2563EB', 
+                              fontWeight: '600' 
+                            }}>
+                              Liên hệ
+                            </Text>
+                          )}
                         </TouchableOpacity>
                         
                         <TouchableOpacity
@@ -662,14 +799,19 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                           backgroundColor: '#DBEAFE',
                           alignItems: 'center',
                         }}
-                        onPress={() => Alert.alert('Liên hệ', `Email: ${order.customerEmail}`)}
+                        onPress={() => handleContactCustomer(order)} // ✅ USE CHAT FUNCTION
+                        disabled={creatingConversation}
                       >
-                        <Text style={{ 
-                          color: '#2563EB', 
-                          fontWeight: '600' 
-                        }}>
-                          Liên hệ khách hàng
-                        </Text>
+                        {creatingConversation ? (
+                          <ActivityIndicator size="small" color="#2563EB" />
+                        ) : (
+                          <Text style={{ 
+                            color: '#2563EB', 
+                            fontWeight: '600' 
+                          }}>
+                            Liên hệ khách hàng
+                          </Text>
+                        )}
                       </TouchableOpacity>
                     )}
                   </View>

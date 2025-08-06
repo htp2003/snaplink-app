@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScreen';
 import OrderManagementScreen from '../screens/photographer/OrderManagementScreen';
 import ProfilePhotographerScreen from '../screens/photographer/ProfilePhotographerScreen';
-import PhotographerEventScreen from '../screens/photographer/PhotographerEventScreen';
+import MessagesScreen from '../screens/customer/MessagesScreen';
 const Tab = createBottomTabNavigator<PhotographerTabParamList>();
 
 const PhotographerStack = () => {
@@ -60,19 +60,16 @@ const PhotographerStack = () => {
           ),
         }}
       />
-      <Tab.Screen 
-        name='PhotographerEventScreen'
-        component={PhotographerEventScreen}
-        options={{
-          tabBarLabel: 'Sự kiện',
-          tabBarIcon: ({ focused, color, size }) => (
-            <Ionicons
-              name="calendar-outline"
-              size={26} color={focused ? '#FF5A5F' : '#717171'}
+      <Tab.Screen
+              name="Messages"
+              component={MessagesScreen}
+              options={{
+                tabBarLabel: 'Tin nhắn',
+                tabBarIcon: ({ color, size, focused }) => (
+                  <Ionicons name="chatbox-outline" size={26} color={focused ? '#FF5A5F' : '#717171'} />
+                ),
+              }}
             />
-          ),
-        }}
-      />
     </Tab.Navigator>
   );
 };

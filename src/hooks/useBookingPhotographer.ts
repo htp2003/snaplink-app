@@ -237,26 +237,40 @@ export const useBookings = (photographerId: number) => {
     // Map API status to UI status
     const getUIStatus = (apiStatus: string): BookingCardData['status'] => {
       const status = apiStatus?.toLowerCase();
+      console.log('🔄 Mapping API status:', apiStatus, '→', status); // Debug log
+      
       switch (status) {
-        case 'pending': return 'pending';
-        case 'confirmed': return 'confirmed';
-        case 'cancelled': return 'rejected';
-        case 'completed': return 'completed';
+        case 'pending': 
+        case 'confirmed': 
+          return 'confirmed'; // ✅ Pending/Confirmed → confirmed tab
+        case 'cancelled': 
+        case 'canceled':
+          return 'rejected';
+        case 'completed': 
+        case 'finished':
+        case 'done':
+          return 'completed'; // ✅ Completed → completed tab
         case 'inprogress': 
-        case 'in-progress': return 'in-progress';
-        default: return 'pending';
+        case 'in-progress':
+        case 'in_progress':
+          return 'in-progress';
+        default: 
+          console.log('⚠️ Unknown status:', apiStatus, 'defaulting to confirmed');
+          return 'confirmed'; // ✅ Default to confirmed
       }
     };
 
     // Calculate price per hour
     const pricePerHour = durationHours > 0 ? booking.totalPrice / durationHours : booking.totalPrice;
 
-    return {
+    const result = {
       id: booking.bookingId.toString(),
       userName: booking.userName || `User ${booking.userId}`,
+      customerName: booking.userName || `User ${booking.userId}`, // Add this field
       customerPhone: '', // Not provided in API
       customerEmail: booking.userEmail || '',
       serviceType: 'Chụp ảnh', // Generic, might need to add this field to API
+      location: booking.locationName || booking.externalLocation?.name || 'Chưa xác định', // Add this field for compatibility
       locationName: booking.locationName || booking.externalLocation?.name || 'Chưa xác định',
       locationAddress: booking.locationAddress || booking.externalLocation?.address || '',
       date: startDate.toISOString().split('T')[0],
@@ -272,6 +286,14 @@ export const useBookings = (photographerId: number) => {
       paymentAmount: booking.totalPrice,
       pricePerHour: pricePerHour,
     };
+
+    console.log('🔄 Transformed booking:', {
+      id: result.id,
+      originalStatus: booking.status,
+      mappedStatus: result.status
+    });
+
+    return result;
   }, []);
 
   // Get transformed bookings for UI
@@ -288,18 +310,27 @@ export const useBookings = (photographerId: number) => {
   // Get booking counts by status
   const getBookingCounts = useCallback(() => {
     const uiBookings = getBookingsForUI();
-    return {
+    const counts = {
       pending: uiBookings.filter(b => b.status === 'pending').length,
       confirmed: uiBookings.filter(b => b.status === 'confirmed' || b.status === 'in-progress').length,
       completed: uiBookings.filter(b => b.status === 'completed' || b.status === 'rejected').length,
     };
-  }, [getBookingsForUI]);
+    
+    console.log('📊 Booking counts by status:');
+    console.log('- Pending:', counts.pending);
+    console.log('- Confirmed/In-progress:', counts.confirmed);
+    console.log('- Completed/Rejected:', counts.completed);
+    console.log('- All UI bookings status:', uiBookings.map(b => ({ id: b.id, originalStatus: bookings.find(orig => orig.bookingId.toString() === b.id)?.status, mappedStatus: b.status })));
+    
+    return counts;
+  }, [getBookingsForUI, bookings]);
 
   // Debug state changes
   useEffect(() => {
     console.log('🔄 BOOKINGS STATE CHANGED:', bookings.length, 'items');
     if (bookings.length > 0) {
       console.log('📋 FIRST BOOKING:', bookings[0]);
+      console.log('📋 ALL BOOKING STATUSES:', bookings.map(b => ({ id: b.bookingId, status: b.status })));
     }
   }, [bookings]);
 

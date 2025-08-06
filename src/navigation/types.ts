@@ -72,6 +72,17 @@ export type RootStackParamList = {
   EditProfileUserScreen: undefined;
   OrderHistoryScreen: { userId: number };
   BookingDetailScreen: { bookingId: number };
+  ChatScreen: {
+    conversationId: number;
+    title: string;
+    otherUser?: {
+      userId: number;
+      userName: string;
+      userFullName: string;
+      userProfileImage?: string;
+    };
+  };
+  NewChatScreen: undefined;
   Booking: {
     photographer: {
       photographerId: number;

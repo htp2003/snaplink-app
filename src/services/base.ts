@@ -1,24 +1,23 @@
 // services/api/base.ts
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../config/api";
 
 export class ApiClient {
-  private baseURL: string;
-  private timeout: number;
-  private token: string | null = null;
 
-  constructor() {
-    this.baseURL = API_CONFIG.BASE_URL;
-    this.timeout = API_CONFIG.TIMEOUT;
+   // Thêm method tự động lấy token
+   private async getAuthToken(): Promise<string | null> {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      console.log('🔑 Getting token from AsyncStorage:', token ? 'EXISTS' : 'NOT_FOUND');
+      return token;
+    } catch (error) {
+      console.error('❌ Error getting token:', error);
+      return null;
+    }
   }
 
-  setToken(token: string) {
-    this.token = token;
-  }
 
-  clearToken() {
-    this.token = null;
-  }
 
   private async handleResponse<T>(response: Response): Promise<T> {
     console.log(`API Response [${response.status}]: ${response.url}`);
@@ -88,13 +87,15 @@ export class ApiClient {
   }
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const url = `${this.baseURL}${endpoint}`;
+    const url = `${API_CONFIG.BASE_URL}${endpoint}`;
+
+    const token = await this.getAuthToken();
     
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        ...(token && { Authorization: `Bearer ${token}` }),
         ...options.headers,
       },
       ...options,

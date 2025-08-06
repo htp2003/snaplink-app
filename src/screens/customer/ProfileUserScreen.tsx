@@ -290,7 +290,13 @@ const ProfileUserScreen = () => {
     {
       icon: "person-outline",
       title: "Xem hồ sơ",
-      // onPress: () => navigation.navigate('ViewProfile')
+      onPress: () => {
+        if (currentUserId !== null) {
+          navigation.navigate('ViewProfileUserScreen', { userId: currentUserId });
+        } else {
+          Alert.alert("Lỗi", "Không tìm thấy ID người dùng");
+        }
+      },
     },
     {
       icon: "hand-left-outline",

@@ -1,5 +1,5 @@
 export enum MessageType {
-    TEXT = 'text',
+    TEXT = 'Text',
     IMAGE = 'image',
     VOICE = 'voice',
     BOOKING = 'booking',

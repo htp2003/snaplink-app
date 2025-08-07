@@ -65,10 +65,6 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     createDirectConversation,
     error: chatError,
     creatingConversation,
-    isSignalRConnected,
-  signalRError,
-  getSignalRStatus,
-  testReceiveMessage, // ✅ Test function
     conversations, // ✅ For debugging
   } = useChat({
     userId: currentUserId || 0,
@@ -521,46 +517,6 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
           </View>
         </View>
       )}
-
-     {/* ✅ ENHANCED DEBUG INFO */}
-      <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
-        <View style={{
-          backgroundColor: isSignalRConnected ? '#D1FAE5' : '#FEE2E2',
-          borderRadius: 8,
-          padding: 12,
-          marginBottom: 8,
-        }}>
-          <Text style={{ 
-            fontSize: 12, 
-            color: isSignalRConnected ? '#059669' : '#DC2626',
-            fontWeight: '600'
-          }}>
-            SignalR: {isSignalRConnected ? 'Connected ✅' : 'Disconnected ❌'}
-          </Text>
-          {signalRError && (
-            <Text style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>
-              Error: {signalRError}
-            </Text>
-          )}
-          <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-            Conversations: {conversations.length} | User ID: {currentUserId}
-          </Text>
-        </View>
-        
-        <Text style={{ fontSize: 12, color: '#666' }}>
-          Debug: Raw bookings: {bookings.length}, UI bookings: {getBookingsForUI().length}, Filtered: {filteredOrders.length}
-        </Text>
-        {bookings.length > 0 && (
-          <Text style={{ fontSize: 12, color: '#666' }}>
-            First booking status: {bookings[0]?.status}
-          </Text>
-        )}
-        {chatError && (
-          <Text style={{ fontSize: 12, color: '#ff0000' }}>
-            Chat Error: {chatError}
-          </Text>
-        )}
-      </View>
 
       {/* Error State */}
       {(error || chatError) && (

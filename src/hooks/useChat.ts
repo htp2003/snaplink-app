@@ -1,6 +1,6 @@
-// hooks/useChat.ts - Chat Logic Hook
+// hooks/useChat.ts - Fixed Chat Logic Hook with SignalR
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { chatService } from '../services/chatService';
 import { signalRManager, SignalREventHandlers } from '../services/signalRManager';
 import {
@@ -30,7 +30,7 @@ export const useChat = (options: UseChatOptions = {}) => {
     userId, 
     autoRefresh = false, 
     refreshInterval = 30000, // 30 seconds
-    enableRealtime = false,
+    enableRealtime = true, // ✅ Enabled by default
     maxConversations = 100,
     maxMessagesPerConversation = 500
   } = options;
@@ -44,8 +44,6 @@ export const useChat = (options: UseChatOptions = {}) => {
     totalResults: 0
   });
 
-  
-  
   // Loading states
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingSearch, setLoadingSearch] = useState(false);
@@ -59,12 +57,189 @@ export const useChat = (options: UseChatOptions = {}) => {
   // UI states
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchMode, setIsSearchMode] = useState(false);
+
+  // ✅ NEW: SignalR states
+  const [isSignalRConnected, setIsSignalRConnected] = useState(false);
+  const [signalRError, setSignalRError] = useState<string | null>(null);
+  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
   
   // Refs for cleanup
   const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const signalRInitializedRef = useRef(false);
 
-  // ===== CONVERSATION METHODS =====
+  // ✅ FIXED: Memoized SignalR Event Handlers to prevent recreation
+  const signalRHandlers: SignalREventHandlers = useMemo(() => ({
+    onMessageReceived: (message) => {
+      console.log('🔥 REAL-TIME MESSAGE RECEIVED IN useChat:', message);
+      console.log('🔥 Message details:', JSON.stringify(message, null, 2));
+      
+      const normalizedMessage = chatService.normalizeMessageResponse(message);
+      
+      // Update conversations list with new message
+      setConversations(prev => {
+        console.log('📋 Updating conversations with new message...');
+        const updated = prev.map(conv => {
+          if (conv.conversationId === normalizedMessage.conversationId) {
+            console.log('✅ Found matching conversation:', conv.conversationId);
+            return {
+              ...conv,
+              lastMessage: normalizedMessage,
+              updatedAt: new Date().toISOString(),
+              unreadCount: conv.unreadCount + 1 // Increment unread count
+            };
+          }
+          return conv;
+        });
+        
+        console.log('📋 Conversations updated:', updated.length);
+        return updated;
+      });
+      
+      // If we have a conversation that doesn't exist in our list, refresh conversations
+      const existingConv = conversations.find(c => c.conversationId === normalizedMessage.conversationId);
+      if (!existingConv && normalizedMessage.conversationId) {
+        console.log('🔄 New conversation detected, refreshing list...');
+        loadConversations(1, 20);
+      }
+    },
+
+    onNewConversation: (conversation) => {
+      console.log('➕ New conversation created via SignalR:', conversation);
+      
+      const normalizedConversation = chatService.normalizeConversationResponse(conversation);
+      
+      // Add new conversation to the top of the list
+      setConversations(prev => {
+        const exists = prev.find(c => c.conversationId === normalizedConversation.conversationId);
+        if (!exists) {
+          console.log('✅ Adding new conversation to list');
+          return [normalizedConversation, ...prev].slice(0, maxConversations);
+        }
+        console.log('⚠️ Conversation already exists, skipping');
+        return prev;
+      });
+    },
+
+    onConversationUpdated: (conversation) => {
+      console.log('✏️ Conversation updated via SignalR:', conversation);
+      
+      const normalizedConversation = chatService.normalizeConversationResponse(conversation);
+      
+      // Update existing conversation
+      setConversations(prev => prev.map(conv => 
+        conv.conversationId === normalizedConversation.conversationId 
+          ? normalizedConversation 
+          : conv
+      ));
+      
+      // Update current conversation if it matches
+      setCurrentConversation(prev => 
+        prev?.conversationId === normalizedConversation.conversationId 
+          ? normalizedConversation 
+          : prev
+      );
+    },
+
+    onMessageStatusChanged: (messageId, status) => {
+      console.log('📝 Message status changed via SignalR:', messageId, status);
+      
+      // This would be handled by individual conversation hooks
+      // But we can update conversations list if needed
+    },
+
+    onUserOnlineStatusChanged: (userId, isOnline) => {
+      console.log('👤 User online status changed:', userId, isOnline);
+      
+      setOnlineUsers(prev => {
+        const newSet = new Set(prev);
+        if (isOnline) {
+          newSet.add(userId);
+        } else {
+          newSet.delete(userId);
+        }
+        return newSet;
+      });
+    },
+
+    onConnectionStatusChanged: (isConnected) => {
+      console.log('🔌 SignalR connection status changed:', isConnected);
+      setIsSignalRConnected(isConnected);
+      
+      if (!isConnected) {
+        setSignalRError('Connection lost. Attempting to reconnect...');
+      } else {
+        setSignalRError(null);
+        console.log('✅ SignalR reconnected successfully');
+      }
+    }
+  }), [conversations, maxConversations]); // ✅ Add dependencies
+
+  // ✅ FIXED: Initialize SignalR with proper handlers
+  const initializeSignalR = useCallback(async () => {
+    if (!enableRealtime || !userId || signalRInitializedRef.current) {
+      return;
+    }
+
+    try {
+      console.log('🔌 Initializing SignalR for chat...');
+      setSignalRError(null);
+      
+      const success = await signalRManager.initialize(userId, signalRHandlers);
+      
+      if (success) {
+        console.log('✅ SignalR initialized successfully');
+        setIsSignalRConnected(true);
+        signalRInitializedRef.current = true;
+      } else {
+        throw new Error('Failed to initialize SignalR');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'SignalR initialization failed';
+      console.error('❌ SignalR initialization error:', err);
+      setSignalRError(errorMessage);
+      setIsSignalRConnected(false);
+    }
+  }, [enableRealtime, userId, signalRHandlers]);
+
+  // ✅ FIXED: Update handlers when they change
+  useEffect(() => {
+    if (isSignalRConnected) {
+      console.log('🔄 Updating SignalR event handlers...');
+      signalRManager.updateEventHandlers(signalRHandlers);
+    }
+  }, [signalRHandlers, isSignalRConnected]);
+
+  // ✅ NEW: Join conversation for real-time updates
+  const joinConversationRealtime = useCallback(async (conversationId: number) => {
+    if (!enableRealtime || !isSignalRConnected) {
+      console.log('⚠️ Cannot join conversation - SignalR not connected');
+      return;
+    }
+
+    try {
+      await signalRManager.joinConversation(conversationId);
+      console.log('🏠 Joined conversation for real-time updates:', conversationId);
+    } catch (err) {
+      console.error('❌ Failed to join conversation for real-time:', err);
+    }
+  }, [enableRealtime, isSignalRConnected]);
+
+  // ✅ NEW: Leave conversation real-time updates
+  const leaveConversationRealtime = useCallback(async (conversationId: number) => {
+    if (!enableRealtime || !isSignalRConnected) {
+      return;
+    }
+
+    try {
+      await signalRManager.leaveConversation(conversationId);
+      console.log('🚪 Left conversation real-time updates:', conversationId);
+    } catch (err) {
+      console.error('❌ Failed to leave conversation real-time:', err);
+    }
+  }, [enableRealtime, isSignalRConnected]);
+
+  // ===== CONVERSATION METHODS (Enhanced) =====
 
   const loadConversations = useCallback(async (page: number = 1, pageSize: number = 20): Promise<boolean> => {
     try {
@@ -125,6 +300,9 @@ export const useChat = (options: UseChatOptions = {}) => {
       
       setCurrentConversation(conversation);
       
+      // ✅ Join conversation for real-time updates
+      await joinConversationRealtime(conversationId);
+      
       // Update conversations list if this conversation exists there
       setConversations(prev => prev.map(conv => 
         conv.conversationId === conversationId ? conversation : conv
@@ -136,7 +314,7 @@ export const useChat = (options: UseChatOptions = {}) => {
       console.error('❌ Error getting conversation:', err);
       return null;
     }
-  }, []);
+  }, [joinConversationRealtime]);
 
   const createConversation = useCallback(async (
     conversationData: CreateConversationRequest
@@ -156,6 +334,9 @@ export const useChat = (options: UseChatOptions = {}) => {
         setConversations(prev => [newConversation, ...prev].slice(0, maxConversations));
         setCurrentConversation(newConversation);
         
+        // ✅ Join conversation for real-time updates
+        await joinConversationRealtime(newConversation.conversationId);
+        
         return newConversation;
       } else {
         throw new Error(response.message || 'Failed to create conversation');
@@ -169,7 +350,7 @@ export const useChat = (options: UseChatOptions = {}) => {
     } finally {
       setCreatingConversation(false);
     }
-  }, [maxConversations]);
+  }, [maxConversations, joinConversationRealtime]);
 
   const createDirectConversation = useCallback(async (otherUserId: number, otherUserName: string): Promise<Conversation | null> => {
     try {
@@ -180,6 +361,10 @@ export const useChat = (options: UseChatOptions = {}) => {
         const existingConv = await chatService.getDirectConversation(otherUserId);
         const conversation = chatService.normalizeConversationResponse(existingConv);
         setCurrentConversation(conversation);
+        
+        // ✅ Join conversation for real-time updates
+        await joinConversationRealtime(conversation.conversationId);
+        
         return conversation;
       } catch {
         // Conversation doesn't exist, create new one
@@ -195,9 +380,9 @@ export const useChat = (options: UseChatOptions = {}) => {
       console.error('❌ Error creating direct conversation:', err);
       return null;
     }
-  }, [createConversation]);
+  }, [createConversation, joinConversationRealtime]);
 
-  // ===== MESSAGE METHODS =====
+  // ===== MESSAGE METHODS (No changes needed - just debugging) =====
 
   const sendMessage = useCallback(async (
     messageData: SendMessageRequest,
@@ -250,6 +435,9 @@ export const useChat = (options: UseChatOptions = {}) => {
 
       if (response.success && response.messageData) {
         const sentMessage = chatService.normalizeMessageResponse(response.messageData);
+
+        console.log('✅ Message sent successfully:', sentMessage);
+        console.log('🚀 Server should now broadcast via SignalR to other users');
 
         // Update conversations list with real message
         setConversations(prev => prev.map(conv => {
@@ -332,7 +520,7 @@ export const useChat = (options: UseChatOptions = {}) => {
     }
   }, [currentConversation, createDirectConversation, sendMessage]);
 
-  // ===== SEARCH METHODS =====
+  // ===== SEARCH METHODS (No changes) =====
 
   const searchConversationsAndPhotographers = useCallback(async (query: string): Promise<void> => {
     try {
@@ -422,7 +610,7 @@ export const useChat = (options: UseChatOptions = {}) => {
     }
   }, []);
 
-  // ===== UTILITY METHODS =====
+  // ===== UTILITY METHODS (Enhanced) =====
 
   const validateMessageData = useCallback((messageData: SendMessageRequest): ChatValidationErrors => {
     const errors: ChatValidationErrors = {};
@@ -468,12 +656,66 @@ export const useChat = (options: UseChatOptions = {}) => {
     }
   }, []);
 
+  // ✅ NEW: Real-time utility methods
+  const isUserOnline = useCallback((userId: number): boolean => {
+    return onlineUsers.has(userId);
+  }, [onlineUsers]);
+
+  const getSignalRStatus = useCallback(() => {
+    return signalRManager.getStatus();
+  }, []);
+
+  const reconnectSignalR = useCallback(async () => {
+    if (userId) {
+      signalRInitializedRef.current = false;
+      await initializeSignalR();
+    }
+  }, [userId, initializeSignalR]);
+
+  // ✅ NEW: Manual test message receiver
+  const testReceiveMessage = useCallback(() => {
+    const testMessage = {
+      messageId: Date.now(),
+      senderId: 999,
+      recipientId: userId || 0,
+      conversationId: conversations[0]?.conversationId || 1,
+      content: "🧪 Test real-time message from useChat hook",
+      createdAt: new Date().toISOString(),
+      messageType: "Text",
+      status: "sent",
+      senderName: "Test User",
+      senderProfileImage: undefined
+    };
+    
+    console.log('🧪 Testing message reception manually...');
+    signalRHandlers.onMessageReceived?.(testMessage);
+  }, [userId, conversations, signalRHandlers]);
+
   const clearError = useCallback(() => {
     setError(null);
     setSearchError(null);
+    setSignalRError(null);
   }, []);
 
   // ===== EFFECTS =====
+
+  // ✅ Initialize SignalR when userId is available
+  useEffect(() => {
+    if (userId && enableRealtime) {
+      console.log('🚀 Initializing SignalR for userId:', userId);
+      initializeSignalR();
+    }
+
+    // Cleanup SignalR on unmount or userId change
+    return () => {
+      if (signalRInitializedRef.current) {
+        console.log('🔌 Cleaning up SignalR...');
+        signalRManager.stop();
+        signalRInitializedRef.current = false;
+        setIsSignalRConnected(false);
+      }
+    };
+  }, [userId, enableRealtime, initializeSignalR]);
 
   // Auto refresh conversations
   useEffect(() => {
@@ -497,6 +739,15 @@ export const useChat = (options: UseChatOptions = {}) => {
       loadConversations();
     }
   }, [userId, loadConversations]);
+
+  // ✅ Leave conversation when currentConversation changes
+  useEffect(() => {
+    return () => {
+      if (currentConversation && enableRealtime) {
+        leaveConversationRealtime(currentConversation.conversationId);
+      }
+    };
+  }, [currentConversation, enableRealtime, leaveConversationRealtime]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -528,9 +779,14 @@ export const useChat = (options: UseChatOptions = {}) => {
     // ===== ERROR STATES =====
     error,
     searchError,
+    signalRError,
     
     // ===== UI STATES =====
     isSearchMode,
+    
+    // ✅ Real-time states
+    isSignalRConnected,
+    onlineUsers,
     
     // ===== CONVERSATION METHODS =====
     loadConversations,
@@ -557,6 +813,14 @@ export const useChat = (options: UseChatOptions = {}) => {
     markConversationAsRead,
     clearError,
     
+    // ✅ Real-time utility methods
+    isUserOnline,
+    getSignalRStatus,
+    reconnectSignalR,
+    joinConversationRealtime,
+    leaveConversationRealtime,
+    testReceiveMessage, // ✅ For testing
+    
     // ===== SETTER METHODS =====
     setConversations,
     setError,
@@ -564,7 +828,7 @@ export const useChat = (options: UseChatOptions = {}) => {
   };
 };
 
-// ===== INDIVIDUAL CONVERSATION HOOK =====
+// ===== INDIVIDUAL CONVERSATION HOOK (Enhanced with SignalR) =====
 
 export const useConversation = (options: UseConversationOptions) => {
   const { 
@@ -572,7 +836,8 @@ export const useConversation = (options: UseConversationOptions) => {
     autoMarkAsRead = true,
     loadHistoryOnMount = true,
     maxMessages = 500,
-    enableTypingIndicator = true
+    enableTypingIndicator = true,
+    enableRealtime = true
   } = options;
 
   // ===== STATES =====
@@ -588,6 +853,51 @@ export const useConversation = (options: UseConversationOptions) => {
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ✅ FIXED: Memoized SignalR handlers for conversation
+  const signalRHandlers: SignalREventHandlers = useMemo(() => ({
+    onMessageReceived: (message) => {
+      const normalizedMessage = chatService.normalizeMessageResponse(message);
+      
+      // Only add message if it belongs to current conversation
+      if (normalizedMessage.conversationId === conversationId) {
+        console.log('📨 Adding real-time message to conversation:', normalizedMessage);
+        
+        setMessages(prev => {
+          // Check if message already exists (to prevent duplicates)
+          const exists = prev.find(m => m.messageId === normalizedMessage.messageId);
+          if (exists) {
+            console.log('⚠️ Message already exists, skipping...');
+            return prev;
+          }
+          
+          // Add new message and maintain max limit
+          const newMessages = [...prev, normalizedMessage].slice(-maxMessages);
+          console.log('✅ Added real-time message. Total messages:', newMessages.length);
+          return newMessages;
+        });
+      }
+    }
+  }), [conversationId, maxMessages]);
+
+  // ✅ Initialize SignalR for this conversation
+  useEffect(() => {
+    if (enableRealtime && conversationId) {
+      console.log('🔌 Setting up real-time for conversation:', conversationId);
+      
+      // Update SignalR handlers to include our conversation-specific handlers
+      signalRManager.updateEventHandlers(signalRHandlers);
+      
+      // Join conversation for real-time updates
+      signalRManager.joinConversation(conversationId);
+      
+      return () => {
+        // Leave conversation when component unmounts
+        console.log('🚪 Leaving conversation real-time updates:', conversationId);
+        signalRManager.leaveConversation(conversationId);
+      };
+    }
+  }, [enableRealtime, conversationId, signalRHandlers]);
 
   // ===== MESSAGE METHODS =====
 
@@ -692,6 +1002,7 @@ export const useConversation = (options: UseConversationOptions) => {
           msg.localId === optimisticMessage.localId ? sentMessage : msg
         ));
 
+        console.log('✅ Message sent, real-time delivery active');
         return sentMessage;
       } else {
         throw new Error(response.message || 'Failed to send message');

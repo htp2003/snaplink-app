@@ -65,6 +65,7 @@ const ChatScreen = () => {
     autoMarkAsRead: true,
     loadHistoryOnMount: true,
     enableTypingIndicator: true,
+    enableRealtime: true,
   });
 
   // ===== LOCAL STATES =====

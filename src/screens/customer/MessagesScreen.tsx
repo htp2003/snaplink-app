@@ -1,4 +1,4 @@
-// MessagesScreen.tsx - Enhanced with SignalR
+// MessagesScreen.tsx - Fixed to use useChat SignalR only
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
@@ -16,7 +16,7 @@ import {
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useChat } from '../../hooks/useChat';
-import { signalRManager } from '../../services/signalRManager'; // NEW: Import SignalR manager
+// ❌ REMOVED: import { signalRManager } from '../../services/signalRManager';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useAuth } from '../../hooks/useAuth';
 import { RootStackParamList } from '../../navigation/types';
@@ -37,13 +37,7 @@ export default function MessagesScreen() {
   const { user, isAuthenticated, isLoading: authLoading, getCurrentUserId } = useAuth();
   const userId = getCurrentUserId() || 0;
 
-  // ===== NEW SIGNALR STATES =====
-  const [isSignalRConnected, setIsSignalRConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('Disconnected');
-  const [realtimeMessageCount, setRealtimeMessageCount] = useState(0);
-  const isSignalRInitialized = useRef(false);
-
-  // ===== EXISTING HOOKS =====
+  // ✅ SIMPLIFIED: Use useChat hook's SignalR instead of managing it separately
   const {
     conversations,
     searchResults,
@@ -59,161 +53,25 @@ export default function MessagesScreen() {
     createDirectConversation,
     getTotalUnreadCount,
     clearError,
-    setConversations, // NEW: Needed for real-time updates
+    // ✅ NEW: Use SignalR states from useChat hook
+    isSignalRConnected,
+    signalRError,
+    getSignalRStatus,
+    reconnectSignalR,
+    testReceiveMessage,
+    joinConversationRealtime,
   } = useChat({
     userId: userId,
     autoRefresh: true,
     refreshInterval: 30000,
+    enableRealtime: true, // ✅ This will handle SignalR automatically
   });
 
   // ===== LOCAL STATES =====
   const [refreshing, setRefreshing] = useState(false);
+  const [realtimeMessageCount, setRealtimeMessageCount] = useState(0);
 
-  // ===== SIGNALR SETUP =====
-  useEffect(() => {
-    const initializeSignalR = async () => {
-      if (!userId || !isAuthenticated || isSignalRInitialized.current) {
-        return;
-      }
-
-      console.log('🚀 Initializing SignalR for MessagesScreen...');
-
-      const success = await signalRManager.initialize(userId, {
-        // Handler khi nhận tin nhắn mới
-        onMessageReceived: (message: MessageResponse) => {
-          console.log('🔥 REAL-TIME MESSAGE in MessagesScreen:', message);
-          
-          setRealtimeMessageCount(prev => prev + 1);
-          
-          // Cập nhật conversations list với tin nhắn mới
-          setConversations(prevConversations => {
-            return prevConversations.map(conv => {
-              if (conv.conversationId === message.conversationId) {
-                return {
-                  ...conv,
-                  lastMessage: {
-                    messageId: message.messageId,
-                    senderId: message.senderId,
-                    recipientId: message.recipientId,
-                    conversationId: message.conversationId,
-                    content: message.content,
-                    createdAt: message.createdAt,
-                    messageType: message.messageType as any,
-                    status: message.status as any,
-                    senderName: message.senderName,
-                    senderProfileImage: message.senderProfileImage
-                  },
-                  updatedAt: new Date().toISOString(),
-                  unreadCount: (conv.unreadCount || 0) + 1
-                };
-              }
-              return conv;
-            });
-          });
-
-          // Show notification or play sound
-          console.log('✅ Conversations list updated with new message!');
-        },
-
-        // Handler khi có conversation mới
-        onNewConversation: (conversation: ConversationResponse) => {
-          console.log('🔥 NEW CONVERSATION in MessagesScreen:', conversation);
-          
-          // Add new conversation to list
-          setConversations(prevConversations => {
-            const newConv = {
-              conversationId: conversation.conversationId,
-              title: conversation.title || '',
-              createdAt: conversation.createdAt,
-              updatedAt: conversation.updatedAt,
-              status: conversation.status as any,
-              type: conversation.type as any,
-              participants: conversation.participants || [],
-              lastMessage: conversation.lastMessage ? {
-                messageId: conversation.lastMessage.messageId,
-                senderId: conversation.lastMessage.senderId,
-                recipientId: conversation.lastMessage.recipientId,
-                conversationId: conversation.lastMessage.conversationId,
-                content: conversation.lastMessage.content,
-                createdAt: conversation.lastMessage.createdAt,
-                messageType: conversation.lastMessage.messageType as any,
-                status: conversation.lastMessage.status as any,
-                senderName: conversation.lastMessage.senderName,
-                senderProfileImage: conversation.lastMessage.senderProfileImage
-              } : undefined,
-              unreadCount: conversation.unreadCount || 0,
-              otherParticipant: conversation.participants?.[0],
-              isOnline: false
-            };
-
-            // Check if conversation already exists
-            const exists = prevConversations.some(c => c.conversationId === newConv.conversationId);
-            if (exists) return prevConversations;
-
-            return [newConv, ...prevConversations];
-          });
-        },
-
-        // Handler khi conversation được update
-        onConversationUpdated: (conversation: ConversationResponse) => {
-          console.log('🔥 CONVERSATION UPDATED in MessagesScreen:', conversation);
-          
-          setConversations(prevConversations => {
-            return prevConversations.map(conv => {
-              if (conv.conversationId === conversation.conversationId) {
-                return {
-                  ...conv,
-                  title: conversation.title || conv.title,
-                  updatedAt: conversation.updatedAt || new Date().toISOString(),
-                  status: conversation.status as any,
-                  participants: conversation.participants || conv.participants,
-                  unreadCount: conversation.unreadCount || conv.unreadCount
-                };
-              }
-              return conv;
-            });
-          });
-        },
-
-        // Handler khi connection status thay đổi
-        onConnectionStatusChanged: (connected: boolean) => {
-          console.log('🔥 SignalR Connection Status Changed:', connected);
-          setIsSignalRConnected(connected);
-          setConnectionStatus(connected ? 'Connected' : 'Disconnected');
-        },
-
-        // Handler khi message status thay đổi
-        onMessageStatusChanged: (messageId: number, status: string) => {
-          console.log('🔥 Message Status Changed:', messageId, status);
-          // Update message status trong conversations nếu cần
-        }
-      });
-
-      if (success) {
-        console.log('✅ SignalR initialized successfully in MessagesScreen!');
-        isSignalRInitialized.current = true;
-      } else {
-        console.error('❌ Failed to initialize SignalR in MessagesScreen');
-        Alert.alert(
-          'Connection Issue', 
-          'Real-time chat features may not work. You can still use the app normally.',
-          [{ text: 'OK' }]
-        );
-      }
-    };
-
-    if (isAuthenticated && userId) {
-      initializeSignalR();
-    }
-
-    return () => {
-      if (isSignalRInitialized.current) {
-        console.log('🧹 Cleaning up SignalR in MessagesScreen...');
-        signalRManager.stop();
-        isSignalRInitialized.current = false;
-      }
-    };
-  }, [userId, isAuthenticated, setConversations]);
+  // ✅ REMOVED: All SignalR initialization code - it's now handled by useChat hook
 
   // ===== EXISTING AUTH CHECKS =====
   if (authLoading) {
@@ -264,6 +122,33 @@ export default function MessagesScreen() {
     }, [refreshConversations])
   );
 
+  // ✅ NEW: Track real-time message updates from useChat
+  useEffect(() => {
+    // Count conversations that have been updated recently
+    const recentUpdates = conversations.filter(conv => {
+      const updateTime = new Date(conv.updatedAt || conv.createdAt).getTime();
+      const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+      return updateTime > fiveMinutesAgo;
+    }).length;
+    
+    setRealtimeMessageCount(recentUpdates);
+  }, [conversations]);
+
+  // ===== NEW: SignalR Debug Functions =====
+  const handleSignalRDebug = useCallback(() => {
+    const status = getSignalRStatus();
+    
+    Alert.alert(
+      'SignalR Status',
+      `Connected: ${isSignalRConnected}\nState: ${status.state}\nUser ID: ${userId}\nError: ${signalRError || 'None'}\nConversations: ${conversations.length}`,
+      [
+        { text: 'OK' },
+        { text: 'Test Message', onPress: testReceiveMessage },
+        { text: 'Reconnect', onPress: reconnectSignalR }
+      ]
+    );
+  }, [isSignalRConnected, signalRError, userId, conversations.length, getSignalRStatus, testReceiveMessage, reconnectSignalR]);
+
   // ===== EXISTING HANDLERS =====
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -287,11 +172,11 @@ export default function MessagesScreen() {
       return;
     }
 
-    // Join conversation for real-time updates (if SignalR is connected)
+    // ✅ FIXED: Use joinConversationRealtime from useChat hook
     if (isSignalRConnected) {
       try {
-        await signalRManager.joinConversation(conversation.conversationId);
-        console.log('✅ Joined conversation for real-time updates');
+        await joinConversationRealtime(conversation.conversationId);
+        console.log('✅ Joined conversation for real-time updates via useChat');
       } catch (error) {
         console.warn('⚠️ Failed to join conversation for real-time:', error);
       }
@@ -307,16 +192,16 @@ export default function MessagesScreen() {
         userProfileImage: conversation.otherParticipant.userProfileImage
       }
     });
-  }, [navigation, isSignalRConnected]);
+  }, [navigation, isSignalRConnected, joinConversationRealtime]);
 
   const handlePhotographerPress = useCallback(async (photographer: PhotographerSearchResult) => {
     console.log('📸 Starting chat with photographer:', photographer.userId);
     
     try {
       if (photographer.hasExistingConversation && photographer.existingConversationId) {
-        // Join existing conversation for real-time updates
+        // ✅ FIXED: Use joinConversationRealtime from useChat hook
         if (isSignalRConnected) {
-          await signalRManager.joinConversation(photographer.existingConversationId);
+          await joinConversationRealtime(photographer.existingConversationId);
         }
 
         navigation.navigate('ChatScreen', {
@@ -336,9 +221,9 @@ export default function MessagesScreen() {
         );
         
         if (conversation) {
-          // Join new conversation for real-time updates
+          // ✅ FIXED: Use joinConversationRealtime from useChat hook
           if (isSignalRConnected) {
-            await signalRManager.joinConversation(conversation.conversationId);
+            await joinConversationRealtime(conversation.conversationId);
           }
 
           navigation.navigate('ChatScreen', {
@@ -359,7 +244,7 @@ export default function MessagesScreen() {
       console.error('❌ Error starting conversation:', err);
       Alert.alert('Error', 'Could not start conversation. Please try again.');
     }
-  }, [navigation, createDirectConversation, isSignalRConnected]);
+  }, [navigation, createDirectConversation, isSignalRConnected, joinConversationRealtime]);
 
   const handleNewChatPress = useCallback(() => {
     navigation.navigate('NewChatScreen');
@@ -369,10 +254,8 @@ export default function MessagesScreen() {
     clearError();
   }, [clearError]);
 
-  // ===== NEW SIGNALR STATUS COMPONENT =====
+  // ===== ENHANCED SIGNALR STATUS COMPONENT =====
   const renderSignalRStatus = useCallback(() => {
-    if (!__DEV__) return null; // Only show in development
-
     return (
       <View style={{
         position: 'absolute',
@@ -384,18 +267,20 @@ export default function MessagesScreen() {
         borderRadius: 12,
         zIndex: 1000
       }}>
-        <Text style={{ 
-          color: 'white', 
-          fontSize: getResponsiveSize(10),
-          fontWeight: 'bold'
-        }}>
-          {isSignalRConnected ? '🟢 LIVE' : '🟡 OFFLINE'} | RT: {realtimeMessageCount}
-        </Text>
+        <TouchableOpacity onPress={handleSignalRDebug}>
+          <Text style={{ 
+            color: 'white', 
+            fontSize: getResponsiveSize(10),
+            fontWeight: 'bold'
+          }}>
+            {isSignalRConnected ? '🟢 LIVE' : '🟡 OFFLINE'} | RT: {realtimeMessageCount}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
-  }, [isSignalRConnected, realtimeMessageCount]);
+  }, [isSignalRConnected, realtimeMessageCount, handleSignalRDebug]);
 
-  // ===== EXISTING RENDER METHODS (unchanged) =====
+  // ===== EXISTING RENDER METHODS (Enhanced with better SignalR integration) =====
   const renderConversationItem = useCallback(({ item }: { item: Conversation }) => {
     const otherParticipant = item.otherParticipant;
     const lastMessage = item.lastMessage;
@@ -430,7 +315,7 @@ export default function MessagesScreen() {
                 </Text>
               </View>
             )}
-            {/* Enhanced online indicator with SignalR status */}
+            {/* ✅ ENHANCED: Show online indicator when SignalR is connected */}
             {(item.isOnline || isSignalRConnected) && (
               <View className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
             )}
@@ -453,7 +338,7 @@ export default function MessagesScreen() {
                 >
                   {timeAgo}
                 </Text>
-                {/* NEW: Real-time indicator */}
+                {/* ✅ ENHANCED: Real-time indicator shows when connected */}
                 {isSignalRConnected && (
                   <View className="w-2 h-2 bg-green-500 rounded-full ml-2" />
                 )}
@@ -645,7 +530,7 @@ export default function MessagesScreen() {
   ]);
 
   const renderErrorState = useCallback(() => {
-    const currentError = error || searchError;
+    const currentError = error || searchError || signalRError; // ✅ Include SignalR error
     if (!currentError) return null;
 
     return (
@@ -673,7 +558,7 @@ export default function MessagesScreen() {
         </TouchableOpacity>
       </View>
     );
-  }, [error, searchError, handleErrorDismiss]);
+  }, [error, searchError, signalRError, handleErrorDismiss]); // ✅ Include SignalR error
 
   // ===== MAIN RENDER =====
   const totalUnreadCount = getTotalUnreadCount();
@@ -686,10 +571,10 @@ export default function MessagesScreen() {
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       
-      {/* NEW: SignalR Status Indicator (Development only) */}
+      {/* ✅ ENHANCED: SignalR Status Indicator (Always visible) */}
       {renderSignalRStatus()}
       
-      {/* Header - Enhanced with connection status */}
+      {/* Header - Enhanced with better connection status */}
       <View className="flex-row items-center justify-between border-b border-gray-100"
         style={{
           paddingHorizontal: getResponsiveSize(16),
@@ -715,7 +600,7 @@ export default function MessagesScreen() {
               </Text>
             </View>
           )}
-          {/* NEW: Real-time indicator */}
+          {/* ✅ ENHANCED: Real-time indicator with status from useChat */}
           {isSignalRConnected && (
             <View className="ml-2 flex-row items-center">
               <View className="w-2 h-2 bg-green-500 rounded-full mr-1" />

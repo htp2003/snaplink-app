@@ -55,6 +55,7 @@ export default function BookingScreen() {
   const route = useRoute();
   const { photographer, editMode, existingBookingId, existingBookingData } = route.params as RouteParams;
 
+
   // Extract photographerId ngay đầu
   const photographerId = photographer?.photographerId;
 
@@ -87,8 +88,8 @@ export default function BookingScreen() {
 
   // UI State
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showLocationPicker, setShowLocationPicker] = useState(false);
-  const [showSpecialRequests, setShowSpecialRequests] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);;
+
 
   // 🆕 THÊM: Availability hooks
   const {
@@ -310,7 +311,7 @@ export default function BookingScreen() {
 
     // Tìm availability cho ngày được chọn
     const dayAvailability = photographerSchedule.find(
-      av => av.dayOfWeek === selectedDayOfWeek && av.status === 'available'
+      av => av.dayOfWeek === selectedDayOfWeek && av.status === 'Available'
     );
 
     console.log('Found availability:', dayAvailability);
@@ -368,7 +369,7 @@ export default function BookingScreen() {
 
   const getEndTimeOptions = () => {
     if (!selectedStartTime) return [];
-    const availableTimes = getFilteredTimes(); // 🆕 UPDATE: Dùng filtered times
+    const availableTimes = getFilteredTimes();
     const startIndex = availableTimes.indexOf(selectedStartTime);
     return availableTimes.slice(startIndex + 1);
   };
@@ -796,17 +797,8 @@ export default function BookingScreen() {
   // 🆕 UPDATE: Check if form is ready for submission (bỏ availability check)
   const isFormValid = photographerId && selectedStartTime && selectedEndTime && !creating && !updating;
 
-  // Modal Components giữ nguyên như cũ...
-  const SpecialRequestsModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={showSpecialRequests}
-      onRequestClose={() => setShowSpecialRequests(false)}
-    >
-      {/* Modal content giữ nguyên như code cũ */}
-    </Modal>
-  );
+  // Modal Components 
+
 
   const LocationModal = () => (
     <Modal
@@ -1198,27 +1190,37 @@ export default function BookingScreen() {
                 fontWeight: 'bold',
                 color: '#333',
                 marginLeft: getResponsiveSize(10)
-              }}>Ghi chú</Text>
+              }}>Ghi chú đặc biệt</Text>
             </View>
 
-            <TouchableOpacity
-              onPress={() => setShowSpecialRequests(true)}
+            <TextInput
+              value={specialRequests}
+              onChangeText={setSpecialRequests}
+              placeholder="Nhập yêu cầu đặc biệt của bạn..."
+              placeholderTextColor="#999"
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
               style={{
                 backgroundColor: '#f8f9fa',
                 borderRadius: getResponsiveSize(12),
                 padding: getResponsiveSize(15),
+                fontSize: getResponsiveSize(14),
+                color: '#333',
                 borderWidth: 1,
                 borderColor: '#e0e0e0',
-                minHeight: getResponsiveSize(50)
+                minHeight: getResponsiveSize(100),
+                maxHeight: getResponsiveSize(150)
               }}
-            >
-              <Text style={{
-                fontSize: getResponsiveSize(14),
-                color: specialRequests ? '#333' : '#999'
-              }}>
-                {specialRequests || 'Thêm yêu cầu đặc biệt...'}
-              </Text>
-            </TouchableOpacity>
+            />
+
+            <Text style={{
+              fontSize: getResponsiveSize(12),
+              color: '#666',
+              marginTop: getResponsiveSize(8)
+            }}>
+              Ví dụ: Phong cách chụp, góc độ yêu thích, số lượng ảnh mong muốn...
+            </Text>
           </View>
 
           {/* Price Summary */}
@@ -1345,8 +1347,6 @@ export default function BookingScreen() {
       />
 
       <LocationModal />
-      <SpecialRequestsModal />
-
       {/* Error Display */}
       {error && (
         <View style={{
@@ -1367,31 +1367,31 @@ export default function BookingScreen() {
         </View>
       )}
 
-<TouchableOpacity
-      onPress={async () => {
-        try {
-          const success = await cleanupService.manualCleanup();
-          if (success) {
-            Alert.alert('Success', 'Cleaned up pending bookings!');
-            // Reload booked slots
-            const booked = await getBookedSlotsForDate(photographerId, selectedDate);
-            setBookedSlots(booked);
+      <TouchableOpacity
+        onPress={async () => {
+          try {
+            const success = await cleanupService.manualCleanup();
+            if (success) {
+              Alert.alert('Success', 'Cleaned up pending bookings!');
+              // Reload booked slots
+              const booked = await getBookedSlotsForDate(photographerId, selectedDate);
+              setBookedSlots(booked);
+            }
+          } catch (error) {
+            Alert.alert('Error', 'Cleanup failed');
           }
-        } catch (error) {
-          Alert.alert('Error', 'Cleanup failed');
-        }
-      }}
-      style={{
-        backgroundColor: '#FF6B35',
-        padding: getResponsiveSize(8),
-        borderRadius: getResponsiveSize(4),
-        marginTop: getResponsiveSize(8)
-      }}
-    >
-      <Text style={{ color: '#fff', fontSize: getResponsiveSize(12), textAlign: 'center' }}>
-        🧹 Cleanup Pending Bookings
-      </Text>
-    </TouchableOpacity>
+        }}
+        style={{
+          backgroundColor: '#FF6B35',
+          padding: getResponsiveSize(8),
+          borderRadius: getResponsiveSize(4),
+          marginTop: getResponsiveSize(8)
+        }}
+      >
+        <Text style={{ color: '#fff', fontSize: getResponsiveSize(12), textAlign: 'center' }}>
+          🧹 Cleanup Pending Bookings
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }

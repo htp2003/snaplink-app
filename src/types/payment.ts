@@ -1,14 +1,14 @@
-// types/payment.ts - FINAL VERSION WITH URLS
+// types/payment.ts - COMPLETE VERSION WITH ALL API FIELDS
 
 export enum PaymentStatus {
-  PENDING = 'PENDING',
-  PROCESSING = 'PROCESSING',
-  SUCCESS = 'SUCCESS',
-  PAID = 'PAID',
-  COMPLETED = 'COMPLETED',
-  FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
-  EXPIRED = 'EXPIRED'
+  PENDING = 'Pending',
+  PROCESSING = 'Processing',
+  SUCCESS = 'Success',
+  PAID = 'Paid',
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
+  CANCELLED = 'Cancelled',
+  EXPIRED = 'Expired'
 }
 
 export interface QRAnalysis {
@@ -18,20 +18,36 @@ export interface QRAnalysis {
 }
 
 export interface PaymentResponse {
-  id: number; // orderCode from PayOS
-  paymentUrl: string;
-  orderCode: string;
-  amount: number;
-  status: string;
-  bookingId: number;
+  // ✅ PRIMARY: Actual API response fields
+  paymentId: number;
+  externalTransactionId: string;
+  customerId: number;
+  customerName: string;
+  customerEmail: string;
+  totalAmount: number;
+  status: string;                   // "Success", "Pending", "Failed", etc.
+  currency: string;                 // "VND"
+  method: string;                   // "PayOS"
+  note: string;
   createdAt: string;
+  updatedAt: string;
+  bookingId: number;
+  bookingStatus: string;
+  photographerName: string;
+  locationName: string;
+  isWalletTopUp: boolean;
+
+  // ✅ LEGACY: Backward compatibility fields
+  id: number;                       // = paymentId
+  paymentUrl: string;
+  orderCode: string;                // = externalTransactionId
+  amount: number;                   // = totalAmount
   qrCode?: string | null;
   
-  // PayOS specific fields
+  // PayOS specific fields (from creation response)
   paymentLinkId?: string;
   accountNumber?: string;
   bin?: string;
-  currency?: string;
   description?: string;
   expiredAt?: string;
   
@@ -39,13 +55,12 @@ export interface PaymentResponse {
   qrAnalysis?: QRAnalysis | null;
 }
 
-// ✅ FINAL: CreatePaymentLinkRequest with URLs
 export interface CreatePaymentLinkRequest {
   productName: string;
   description: string;
   bookingId: number;
-  successUrl: string; // ✅ Required for redirect after successful payment
-  cancelUrl: string;  // ✅ Required for redirect after cancelled payment
+  successUrl: string; 
+  cancelUrl: string;  
 }
 
 export interface UpdatePaymentRequest {
@@ -75,13 +90,12 @@ export interface PaymentStatusResponse {
   updatedAt: string;
 }
 
-// ✅ FINAL: Validation errors with URLs
 export interface PaymentValidationErrors {
   productName?: string;
   description?: string;
   bookingId?: string;
-  successUrl?: string; // ✅ URL validation
-  cancelUrl?: string;  // ✅ URL validation
+  successUrl?: string; 
+  cancelUrl?: string;  
 }
 
 export interface UsePaymentOptions {
@@ -100,10 +114,22 @@ export interface PaymentFlowData {
     totalAmount: number;
   };
   payment: {
-    id: number; // orderCode
+    // ✅ PRIMARY: New API fields
+    paymentId: number;
+    externalTransactionId: string;
+    customerId: number;
+    customerName: string;
+    totalAmount: number;
+    status: string;
+    bookingId: number;
+    photographerName: string;
+    locationName: string;
+    
+    // ✅ LEGACY: Backward compatibility
+    id: number;                       // = paymentId
     paymentUrl: string;
-    orderCode: string;
-    amount: number;
+    orderCode: string;                // = externalTransactionId
+    amount: number;                   // = totalAmount
     qrCode?: string | null;
   };
   user: {
@@ -122,3 +148,60 @@ export interface PaymentTestResult {
     response?: any;
   };
 }
+
+// ✅ NEW: Type guards for payment status
+export const isPaymentSuccess = (status: string): boolean => {
+  return ['Success', 'Paid', 'Completed'].includes(status);
+};
+
+export const isPaymentPending = (status: string): boolean => {
+  return ['Pending', 'Processing'].includes(status);
+};
+
+export const isPaymentFailed = (status: string): boolean => {
+  return ['Failed', 'Cancelled', 'Expired'].includes(status);
+};
+
+// ✅ NEW: Payment status color mapping
+export const getPaymentStatusColor = (status: string): string => {
+  switch (status) {
+    case 'Success':
+    case 'Paid':
+    case 'Completed':
+      return '#4CAF50';
+    case 'Pending':
+      return '#FF9800';
+    case 'Processing':
+      return '#2196F3';
+    case 'Failed':
+      return '#F44336';
+    case 'Cancelled':
+      return '#9E9E9E';
+    case 'Expired':
+      return '#757575';
+    default:
+      return '#757575';
+  }
+};
+
+// ✅ NEW: Payment status text mapping
+export const getPaymentStatusText = (status: string): string => {
+  switch (status) {
+    case 'Success':
+    case 'Paid':
+    case 'Completed':
+      return 'Thành công';
+    case 'Pending':
+      return 'Đang chờ';
+    case 'Processing':
+      return 'Đang xử lý';
+    case 'Failed':
+      return 'Thất bại';
+    case 'Cancelled':
+      return 'Đã hủy';
+    case 'Expired':
+      return 'Đã hết hạn';
+    default:
+      return 'Không xác định';
+  }
+};

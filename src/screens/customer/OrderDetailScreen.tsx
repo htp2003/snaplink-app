@@ -87,7 +87,7 @@ export default function OrderDetailScreen() {
             console.log('✅ Booking loaded successfully:', {
               id: bookingData.id,
               status: bookingData.status,
-              totalAmount: bookingData.totalAmount
+              totalPrice: bookingData.totalPrice
             });
           } else {
             console.warn('⚠️ No booking data returned');
@@ -305,11 +305,20 @@ export default function OrderDetailScreen() {
           totalAmount: pricingDetails.totalPrice
         },
         payment: {
-          id: paymentId, // ✅ FIX: This is now numeric orderCode
+          paymentId: paymentId,
+          id: paymentId, 
+          externalTransactionId: paymentResult.externalTransactionId || '',
+          customerId: user.id,
+          customerName: user.fullName || user.email || 'Unknown',
+          totalAmount: pricingDetails.totalPrice,
+          status: paymentResult.status || 'Pending',
+          bookingId: params.bookingId,
+          photographerName: params.photographer.fullName,
+          locationName: params.selectedLocation?.name || '',
           paymentUrl: paymentResult.paymentUrl || '',
           orderCode: paymentResult.orderCode || '',
           amount: paymentResult.amount || pricingDetails.totalPrice,
-          qrCode: qrCode // ✅ FIX: Ensure QR code is passed
+          qrCode: qrCode || ''
         },
         user: {
           name: user.fullName || user.email || 'Unknown',
@@ -430,7 +439,7 @@ export default function OrderDetailScreen() {
         </View>
 
         {/* Location Card (if selected) */}
-        {params.selectedLocation && (
+        {params?.selectedLocation && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.iconWrapper}>
@@ -555,7 +564,7 @@ export default function OrderDetailScreen() {
                 Booking #{currentBooking.id} - {currentBooking.status}
               </Text>
               <Text style={styles.bookingAmountText}>
-                Tổng tiền: {formatCurrency(currentBooking.totalAmount)}
+                Tổng tiền: {formatCurrency(currentBooking.totalPrice)}
               </Text>
             </View>
           </View>

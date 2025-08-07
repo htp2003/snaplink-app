@@ -21,7 +21,7 @@ import type { RootStackNavigationProp } from '../../navigation/types';
 import { usePayment } from '../../hooks/usePayment';
 import type { PaymentFlowData } from '../../types/payment';
 import { EnhancedQRDisplay } from '../../components/EnhancedQRDisplay';
-import { handleDeepLink } from '../../config/deepLinks'; // ✅ THÊM
+import { handleDeepLink } from '../../config/deepLinks';
 
 type PaymentWaitingRouteParams = PaymentFlowData;
 type PaymentWaitingScreenRouteProp = RouteProp<{ PaymentWaiting: PaymentWaitingRouteParams }, 'PaymentWaiting'>;
@@ -37,7 +37,7 @@ export default function PaymentWaitingScreen() {
 
   // Payment polling states
   const [isPolling, setIsPolling] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<string>('PENDING');
+  const [paymentStatus, setPaymentStatus] = useState<string>('Pending'); // ✅ NEW: Use correct initial status
   const [statusCheckCount, setStatusCheckCount] = useState(0);
   const [isPaymentComplete, setIsPaymentComplete] = useState(false);
   const maxPollingAttempts = 60; // 5 phút với interval 5s
@@ -53,7 +53,10 @@ export default function PaymentWaitingScreen() {
   const { 
     getPayment, 
     cancelPayment,
-    loadingPayment 
+    loadingPayment,
+    getCurrentPaymentId,
+    getCurrentOrderCode,
+    getPaymentDebugInfo
   } = usePayment();
 
   // Animations
@@ -91,61 +94,82 @@ export default function PaymentWaitingScreen() {
     }
   }, []);
 
-  // Handle cancel payment with API call
+  // ✅ UPDATED: Handle cancel payment with new API structure
   const handleCancelPayment = useCallback(async (isAutoCancel: boolean = false) => {
     if (isCancelling) return;
-  
+
     try {
       setIsCancelling(true);
       console.log('❌ Cancelling payment for booking:', booking.id);
-  
-      // ✅ Kiểm tra payment có tồn tại không
+
+      // ✅ NEW: Use paymentId (database primary key) for checking
+      const apiPaymentId = payment.paymentId || payment.id;
+      console.log('🔍 Payment info:', { 
+        paymentId: apiPaymentId,                           // Database primary key
+        externalTransactionId: payment.externalTransactionId, // PayOS orderCode
+        orderCode: payment.orderCode,                      // Legacy field
+        bookingId: booking.id 
+      });
+
+      // Check if payment exists before cancelling
       console.log('🔍 Checking if payment exists before cancelling...');
-      const existingPayment = await getPayment(payment.id);
       
-      if (!existingPayment) {
-        throw new Error('Payment không tồn tại hoặc đã bị xóa');
+      let existingPayment;
+      try {
+        existingPayment = await getPayment(apiPaymentId);
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('Payment not found')) {
+          console.log('💀 Payment not found - may already be cancelled or expired');
+          
+          // ✅ Handle missing payment gracefully
+          setPaymentStatus('Cancelled');
+          setIsPaymentComplete(true);
+          stopPolling();
+          stopCountdown();
+          
+          if (!isAutoCancel) {
+            Alert.alert(
+              'Payment đã bị hủy',
+              'Payment không còn tồn tại trên hệ thống. Có thể đã được hủy trước đó.',
+              [{ text: 'Đóng', onPress: () => navigation.goBack() }]
+            );
+          } else {
+            setTimeout(() => navigation.goBack(), 1000);
+          }
+          return;
+        }
+        throw error;
       }
       
-      console.log('✅ Payment exists, current status:', existingPayment.status);
+      console.log('✅ Payment exists, current status:', existingPayment?.status);
       
-      // Kiểm tra status có thể cancel không
-      if (['CANCELLED', 'COMPLETED', 'PAID', 'SUCCESS'].includes(existingPayment.status)) {
-        throw new Error(`Không thể hủy payment với trạng thái: ${existingPayment.status}`);
+      // ✅ NEW: Check status with correct casing
+      if (['Cancelled', 'Completed', 'Paid', 'Success'].includes(existingPayment?.status || '')) {
+        throw new Error(`Không thể hủy payment với trạng thái: ${existingPayment?.status}`);
       }
-  
-      // ✅ Call API to cancel payment và kiểm tra kết quả
+
+      // Call API to cancel payment
       const cancelSuccess = await cancelPayment(booking.id);
       
       if (cancelSuccess) {
         console.log('✅ Payment cancelled successfully');
         
-        // Update local state
-        setPaymentStatus('CANCELLED');
+        // Update local state with correct status format
+        setPaymentStatus('Cancelled');
         setIsPaymentComplete(true);
         stopPolling();
         stopCountdown();
-  
-        // Show success message for manual cancel
+
         if (!isAutoCancel) {
           Alert.alert(
             'Đã hủy thanh toán',
             'Thanh toán đã được hủy thành công. Booking cũng sẽ bị hủy.',
-            [
-              {
-                text: 'Đóng',
-                onPress: () => navigation.goBack()
-              }
-            ]
+            [{ text: 'Đóng', onPress: () => navigation.goBack() }]
           );
         } else {
-          // Auto navigation for timeout cancel
-          setTimeout(() => {
-            navigation.goBack();
-          }, 1000);
+          setTimeout(() => navigation.goBack(), 1000);
         }
       } else {
-        // ✅ Handle trường hợp cancel không thành công
         console.error('❌ Cancel payment returned false');
         Alert.alert(
           'Lỗi',
@@ -170,12 +194,17 @@ export default function PaymentWaitingScreen() {
     } finally {
       setIsCancelling(false);
     }
-  }, [booking.id, payment.id, getPayment, cancelPayment, isCancelling, stopPolling, stopCountdown, navigation]);
+  }, [booking.id, payment.paymentId, payment.id, payment.externalTransactionId, payment.orderCode, getPayment, cancelPayment, isCancelling, stopPolling, stopCountdown, navigation]);
 
+  // ✅ UPDATED: Check payment status with new API structure
   const checkPaymentStatus = useCallback(async () => {
-    if (!payment?.id || isPaymentComplete) return;
+    // ✅ CRITICAL: Use paymentId (database primary key) for API calls
+    const apiPaymentId = payment?.paymentId || payment?.id;
+    
+    if (!apiPaymentId || isPaymentComplete) return;
 
-    const finalStatuses = ['PAID', 'COMPLETED', 'SUCCESS', 'CANCELLED', 'FAILED', 'EXPIRED'];
+    // ✅ NEW: Use correct status values with proper casing
+    const finalStatuses = ['Success', 'Paid', 'Completed', 'Cancelled', 'Failed', 'Expired'];
     if (finalStatuses.includes(paymentStatus)) {
       setIsPaymentComplete(true);
       stopPolling();
@@ -184,18 +213,35 @@ export default function PaymentWaitingScreen() {
 
     try {
       console.log(`🔄 Checking payment status attempt ${statusCheckCount + 1}/${maxPollingAttempts}`);
+      console.log('🔍 Using paymentId (database) for API call:', apiPaymentId);
+      console.log('🔍 Current orderCode (display):', payment.externalTransactionId || payment.orderCode);
 
-      const updatedPayment = await getPayment(payment.id);
+      const updatedPayment = await getPayment(apiPaymentId);
+      
       if (updatedPayment && isMountedRef.current) {
         const newStatus = updatedPayment.status;
         console.log(`📊 Payment status: ${paymentStatus} → ${newStatus}`);
+
+        // ✅ NEW: Log full payment info for debugging
+        if (__DEV__) {
+          console.log('🔍 Updated payment details:', {
+            paymentId: updatedPayment.paymentId,
+            externalTransactionId: updatedPayment.externalTransactionId,
+            status: updatedPayment.status,
+            totalAmount: updatedPayment.totalAmount,
+            customerName: updatedPayment.customerName,
+            photographerName: updatedPayment.photographerName,
+            updatedAt: updatedPayment.updatedAt
+          });
+        }
 
         if (newStatus !== paymentStatus) {
           setPaymentStatus(newStatus);
         }
 
-        if (newStatus === 'PAID' || newStatus === 'COMPLETED' || newStatus === 'SUCCESS') {
-          console.log('✅ Payment completed successfully!');
+        // ✅ NEW: Success case with correct status values
+        if (newStatus === 'Success' || newStatus === 'Paid' || newStatus === 'Completed') {
+          console.log('🎉 PAYMENT SUCCESS!');
           setIsPaymentComplete(true);
           stopPolling();
           stopCountdown();
@@ -207,8 +253,9 @@ export default function PaymentWaitingScreen() {
           return;
         }
 
-        if (newStatus === 'CANCELLED' || newStatus === 'FAILED' || newStatus === 'EXPIRED') {
-          console.log('❌ Payment failed or cancelled');
+        // ✅ NEW: Failure case with correct status values
+        if (newStatus === 'Cancelled' || newStatus === 'Failed' || newStatus === 'Expired') {
+          console.log('❌ PAYMENT FAILED!');
           setIsPaymentComplete(true);
           stopPolling();
           stopCountdown();
@@ -219,39 +266,96 @@ export default function PaymentWaitingScreen() {
                 'Thanh toán thất bại',
                 'Thanh toán của bạn đã thất bại hoặc bị hủy. Vui lòng thử lại.',
                 [
-                  {
-                    text: 'Thử lại',
-                    onPress: () => navigation.goBack()
-                  },
-                  {
-                    text: 'Đóng',
-                    style: 'cancel'
-                  }
+                  { text: 'Thử lại', onPress: () => navigation.goBack() },
+                  { text: 'Đóng', style: 'cancel' }
                 ]
               );
             }
           }, 500);
           return;
         }
+        
+        setStatusCheckCount(prev => prev + 1);
       }
-      setStatusCheckCount(prev => prev + 1);
     } catch (error) {
       console.error('❌ Error checking payment status:', error);
+      
+      // ✅ NEW: Enhanced error handling for payment not found
+      if (error instanceof Error && error.message.includes('Payment not found')) {
+        console.log('💀 Payment not found with paymentId:', apiPaymentId);
+        console.log('💡 This should be database primary key, not orderCode');
+        
+        // Check if this is early attempts (payment might be processing)
+        if (statusCheckCount < 5) {
+          console.log('🔄 Early attempts - continuing to poll...');
+          setStatusCheckCount(prev => prev + 1);
+          return;
+        }
+        
+        // After several attempts, treat as expired
+        console.log('⏰ Payment not found after multiple attempts - treating as expired');
+        setPaymentStatus('Expired');
+        setIsPaymentComplete(true);
+        stopPolling();
+        stopCountdown();
+        
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            Alert.alert(
+              'Payment đã hết hạn',
+              'Payment không còn tồn tại trên hệ thống. Có thể đã hết hạn hoặc bị xóa.',
+              [
+                { text: 'Tạo payment mới', onPress: () => navigation.goBack() },
+                { text: 'Đóng', style: 'cancel' }
+              ]
+            );
+          }
+        }, 500);
+        return;
+      }
+      
+      // Other errors - continue polling but count attempts
+      setStatusCheckCount(prev => prev + 1);
+      
+      // Stop after too many errors
+      if (statusCheckCount >= maxPollingAttempts - 5) {
+        console.log('❌ Too many errors - stopping polling');
+        stopPolling();
+        
+        Alert.alert(
+          'Lỗi kết nối',
+          'Không thể kiểm tra trạng thái thanh toán. Vui lòng thử lại.',
+          [
+            {
+              text: 'Thử lại',
+              onPress: () => {
+                setStatusCheckCount(0);
+                setIsPaymentComplete(false);
+                startPolling();
+              }
+            },
+            { text: 'Đóng', style: 'cancel' }
+          ]
+        );
+      }
     }
-  }, [payment?.id, paymentStatus, statusCheckCount, isPaymentComplete, getPayment, stopPolling, stopCountdown, navigation]);
+  }, [payment?.paymentId, payment?.id, payment?.externalTransactionId, payment?.orderCode, paymentStatus, statusCheckCount, isPaymentComplete, getPayment, stopPolling, stopCountdown, navigation]);
 
-  // Start polling logic
+  // ✅ UPDATED: Start polling with correct paymentId
   const startPolling = useCallback(() => {
-    if (isPolling || !payment?.id || isPaymentComplete) {
+    const apiPaymentId = payment?.paymentId || payment?.id;
+    
+    if (isPolling || !apiPaymentId || isPaymentComplete) {
       console.log('🛑 Polling conditions not met:', {
         isPolling,
-        hasPaymentId: !!payment?.id,
+        hasPaymentId: !!apiPaymentId,
         isComplete: isPaymentComplete
       });
       return;
     }
 
-    const finalStatuses = ['PAID', 'COMPLETED', 'SUCCESS', 'CANCELLED', 'FAILED', 'EXPIRED'];
+    // ✅ NEW: Use correct final status values
+    const finalStatuses = ['Success', 'Paid', 'Completed', 'Cancelled', 'Failed', 'Expired'];
     if (finalStatuses.includes(paymentStatus)) {
       console.log('🛑 Payment already finalized, not starting polling');
       setIsPaymentComplete(true);
@@ -259,6 +363,7 @@ export default function PaymentWaitingScreen() {
     }
 
     console.log('🔄 Starting payment status polling...');
+    console.log('🔄 Using paymentId for polling:', apiPaymentId);
     setIsPolling(true);
     setStatusCheckCount(0);
 
@@ -287,15 +392,12 @@ export default function PaymentWaitingScreen() {
                 onPress: () => {
                   setStatusCheckCount(0);
                   setIsPaymentComplete(false);
-                  if (paymentStatus === 'PENDING') {
+                  if (paymentStatus === 'Pending') {
                     startPolling();
                   }
                 }
               },
-              {
-                text: 'Đóng',
-                style: 'cancel'
-              }
+              { text: 'Đóng', style: 'cancel' }
             ]
           );
         }
@@ -305,16 +407,16 @@ export default function PaymentWaitingScreen() {
       checkPaymentStatus();
     }, 5000);
 
-  }, [isPolling, payment?.id, paymentStatus, statusCheckCount, isPaymentComplete, checkPaymentStatus, stopPolling]);
+  }, [isPolling, payment?.paymentId, payment?.id, paymentStatus, statusCheckCount, isPaymentComplete, checkPaymentStatus, stopPolling]);
 
-  // ✅ THÊM: Handle deep links
+  // ✅ NEW: Handle deep links
   useEffect(() => {
     const handleURL = (event: { url: string }) => {
       const result = handleDeepLink(event.url);
       
       if (result.type === 'PAYMENT_SUCCESS') {
         console.log('✅ Payment success via deep link');
-        setPaymentStatus('SUCCESS');
+        setPaymentStatus('Success');
         setIsPaymentComplete(true);
         stopPolling();
         stopCountdown();
@@ -325,7 +427,7 @@ export default function PaymentWaitingScreen() {
         }, 500);
       } else if (result.type === 'PAYMENT_CANCEL') {
         console.log('❌ Payment cancelled via deep link');
-        setPaymentStatus('CANCELLED');
+        setPaymentStatus('Cancelled');
         setIsPaymentComplete(true);
         stopPolling();
         stopCountdown();
@@ -337,17 +439,66 @@ export default function PaymentWaitingScreen() {
     return () => subscription?.remove();
   }, [stopPolling, stopCountdown]);
 
-  // Component initialization
+  // ✅ UPDATED: Component initialization with enhanced debug info
   useEffect(() => {
     console.log('💳 PaymentWaitingScreen mounted');
-    console.log('💳 Payment data:', {
-      id: payment.id,
-      orderCode: payment.orderCode,
+    console.log('💳 Payment data structure check:', {
+      // Database IDs
+      paymentId: payment.paymentId,                      // Database primary key (13)
+      id: payment.id,                                    // Should be same as paymentId
+      
+      // PayOS/Display IDs  
+      externalTransactionId: payment.externalTransactionId, // PayOS orderCode (8668026703)
+      orderCode: payment.orderCode,                      // Legacy field, should be same as externalTransactionId
+      
+      // Amounts
+      totalAmount: payment.totalAmount,                  // New API field (5050)
+      amount: payment.amount,                            // Legacy field, should be same as totalAmount
+      
+      // Status and info
+      status: payment.status,                            // "Success", "Pending", etc.
+      customerName: payment.customerName,                // "Phan Van Doi"
+      photographerName: payment.photographerName,        // "Alice Smith"
+      locationName: payment.locationName,                // "Central Park Studio"
+      
+      // Types validation
+      paymentIdType: typeof payment.paymentId,
+      idType: typeof payment.id,
+      externalTransactionIdType: typeof payment.externalTransactionId,
+      orderCodeType: typeof payment.orderCode,
+      
+      // API call validation
+      apiCallId: payment.paymentId || payment.id,        // This will be used for /api/Payment/{id}
+      
+      // Other fields
       hasQR: !!payment.qrCode,
       qrCodeLength: payment.qrCode?.length,
       paymentUrl: payment.paymentUrl,
-      amount: payment.amount
     });
+
+    // ✅ CRITICAL: Validate we have the correct database ID for API calls
+    const apiPaymentId = payment.paymentId || payment.id;
+    if (!apiPaymentId) {
+      console.error('❌ CRITICAL: No database paymentId found!');
+      console.error('Available payment fields:', Object.keys(payment));
+      Alert.alert(
+        'Lỗi dữ liệu payment',
+        'Không tìm thấy paymentId để gọi API. Dữ liệu payment không hợp lệ.',
+        [{ text: 'Quay lại', onPress: () => navigation.goBack() }]
+      );
+      return;
+    }
+
+    // ✅ INFO: Show what ID will be used for API calls
+    console.log('✅ Will use paymentId for API calls:', apiPaymentId);
+    console.log('💡 API endpoint will be: /api/Payment/' + apiPaymentId);
+    console.log('🎯 OrderCode for display:', payment.externalTransactionId || payment.orderCode);
+
+    // ✅ NEW: Set initial status from payment data if available
+    if (payment.status && payment.status !== paymentStatus) {
+      console.log('🔄 Setting initial payment status from payment data:', payment.status);
+      setPaymentStatus(payment.status);
+    }
 
     isMountedRef.current = true;
 
@@ -383,22 +534,24 @@ export default function PaymentWaitingScreen() {
     };
   }, []);
 
-  // Auto start polling
+  // ✅ UPDATED: Auto start polling with correct paymentId
   useEffect(() => {
-    if (payment?.id && !isPolling && paymentStatus === 'PENDING' && !isPaymentComplete) {
+    const apiPaymentId = payment?.paymentId || payment?.id;
+    
+    if (apiPaymentId && !isPolling && paymentStatus === 'Pending' && !isPaymentComplete) {
       const startTimeout = setTimeout(() => {
-        if (isMountedRef.current && paymentStatus === 'PENDING' && !isPolling && !isPaymentComplete) {
+        if (isMountedRef.current && paymentStatus === 'Pending' && !isPolling && !isPaymentComplete) {
           startPolling();
         }
       }, 3000);
 
       return () => clearTimeout(startTimeout);
     }
-  }, [payment?.id, isPolling, paymentStatus, isPaymentComplete, startPolling]);
+  }, [payment?.paymentId, payment?.id, isPolling, paymentStatus, isPaymentComplete, startPolling]);
 
-  // Stop polling when payment status changes to final
+  // ✅ UPDATED: Stop polling when payment status changes to final
   useEffect(() => {
-    const finalStatuses = ['PAID', 'COMPLETED', 'SUCCESS', 'CANCELLED', 'FAILED', 'EXPIRED'];
+    const finalStatuses = ['Success', 'Paid', 'Completed', 'Cancelled', 'Failed', 'Expired'];
     if (finalStatuses.includes(paymentStatus) && !isPaymentComplete) {
       console.log('🛑 Payment finalized, stopping polling due to status change');
       setIsPaymentComplete(true);
@@ -431,23 +584,23 @@ export default function PaymentWaitingScreen() {
     pulse();
   }, [pulseAnim, isPaymentComplete]);
 
-  // Status message
+  // ✅ UPDATED: Status message with correct status values
   const statusMessage = useMemo(() => {
     switch (paymentStatus) {
-      case 'PAID':
-      case 'COMPLETED':
-      case 'SUCCESS':
+      case 'Success':        // ✅ NEW: Capital S
+      case 'Paid':
+      case 'Completed':
         return {
           title: '🎉 Thanh toán thành công!',
           subtitle: 'Booking của bạn đã được xác nhận'
         };
-      case 'CANCELLED':
+      case 'Cancelled':      // ✅ NEW: Capital C
         return {
           title: '❌ Đã hủy thanh toán',
           subtitle: 'Thanh toán đã được hủy'
         };
-      case 'FAILED':
-      case 'EXPIRED':
+      case 'Failed':         // ✅ NEW: Capital F
+      case 'Expired':        // ✅ NEW: Capital E
         return {
           title: '❌ Thanh toán thất bại',
           subtitle: 'Vui lòng thử lại hoặc sử dụng phương thức khác'
@@ -460,17 +613,17 @@ export default function PaymentWaitingScreen() {
     }
   }, [paymentStatus, isPolling]);
 
-  // Status Icon
+  // ✅ UPDATED: Status Icon with correct status values
   const StatusIcon = React.memo(() => {
     const getStatusIcon = () => {
       switch (paymentStatus) {
-        case 'PAID':
-        case 'COMPLETED':
-        case 'SUCCESS':
+        case 'Success':
+        case 'Paid':
+        case 'Completed':
           return <MaterialIcons name="check-circle" size={getResponsiveSize(60)} color="#4CAF50" />;
-        case 'CANCELLED':
-        case 'FAILED':
-        case 'EXPIRED':
+        case 'Cancelled':
+        case 'Failed':
+        case 'Expired':
           return <MaterialIcons name="error" size={getResponsiveSize(60)} color="#F44336" />;
         default:
           return <MaterialIcons name="payment" size={getResponsiveSize(60)} color="#FF9800" />;
@@ -479,13 +632,13 @@ export default function PaymentWaitingScreen() {
 
     const getStatusStyle = () => {
       switch (paymentStatus) {
-        case 'PAID':
-        case 'COMPLETED':
-        case 'SUCCESS':
+        case 'Success':
+        case 'Paid':
+        case 'Completed':
           return [styles.statusIconContainer, styles.successIcon];
-        case 'CANCELLED':
-        case 'FAILED':
-        case 'EXPIRED':
+        case 'Cancelled':
+        case 'Failed':
+        case 'Expired':
           return [styles.statusIconContainer, styles.failedIcon];
         default:
           return [styles.statusIconContainer, styles.pendingIcon];
@@ -525,25 +678,26 @@ export default function PaymentWaitingScreen() {
     );
   }, [handleCancelPayment]);
 
-  // ✅ SỬA: Simplified handlePaymentComplete
+  // ✅ UPDATED: Simplified handlePaymentComplete
   const handlePaymentComplete = useCallback(() => {
     console.log('✅ Payment completed manually');
     setIsPaymentComplete(true);
-    setPaymentStatus('SUCCESS');
+    setPaymentStatus('Success');
     stopPolling();
     stopCountdown();
     setShowSuccessModal(true);
   }, [stopPolling, stopCountdown]);
 
   const handleManualStatusCheck = useCallback(async () => {
-    if (!payment?.id || loadingPayment) return;
+    const apiPaymentId = payment?.paymentId || payment?.id;
+    if (!apiPaymentId || loadingPayment) return;
 
     try {
       await checkPaymentStatus();
     } catch (error) {
       Alert.alert('Lỗi', 'Không thể kiểm tra trạng thái thanh toán');
     }
-  }, [payment?.id, loadingPayment, checkPaymentStatus]);
+  }, [payment?.paymentId, payment?.id, loadingPayment, checkPaymentStatus]);
 
   // Success Modal Component
   const SuccessModal = React.memo(() => (

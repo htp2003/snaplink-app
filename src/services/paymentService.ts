@@ -14,6 +14,7 @@ const PAYMENT_ENDPOINTS = {
   CANCEL: (bookingId: number) => `/api/Payment/booking/${bookingId}/cancel`,
   WEBHOOK: '/api/Payment/webhook'
 };
+
 export class PaymentService {
 
   // ✅ NEW: Helper method to analyze QR code format
@@ -68,7 +69,7 @@ export class PaymentService {
     };
   }
 
-  // ✅ ENHANCED: Create payment link with better QR handling
+  // ✅ ENHANCED: Create payment link - Handle both old and new response formats
   async createPaymentLink(
     userId: number, 
     paymentData: CreatePaymentLinkRequest
@@ -83,28 +84,8 @@ export class PaymentService {
         throw new Error('Invalid user ID provided');
       }
 
-      if (!paymentData) {
-        throw new Error('Payment data is required');
-      }
-
-      if (!paymentData.productName || typeof paymentData.productName !== 'string' || paymentData.productName.trim() === '') {
-        throw new Error('productName is required and must be a non-empty string');
-      }
-
-      if (!paymentData.description || typeof paymentData.description !== 'string' || paymentData.description.trim() === '') {
-        throw new Error('description is required and must be a non-empty string');
-      }
-
-      if (!paymentData.bookingId || isNaN(paymentData.bookingId) || paymentData.bookingId <= 0) {
-        throw new Error('bookingId is required and must be a positive number');
-      }
-
-      if (!paymentData.successUrl || typeof paymentData.successUrl !== 'string' || paymentData.successUrl.trim() === '') {
-        throw new Error('successUrl is required and must be a non-empty string');
-      }
-  
-      if (!paymentData.cancelUrl || typeof paymentData.cancelUrl !== 'string' || paymentData.cancelUrl.trim() === '') {
-        throw new Error('cancelUrl is required and must be a non-empty string');
+      if (!paymentData || !paymentData.productName || !paymentData.description || !paymentData.bookingId) {
+        throw new Error('Missing required payment data fields');
       }
 
       // Prepare final payload
@@ -112,12 +93,11 @@ export class PaymentService {
         productName: paymentData.productName.trim(),
         description: paymentData.description.trim(),
         bookingId: parseInt(paymentData.bookingId.toString()),
-        successUrl: paymentData.successUrl.trim(),
-        cancelUrl: paymentData.cancelUrl.trim()
+        successUrl: paymentData.successUrl?.trim() || DEEP_LINKS.PAYMENT_SUCCESS,
+        cancelUrl: paymentData.cancelUrl?.trim() || DEEP_LINKS.PAYMENT_CANCEL
       };
 
       console.log('💳 Final payload:', JSON.stringify(finalPayload, null, 2));
-      console.log('💳 API endpoint:', PAYMENT_ENDPOINTS.CREATE(userId));
 
       // Make API call
       const response = await apiClient.post<any>(
@@ -125,212 +105,201 @@ export class PaymentService {
         finalPayload
       );
       
-      console.log('📦 Payment API response:', JSON.stringify(response, null, 2));
+      console.log('📦 Payment Creation API response:', JSON.stringify(response, null, 2));
       
-      // Handle different response structures for payment
-      let paymentResponse;
-      
-      if (response.data) {
-        paymentResponse = response.data;
-        console.log('📦 Using response.data for payment:', paymentResponse);
-      } else if (response.payment) {
-        paymentResponse = response.payment;
-        console.log('📦 Using response.payment:', paymentResponse);
+      // ✅ CRITICAL: Handle new API response format
+      let apiResponse;
+      if (response.error === 0 && response.data) {
+        // New API format: { error: 0, message: "...", data: { paymentId: 10, payOSData: {...} } }
+        apiResponse = response.data;
+        console.log('✅ Detected new API response format');
+      } else if (response.data) {
+        apiResponse = response.data;
       } else {
-        paymentResponse = response;
-        console.log('📦 Using direct payment response:', paymentResponse);
+        apiResponse = response;
       }
       
-      // Validate response
-      if (!paymentResponse) {
+      if (!apiResponse) {
         throw new Error('Empty response from payment API');
       }
 
-      // ✅ FIX: Use orderCode as the main ID for tracking
-      const paymentId = paymentResponse.orderCode; // Use orderCode (number) instead of paymentLinkId (string)
-      const paymentLinkId = paymentResponse.paymentLinkId; // Keep paymentLinkId for reference
-      
+      console.log('🔍 Processing API response:', {
+        hasPaymentId: 'paymentId' in apiResponse,
+        hasPayOSData: 'payOSData' in apiResponse,
+        paymentId: apiResponse.paymentId,
+        responseKeys: Object.keys(apiResponse)
+      });
+
+      // ✅ NEW: Handle new API response structure
+      // API response: { paymentId: 10, payOSData: { orderCode: 1430368655, ... } }
+      const paymentId = apiResponse.paymentId;           // Database primary key
+      const payOSData = apiResponse.payOSData || {};     // PayOS data
+      const orderCode = payOSData.orderCode;             // PayOS orderCode
+
       if (!paymentId) {
-        console.error('❌ Payment response missing orderCode. Available fields:', Object.keys(paymentResponse));
-        throw new Error('Payment response missing required orderCode field');
+        console.error('❌ Missing paymentId in API response:', Object.keys(apiResponse));
+        throw new Error('Payment response missing required paymentId field');
       }
 
-      // ✅ ENHANCED: Better QR code extraction with analysis
+      // Extract QR code from payOSData
       let qrCode = null;
       let qrAnalysis = null;
       
-      // Try different possible QR code field names
-      if (paymentResponse.qrCode) {
-        qrCode = paymentResponse.qrCode;
+      if (payOSData.qrCode) {
+        qrCode = payOSData.qrCode;
         qrAnalysis = this.analyzeQRCodeFormat(qrCode);
-        console.log('✅ Found QR code in qrCode field:', qrAnalysis);
-      } else if (paymentResponse.qr) {
-        qrCode = paymentResponse.qr;
-        qrAnalysis = this.analyzeQRCodeFormat(qrCode);
-        console.log('✅ Found QR code in qr field:', qrAnalysis);
-      } else if (paymentResponse.qrCodeUrl) {
-        qrCode = paymentResponse.qrCodeUrl;
-        qrAnalysis = this.analyzeQRCodeFormat(qrCode);
-        console.log('✅ Found QR code in qrCodeUrl field:', qrAnalysis);
-      } else {
-        console.warn('⚠️ No QR code found in payment response. Available fields:', Object.keys(paymentResponse));
+        console.log('✅ Found QR code:', qrAnalysis);
       }
 
-      // ✅ Enhanced QR validation and logging
-      if (qrCode && qrAnalysis) {
-        console.log('🔍 QR Code Analysis:', {
-          type: qrAnalysis.type,
-          isValid: qrAnalysis.isValid,
-          details: qrAnalysis.details,
-          rawLength: qrCode.length,
-          preview: qrCode.substring(0, 50) + (qrCode.length > 50 ? '...' : '')
-        });
-        
-        if (!qrAnalysis.isValid) {
-          console.warn('⚠️ QR Code validation failed:', qrAnalysis.details);
-          console.warn('⚠️ Raw QR data preview:', qrCode.substring(0, 200));
-        }
-      }
-
-      // ✅ FIX: Map PayOS response to our PaymentResponse interface
+      // ✅ FIXED: Map to new PaymentResponse structure
       const normalizedPaymentResponse: PaymentResponse = {
-        id: paymentId, // ✅ FIX: Use orderCode as main ID for tracking
-        paymentUrl: paymentResponse.checkoutUrl || paymentResponse.paymentUrl || '',
-        orderCode: paymentResponse.orderCode?.toString() || '',
-        amount: paymentResponse.amount || 0,
-        status: paymentResponse.status || 'PENDING',
-        bookingId: paymentData.bookingId, // From original request since API doesn't return it
-        createdAt: new Date().toISOString(), // PayOS doesn't return createdAt
-        qrCode: qrCode, // ✅ FIX: Properly extracted QR code
+        // ✅ PRIMARY: New API fields (with defaults from payOSData)
+        paymentId: paymentId,
+        externalTransactionId: orderCode?.toString() || '',
+        customerId: userId,                                  // From request since API doesn't return
+        customerName: '',                                    // Not available in creation response
+        customerEmail: '',                                   // Not available in creation response
+        totalAmount: payOSData.amount || 0,
+        status: payOSData.status || 'Pending',
+        currency: payOSData.currency || 'VND',
+        method: 'PayOS',
+        note: paymentData.description,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        bookingId: paymentData.bookingId,
+        bookingStatus: 'Pending',                           // Default for new payment
+        photographerName: '',                               // Not available in creation response
+        locationName: '',                                   // Not available in creation response
+        isWalletTopUp: false,
+
+        // ✅ LEGACY: Backward compatibility
+        id: paymentId,                                      // = paymentId
+        paymentUrl: payOSData.checkoutUrl || '',
+        orderCode: orderCode?.toString() || '',             // = externalTransactionId
+        amount: payOSData.amount || 0,                      // = totalAmount
+        qrCode: qrCode,
         
-        // ✅ THÊM: Keep original PayOS fields for reference
-        paymentLinkId: paymentLinkId, // Keep for PayOS operations
-        accountNumber: paymentResponse.accountNumber,
-        bin: paymentResponse.bin,
-        currency: paymentResponse.currency,
-        description: paymentResponse.description,
-        expiredAt: paymentResponse.expiredAt,
+        // PayOS specific fields
+        paymentLinkId: payOSData.paymentLinkId,
+        accountNumber: payOSData.accountNumber,
+        bin: payOSData.bin,
+        description: paymentData.description,
+        expiredAt: payOSData.expiredAt,
         
-        // ✅ NEW: Add QR analysis for debugging (if needed in type)
+        // QR analysis
         qrAnalysis: qrAnalysis
       };
 
       console.log('✅ Payment link created successfully:', {
-        id: normalizedPaymentResponse.id, // This is orderCode (number)
-        paymentLinkId: normalizedPaymentResponse.paymentLinkId, // This is paymentLinkId (string)
+        paymentId: normalizedPaymentResponse.paymentId,     // Database ID (10)
+        id: normalizedPaymentResponse.id,                   // Same as paymentId
+        externalTransactionId: normalizedPaymentResponse.externalTransactionId, // PayOS orderCode (1430368655)
+        orderCode: normalizedPaymentResponse.orderCode,     // Same as externalTransactionId
         paymentUrl: normalizedPaymentResponse.paymentUrl,
-        orderCode: normalizedPaymentResponse.orderCode,
         amount: normalizedPaymentResponse.amount,
+        totalAmount: normalizedPaymentResponse.totalAmount,
         status: normalizedPaymentResponse.status,
         hasQRCode: !!normalizedPaymentResponse.qrCode,
         qrType: qrAnalysis?.type,
-        qrValid: qrAnalysis?.isValid,
-        qrLength: normalizedPaymentResponse.qrCode?.length
+        qrValid: qrAnalysis?.isValid
       });
       
       return normalizedPaymentResponse;
       
     } catch (error) {
-      console.error('❌ Payment creation error details:');
-      
-      if (error instanceof Error) {
-        console.error('❌ Error message:', error.message);
-        console.error('❌ Error stack:', error.stack);
-        
-        // Check nếu là API error với message cụ thể
-        if (error.message.includes('Failed to create payment link')) {
-          console.error('🚨 Specific API Error: Payment link creation failed - possible reasons:');
-          console.error('   - Booking already has a payment');
-          console.error('   - Booking status is not valid for payment');
-          console.error('   - Payment service configuration issue');
-          console.error('   - BookingId does not exist or is not accessible');
-          
-          throw new Error('Không thể tạo link thanh toán. Booking có thể đã có thanh toán hoặc trạng thái không phù hợp.');
-        }
-      } else {
-        console.error('❌ Raw error:', error);
-      }
-      
-      // Re-throw with more context
-      const errorMessage = error instanceof Error ? error.message : 'Unknown payment creation error';
-      throw new Error(`Payment creation failed: ${errorMessage}`);
+      console.error('❌ Payment creation error:', error);
+      throw error;
     }
   }
 
-  // ✅ ENHANCED: Get payment with better QR handling
+  // ✅ ENHANCED: Get payment - Handle new API response format
   async getPayment(paymentId: number): Promise<PaymentResponse> {
     try {
-      console.log('🔍 Fetching payment by orderCode:', paymentId);
+      console.log('🔍 Fetching payment by paymentId:', paymentId);
+      
+      if (!paymentId || isNaN(paymentId) || paymentId <= 0) {
+        throw new Error('Invalid paymentId - must be a positive number');
+      }
       
       const response = await apiClient.get<any>(
-        PAYMENT_ENDPOINTS.GET(paymentId)
+        PAYMENT_ENDPOINTS.GET(paymentId)  // /api/Payment/{paymentId}
       );
       
-      console.log('📦 Raw payment response:', JSON.stringify(response, null, 2));
+      console.log('📦 Raw payment GET response:', JSON.stringify(response, null, 2));
       
-      // Handle different response structures
-      let paymentData;
-      if (response.data) {
-        paymentData = response.data;
-      } else if (response.payment) {
-        paymentData = response.payment;
+      // ✅ NEW: Handle new API response format
+      let apiData;
+      if (response.error === 0 && response.data) {
+        // New API format: { error: 0, message: "...", data: { paymentId: 13, externalTransactionId: "...", ... } }
+        apiData = response.data;
+        console.log('✅ Detected new API GET response format');
+      } else if (response.data) {
+        apiData = response.data;
       } else {
-        paymentData = response;
+        apiData = response;
       }
-
-      // ✅ ENHANCED: Better QR code extraction for getPayment
-      let qrCode = null;
-      let qrAnalysis = null;
       
-      if (paymentData.qrCode) {
-        qrCode = paymentData.qrCode;
-        qrAnalysis = this.analyzeQRCodeFormat(qrCode);
-      } else if (paymentData.qr) {
-        qrCode = paymentData.qr;
-        qrAnalysis = this.analyzeQRCodeFormat(qrCode);
-      } else if (paymentData.qrCodeUrl) {
-        qrCode = paymentData.qrCodeUrl;
-        qrAnalysis = this.analyzeQRCodeFormat(qrCode);
+      if (!apiData) {
+        throw new Error('Empty response from payment API');
       }
 
-      if (qrCode && qrAnalysis) {
-        console.log('🔍 QR Code Analysis (getPayment):', {
-          type: qrAnalysis.type,
-          isValid: qrAnalysis.isValid,
-          details: qrAnalysis.details
-        });
-      }
+      console.log('🔍 GET Response structure:', {
+        hasPaymentId: 'paymentId' in apiData,
+        hasExternalTransactionId: 'externalTransactionId' in apiData,
+        hasCustomerId: 'customerId' in apiData,
+        hasTotalAmount: 'totalAmount' in apiData,
+        status: apiData.status,
+        responseKeys: Object.keys(apiData)
+      });
 
-      // ✅ FIX: Normalize PayOS response for getPayment
+      // ✅ CRITICAL: Map new API response to PaymentResponse
       const normalizedPayment: PaymentResponse = {
-        id: paymentData.orderCode || paymentId, // Use orderCode as main ID
-        paymentUrl: paymentData.checkoutUrl || paymentData.paymentUrl || '',
-        orderCode: paymentData.orderCode?.toString() || paymentId.toString(),
-        amount: paymentData.amount || 0,
-        status: paymentData.status || 'PENDING',
-        bookingId: paymentData.bookingId || 0,
-        createdAt: paymentData.createdAt || new Date().toISOString(),
-        qrCode: qrCode, // ✅ FIX: Properly extracted QR code
+        // ✅ PRIMARY: Map new API fields directly
+        paymentId: apiData.paymentId || paymentId,
+        externalTransactionId: apiData.externalTransactionId || '',
+        customerId: apiData.customerId || 0,
+        customerName: apiData.customerName || '',
+        customerEmail: apiData.customerEmail || '',
+        totalAmount: apiData.totalAmount || 0,
+        status: apiData.status || 'Pending',                // "Success", "Pending", etc.
+        currency: apiData.currency || 'VND',
+        method: apiData.method || 'PayOS',
+        note: apiData.note || '',
+        createdAt: apiData.createdAt || new Date().toISOString(),
+        updatedAt: apiData.updatedAt || new Date().toISOString(),
+        bookingId: apiData.bookingId || 0,
+        bookingStatus: apiData.bookingStatus || 'Pending',
+        photographerName: apiData.photographerName || '',
+        locationName: apiData.locationName || '',
+        isWalletTopUp: apiData.isWalletTopUp || false,
+
+        // ✅ LEGACY: Backward compatibility mapping
+        id: apiData.paymentId || paymentId,                 // = paymentId
+        paymentUrl: '',                                     // Not in GET response
+        orderCode: apiData.externalTransactionId || '',     // = externalTransactionId  
+        amount: apiData.totalAmount || 0,                   // = totalAmount
+        qrCode: null,                                       // Not in GET response
         
-        // Keep PayOS specific fields
-        paymentLinkId: paymentData.paymentLinkId,
-        accountNumber: paymentData.accountNumber,
-        bin: paymentData.bin,
-        currency: paymentData.currency,
-        description: paymentData.description,
-        expiredAt: paymentData.expiredAt,
-        
-        // Add QR analysis
-        qrAnalysis: qrAnalysis
+        // PayOS fields - not in new GET response
+        paymentLinkId: undefined,
+        accountNumber: undefined,
+        bin: undefined,
+        description: apiData.note || '',
+        expiredAt: undefined,
+        qrAnalysis: null
       };
       
-      console.log('✅ Payment fetched successfully:', {
-        id: normalizedPayment.id,
-        status: normalizedPayment.status,
-        orderCode: normalizedPayment.orderCode,
-        hasQRCode: !!normalizedPayment.qrCode,
-        qrType: qrAnalysis?.type,
-        qrValid: qrAnalysis?.isValid
+      console.log('✅ Payment GET normalized successfully:', {
+        paymentId: normalizedPayment.paymentId,             // Database ID (13)
+        id: normalizedPayment.id,                           // Same as paymentId
+        externalTransactionId: normalizedPayment.externalTransactionId, // PayOS orderCode
+        orderCode: normalizedPayment.orderCode,             // Same as externalTransactionId
+        status: normalizedPayment.status,                   // "Success", "Pending", etc.
+        totalAmount: normalizedPayment.totalAmount,
+        amount: normalizedPayment.amount,                   // Same as totalAmount
+        customerName: normalizedPayment.customerName,
+        photographerName: normalizedPayment.photographerName,
+        locationName: normalizedPayment.locationName
       });
       
       return normalizedPayment;
@@ -340,6 +309,7 @@ export class PaymentService {
     }
   }
 
+  // ✅ ENHANCED: Cancel payment 
   async cancelPayment(bookingId: number): Promise<void> {
     try {
       console.log('❌ Cancelling payment for booking:', bookingId);
@@ -373,27 +343,14 @@ export class PaymentService {
       console.log('💳 Creating payment for booking:', { userId, bookingId, photographerName, bookingDetails });
 
       const productName = `Dịch vụ chụp ảnh - ${photographerName}`;
-      const description = `Thanh toán`;
-
-    // ✅ THÊM: Sử dụng deep link URLs
-    const successUrl = DEEP_LINKS.PAYMENT_SUCCESS;
-    const cancelUrl = DEEP_LINKS.PAYMENT_CANCEL;
-
-      console.log('📝 Payment data:', {
-        productName,
-        productNameLength: productName.length,
-        description,
-        descriptionLength: description.length,
-        bookingId,
-        userId
-      });
+      const description = `Thanh toán booking ${bookingId}`;
 
       const paymentData: CreatePaymentLinkRequest = {
         productName,
         description,
         bookingId,
-        successUrl,
-        cancelUrl
+        successUrl: DEEP_LINKS.PAYMENT_SUCCESS,
+        cancelUrl: DEEP_LINKS.PAYMENT_CANCEL
       };
 
       return await this.createPaymentLink(userId, paymentData);
@@ -401,6 +358,83 @@ export class PaymentService {
       console.error('❌ Error creating payment for booking:', error);
       throw error;
     }
+  }
+
+  // ===== STATUS UTILITY METHODS =====
+
+  // ✅ Get payment status color
+  getPaymentStatusColor(status?: string): string {
+    if (!status) return '#757575';
+    
+    switch (status) {
+      case 'Success':
+      case 'Completed':
+      case 'Paid':
+        return '#4CAF50';
+      case 'Pending':
+        return '#FF9800';
+      case 'Processing':
+        return '#2196F3';
+      case 'Failed':
+        return '#F44336';
+      case 'Cancelled':
+        return '#9E9E9E';
+      case 'Expired':
+        return '#757575';
+      default:
+        return '#757575';
+    }
+  }
+
+  // ✅ Get payment status text
+  getPaymentStatusText(status?: string): string {
+    if (!status) return 'Không xác định';
+    
+    switch (status) {
+      case 'Success':
+      case 'Completed':
+      case 'Paid':
+        return 'Thành công';
+      case 'Pending':
+        return 'Đang chờ';
+      case 'Processing':
+        return 'Đang xử lý';
+      case 'Failed':
+        return 'Thất bại';
+      case 'Cancelled':
+        return 'Đã hủy';
+      case 'Expired':
+        return 'Đã hết hạn';
+      default:
+        return 'Không xác định';
+    }
+  }
+
+  // ✅ Check if payment is completed
+  isPaymentCompleted(status?: string): boolean {
+    if (!status) return false;
+    const completedStatuses = ['Success', 'Completed', 'Paid'];
+    return completedStatuses.includes(status);
+  }
+
+  // ✅ Check if payment is pending
+  isPaymentPending(status?: string): boolean {
+    if (!status) return false;
+    const pendingStatuses = ['Pending', 'Processing'];
+    return pendingStatuses.includes(status);
+  }
+
+  // ✅ Check if payment is failed
+  isPaymentFailed(status?: string): boolean {
+    if (!status) return false;
+    const failedStatuses = ['Failed', 'Cancelled', 'Expired'];
+    return failedStatuses.includes(status);
+  }
+
+  // ✅ NEW: Validate QR code format
+  validateQRCode(qrCode: string): boolean {
+    const analysis = this.analyzeQRCodeFormat(qrCode);
+    return analysis.isValid;
   }
 
   // ===== TEST & DEBUG METHODS =====
@@ -459,7 +493,9 @@ export class PaymentService {
           body: JSON.stringify({
             productName: paymentData.productName.trim(),
             description: paymentData.description.trim(),
-            bookingId: parseInt(paymentData.bookingId.toString())
+            bookingId: parseInt(paymentData.bookingId.toString()),
+            successUrl: paymentData.successUrl || DEEP_LINKS.PAYMENT_SUCCESS,
+            cancelUrl: paymentData.cancelUrl || DEEP_LINKS.PAYMENT_CANCEL
           })
         }
       );
@@ -498,110 +534,6 @@ export class PaymentService {
         error: error instanceof Error ? error.message : 'Network error'
       };
     }
-  }
-
-  // ===== UTILITY METHODS =====
-
-  // ✅ Get payment status color
-  getPaymentStatusColor(status?: string): string {
-    if (!status) return '#757575';
-    
-    switch (status.toLowerCase()) {
-      case 'success':
-      case 'completed':
-      case 'paid':
-        return '#4CAF50';
-      case 'pending':
-        return '#FF9800';
-      case 'processing':
-        return '#2196F3';
-      case 'failed':
-        return '#F44336';
-      case 'cancelled':
-        return '#9E9E9E';
-      case 'expired':
-        return '#757575';
-      default:
-        return '#757575';
-    }
-  }
-
-  // ✅ Get payment status text
-  getPaymentStatusText(status?: string): string {
-    if (!status) return 'Không xác định';
-    
-    switch (status.toLowerCase()) {
-      case 'success':
-      case 'completed':
-      case 'paid':
-        return 'Thành công';
-      case 'pending':
-        return 'Đang chờ';
-      case 'processing':
-        return 'Đang xử lý';
-      case 'failed':
-        return 'Thất bại';
-      case 'cancelled':
-        return 'Đã hủy';
-      case 'expired':
-        return 'Đã hết hạn';
-      default:
-        return 'Không xác định';
-    }
-  }
-
-  // ✅ Check if payment is completed
-  isPaymentCompleted(status?: string): boolean {
-    if (!status) return false;
-    const completedStatuses = ['success', 'completed', 'paid'];
-    return completedStatuses.includes(status.toLowerCase());
-  }
-
-  // ✅ Check if payment is pending
-  isPaymentPending(status?: string): boolean {
-    if (!status) return false;
-    const pendingStatuses = ['pending', 'processing'];
-    return pendingStatuses.includes(status.toLowerCase());
-  }
-
-  // ✅ Check if payment is failed
-  isPaymentFailed(status?: string): boolean {
-    if (!status) return false;
-    const failedStatuses = ['failed', 'cancelled', 'expired'];
-    return failedStatuses.includes(status.toLowerCase());
-  }
-
-  // ✅ NEW: Validate QR code format
-  validateQRCode(qrCode: string): boolean {
-    const analysis = this.analyzeQRCodeFormat(qrCode);
-    return analysis.isValid;
-  }
-
-  // ✅ NEW: Get QR code suggestions for troubleshooting
-  getQRCodeSuggestions(qrCode: string): string[] {
-    const analysis = this.analyzeQRCodeFormat(qrCode);
-    const suggestions: string[] = [];
-
-    switch (analysis.type) {
-      case 'emvco':
-        suggestions.push('Đây là mã QR EMVCo - có thể sao chép và dán vào ứng dụng banking');
-        suggestions.push('Thử sử dụng chức năng "Nhập mã thủ công" trong app banking');
-        break;
-      case 'http_url':
-        suggestions.push('Đây là URL - có thể mở trực tiếp trong trình duyệt');
-        break;
-      case 'data_uri':
-        suggestions.push('Đây là ảnh QR dạng Data URI - có thể hiển thị trực tiếp');
-        break;
-      case 'base64_image':
-        suggestions.push('Đây là ảnh QR dạng Base64 - cần thêm prefix để hiển thị');
-        break;
-      default:
-        suggestions.push('Định dạng QR không xác định - thử sao chép và dán vào app banking');
-        suggestions.push('Hoặc sử dụng link thanh toán thay thế');
-    }
-
-    return suggestions;
   }
 }
 

@@ -21,6 +21,7 @@ import {
   DeliveryMethod,
   PhotoDeliveryData 
 } from '../../types/photoDelivery';
+import { usePhotographerAuth } from '../../hooks/usePhotographerAuth';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'PhotoDeliveryScreen'>;
 
@@ -35,7 +36,14 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
   const { bookingId, customerName, orderId } = route.params as RouteParams;
   
   // Replace with actual photographer ID (from auth context)
-  const photographerId = 17;
+  const { 
+        userId, 
+        photographerId, 
+        isPhotographer, 
+        isLoading: authLoading, 
+        error: authError,
+        hasPhotographerProfile 
+      } = usePhotographerAuth();
   
   const {
     loading,
@@ -43,7 +51,7 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
     createPhotoDelivery,
     updatePhotoDelivery,
     getPhotoDeliveryByBooking,
-  } = usePhotoDelivery(photographerId);
+  } = usePhotoDelivery(photographerId ?? 0);
 
   // Form state
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('CustomerDevice');

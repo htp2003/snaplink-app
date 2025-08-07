@@ -248,6 +248,7 @@ export enum ParticipantRole {
     loadHistoryOnMount?: boolean;
     maxMessages?: number;
     enableTypingIndicator?: boolean;
+    enableRealtime?: boolean;
   }
   
   // ===== ERROR TYPES =====

@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBookings } from '../../hooks/useBookingPhotographer';
 import { usePhotoDelivery } from '../../hooks/usePhotoDelivery';
 import { BookingCardData } from '../../types/booking';
+import { usePhotographerAuth } from '../../hooks/usePhotographerAuth';
 // ✅ ADD THESE IMPORTS:
 import { useChat } from '../../hooks/useChat';
 import { useAuth } from '../../hooks/useAuth';
@@ -27,7 +28,14 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   const currentUserId = getCurrentUserId();
   
   // ✅ GET REAL PHOTOGRAPHER ID:
-  const photographerId = user?.photographerId || 2; // Fallback to 2 for testing
+  const { 
+      userId, 
+      photographerId, 
+      isPhotographer, 
+      isLoading: authLoading, 
+      error: authError,
+      hasPhotographerProfile 
+    } = usePhotographerAuth();
   
   const {
     loading,
@@ -43,40 +51,51 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     loadMoreBookings,
     bookings, // Raw bookings data
     getBookingsForUI, // UI transformed data
-  } = useBookings(photographerId);
+  } = useBookings(photographerId ?? 0);
 
   // Photo Delivery hook
   const {
     hasPhotoDelivery,
     getPhotoDeliveryForBooking,
     refreshPhotoDeliveries,
-  } = usePhotoDelivery(photographerId);
+  } = usePhotoDelivery(photographerId ?? 0);
 
   // ✅ ADD CHAT HOOK:
   const {
     createDirectConversation,
     error: chatError,
     creatingConversation,
+    isSignalRConnected,
+  signalRError,
+  getSignalRStatus,
+  testReceiveMessage, // ✅ Test function
+    conversations, // ✅ For debugging
   } = useChat({
     userId: currentUserId || 0,
     autoRefresh: false,
+    enableRealtime: true,
   });
 
   // Debug logs
-  useEffect(() => {
-    console.log('=== OrderManagementScreen Debug ===');
-    console.log('Photographer ID:', photographerId);
-    console.log('Current User ID:', currentUserId); // ✅ ADD
-    console.log('Active Tab:', activeTab);
-    console.log('Loading:', loading);
-    console.log('Error:', error);
-    console.log('Chat Error:', chatError); // ✅ ADD
-    console.log('Raw bookings:', bookings);
-    console.log('UI bookings:', getBookingsForUI());
-    console.log('Booking counts:', getBookingCounts());
-    console.log('Filtered orders for activeTab:', getBookingsByStatus(activeTab));
-    console.log('=====================================');
-  }, [bookings, activeTab, loading, error, chatError, getBookingsForUI, getBookingCounts, getBookingsByStatus, currentUserId]); // ✅ ADD DEPS
+  // useEffect(() => {
+  //   console.log('=== OrderManagementScreen Debug ===');
+  //   console.log('Photographer ID:', photographerId);
+  //   console.log('Current User ID:', currentUserId); // ✅ ADD
+  //   console.log('Active Tab:', activeTab);
+  //   console.log('Loading:', loading);
+  //   console.log('Error:', error);
+  //   console.log('Chat Error:', chatError); // ✅ ADD
+  //   console.log('Raw bookings:', bookings);
+  //   console.log('UI bookings:', getBookingsForUI());
+  //   console.log('Booking counts:', getBookingCounts());
+  //   console.log('Filtered orders for activeTab:', getBookingsByStatus(activeTab));
+  //   console.log('=== SignalR Debug Info ===');
+  // console.log('SignalR Connected:', isSignalRConnected);
+  // console.log('SignalR Error:', signalRError);
+  // console.log('SignalR Status:', getSignalRStatus());
+  // console.log('Current User ID:', currentUserId);
+  // console.log('=========================');
+  // }, [bookings, activeTab, loading, error, chatError, getBookingsForUI, getBookingCounts, getBookingsByStatus, currentUserId, isSignalRConnected, signalRError]); // ✅ ADD DEPS
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', {
@@ -467,6 +486,75 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
           </Text>
         )}
         {/* ✅ ADD CHAT DEBUG INFO: */}
+        {chatError && (
+          <Text style={{ fontSize: 12, color: '#ff0000' }}>
+            Chat Error: {chatError}
+          </Text>
+        )}
+      </View>
+
+      {/* Error State */}
+      {(error || chatError) && (
+        <View style={{ paddingHorizontal: 20, marginBottom: 16 }}>
+          <View style={{
+            backgroundColor: '#FEE2E2',
+            borderRadius: 12,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: '#FECACA'
+          }}>
+            <Text style={{ color: '#DC2626', textAlign: 'center', marginBottom: 12 }}>
+              {error || chatError}
+            </Text>
+            <TouchableOpacity 
+              style={{
+                backgroundColor: '#DC2626',
+                borderRadius: 8,
+                paddingVertical: 8,
+                paddingHorizontal: 16,
+                alignSelf: 'center'
+              }}
+              onPress={refreshBookings}
+            >
+              <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>Thử lại</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+     {/* ✅ ENHANCED DEBUG INFO */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 10 }}>
+        <View style={{
+          backgroundColor: isSignalRConnected ? '#D1FAE5' : '#FEE2E2',
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 8,
+        }}>
+          <Text style={{ 
+            fontSize: 12, 
+            color: isSignalRConnected ? '#059669' : '#DC2626',
+            fontWeight: '600'
+          }}>
+            SignalR: {isSignalRConnected ? 'Connected ✅' : 'Disconnected ❌'}
+          </Text>
+          {signalRError && (
+            <Text style={{ fontSize: 12, color: '#DC2626', marginTop: 4 }}>
+              Error: {signalRError}
+            </Text>
+          )}
+          <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+            Conversations: {conversations.length} | User ID: {currentUserId}
+          </Text>
+        </View>
+        
+        <Text style={{ fontSize: 12, color: '#666' }}>
+          Debug: Raw bookings: {bookings.length}, UI bookings: {getBookingsForUI().length}, Filtered: {filteredOrders.length}
+        </Text>
+        {bookings.length > 0 && (
+          <Text style={{ fontSize: 12, color: '#666' }}>
+            First booking status: {bookings[0]?.status}
+          </Text>
+        )}
         {chatError && (
           <Text style={{ fontSize: 12, color: '#ff0000' }}>
             Chat Error: {chatError}

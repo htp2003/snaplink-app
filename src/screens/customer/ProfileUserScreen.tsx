@@ -278,10 +278,12 @@ const ProfileUserScreen = () => {
       // onPress: () => navigation.navigate('Settings')
     },
     {
-      icon: "help-circle-outline",
-      title: "Nhận trợ giúp",
-      // onPress: () => navigation.navigate('Help')
+    icon: "wallet-outline", // Đổi icon thành wallet
+    title: "Ví của bạn",
+    onPress: () => {
+      navigation.navigate("WalletScreen");
     },
+  },
     {
       icon: "person-outline",
       title: "Xem hồ sơ",

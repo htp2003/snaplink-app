@@ -17,9 +17,9 @@ export interface ApiResponse<T> {
 }
 
 class VenueWalletService {
-  async getBalance(userId: number): Promise<WalletBalance> {
+  async getBalance(): Promise<WalletBalance> {
     const response = await apiClient.get<ApiResponse<WalletBalance>>(
-      `/api/Wallet/balance/${userId}`
+      `/api/Wallet/balance`
     );
     return response.data;
   }

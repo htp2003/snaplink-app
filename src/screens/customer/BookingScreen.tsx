@@ -612,7 +612,6 @@ export default function BookingScreen() {
       Alert.alert('Lỗi', 'Vui lòng đăng nhập để đặt lịch');
       return;
     }
-
     try {
       const dateString = selectedDate.toISOString().split('T')[0];
       const [startHour, startMinute] = selectedStartTime.split(':').map(Number);

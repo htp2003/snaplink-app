@@ -467,7 +467,9 @@ export default function CustomerHomeScreen() {
               {locationsLoading ? (
                 renderLoadingSkeleton()
               ) : locations.length > 0 ? (
-                locations.map((location) => (
+                locations
+                .filter((location) => location.locationId !== undefined && location.locationId !== null)
+                .map((location) => (
                   <View
                     key={location.locationId}
                     style={{ width: getResponsiveSize(260), marginRight: 12 }}

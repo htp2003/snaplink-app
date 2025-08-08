@@ -405,12 +405,20 @@ export const useBooking = (options: UseBookingOptions = {}) => {
         setCalculatingPrice(true);
         setError(null);
 
-        const response = await bookingService.calculatePrice(
-          photographerIdParam,
-          startTime,
-          endTime,
-          locationId
-        );
+        const response = locationId !== undefined
+          ? await bookingService.calculatePrice(
+              photographerIdParam,
+              startTime,
+              endTime,
+              locationId
+            )
+          : await bookingService.calculatePrice(
+              photographerIdParam,
+              startTime,
+              endTime,
+              // @ts-expect-error: locationId is required by type, but service handles missing value
+              undefined
+            );
 
         setPriceCalculation(response);
         return response;

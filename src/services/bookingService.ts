@@ -362,7 +362,7 @@ export class BookingService {
     photographerId: number,
     startTime: string,
     endTime: string,
-    locationId?: number
+    locationId: number
   ): Promise<PriceCalculationResponse> {
     try {
       const params = new URLSearchParams({
@@ -413,7 +413,7 @@ export class BookingService {
     photographerId: number,
     startTime: string,
     endTime: string,
-    locationId?: number
+    locationId: number
   ): Promise<{
     booking: BookingResponse;
     availability: CheckAvailabilityResponse;

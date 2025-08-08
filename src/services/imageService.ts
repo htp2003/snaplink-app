@@ -376,6 +376,7 @@ export const imageService = {
     }
   },
 
+
   // === CONVENIENCE METHODS FOR SPECIFIC TYPES ===
 
   // Photographer images

@@ -48,11 +48,6 @@ const ViewProfileUserScreen = () => {
   // Fetch user profile data
   useEffect(() => {
     const fetchUserProfile = async () => {
-      console.log("🔍 Route params:", route.params);
-      console.log("🔍 userId from params:", userId, typeof userId);
-      console.log("🔍 Current user ID:", currentUser?.id);
-      console.log("🔍 Is own profile:", isOwnProfile);
-
       if (!userId || typeof userId !== "number" || userId <= 0) {
         setError("Invalid user ID");
         setLoading(false);
@@ -64,21 +59,19 @@ const ViewProfileUserScreen = () => {
 
         // If viewing own profile and we have current user data, use it
         if (isOwnProfile && currentUser) {
-          console.log("✅ Using current user data for own profile");
           setUserProfile(currentUser);
           setError(null);
         } else {
           // Fetch other user's profile
-          console.log("📡 Calling userService.getUserById with userId:", userId);
+
           const userData = await userService.getUserById(userId);
-          console.log("✅ User data received:", userData);
+
           setUserProfile(userData);
           setError(null);
         }
 
         // Load user styles
         await loadUserStyles(userId);
-
       } catch (err) {
         console.error("❌ Error fetching user profile:", err);
         console.error("❌ Error details:", {
@@ -98,9 +91,9 @@ const ViewProfileUserScreen = () => {
   const loadUserStyles = async (userId: number) => {
     try {
       setLoadingStyles(true);
-      console.log("🎨 Loading user styles for profile view...");
+
       const styles = await userStyleService.getUserStyles(userId);
-      console.log("✅ User styles loaded for profile:", styles);
+
       setUserStyles(styles);
     } catch (error) {
       console.error("❌ Error loading user styles:", error);
@@ -216,7 +209,7 @@ const ViewProfileUserScreen = () => {
   const handleEditPress = () => {
     if (isOwnProfile) {
       // Navigate to edit profile screen
-      navigation.navigate('EditProfileUserScreen' as any);
+      navigation.navigate("EditProfileUserScreen" as any);
     } else {
       Alert.alert("Thông báo", "Bạn chỉ có thể chỉnh sửa hồ sơ của chính mình");
     }
@@ -249,7 +242,11 @@ const ViewProfileUserScreen = () => {
               alignItems: "center",
             }}
           >
-            <Ionicons name="chevron-back" size={getResponsiveSize(24)} color="#000000" />
+            <Ionicons
+              name="chevron-back"
+              size={getResponsiveSize(24)}
+              color="#000000"
+            />
           </TouchableOpacity>
 
           <Text
@@ -269,7 +266,13 @@ const ViewProfileUserScreen = () => {
           style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
         >
           <ActivityIndicator size="large" color="#000000" />
-          <Text style={{ marginTop: getResponsiveSize(16), fontSize: getResponsiveSize(16), color: "#666666" }}>
+          <Text
+            style={{
+              marginTop: getResponsiveSize(16),
+              fontSize: getResponsiveSize(16),
+              color: "#666666",
+            }}
+          >
             Đang tải hồ sơ...
           </Text>
         </View>
@@ -304,7 +307,11 @@ const ViewProfileUserScreen = () => {
               alignItems: "center",
             }}
           >
-            <Ionicons name="chevron-back" size={getResponsiveSize(24)} color="#000000" />
+            <Ionicons
+              name="chevron-back"
+              size={getResponsiveSize(24)}
+              color="#000000"
+            />
           </TouchableOpacity>
 
           <Text
@@ -328,7 +335,11 @@ const ViewProfileUserScreen = () => {
             paddingHorizontal: getResponsiveSize(20),
           }}
         >
-          <Ionicons name="alert-circle-outline" size={getResponsiveSize(64)} color="#FF385C" />
+          <Ionicons
+            name="alert-circle-outline"
+            size={getResponsiveSize(64)}
+            color="#FF385C"
+          />
           <Text
             style={{
               marginTop: getResponsiveSize(16),
@@ -406,7 +417,11 @@ const ViewProfileUserScreen = () => {
             alignItems: "center",
           }}
         >
-          <Ionicons name="chevron-back" size={getResponsiveSize(24)} color="#000000" />
+          <Ionicons
+            name="chevron-back"
+            size={getResponsiveSize(24)}
+            color="#000000"
+          />
         </TouchableOpacity>
 
         <Text
@@ -482,7 +497,7 @@ const ViewProfileUserScreen = () => {
                 style={{
                   width: getResponsiveSize(120),
                   height: getResponsiveSize(120),
-                  borderRadius: getResponsiveSize(60)
+                  borderRadius: getResponsiveSize(60),
                 }}
                 resizeMode="cover"
               />
@@ -522,7 +537,12 @@ const ViewProfileUserScreen = () => {
 
         {/* User Info Section */}
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
-          <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(40) }}>
+          <View
+            style={{
+              paddingHorizontal: getResponsiveSize(24),
+              paddingTop: getResponsiveSize(40),
+            }}
+          >
             <View style={{ marginBottom: getResponsiveSize(30) }}>
               {/* Email */}
               {userProfile && "email" in userProfile && userProfile.email && (
@@ -546,7 +566,11 @@ const ViewProfileUserScreen = () => {
                       marginRight: getResponsiveSize(16),
                     }}
                   >
-                    <Ionicons name="mail-outline" size={getResponsiveSize(20)} color="#666666" />
+                    <Ionicons
+                      name="mail-outline"
+                      size={getResponsiveSize(20)}
+                      color="#666666"
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text
@@ -586,7 +610,11 @@ const ViewProfileUserScreen = () => {
                         marginRight: getResponsiveSize(16),
                       }}
                     >
-                      <Ionicons name="call-outline" size={getResponsiveSize(20)} color="#666666" />
+                      <Ionicons
+                        name="call-outline"
+                        size={getResponsiveSize(20)}
+                        color="#666666"
+                      />
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text
@@ -682,38 +710,44 @@ const ViewProfileUserScreen = () => {
                   </Text>
 
                   {loadingStyles ? (
-                    <View style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingVertical: getResponsiveSize(4),
-                    }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingVertical: getResponsiveSize(4),
+                      }}
+                    >
                       <ActivityIndicator size="small" color="#E91E63" />
-                      <Text style={{
-                        marginLeft: getResponsiveSize(8),
-                        fontSize: getResponsiveSize(14),
-                        color: "#666666"
-                      }}>
+                      <Text
+                        style={{
+                          marginLeft: getResponsiveSize(8),
+                          fontSize: getResponsiveSize(14),
+                          color: "#666666",
+                        }}
+                      >
                         Đang tải...
                       </Text>
                     </View>
                   ) : userStyles.length > 0 ? (
-                    <View style={{
-                      flexDirection: 'row',
-                      flexWrap: 'wrap',
-                      gap: getResponsiveSize(8),
-                      marginTop: getResponsiveSize(4),
-                    }}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        flexWrap: "wrap",
+                        gap: getResponsiveSize(8),
+                        marginTop: getResponsiveSize(4),
+                      }}
+                    >
                       {userStyles.map((style, index) => (
                         <View
                           key={style.styleId}
                           style={{
-                            backgroundColor: '#F0F8FF',
+                            backgroundColor: "#F0F8FF",
                             paddingHorizontal: getResponsiveSize(16),
                             paddingVertical: getResponsiveSize(8),
                             borderRadius: getResponsiveSize(20),
                             borderWidth: 1,
-                            borderColor: '#E0F2FE',
-                            shadowColor: '#000',
+                            borderColor: "#E0F2FE",
+                            shadowColor: "#000",
                             shadowOffset: { width: 0, height: 1 },
                             shadowOpacity: 0.1,
                             shadowRadius: 2,
@@ -723,8 +757,8 @@ const ViewProfileUserScreen = () => {
                           <Text
                             style={{
                               fontSize: getResponsiveSize(14),
-                              color: '#0369A1',
-                              fontWeight: '600',
+                              color: "#0369A1",
+                              fontWeight: "600",
                             }}
                           >
                             {style.styleName}
@@ -737,7 +771,7 @@ const ViewProfileUserScreen = () => {
                       style={{
                         fontSize: getResponsiveSize(14),
                         color: "#999999",
-                        fontStyle: 'italic',
+                        fontStyle: "italic",
                         paddingVertical: getResponsiveSize(4),
                       }}
                     >

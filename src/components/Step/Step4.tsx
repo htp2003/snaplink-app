@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator, ScrollView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
-import { useAuth } from '../../hooks/useAuth';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+} from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import { useAuth } from "../../hooks/useAuth";
 
-const API_BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
+const API_BASE_URL =
+  "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 
 interface Style {
   id: number;
@@ -20,12 +28,12 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
   const navigation = useNavigation();
   const { getCurrentUserId, token } = useAuth();
   const userId = getCurrentUserId();
-  
+
   const [styles, setStyles] = useState<Style[]>([]);
   const [selectedStyles, setSelectedStyles] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchingStyles, setFetchingStyles] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   // Fetch styles from API on component mount
   useEffect(() => {
@@ -35,14 +43,13 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
   const fetchStyles = async () => {
     try {
       setFetchingStyles(true);
-      console.log('🔍 Fetching styles from API...');
-      
+
       const response = await fetch(`${API_BASE_URL}/api/Style`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
@@ -50,8 +57,7 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
       }
 
       const stylesData = await response.json();
-      console.log('📥 Fetched styles raw data:', stylesData);
-      
+
       // Handle different response formats
       let stylesList: Style[] = [];
       if (stylesData?.$values && Array.isArray(stylesData.$values)) {
@@ -61,44 +67,45 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
       } else if (stylesData?.data && Array.isArray(stylesData.data)) {
         stylesList = stylesData.data;
       } else {
-        console.warn('⚠️ Unexpected styles data format:', stylesData);
+        console.warn("⚠️ Unexpected styles data format:", stylesData);
         stylesList = [];
       }
-      
+
       // ✅ CRITICAL: Ensure all style IDs are unique numbers and handle invalid data
       const processedStyles = stylesList.map((style, index) => {
         // Generate a guaranteed unique ID
         let uniqueId = index + 1; // Start from 1, not 0
-        
+
         // Try to use original ID if it's valid
         if (style.id && !isNaN(Number(style.id)) && Number(style.id) > 0) {
           uniqueId = Number(style.id);
         }
-        
+
         return {
           ...style,
           id: uniqueId,
           name: style.name || `Style ${uniqueId}`, // Fallback name
         };
       });
-      
-      console.log('✅ Processed styles with guaranteed unique IDs:', processedStyles);
+
       setStyles(processedStyles);
-      
     } catch (error: any) {
-      console.error('❌ Error fetching styles:', error);
-      Alert.alert('Lỗi', 'Không thể tải danh sách phong cách. Sử dụng danh sách mặc định.');
-      
+      console.error("❌ Error fetching styles:", error);
+      Alert.alert(
+        "Lỗi",
+        "Không thể tải danh sách phong cách. Sử dụng danh sách mặc định."
+      );
+
       // Fallback to default styles if API fails
       const fallbackStyles: Style[] = [
-        { id: 1001, name: 'Portrait', description: 'Chụp ảnh chân dung' },
-        { id: 1002, name: 'Landscape', description: 'Chụp ảnh phong cảnh' },
-        { id: 1003, name: 'Wedding', description: 'Chụp ảnh cưới' },
-        { id: 1004, name: 'Fashion', description: 'Chụp ảnh thời trang' },
-        { id: 1005, name: 'Street', description: 'Chụp ảnh đường phố' },
-        { id: 1006, name: 'Event', description: 'Chụp ảnh sự kiện' },
-        { id: 1007, name: 'Nature', description: 'Chụp ảnh thiên nhiên' },
-        { id: 1008, name: 'Product', description: 'Chụp ảnh sản phẩm' },
+        { id: 1001, name: "Portrait", description: "Chụp ảnh chân dung" },
+        { id: 1002, name: "Landscape", description: "Chụp ảnh phong cảnh" },
+        { id: 1003, name: "Wedding", description: "Chụp ảnh cưới" },
+        { id: 1004, name: "Fashion", description: "Chụp ảnh thời trang" },
+        { id: 1005, name: "Street", description: "Chụp ảnh đường phố" },
+        { id: 1006, name: "Event", description: "Chụp ảnh sự kiện" },
+        { id: 1007, name: "Nature", description: "Chụp ảnh thiên nhiên" },
+        { id: 1008, name: "Product", description: "Chụp ảnh sản phẩm" },
       ];
       setStyles(fallbackStyles);
     } finally {
@@ -107,50 +114,47 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
   };
 
   const handleStyleSelect = (styleId: number) => {
-    console.log('🎨 Style clicked:', styleId);
-    console.log('🔍 Current selectedStyles before:', selectedStyles);
-    
     if (selectedStyles.includes(styleId)) {
       // Remove style if already selected
-      const newSelection = selectedStyles.filter(id => id !== styleId);
+      const newSelection = selectedStyles.filter((id) => id !== styleId);
       setSelectedStyles(newSelection);
-      console.log('➖ Removed style', styleId, ', new selection:', newSelection);
     } else if (selectedStyles.length < 3) {
       // Add style if less than 3 selected
       const newSelection = [...selectedStyles, styleId];
       setSelectedStyles(newSelection);
-      console.log('➕ Added style', styleId, ', new selection:', newSelection);
     } else {
-      console.log('⚠️ Cannot select more than 3 styles');
+      console.log("⚠️ Cannot select more than 3 styles");
     }
-    setError('');
+    setError("");
   };
 
   const addUserStyles = async (styleIds: number[]) => {
     try {
-      console.log('💾 Adding user styles:', styleIds);
-      
       // Add each style individually using UserStyle API
       const promises = styleIds.map(async (styleId) => {
         try {
           const response = await fetch(`${API_BASE_URL}/api/UserStyle`, {
-            method: 'POST',
+            method: "POST",
             headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify({
               userId: userId,
-              styleId: styleId
-            })
+              styleId: styleId,
+            }),
           });
 
           if (!response.ok) {
-            console.warn(`⚠️ Failed to add style ${styleId} for user ${userId}: ${response.status}`);
+            console.warn(
+              `⚠️ Failed to add style ${styleId} for user ${userId}: ${response.status}`
+            );
             const errorText = await response.text();
-            console.warn('Error details:', errorText);
+            console.warn("Error details:", errorText);
           } else {
-            console.log(`✅ Successfully added style ${styleId}`);
+            console.log(
+              `✅ Style ${styleId} added successfully for user ${userId}`
+            );
           }
         } catch (styleError) {
           console.warn(`❌ Error adding style ${styleId}:`, styleError);
@@ -158,26 +162,23 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
       });
 
       await Promise.allSettled(promises);
-      console.log('✅ Finished adding all user styles');
-      
     } catch (error) {
-      console.error('❌ Error in addUserStyles:', error);
+      console.error("❌ Error in addUserStyles:", error);
       // Don't throw error here, as this is not critical for navigation
     }
   };
 
   const handleComplete = async () => {
     if (selectedStyles.length === 0) {
-      setError('Hãy chọn ít nhất 1 phong cách.');
+      setError("Hãy chọn ít nhất 1 phong cách.");
       return;
     }
 
     if (!userId) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin user');
+      Alert.alert("Lỗi", "Không tìm thấy thông tin user");
       return;
     }
 
-    console.log('🚀 Completing style selection with:', selectedStyles);
     setLoading(true);
 
     try {
@@ -186,10 +187,12 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
 
       // Call completion callback
       onComplete?.(selectedStyles);
-      
     } catch (error: any) {
-      console.error('❌ Error completing style selection:', error);
-      Alert.alert('Lỗi', error.message || 'Có lỗi xảy ra khi hoàn tất thiết lập');
+      console.error("❌ Error completing style selection:", error);
+      Alert.alert(
+        "Lỗi",
+        error.message || "Có lỗi xảy ra khi hoàn tất thiết lập"
+      );
     } finally {
       setLoading(false);
     }
@@ -197,9 +200,9 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
 
   if (fetchingStyles) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" color="#111" />
-        <Text style={{ marginTop: 16, fontSize: 16, color: '#666' }}>
+        <Text style={{ marginTop: 16, fontSize: 16, color: "#666" }}>
           Đang tải phong cách...
         </Text>
       </View>
@@ -207,26 +210,60 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
   }
 
   return (
-    <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: 16, marginTop: 20 }}>
-      <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#111', textAlign: 'center', marginBottom: 8, letterSpacing: 0.5 }}>
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "flex-start",
+        alignItems: "center",
+        paddingHorizontal: 16,
+        marginTop: 20,
+      }}
+    >
+      <Text
+        style={{
+          fontSize: 24,
+          fontWeight: "bold",
+          color: "#111",
+          textAlign: "center",
+          marginBottom: 8,
+          letterSpacing: 0.5,
+        }}
+      >
         Chọn phong cách yêu thích
       </Text>
-      <Text style={{ fontSize: 14, color: '#666', textAlign: 'center', marginBottom: 18, paddingHorizontal: 16 }}>
-        Chọn tối đa 3 phong cách để chúng tôi gợi ý những nhiếp ảnh gia và địa điểm phù hợp nhất
+      <Text
+        style={{
+          fontSize: 14,
+          color: "#666",
+          textAlign: "center",
+          marginBottom: 18,
+          paddingHorizontal: 16,
+        }}
+      >
+        Chọn tối đa 3 phong cách để chúng tôi gợi ý những nhiếp ảnh gia và địa
+        điểm phù hợp nhất
       </Text>
-      
-      <ScrollView 
-        style={{ flex: 1, width: '100%' }}
+
+      <ScrollView
+        style={{ flex: 1, width: "100%" }}
         contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', marginBottom: 10, marginTop: 10 }}>
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            marginBottom: 10,
+            marginTop: 10,
+          }}
+        >
           {styles.map((style, index) => {
             // Use guaranteed unique ID from processed data
             const styleId = style.id;
             const selected = selectedStyles.includes(styleId);
             const disabled = !selected && selectedStyles.length >= 3;
-            
+
             return (
               <TouchableOpacity
                 key={`style-${index}-${styleId}`} // Double guarantee unique key
@@ -237,58 +274,72 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
                   width: 150,
                   minHeight: 80,
                   margin: 8,
-                  backgroundColor: selected ? '#e5e7eb' : '#fff',
+                  backgroundColor: selected ? "#e5e7eb" : "#fff",
                   borderRadius: 16,
                   borderWidth: 2.5,
-                  borderColor: selected ? '#111' : '#bbb',
-                  shadowColor: selected ? '#111' : '#000',
+                  borderColor: selected ? "#111" : "#bbb",
+                  shadowColor: selected ? "#111" : "#000",
                   shadowOffset: { width: 0, height: selected ? 6 : 4 },
                   shadowOpacity: selected ? 0.18 : 0.09,
                   shadowRadius: selected ? 12 : 8,
                   elevation: selected ? 4 : 2,
-                  justifyContent: 'center',
-                  alignItems: 'center',
+                  justifyContent: "center",
+                  alignItems: "center",
                   paddingVertical: 12,
                   paddingHorizontal: 8,
-                  opacity: (disabled || loading) ? 0.4 : 1,
-                  position: 'relative',
+                  opacity: disabled || loading ? 0.4 : 1,
+                  position: "relative",
                 }}
               >
-                <Text style={{ 
-                  fontSize: 16, 
-                  fontWeight: 'bold', 
-                  color: selected ? '#111' : '#333', 
-                  letterSpacing: 0.5,
-                  textAlign: 'center',
-                  marginBottom: style.description ? 4 : 0
-                }}>
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: selected ? "#111" : "#333",
+                    letterSpacing: 0.5,
+                    textAlign: "center",
+                    marginBottom: style.description ? 4 : 0,
+                  }}
+                >
                   {style.name}
                 </Text>
-                
+
                 {style.description && (
-                  <Text style={{ 
-                    fontSize: 12, 
-                    color: selected ? '#666' : '#888', 
-                    textAlign: 'center',
-                    lineHeight: 16
-                  }}>
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      color: selected ? "#666" : "#888",
+                      textAlign: "center",
+                      lineHeight: 16,
+                    }}
+                  >
                     {style.description}
                   </Text>
                 )}
-                
+
                 {selected && (
-                  <View style={{ 
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    width: 24, 
-                    height: 24, 
-                    borderRadius: 12, 
-                    backgroundColor: '#111', 
-                    justifyContent: 'center', 
-                    alignItems: 'center' 
-                  }}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 14 }}>✓</Text>
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 8,
+                      right: 8,
+                      width: 24,
+                      height: 24,
+                      borderRadius: 12,
+                      backgroundColor: "#111",
+                      justifyContent: "center",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontWeight: "bold",
+                        fontSize: 14,
+                      }}
+                    >
+                      ✓
+                    </Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -296,55 +347,90 @@ const Step4: React.FC<Step4Props> = ({ selectedRole, onComplete }) => {
           })}
         </View>
       </ScrollView>
-      
+
       {/* Fixed bottom section */}
-      <View style={{ 
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: 'rgba(255,255,255,0.95)',
-        paddingHorizontal: 24,
-        paddingTop: 16,
-        paddingBottom: 28
-      }}>
+      <View
+        style={{
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "rgba(255,255,255,0.95)",
+          paddingHorizontal: 24,
+          paddingTop: 16,
+          paddingBottom: 28,
+        }}
+      >
         {/* Selected count indicator */}
-        <Text style={{ fontSize: 14, color: '#666', marginBottom: 12, textAlign: 'center' }}>
+        <Text
+          style={{
+            fontSize: 14,
+            color: "#666",
+            marginBottom: 12,
+            textAlign: "center",
+          }}
+        >
           Đã chọn: {selectedStyles.length}/3 phong cách
         </Text>
-        
+
         {error ? (
-          <Text style={{ color: 'red', fontSize: 14, textAlign: 'center', marginBottom: 12 }}>
+          <Text
+            style={{
+              color: "red",
+              fontSize: 14,
+              textAlign: "center",
+              marginBottom: 12,
+            }}
+          >
             {error}
           </Text>
         ) : null}
-        
+
         <TouchableOpacity
           style={{
-            backgroundColor: (selectedStyles.length > 0 && !loading) ? '#111' : '#bbb',
+            backgroundColor:
+              selectedStyles.length > 0 && !loading ? "#111" : "#bbb",
             borderRadius: 16,
             paddingVertical: 16,
-            alignItems: 'center',
-            justifyContent: 'center',
-            shadowColor: '#222',
+            alignItems: "center",
+            justifyContent: "center",
+            shadowColor: "#222",
             shadowOffset: { width: 0, height: 4 },
             shadowOpacity: 0.18,
             shadowRadius: 8,
             elevation: 4,
-            opacity: (selectedStyles.length > 0 && !loading) ? 1 : 0.6,
+            opacity: selectedStyles.length > 0 && !loading ? 1 : 0.6,
           }}
           onPress={handleComplete}
           disabled={selectedStyles.length === 0 || loading}
         >
           {loading ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-              <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <ActivityIndicator
+                size="small"
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text
+                style={{
+                  color: "#fff",
+                  fontWeight: "bold",
+                  fontSize: 18,
+                  letterSpacing: 1,
+                }}
+              >
                 Đang hoàn tất...
               </Text>
             </View>
           ) : (
-            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }}>
+            <Text
+              style={{
+                color: "#fff",
+                fontWeight: "bold",
+                fontSize: 18,
+                letterSpacing: 1,
+              }}
+            >
               Hoàn tất
             </Text>
           )}

@@ -49,7 +49,6 @@ const ProfilePhotographerScreen = () => {
       const userId = getCurrentUserId();
 
       if (!userId) {
-        console.log("No userId found");
         setIsLoadingProfile(false);
         return;
       }
@@ -60,11 +59,7 @@ const ProfilePhotographerScreen = () => {
 
       if (photographerProfile) {
         setPhotographerData(photographerProfile);
-        console.log("Loaded photographer profile:", photographerProfile);
       } else {
-        console.log(
-          "No photographer profile found - user is not a photographer yet"
-        );
         setPhotographerData(null);
       }
 
@@ -106,6 +101,7 @@ const ProfilePhotographerScreen = () => {
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
     { useNativeDriver: false }
   );
+  
   const handlePortfolioPress = () => {
     if (photographerData) {
       navigation.navigate("PortfolioScreen");
@@ -136,11 +132,8 @@ const ProfilePhotographerScreen = () => {
         onPress: async () => {
           try {
             setIsLoggingOut(true);
-            console.log("🚪 Starting logout process...");
 
             await logout();
-
-            console.log("✅ Logout completed, navigating to login...");
 
             // Navigate to login screen or reset navigation stack
             navigation.reset({
@@ -234,9 +227,14 @@ const ProfilePhotographerScreen = () => {
         borderBottomColor: "#F0F0F0",
       }}
       onPress={item.onPress}
+      disabled={item.isLoading}
     >
       <View style={{ position: "relative" }}>
-        <Ionicons name={item.icon} size={24} color="#000000" />
+        {item.isLoading ? (
+          <ActivityIndicator size="small" color="#000000" />
+        ) : (
+          <Ionicons name={item.icon} size={24} color="#000000" />
+        )}
         {item.hasNotification && (
           <View
             style={{
@@ -394,7 +392,8 @@ const ProfilePhotographerScreen = () => {
             />
           </TouchableOpacity>
         </View>
-        {/* Profile Card */}
+
+        {/* Profile Card - Simplified */}
         <TouchableOpacity
           onPress={() => navigation.navigate("ViewProfilePhotographerScreen")}
         >
@@ -459,29 +458,7 @@ const ProfilePhotographerScreen = () => {
                 {photographerData ? "Nhiếp ảnh gia" : "Khách"}
               </Text>
 
-              {isLoadingProfile ? (
-                <ActivityIndicator size="small" color="#666666" />
-              ) : photographerData ? (
-                <View style={{ alignItems: "center" }}>
-                  <Text
-                    style={{ fontSize: 14, color: "#666666", marginBottom: 4 }}
-                  >
-                    ⭐ {photographerData.rating?.toFixed(1) || "5.0"} •{" "}
-                    {photographerData.ratingCount || 0} đánh giá
-                  </Text>
-                  <Text
-                    style={{ fontSize: 14, color: "#666666", marginBottom: 4 }}
-                  >
-                    📸 {photographerData.yearsExperience || 0} năm kinh nghiệm
-                  </Text>
-                  <Text style={{ fontSize: 14, color: "#666666" }}>
-                    💰{" "}
-                    {photographerData.hourlyRate?.toLocaleString("vi-VN") ||
-                      "0"}{" "}
-                    VNĐ/giờ
-                  </Text>
-                </View>
-              ) : (
+              {!photographerData && (
                 <TouchableOpacity
                   onPress={() => navigation.navigate("EditProfilePhotographer")}
                   style={{
@@ -499,12 +476,13 @@ const ProfilePhotographerScreen = () => {
             </View>
           </View>
         </TouchableOpacity>
+
         {/* Feature Cards */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
+        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
           <View
             style={{ flexDirection: "row", justifyContent: "space-between" }}
           >
-            {/* Lịch rảnh của bạn - CẬP NHẬT */}
+            {/* Lịch rảnh của bạn */}
             <TouchableOpacity
               style={{
                 flex: 0.48,
@@ -519,7 +497,6 @@ const ProfilePhotographerScreen = () => {
                 elevation: 3,
               }}
               onPress={() => {
-                // THÊM NAVIGATION ĐẾN TRANG QUẢN LÝ LỊCH
                 if (photographerData) {
                   navigation.navigate("ManageAvailabilityScreen");
                 } else {
@@ -576,7 +553,7 @@ const ProfilePhotographerScreen = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* Kết nối - GIỮ NGUYÊN */}
+            {/* Portfolio */}
             <TouchableOpacity
               style={{
                 flex: 0.48,
@@ -590,7 +567,7 @@ const ProfilePhotographerScreen = () => {
                 shadowRadius: 4,
                 elevation: 3,
               }}
-              onPress={handlePortfolioPress} // Updated this line
+              onPress={handlePortfolioPress}
             >
               <View
                 style={{
@@ -629,6 +606,162 @@ const ProfilePhotographerScreen = () => {
                 Portfolio
               </Text>
             </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Photographer Stats Cards - 3 cards in a row */}
+        {isLoadingProfile ? (
+          <View style={{ paddingHorizontal: 16, marginBottom: 30, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#666666" />
+            <Text style={{ marginTop: 10, color: "#666666" }}>
+              Đang tải thông tin nhiếp ảnh gia...
+            </Text>
+          </View>
+        ) : photographerData ? (
+          <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
+            <View
+              style={{ flexDirection: "row", justifyContent: "space-between" }}
+            >
+              {/* Rating Card */}
+              <View
+                style={{
+                  flex: 0.32,
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 12,
+                  padding: 16,
+                  alignItems: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 3,
+                }}
+              >
+                <Ionicons name="star" size={24} color="#FFD700" />
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "bold",
+                    color: "#000000",
+                    marginTop: 8,
+                  }}
+                >
+                  {photographerData.rating?.toFixed(1) || "0.0"}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "#666666",
+                    textAlign: "center",
+                  }}
+                >
+                  Đánh giá
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 10,
+                    color: "#999999",
+                    textAlign: "center",
+                    marginTop: 4,
+                  }}
+                >
+                  ({photographerData.ratingCount || 0} lượt)
+                </Text>
+              </View>
+
+              {/* Experience Card */}
+              <View
+                style={{
+                  flex: 0.32,
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 12,
+                  padding: 16,
+                  alignItems: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 3,
+                }}
+              >
+                <Ionicons name="trophy" size={24} color="#8B7355" />
+                <Text
+                  style={{
+                    fontSize: 18,
+                    fontWeight: "bold",
+                    color: "#000000",
+                    marginTop: 8,
+                  }}
+                >
+                  {photographerData.yearsExperience || 0}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "#666666",
+                    textAlign: "center",
+                  }}
+                >
+                  Năm KN
+                </Text>
+              </View>
+
+              {/* Hourly Rate Card */}
+              <View
+                style={{
+                  flex: 0.32,
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 12,
+                  padding: 16,
+                  alignItems: "center",
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 4,
+                  elevation: 3,
+                }}
+              >
+                <Ionicons name="cash" size={24} color="#4CAF50" />
+                <Text
+                  style={{
+                    fontSize: 16,
+                    fontWeight: "bold",
+                    color: "#000000",
+                    marginTop: 8,
+                    textAlign: "center",
+                  }}
+                >
+                  {photographerData.hourlyRate?.toLocaleString("vi-VN") || "0"}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 12,
+                    color: "#666666",
+                    textAlign: "center",
+                  }}
+                >
+                  VNĐ/giờ
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Menu Items */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
+          <View
+            style={{
+              backgroundColor: "#FFFFFF",
+              borderRadius: 12,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+              overflow: "hidden",
+            }}
+          >
+            {menuItems.map((item, index) => renderMenuItem(item, index))}
           </View>
         </View>
       </ScrollView>

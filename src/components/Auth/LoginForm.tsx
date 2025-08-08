@@ -40,28 +40,15 @@ const LoginForm: React.FC<LoginFormProps> = ({
       // ✅ Lấy user data trực tiếp từ login function
       const loggedInUser = await login(email, password);
 
-      console.log(
-        "🔍 LOGIN DEBUG - User from login():",
-        JSON.stringify(loggedInUser, null, 2)
-      );
-      console.log(
-        "🔍 LOGIN DEBUG - User roles from login():",
-        loggedInUser?.roles
-      );
-
       if (loggedInUser && loggedInUser.roles) {
         // Filter roles (không phân biệt hoa thường)
         const validRoles = loggedInUser.roles.filter((role) =>
           ["user", "photographer", "owner"].includes(role.toLowerCase())
         );
 
-        console.log("🔍 Valid roles from login:", validRoles);
-
         if (validRoles.length === 1) {
           // Single role - navigate directly
           const role = validRoles[0].toLowerCase();
-
-          console.log("🔍 Single role detected:", role);
 
           // Save selected role
           await AsyncStorage.setItem("selectedRole", role);
@@ -69,46 +56,35 @@ const LoginForm: React.FC<LoginFormProps> = ({
           // Navigate based on role
           switch (role) {
             case "user":
-              console.log("🔍 Navigating to CustomerMain");
               navigation.reset({
                 index: 0,
                 routes: [{ name: "CustomerMain" as never }],
               });
               break;
             case "photographer":
-              console.log("🔍 Navigating to PhotographerMain");
               navigation.reset({
                 index: 0,
                 routes: [{ name: "PhotographerMain" as never }],
               });
               break;
             case "owner":
-              console.log("🔍 Navigating to VenueOwnerMain");
               navigation.reset({
                 index: 0,
                 routes: [{ name: "VenueOwnerMain" as never }],
               });
               break;
             default:
-              console.log("🔍 Default: Navigating to CustomerMain");
               navigation.reset({
                 index: 0,
                 routes: [{ name: "CustomerMain" as never }],
               });
           }
         } else if (validRoles.length > 1) {
-          // Multiple roles - show role selection
-          console.log(
-            "🔍 Multiple roles detected, navigating to RoleSelection"
-          );
           navigation.navigate("RoleSelection" as never);
         } else {
-          // No valid roles - redirect to setup
-          console.log("🔍 No valid roles found, navigating to StepContainer");
           navigation.navigate("StepContainer" as never);
         }
       } else {
-        console.log("🔍 No user or roles found, navigating to StepContainer");
         navigation.navigate("StepContainer" as never);
       }
 

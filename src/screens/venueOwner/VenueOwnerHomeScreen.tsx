@@ -32,12 +32,6 @@ export default function VenueOwnerHomeScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
 
-  console.log("👤 User ID:", user?.id);
-  console.log("💰 Wallet Balance:", balance);
-  console.log("📋 Transactions:", transactions);
-  console.log("⚠️ Wallet Error:", walletError);
-  console.log("⚠️ Transaction Error:", transactionError);
-
   const onRefresh = async () => {
     if (!user?.id) {
       Alert.alert("Lỗi", "Không tìm thấy thông tin người dùng");

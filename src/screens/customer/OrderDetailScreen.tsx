@@ -1,6 +1,6 @@
 // OrderDetailScreen.tsx - FIXED VERSION
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,19 +10,23 @@ import {
   StatusBar,
   Alert,
   StyleSheet,
-  ActivityIndicator
-} from 'react-native';
-import { getResponsiveSize } from '../../utils/responsive';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { AntDesign, Feather, MaterialIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import type { RouteProp } from '@react-navigation/native';
-import type { RootStackNavigationProp } from '../../navigation/types';
-import { useAuth } from '../../hooks/useAuth';
-import { useBooking } from '../../hooks/useBooking';
-import { usePayment } from '../../hooks/usePayment';
-import type { BookingResponse, CreatePaymentLinkRequest, PriceCalculationResponse } from '../../types/booking';
-import { PaymentFlowData } from '../../types/payment';
+  ActivityIndicator,
+} from "react-native";
+import { getResponsiveSize } from "../../utils/responsive";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { AntDesign, Feather, MaterialIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import type { RouteProp } from "@react-navigation/native";
+import type { RootStackNavigationProp } from "../../navigation/types";
+import { useAuth } from "../../hooks/useAuth";
+import { useBooking } from "../../hooks/useBooking";
+import { usePayment } from "../../hooks/usePayment";
+import type {
+  BookingResponse,
+  CreatePaymentLinkRequest,
+  PriceCalculationResponse,
+} from "../../types/booking";
+import { PaymentFlowData } from "../../types/payment";
 
 interface LocationParam {
   id: number;
@@ -49,7 +53,10 @@ type OrderDetailRouteParams = {
   priceCalculation: PriceCalculationResponse;
 };
 
-type OrderDetailScreenRouteProp = RouteProp<{ OrderDetail: OrderDetailRouteParams }, 'OrderDetail'>;
+type OrderDetailScreenRouteProp = RouteProp<
+  { OrderDetail: OrderDetailRouteParams },
+  "OrderDetail"
+>;
 
 export default function OrderDetailScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
@@ -59,19 +66,18 @@ export default function OrderDetailScreen() {
   // Auth hook
   const { user, isAuthenticated } = useAuth();
 
-  const { 
-    getBookingById, 
-    loading: loadingBooking 
-  } = useBooking();
+  const { getBookingById, loading: loadingBooking } = useBooking();
 
-  const { 
-    createPaymentForBooking, 
-    creatingPayment, 
-    error: paymentError 
+  const {
+    createPaymentForBooking,
+    creatingPayment,
+    error: paymentError,
   } = usePayment();
 
   // State để lưu booking đã tạo
-  const [currentBooking, setCurrentBooking] = useState<BookingResponse | null>(null);
+  const [currentBooking, setCurrentBooking] = useState<BookingResponse | null>(
+    null
+  );
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Load booking data khi component mount
@@ -79,23 +85,17 @@ export default function OrderDetailScreen() {
     const loadBookingData = async () => {
       if (params.bookingId && !currentBooking) {
         try {
-          console.log('🔍 Loading booking data for ID:', params.bookingId);
           const bookingData = await getBookingById(params.bookingId);
-          
+
           if (bookingData) {
             setCurrentBooking(bookingData);
-            console.log('✅ Booking loaded successfully:', {
-              id: bookingData.id,
-              status: bookingData.status,
-              totalPrice: bookingData.totalPrice
-            });
           } else {
-            console.warn('⚠️ No booking data returned');
-            Alert.alert('Cảnh báo', 'Không thể tải thông tin booking');
+            console.warn("⚠️ No booking data returned");
+            Alert.alert("Cảnh báo", "Không thể tải thông tin booking");
           }
         } catch (error) {
-          console.error('❌ Error loading booking:', error);
-          Alert.alert('Lỗi', 'Không thể tải thông tin booking');
+          console.error("❌ Error loading booking:", error);
+          Alert.alert("Lỗi", "Không thể tải thông tin booking");
         }
       }
     };
@@ -107,18 +107,18 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     if (!isAuthenticated) {
       Alert.alert(
-        'Yêu cầu đăng nhập',
-        'Vui lòng đăng nhập để đặt lịch chụp ảnh',
+        "Yêu cầu đăng nhập",
+        "Vui lòng đăng nhập để đặt lịch chụp ảnh",
         [
           {
-            text: 'Đăng nhập',
-            onPress: () => navigation.navigate('Login')
+            text: "Đăng nhập",
+            onPress: () => navigation.navigate("Login"),
           },
           {
-            text: 'Hủy',
-            style: 'cancel',
-            onPress: () => navigation.goBack()
-          }
+            text: "Hủy",
+            style: "cancel",
+            onPress: () => navigation.goBack(),
+          },
         ]
       );
     }
@@ -128,7 +128,11 @@ export default function OrderDetailScreen() {
   if (!params || !params.photographer || !params.selectedDate) {
     return (
       <View style={styles.errorContainer}>
-        <MaterialIcons name="error" size={getResponsiveSize(48)} color="#EF5350" />
+        <MaterialIcons
+          name="error"
+          size={getResponsiveSize(48)}
+          color="#EF5350"
+        />
         <Text style={styles.errorTitle}>Thông tin không hợp lệ</Text>
         <Text style={styles.errorMessage}>Vui lòng quay lại và thử lại</Text>
         <TouchableOpacity
@@ -155,23 +159,23 @@ export default function OrderDetailScreen() {
   // Helper functions
   const formatDate = (date: Date) => {
     try {
-      return date.toLocaleDateString('vi-VN', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
+      return date.toLocaleDateString("vi-VN", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
       });
     } catch {
-      return 'Ngày không hợp lệ';
+      return "Ngày không hợp lệ";
     }
   };
 
   const formatCurrency = (amount: number | undefined) => {
-    if (amount === undefined || isNaN(amount) || amount < 0) return '0 ₫';
+    if (amount === undefined || isNaN(amount) || amount < 0) return "0 ₫";
     try {
-      return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
+      return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       }).format(amount);
@@ -184,10 +188,19 @@ export default function OrderDetailScreen() {
     try {
       if (!params.selectedStartTime || !params.selectedEndTime) return 0;
 
-      const [startHour, startMinute] = params.selectedStartTime.split(':').map(Number);
-      const [endHour, endMinute] = params.selectedEndTime.split(':').map(Number);
+      const [startHour, startMinute] = params.selectedStartTime
+        .split(":")
+        .map(Number);
+      const [endHour, endMinute] = params.selectedEndTime
+        .split(":")
+        .map(Number);
 
-      if (isNaN(startHour) || isNaN(startMinute) || isNaN(endHour) || isNaN(endMinute)) {
+      if (
+        isNaN(startHour) ||
+        isNaN(startMinute) ||
+        isNaN(endHour) ||
+        isNaN(endMinute)
+      ) {
         return 0;
       }
 
@@ -213,13 +226,17 @@ export default function OrderDetailScreen() {
       photographerFee,
       locationFee,
       serviceFee,
-      totalPrice
+      totalPrice,
     };
-  }, [params.priceCalculation, params.selectedStartTime, params.selectedEndTime]);
+  }, [
+    params.priceCalculation,
+    params.selectedStartTime,
+    params.selectedEndTime,
+  ]);
 
   const handleEditBooking = () => {
     if (!params) {
-      Alert.alert('Lỗi', 'Không có dữ liệu để chỉnh sửa');
+      Alert.alert("Lỗi", "Không có dữ liệu để chỉnh sửa");
       return;
     }
 
@@ -228,16 +245,14 @@ export default function OrderDetailScreen() {
       selectedStartTime: params.selectedStartTime,
       selectedEndTime: params.selectedEndTime,
       selectedLocation: params.selectedLocation,
-      specialRequests: params.specialRequests
+      specialRequests: params.specialRequests,
     };
 
-    console.log('🔄 Navigating to edit mode with data:', editData);
-
-    navigation.navigate('Booking', {
+    navigation.navigate("Booking", {
       photographer: params.photographer,
       editMode: true,
       existingBookingId: params.bookingId,
-      existingBookingData: editData
+      existingBookingData: editData,
     });
   };
 
@@ -247,25 +262,23 @@ export default function OrderDetailScreen() {
 
     // Validation checks
     if (!user?.id) {
-      Alert.alert('Lỗi', 'Vui lòng đăng nhập lại');
+      Alert.alert("Lỗi", "Vui lòng đăng nhập lại");
       return;
     }
 
     if (!params.bookingId) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin booking');
+      Alert.alert("Lỗi", "Không tìm thấy thông tin booking");
       return;
     }
 
     if (!params.photographer?.fullName) {
-      Alert.alert('Lỗi', 'Thông tin photographer không hợp lệ');
+      Alert.alert("Lỗi", "Thông tin photographer không hợp lệ");
       return;
     }
 
     setIsProcessing(true);
 
     try {
-      console.log('💳 Creating payment for booking:', params.bookingId);
-
       // Create payment using service
       const paymentResult = await createPaymentForBooking(
         user.id,
@@ -275,15 +288,13 @@ export default function OrderDetailScreen() {
           date: formatDate(selectedDate),
           startTime: params.selectedStartTime,
           endTime: params.selectedEndTime,
-          location: params.selectedLocation?.name
+          location: params.selectedLocation?.name,
         }
       );
 
       if (!paymentResult) {
-        throw new Error(paymentError || 'Không thể tạo thanh toán');
+        throw new Error(paymentError || "Không thể tạo thanh toán");
       }
-
-      console.log('✅ Payment created successfully:', paymentResult);
 
       // ✅ FIX: Use orderCode (numeric) for tracking
       const paymentId = paymentResult.id; // This is now orderCode (number)
@@ -291,7 +302,7 @@ export default function OrderDetailScreen() {
       // ✅ FIX: Ensure QR code is properly passed
       const qrCode = paymentResult.qrCode;
       if (!qrCode) {
-        console.warn('⚠️ No QR code in payment response');
+        console.warn("⚠️ No QR code in payment response");
       }
 
       // Prepare navigation data
@@ -302,60 +313,52 @@ export default function OrderDetailScreen() {
           date: formatDate(selectedDate),
           time: `${params.selectedStartTime}-${params.selectedEndTime}`,
           location: params.selectedLocation?.name,
-          totalAmount: pricingDetails.totalPrice
+          totalAmount: pricingDetails.totalPrice,
         },
         payment: {
           paymentId: paymentId,
-          id: paymentId, 
-          externalTransactionId: paymentResult.externalTransactionId || '',
+          id: paymentId,
+          externalTransactionId: paymentResult.externalTransactionId || "",
           customerId: user.id,
-          customerName: user.fullName || user.email || 'Unknown',
+          customerName: user.fullName || user.email || "Unknown",
           totalAmount: pricingDetails.totalPrice,
-          status: paymentResult.status || 'Pending',
+          status: paymentResult.status || "Pending",
           bookingId: params.bookingId,
           photographerName: params.photographer.fullName,
-          locationName: params.selectedLocation?.name || '',
-          paymentUrl: paymentResult.paymentUrl || '',
-          orderCode: paymentResult.orderCode || '',
+          locationName: params.selectedLocation?.name || "",
+          paymentUrl: paymentResult.paymentUrl || "",
+          orderCode: paymentResult.orderCode || "",
           amount: paymentResult.amount || pricingDetails.totalPrice,
-          qrCode: qrCode || ''
+          qrCode: qrCode || "",
         },
         user: {
-          name: user.fullName || user.email || 'Unknown',
-          email: user.email || 'No email'
-        }
+          name: user.fullName || user.email || "Unknown",
+          email: user.email || "No email",
+        },
       };
 
-      console.log('🔄 Navigating to PaymentWaiting with data:', {
-        paymentId: navigationData.payment.id,
-        hasQR: !!navigationData.payment.qrCode,
-        qrLength: navigationData.payment.qrCode?.length,
-        paymentUrl: navigationData.payment.paymentUrl
-      });
-
       // Navigate to payment screen
-      navigation.navigate('PaymentWaitingScreen', navigationData);
-
+      navigation.navigate("PaymentWaitingScreen", navigationData);
     } catch (err) {
-      console.error('❌ Payment creation error:', err);
-      
-      let errorMessage = 'Có lỗi xảy ra khi tạo thanh toán';
-      
+      console.error("❌ Payment creation error:", err);
+
+      let errorMessage = "Có lỗi xảy ra khi tạo thanh toán";
+
       if (err instanceof Error) {
         errorMessage = err.message;
-      } else if (typeof err === 'string') {
+      } else if (typeof err === "string") {
         errorMessage = err;
       }
 
-      Alert.alert('Lỗi thanh toán', errorMessage, [
+      Alert.alert("Lỗi thanh toán", errorMessage, [
         {
-          text: 'Thử lại',
-          onPress: () => handleBookNow()
+          text: "Thử lại",
+          onPress: () => handleBookNow(),
         },
         {
-          text: 'Đóng',
-          style: 'cancel'
-        }
+          text: "Đóng",
+          style: "cancel",
+        },
       ]);
     } finally {
       setIsProcessing(false);
@@ -373,7 +376,11 @@ export default function OrderDetailScreen() {
           style={styles.backButton}
           activeOpacity={0.7}
         >
-          <AntDesign name="arrowleft" size={getResponsiveSize(24)} color="#333" />
+          <AntDesign
+            name="arrowleft"
+            size={getResponsiveSize(24)}
+            color="#333"
+          />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Xác nhận đặt lịch</Text>
       </View>
@@ -387,7 +394,11 @@ export default function OrderDetailScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconWrapper}>
-              <Feather name="user" size={getResponsiveSize(18)} color="#E91E63" />
+              <Feather
+                name="user"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
             </View>
             <Text style={styles.cardTitle}>Photographer</Text>
           </View>
@@ -395,10 +406,14 @@ export default function OrderDetailScreen() {
           <View style={styles.photographerContainer}>
             <Image
               source={{
-                uri: params.photographer.profileImage || 'https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar'
+                uri:
+                  params.photographer.profileImage ||
+                  "https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar",
               }}
               style={styles.photographerAvatar}
-              defaultSource={{ uri: 'https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar' }}
+              defaultSource={{
+                uri: "https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar",
+              }}
             />
             <View style={styles.photographerInfo}>
               <Text style={styles.photographerName} numberOfLines={2}>
@@ -415,7 +430,11 @@ export default function OrderDetailScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconWrapper}>
-              <Feather name="calendar" size={getResponsiveSize(18)} color="#E91E63" />
+              <Feather
+                name="calendar"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
             </View>
             <Text style={styles.cardTitle}>Thời gian</Text>
           </View>
@@ -433,7 +452,9 @@ export default function OrderDetailScreen() {
             </View>
             <View style={styles.timeRow}>
               <Text style={styles.timeLabel}>Thời lượng:</Text>
-              <Text style={styles.timeValue}>{pricingDetails.duration} giờ</Text>
+              <Text style={styles.timeValue}>
+                {pricingDetails.duration} giờ
+              </Text>
             </View>
           </View>
         </View>
@@ -443,7 +464,11 @@ export default function OrderDetailScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.iconWrapper}>
-                <Feather name="map-pin" size={getResponsiveSize(18)} color="#E91E63" />
+                <Feather
+                  name="map-pin"
+                  size={getResponsiveSize(18)}
+                  color="#E91E63"
+                />
               </View>
               <Text style={styles.cardTitle}>Địa điểm</Text>
             </View>
@@ -452,7 +477,7 @@ export default function OrderDetailScreen() {
               {params.selectedLocation.imageUrl && (
                 <Image
                   source={{
-                    uri: params.selectedLocation.imageUrl
+                    uri: params.selectedLocation.imageUrl,
                   }}
                   style={styles.locationImage}
                 />
@@ -476,7 +501,11 @@ export default function OrderDetailScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.iconWrapper}>
-                <Feather name="edit-3" size={getResponsiveSize(18)} color="#E91E63" />
+                <Feather
+                  name="edit-3"
+                  size={getResponsiveSize(18)}
+                  color="#E91E63"
+                />
               </View>
               <Text style={styles.cardTitle}>Yêu cầu đặc biệt</Text>
             </View>
@@ -491,7 +520,11 @@ export default function OrderDetailScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconWrapper}>
-              <MaterialIcons name="receipt" size={getResponsiveSize(18)} color="#E91E63" />
+              <MaterialIcons
+                name="receipt"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
             </View>
             <Text style={styles.cardTitle}>Chi phí dự kiến</Text>
           </View>
@@ -543,7 +576,11 @@ export default function OrderDetailScreen() {
 
           {/* Note about payment */}
           <View style={styles.paymentNote}>
-            <MaterialIcons name="info" size={getResponsiveSize(16)} color="#FF9800" />
+            <MaterialIcons
+              name="info"
+              size={getResponsiveSize(16)}
+              color="#FF9800"
+            />
             <Text style={styles.paymentNoteText}>
               Bạn sẽ thanh toán ngay sau khi xác nhận booking
             </Text>
@@ -555,7 +592,11 @@ export default function OrderDetailScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.iconWrapper}>
-                <MaterialIcons name="info" size={getResponsiveSize(18)} color="#4CAF50" />
+                <MaterialIcons
+                  name="info"
+                  size={getResponsiveSize(18)}
+                  color="#4CAF50"
+                />
               </View>
               <Text style={styles.cardTitle}>Trạng thái Booking</Text>
             </View>
@@ -595,15 +636,26 @@ export default function OrderDetailScreen() {
             end={{ x: 1, y: 0 }}
             style={styles.confirmButtonGradient}
           >
-            {(isProcessing) ? (
+            {isProcessing ? (
               <>
-                <ActivityIndicator size="small" color="#fff" style={{ marginRight: getResponsiveSize(8) }} />
+                <ActivityIndicator
+                  size="small"
+                  color="#fff"
+                  style={{ marginRight: getResponsiveSize(8) }}
+                />
                 <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
               </>
             ) : (
               <>
-                <MaterialIcons name="payment" size={getResponsiveSize(20)} color="#fff" style={{ marginRight: getResponsiveSize(8) }} />
-                <Text style={styles.confirmButtonText}>Đặt lịch & Thanh toán</Text>
+                <MaterialIcons
+                  name="payment"
+                  size={getResponsiveSize(20)}
+                  color="#fff"
+                  style={{ marginRight: getResponsiveSize(8) }}
+                />
+                <Text style={styles.confirmButtonText}>
+                  Đặt lịch & Thanh toán
+                </Text>
               </>
             )}
           </LinearGradient>
@@ -616,77 +668,77 @@ export default function OrderDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
 
   // Loading state
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
   },
   loadingText: {
     fontSize: getResponsiveSize(16),
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginTop: getResponsiveSize(16),
   },
 
   // Error state
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
     paddingHorizontal: getResponsiveSize(40),
   },
   errorTitle: {
     fontSize: getResponsiveSize(20),
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginTop: getResponsiveSize(16),
     marginBottom: getResponsiveSize(8),
   },
   errorMessage: {
     fontSize: getResponsiveSize(16),
-    color: '#666',
-    textAlign: 'center',
+    color: "#666",
+    textAlign: "center",
     marginBottom: getResponsiveSize(24),
   },
   errorButton: {
-    backgroundColor: '#E91E63',
+    backgroundColor: "#E91E63",
     paddingHorizontal: getResponsiveSize(24),
     paddingVertical: getResponsiveSize(12),
     borderRadius: getResponsiveSize(8),
   },
   errorButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: getResponsiveSize(16),
-    fontWeight: '600',
+    fontWeight: "600",
   },
 
   // Header
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: getResponsiveSize(20),
     paddingTop: getResponsiveSize(50),
     paddingBottom: getResponsiveSize(20),
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: "#f0f0f0",
   },
   backButton: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
     borderRadius: getResponsiveSize(10),
     padding: getResponsiveSize(8),
   },
   headerTitle: {
     fontSize: getResponsiveSize(18),
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
 
   // Content
@@ -699,59 +751,59 @@ const styles = StyleSheet.create({
 
   // Card styles
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     marginHorizontal: getResponsiveSize(20),
     marginTop: getResponsiveSize(16),
     borderRadius: getResponsiveSize(12),
     padding: getResponsiveSize(20),
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: getResponsiveSize(16),
   },
   iconWrapper: {
-    backgroundColor: 'rgba(233, 30, 99, 0.1)',
+    backgroundColor: "rgba(233, 30, 99, 0.1)",
     padding: getResponsiveSize(8),
     borderRadius: getResponsiveSize(8),
     marginRight: getResponsiveSize(12),
   },
   cardTitle: {
     fontSize: getResponsiveSize(16),
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
 
   // Photographer section
   photographerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   photographerAvatar: {
     width: getResponsiveSize(60),
     height: getResponsiveSize(60),
     borderRadius: getResponsiveSize(30),
     marginRight: getResponsiveSize(16),
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
   },
   photographerInfo: {
     flex: 1,
   },
   photographerName: {
     fontSize: getResponsiveSize(16),
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: getResponsiveSize(4),
   },
   photographerRate: {
     fontSize: getResponsiveSize(14),
-    color: '#E91E63',
-    fontWeight: '600',
+    color: "#E91E63",
+    fontWeight: "600",
   },
 
   // Time section
@@ -759,20 +811,20 @@ const styles = StyleSheet.create({
     gap: getResponsiveSize(12),
   },
   timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   timeLabel: {
     fontSize: getResponsiveSize(14),
-    color: '#666',
-    fontWeight: '500',
+    color: "#666",
+    fontWeight: "500",
   },
   timeValue: {
     fontSize: getResponsiveSize(14),
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'right',
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "right",
     flex: 1,
     marginLeft: getResponsiveSize(16),
   },
@@ -780,38 +832,38 @@ const styles = StyleSheet.create({
   // Location section
   locationContainer: {
     borderRadius: getResponsiveSize(8),
-    overflow: 'hidden',
-    backgroundColor: '#f8f9fa',
+    overflow: "hidden",
+    backgroundColor: "#f8f9fa",
   },
   locationImage: {
-    width: '100%',
+    width: "100%",
     height: getResponsiveSize(120),
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
   },
   locationInfo: {
     padding: getResponsiveSize(12),
   },
   locationName: {
     fontSize: getResponsiveSize(16),
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: getResponsiveSize(4),
   },
   locationPrice: {
     fontSize: getResponsiveSize(14),
-    color: '#E91E63',
-    fontWeight: '600',
+    color: "#E91E63",
+    fontWeight: "600",
   },
 
   // Special requests section
   requestsContainer: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: getResponsiveSize(8),
     padding: getResponsiveSize(16),
   },
   requestsText: {
     fontSize: getResponsiveSize(14),
-    color: '#333',
+    color: "#333",
     lineHeight: getResponsiveSize(20),
   },
 
@@ -820,48 +872,48 @@ const styles = StyleSheet.create({
     gap: getResponsiveSize(12),
   },
   priceRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   priceLabel: {
     fontSize: getResponsiveSize(14),
-    color: '#666',
+    color: "#666",
     flex: 1,
   },
   priceValue: {
     fontSize: getResponsiveSize(14),
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   priceDivider: {
     height: 1,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: "#e0e0e0",
     marginVertical: getResponsiveSize(8),
   },
   totalLabel: {
     fontSize: getResponsiveSize(16),
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   totalValue: {
     fontSize: getResponsiveSize(18),
-    fontWeight: 'bold',
-    color: '#E91E63',
+    fontWeight: "bold",
+    color: "#E91E63",
   },
 
   // Payment note
   paymentNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF8E1',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFF8E1",
     borderRadius: getResponsiveSize(8),
     padding: getResponsiveSize(12),
     marginTop: getResponsiveSize(16),
   },
   paymentNoteText: {
     fontSize: getResponsiveSize(13),
-    color: '#F57C00',
+    color: "#F57C00",
     marginLeft: getResponsiveSize(8),
     flex: 1,
   },
@@ -872,58 +924,58 @@ const styles = StyleSheet.create({
   },
   bookingStatusText: {
     fontSize: getResponsiveSize(16),
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   bookingAmountText: {
     fontSize: getResponsiveSize(16),
-    fontWeight: 'bold',
-    color: '#4CAF50',
+    fontWeight: "bold",
+    color: "#4CAF50",
   },
 
   // Bottom actions
   bottomActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: getResponsiveSize(20),
     paddingVertical: getResponsiveSize(16),
     paddingBottom: getResponsiveSize(8),
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: "#f0f0f0",
   },
   editButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: getResponsiveSize(16),
     paddingVertical: getResponsiveSize(12),
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: getResponsiveSize(8),
     flex: 1,
     marginRight: getResponsiveSize(12),
   },
   editButtonText: {
-    color: '#666',
-    fontWeight: '500',
+    color: "#666",
+    fontWeight: "500",
     marginLeft: getResponsiveSize(8),
     fontSize: getResponsiveSize(16),
   },
   confirmButton: {
     flex: 2,
     borderRadius: getResponsiveSize(12),
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   confirmButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: getResponsiveSize(15),
     paddingHorizontal: getResponsiveSize(20),
   },
   confirmButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: getResponsiveSize(16),
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });

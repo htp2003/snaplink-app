@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,15 +7,15 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import { RootStackNavigationProp } from '../../navigation/types';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import { RootStackNavigationProp } from "../../navigation/types";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 // Use existing service and types
-import { bookingService } from '../../services/bookingService';
-import { BookingResponse, BookingStatus } from '../../types/booking';
+import { bookingService } from "../../services/bookingService";
+import { BookingResponse, BookingStatus } from "../../types/booking";
 
 interface RouteParams {
   userId: number;
@@ -31,7 +31,7 @@ const OrderHistoryScreen = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // ✅ PAGINATION STATE
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -41,7 +41,10 @@ const OrderHistoryScreen = () => {
   const pageSize = 10; // ✅ GIẢM xuống 15 cho UX tốt hơn
 
   // Fetch bookings from API
-  const fetchBookings = async (pageNum: number = 1, isRefresh: boolean = false) => {
+  const fetchBookings = async (
+    pageNum: number = 1,
+    isRefresh: boolean = false
+  ) => {
     try {
       if (pageNum === 1) {
         setLoading(true);
@@ -50,37 +53,33 @@ const OrderHistoryScreen = () => {
         setLoadingMore(true);
       }
 
-      console.log(`📥 Fetching bookings - Page: ${pageNum}, PageSize: ${pageSize}`);
-      
-      const response = await bookingService.getUserBookings(userId, pageNum, pageSize);
-      
+      const response = await bookingService.getUserBookings(
+        userId,
+        pageNum,
+        pageSize
+      );
+
       const bookingsData = response.bookings || response.data || [];
-      console.log(`📦 Received ${bookingsData.length} bookings for page ${pageNum}`);
-      
+
       if (isRefresh || pageNum === 1) {
         setBookings(bookingsData);
         setTotalCount(response.totalCount || 0);
       } else {
-        setBookings(prev => [...prev, ...bookingsData]);
+        setBookings((prev) => [...prev, ...bookingsData]);
       }
 
       // ✅ TÍNH TOÁN hasMore chính xác
       const currentTotal = (pageNum - 1) * pageSize + bookingsData.length;
       const apiTotalCount = response.totalCount || 0;
-      setHasMore(currentTotal < apiTotalCount && bookingsData.length === pageSize);
-      
-      console.log(`📊 Pagination info:`, {
-        currentTotal,
-        apiTotalCount,
-        hasMore: currentTotal < apiTotalCount && bookingsData.length === pageSize,
-        receivedItemsCount: bookingsData.length
-      });
-      
+      setHasMore(
+        currentTotal < apiTotalCount && bookingsData.length === pageSize
+      );
+
       setError(null);
     } catch (err) {
-      console.error('❌ Error fetching bookings:', err);
-      setError('Không thể tải danh sách đơn hàng');
-      
+      console.error("❌ Error fetching bookings:", err);
+      setError("Không thể tải danh sách đơn hàng");
+
       if (pageNum === 1) {
         setBookings([]);
         setTotalCount(0);
@@ -97,7 +96,6 @@ const OrderHistoryScreen = () => {
   }, [userId]);
 
   const handleRefresh = () => {
-    console.log('🔄 Refreshing bookings...');
     setRefreshing(true);
     setPage(1);
     setHasMore(true);
@@ -107,7 +105,7 @@ const OrderHistoryScreen = () => {
   const handleLoadMore = () => {
     if (!loadingMore && hasMore && !loading) {
       const nextPage = page + 1;
-      console.log(`📄 Loading more - Next page: ${nextPage}`);
+
       setPage(nextPage);
       fetchBookings(nextPage);
     }
@@ -117,36 +115,36 @@ const OrderHistoryScreen = () => {
   const getStatusColor = (status: BookingStatus) => {
     switch (status) {
       case BookingStatus.PENDING:
-        return 'bg-orange-500';
+        return "bg-orange-500";
       case BookingStatus.CONFIRMED:
-        return 'bg-blue-500';
+        return "bg-blue-500";
       case BookingStatus.IN_PROGRESS:
-        return 'bg-purple-500';
+        return "bg-purple-500";
       case BookingStatus.COMPLETED:
-        return 'bg-green-500';
+        return "bg-green-500";
       case BookingStatus.CANCELLED:
-        return 'bg-red-500';
+        return "bg-red-500";
       case BookingStatus.EXPIRED:
-        return 'bg-gray-500';
+        return "bg-gray-500";
       default:
-        return 'bg-gray-400';
+        return "bg-gray-400";
     }
   };
 
   const getStatusText = (status: BookingStatus) => {
     switch (status) {
       case BookingStatus.PENDING:
-        return 'Chờ xác nhận';
+        return "Chờ xác nhận";
       case BookingStatus.CONFIRMED:
-        return 'Đã xác nhận';
+        return "Đã xác nhận";
       case BookingStatus.IN_PROGRESS:
-        return 'Đang thực hiện';
+        return "Đang thực hiện";
       case BookingStatus.COMPLETED:
-        return 'Hoàn thành';
+        return "Hoàn thành";
       case BookingStatus.CANCELLED:
-        return 'Đã hủy';
+        return "Đã hủy";
       case BookingStatus.EXPIRED:
-        return 'Đã hết hạn';
+        return "Đã hết hạn";
       default:
         return status;
     }
@@ -155,37 +153,37 @@ const OrderHistoryScreen = () => {
   const getStatusIcon = (status: BookingStatus) => {
     switch (status) {
       case BookingStatus.PENDING:
-        return 'time-outline';
+        return "time-outline";
       case BookingStatus.CONFIRMED:
-        return 'checkmark-circle-outline';
+        return "checkmark-circle-outline";
       case BookingStatus.IN_PROGRESS:
-        return 'play-circle-outline';
+        return "play-circle-outline";
       case BookingStatus.COMPLETED:
-        return 'checkmark-done-circle';
+        return "checkmark-done-circle";
       case BookingStatus.CANCELLED:
-        return 'close-circle-outline';
+        return "close-circle-outline";
       case BookingStatus.EXPIRED:
-        return 'alert-circle-outline';
+        return "alert-circle-outline";
       default:
-        return 'help-circle-outline';
+        return "help-circle-outline";
     }
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+    return date.toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
     }).format(price);
   };
 
@@ -194,8 +192,8 @@ const OrderHistoryScreen = () => {
       <TouchableOpacity
         className="bg-white mx-4 my-2 rounded-xl p-4 shadow-sm border border-gray-100"
         onPress={() => {
-          navigation.navigate('BookingDetailScreen', { 
-            bookingId: item.id || item.bookingId 
+          navigation.navigate("BookingDetailScreen", {
+            bookingId: item.id || item.bookingId,
           });
         }}
       >
@@ -204,10 +202,14 @@ const OrderHistoryScreen = () => {
           <Text className="text-lg font-semibold text-black flex-1">
             Đơn hàng #{item.id || item.bookingId}
           </Text>
-          <View className={`flex-row items-center px-3 py-1.5 rounded-full ${getStatusColor(item.status)}`}>
-            <Ionicons 
-              name={getStatusIcon(item.status)} 
-              size={14} 
+          <View
+            className={`flex-row items-center px-3 py-1.5 rounded-full ${getStatusColor(
+              item.status
+            )}`}
+          >
+            <Ionicons
+              name={getStatusIcon(item.status)}
+              size={14}
               color="#FFFFFF"
               style={{ marginRight: 4 }}
             />
@@ -220,9 +222,13 @@ const OrderHistoryScreen = () => {
         {/* Booking time */}
         <View className="flex-row items-center mb-2">
           <Ionicons name="calendar-outline" size={18} color="#6B7280" />
-          <Text className="ml-3 text-sm text-gray-600 mb-1">Thời gian chụp:  <Text className="text-sm font-medium text-gray-800">
-            {formatDate(item.startDatetime)} đến {formatDate(item.endDatetime)}
-          </Text></Text>
+          <Text className="ml-3 text-sm text-gray-600 mb-1">
+            Thời gian chụp:{" "}
+            <Text className="text-sm font-medium text-gray-800">
+              {formatDate(item.startDatetime)} đến{" "}
+              {formatDate(item.endDatetime)}
+            </Text>
+          </Text>
         </View>
 
         {/* Photographer info */}
@@ -230,7 +236,10 @@ const OrderHistoryScreen = () => {
           <View className="flex-row items-center mb-2">
             <Ionicons name="camera-outline" size={18} color="#6B7280" />
             <Text className="ml-3 text-sm text-gray-600">
-              Photographer: <Text className="font-medium text-gray-800">{item.photographer.fullName}</Text>
+              Photographer:{" "}
+              <Text className="font-medium text-gray-800">
+                {item.photographer.fullName}
+              </Text>
             </Text>
           </View>
         )}
@@ -240,16 +249,24 @@ const OrderHistoryScreen = () => {
           <View className="flex-row items-center mb-2">
             <Ionicons name="location-outline" size={18} color="#6B7280" />
             <Text className="ml-3 text-sm text-gray-600">
-              Địa điểm: <Text className="font-medium text-gray-800">{item.location.name}</Text>
+              Địa điểm:{" "}
+              <Text className="font-medium text-gray-800">
+                {item.location.name}
+              </Text>
             </Text>
           </View>
-        ) : item.externalLocation && (
-          <View className="flex-row items-center mb-2">
-            <Ionicons name="location-outline" size={18} color="#6B7280" />
-            <Text className="ml-3 text-sm text-gray-600">
-              Địa điểm: <Text className="font-medium text-gray-800">{item.externalLocation.name}</Text>
-            </Text>
-          </View>
+        ) : (
+          item.externalLocation && (
+            <View className="flex-row items-center mb-2">
+              <Ionicons name="location-outline" size={18} color="#6B7280" />
+              <Text className="ml-3 text-sm text-gray-600">
+                Địa điểm:{" "}
+                <Text className="font-medium text-gray-800">
+                  {item.externalLocation.name}
+                </Text>
+              </Text>
+            </View>
+          )
         )}
 
         {/* Price */}
@@ -264,7 +281,8 @@ const OrderHistoryScreen = () => {
         {item.specialRequests && (
           <View className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-100">
             <Text className="text-xs text-blue-700">
-              <Text className="font-medium">Yêu cầu đặc biệt:</Text> {item.specialRequests}
+              <Text className="font-medium">Yêu cầu đặc biệt:</Text>{" "}
+              {item.specialRequests}
             </Text>
           </View>
         )}
@@ -304,9 +322,7 @@ const OrderHistoryScreen = () => {
         className="bg-red-500 px-6 py-3 rounded-lg mt-4"
         onPress={handleRefresh}
       >
-        <Text className="text-white text-base font-medium">
-          Thử lại
-        </Text>
+        <Text className="text-white text-base font-medium">Thử lại</Text>
       </TouchableOpacity>
     </View>
   );
@@ -341,7 +357,7 @@ const OrderHistoryScreen = () => {
 
   // ✅ HEADER với counter
   const renderHeader = () => (
-    <View 
+    <View
       className="bg-white px-4 pb-4 border-b border-gray-200"
       style={{ paddingTop: insets.top }}
     >
@@ -394,14 +410,16 @@ const OrderHistoryScreen = () => {
         <FlatList
           data={bookings}
           renderItem={renderBookingItem}
-          keyExtractor={(item) => (item.id || item.bookingId)?.toString() || Math.random().toString()}
+          keyExtractor={(item) =>
+            (item.id || item.bookingId)?.toString() || Math.random().toString()
+          }
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={renderFooter}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              colors={['#FF385C']}
+              colors={["#FF385C"]}
               tintColor="#FF385C"
             />
           }

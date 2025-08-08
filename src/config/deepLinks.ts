@@ -4,11 +4,7 @@ import Constants from 'expo-constants';
 // ✅ Kiểm tra environment
 const IS_EXPO_GO = Constants.appOwnership === 'expo';
 
-console.log('🔍 Deep Link Environment:', {
-  isExpoGo: IS_EXPO_GO,
-  linkingUri: Constants.linkingUri,
-  appOwnership: Constants.appOwnership
-});
+
 
 // ✅ Dynamic URL scheme cho Expo Go vs Standalone
 export const APP_SCHEME = 'snaplink';
@@ -38,13 +34,12 @@ export const createDeepLink = (path: string, params?: Record<string, string>) =>
     url += `?${queryString}`;
   }
   
-  console.log(`🔗 Created deep link: ${url}`);
+  
   return url;
 };
 
 export const handleDeepLink = (url: string) => {
-  console.log('📱 Deep link received:', url);
-  console.log('📱 Environment:', IS_EXPO_GO ? 'Expo Go' : 'Standalone');
+  
   
   // ✅ Handle cả 2 format: exp://... và snaplink://...
   if (url.includes('payment-success')) {
@@ -54,13 +49,4 @@ export const handleDeepLink = (url: string) => {
   }
   
   return { type: 'UNKNOWN', url };
-};
-
-// ✅ Debug helper - gọi để xem thông tin deep links
-export const logDeepLinkInfo = () => {
-  console.log('🔍 Deep Link Debug Info:');
-  console.log('📱 Environment:', IS_EXPO_GO ? 'Expo Go' : 'Standalone');
-  console.log('📱 Constants.linkingUri:', Constants.linkingUri);
-  console.log('📱 APP_SCHEME:', APP_SCHEME);
-  console.log('📱 DEEP_LINKS:', DEEP_LINKS);
 };

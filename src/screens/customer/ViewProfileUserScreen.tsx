@@ -57,28 +57,31 @@ const ViewProfileUserScreen = () => {
       try {
         setLoading(true);
 
-        // If viewing own profile and we have current user data, use it
-        if (isOwnProfile && currentUser) {
-          setUserProfile(currentUser);
-          setError(null);
-        } else {
-          // Fetch other user's profile
-
+        // Always try to fetch from API first for most up-to-date data
+        try {
+          console.log("🔍 Fetching user from API for userId:", userId);
           const userData = await userService.getUserById(userId);
-
+          console.log("🔍 API response userData:", userData);
+          
           setUserProfile(userData);
           setError(null);
+        } catch (apiError) {
+          console.error("❌ API fetch failed:", apiError);
+          
+          // If API fails and viewing own profile, use currentUser as fallback
+          if (isOwnProfile && currentUser) {
+            console.log("🔍 Using currentUser as fallback:", currentUser);
+            setUserProfile(currentUser);
+            setError(null);
+          } else {
+            throw apiError; // Re-throw if no fallback available
+          }
         }
 
         // Load user styles
         await loadUserStyles(userId);
       } catch (err) {
         console.error("❌ Error fetching user profile:", err);
-        console.error("❌ Error details:", {
-          message: err instanceof Error ? err.message : "Unknown error",
-          userId: userId,
-          userIdType: typeof userId,
-        });
         setError("Failed to load profile");
       } finally {
         setLoading(false);
@@ -91,9 +94,7 @@ const ViewProfileUserScreen = () => {
   const loadUserStyles = async (userId: number) => {
     try {
       setLoadingStyles(true);
-
       const styles = await userStyleService.getUserStyles(userId);
-
       setUserStyles(styles);
     } catch (error) {
       console.error("❌ Error loading user styles:", error);
@@ -123,10 +124,40 @@ const ViewProfileUserScreen = () => {
   ): string | null => {
     if (!user) return null;
 
-    if ("profileImage" in user && user.profileImage) {
-      return user.profileImage;
+    console.log("🔍 getUserAvatar - user object:", user);
+    console.log("🔍 getUserAvatar - profileImage:", user.profileImage);
+
+    // Check for profileImage in different possible structures
+    if ("profileImage" in user) {
+      // Handle direct profileImage
+      if (typeof user.profileImage === "string" && user.profileImage.trim()) {
+        console.log("🔍 Found direct profileImage:", user.profileImage);
+        return user.profileImage;
+      }
+      
+      // Handle nested structure if exists
+      if (user.profileImage && typeof user.profileImage === "object") {
+        // @ts-ignore - Check if it's a nested object with value
+        if (user.profileImage.value || user.profileImage.$value) {
+          // @ts-ignore
+          return user.profileImage.value || user.profileImage.$value;
+        }
+      }
     }
 
+    // Check for alternative property names that might exist
+    // @ts-ignore
+    if (user.avatar) {
+      // @ts-ignore
+      return user.avatar;
+    }
+    // @ts-ignore
+    if (user.image) {
+      // @ts-ignore
+      return user.image;
+    }
+
+    console.log("🔍 No valid avatar found, returning null");
     return null;
   };
 
@@ -391,6 +422,8 @@ const ViewProfileUserScreen = () => {
   const initials = getUserInitials(userProfile);
   const userBio = getUserBio(userProfile);
 
+  console.log("🔍 Final render - avatarUrl:", avatarUrl);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F7F7F7" }}>
       <StatusBar barStyle="dark-content" backgroundColor="#F7F7F7" />
@@ -500,6 +533,13 @@ const ViewProfileUserScreen = () => {
                   borderRadius: getResponsiveSize(60),
                 }}
                 resizeMode="cover"
+                onError={(e) => {
+                  console.log("❌ Avatar load error:", e.nativeEvent.error);
+                  console.log("❌ Failed URL:", avatarUrl);
+                }}
+                onLoad={() => {
+                  console.log("✅ Avatar loaded successfully:", avatarUrl);
+                }}
               />
             ) : (
               <Text

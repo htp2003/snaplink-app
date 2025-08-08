@@ -135,19 +135,45 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   const bookingCounts = getBookingCounts();
 
   const handleCompleteOrder = async (bookingId: string) => {
-    Alert.alert("Hoàn thành đơn hàng", "Xác nhận đơn hàng này đã hoàn thành?", [
-      { text: "Hủy", style: "cancel" },
+  Alert.alert(
+    "Hoàn thành đơn hàng", 
+    "Xác nhận đơn hàng này đã hoàn thành? Hành động này không thể hoàn tác.",
+    [
+      { 
+        text: "Hủy", 
+        style: "cancel" 
+      },
       {
         text: "Hoàn thành",
+        style: "default",
         onPress: async () => {
-          const success = await completeBooking(parseInt(bookingId));
-          if (success) {
-            // Success alert is handled in the hook
+          try {
+            console.log(`🔄 Completing booking ${bookingId}...`);
+            
+            // ✅ Sử dụng API Complete
+            const success = await completeBooking(parseInt(bookingId));
+            
+            if (success) {
+              console.log("✅ Booking completed successfully!");
+              
+              // Refresh data để đảm bảo UI được update
+              await refreshBookings();
+              
+              // Optional: Trigger photo delivery refresh nếu cần
+              await refreshPhotoDeliveries();
+            }
+          } catch (error) {
+            console.error("❌ Error in handleCompleteOrder:", error);
+            Alert.alert(
+              "Lỗi", 
+              "Không thể hoàn thành đơn hàng. Vui lòng thử lại."
+            );
           }
         },
       },
-    ]);
-  };
+    ]
+  );
+};
 
   const handlePhotoDelivery = (order: BookingCardData) => {
     const bookingId = parseInt(order.id);
@@ -649,8 +675,6 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
           </View>
         ) : (
           <>
-            // Replace the order card rendering section in your ScrollView with
-            this:
             {filteredOrders.map((order, index) => {
               return (
                 <View

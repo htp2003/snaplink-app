@@ -29,6 +29,7 @@ interface ApiBooking {
   userEmail: string;
   locationName: string;
   locationAddress: string;
+  paymentAmount: number;
   externalLocation?: {
     name: string;
     address: string;
@@ -154,12 +155,12 @@ export const useBookings = (photographerId: number) => {
     fetchBookings({ page: 1, pageSize: pagination.pageSize });
   }, [fetchBookings, pagination.pageSize]);
 
-  // Accept booking
-  const acceptBooking = useCallback(async (bookingId: number) => {
+  // ✅ CONFIRM BOOKING - Sử dụng API confirm
+  const confirmBooking = useCallback(async (bookingId: number) => {
     try {
-      const response = await bookingService.updateBookingStatus(bookingId, {
-        status: "Confirmed",
-      });
+      console.log(`🔄 Confirming booking ${bookingId}...`);
+      
+      const response = await bookingService.confirmBooking(bookingId);
 
       if (response && (response.error === 0 || !response.error)) {
         setBookings((prev) =>
@@ -172,10 +173,10 @@ export const useBookings = (photographerId: number) => {
         Alert.alert("Thành công", "Đã xác nhận đơn hàng!");
         return true;
       } else {
-        throw new Error(response?.message || "Failed to accept booking");
+        throw new Error(response?.message || "Failed to confirm booking");
       }
     } catch (err) {
-      console.error("Error accepting booking:", err);
+      console.error("❌ Error confirming booking:", err);
       const errorMessage =
         err instanceof Error ? err.message : "An error occurred";
       Alert.alert("Lỗi", `Không thể xác nhận đơn hàng: ${errorMessage}`);
@@ -183,9 +184,47 @@ export const useBookings = (photographerId: number) => {
     }
   }, []);
 
-  // Reject booking
+  // ✅ ACCEPT BOOKING (legacy method - maps to confirm)
+  const acceptBooking = useCallback(async (bookingId: number) => {
+    return confirmBooking(bookingId);
+  }, [confirmBooking]);
+
+  // ✅ COMPLETE BOOKING - Sử dụng API Complete
+  const completeBooking = useCallback(async (bookingId: number) => {
+    try {
+      console.log(`🔄 Completing booking ${bookingId}...`);
+      
+      const response = await bookingService.completeBooking(bookingId);
+
+      if (response && (response.error === 0 || !response.error)) {
+        // ✅ Update local state immediately
+        setBookings((prev) =>
+          prev.map((booking) =>
+            booking.bookingId === bookingId
+              ? { ...booking, status: "Completed" }
+              : booking
+          )
+        );
+        
+        Alert.alert("Thành công", "Đơn hàng đã hoàn thành!");
+        return true;
+      } else {
+        throw new Error(response?.message || "Failed to complete booking");
+      }
+    } catch (err) {
+      console.error("❌ Error completing booking:", err);
+      const errorMessage =
+        err instanceof Error ? err.message : "An error occurred";
+      Alert.alert("Lỗi", `Không thể hoàn thành đơn hàng: ${errorMessage}`);
+      return false;
+    }
+  }, []);
+
+  // ✅ REJECT/CANCEL BOOKING
   const rejectBooking = useCallback(async (bookingId: number) => {
     try {
+      console.log(`🔄 Cancelling booking ${bookingId}...`);
+      
       const response = await bookingService.cancelBooking(bookingId);
 
       if (response && (response.error === 0 || !response.error)) {
@@ -199,40 +238,13 @@ export const useBookings = (photographerId: number) => {
         Alert.alert("Đã hủy", "Đơn hàng đã được hủy.");
         return true;
       } else {
-        throw new Error(response?.message || "Failed to reject booking");
+        throw new Error(response?.message || "Failed to cancel booking");
       }
     } catch (err) {
-      console.error("Error rejecting booking:", err);
+      console.error("❌ Error cancelling booking:", err);
       const errorMessage =
         err instanceof Error ? err.message : "An error occurred";
       Alert.alert("Lỗi", `Không thể hủy đơn hàng: ${errorMessage}`);
-      return false;
-    }
-  }, []);
-
-  // Complete booking
-  const completeBooking = useCallback(async (bookingId: number) => {
-    try {
-      const response = await bookingService.completeBooking(bookingId);
-
-      if (response && (response.error === 0 || !response.error)) {
-        setBookings((prev) =>
-          prev.map((booking) =>
-            booking.bookingId === bookingId
-              ? { ...booking, status: "Completed" }
-              : booking
-          )
-        );
-        Alert.alert("Thành công", "Đơn hàng đã hoàn thành!");
-        return true;
-      } else {
-        throw new Error(response?.message || "Failed to complete booking");
-      }
-    } catch (err) {
-      console.error("Error completing booking:", err);
-      const errorMessage =
-        err instanceof Error ? err.message : "An error occurred";
-      Alert.alert("Lỗi", `Không thể hoàn thành đơn hàng: ${errorMessage}`);
       return false;
     }
   }, []);
@@ -246,27 +258,29 @@ export const useBookings = (photographerId: number) => {
         (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60)
       );
 
-      // Map API status to UI status
+      // ✅ Map API status to UI status
       const getUIStatus = (apiStatus: string): BookingCardData["status"] => {
         const status = apiStatus?.toLowerCase();
 
         switch (status) {
           case "pending":
+            return "pending";
           case "confirmed":
-            return "confirmed"; // ✅ Pending/Confirmed → confirmed tab
+            return "confirmed";
           case "cancelled":
           case "canceled":
             return "rejected";
           case "completed":
           case "finished":
           case "done":
-            return "completed"; // ✅ Completed → completed tab
+            return "completed";
           case "inprogress":
           case "in-progress":
           case "in_progress":
             return "in-progress";
           default:
-            return "confirmed"; // ✅ Default to confirmed
+            console.warn(`⚠️ Unknown booking status: ${apiStatus}`);
+            return "pending";
         }
       };
 
@@ -279,14 +293,14 @@ export const useBookings = (photographerId: number) => {
       const result = {
         id: booking.bookingId.toString(),
         userName: booking.userName || `User ${booking.userId}`,
-        customerName: booking.userName || `User ${booking.userId}`, // Add this field
-        customerPhone: "", // Not provided in API
+        customerName: booking.userName || `User ${booking.userId}`,
+        customerPhone: "",
         customerEmail: booking.userEmail || "",
-        serviceType: "Chụp ảnh", // Generic, might need to add this field to API
+        serviceType: "Chụp ảnh",
         location:
           booking.locationName ||
           booking.externalLocation?.name ||
-          "Chưa xác định", // Add this field for compatibility
+          "Chưa xác định",
         locationName:
           booking.locationName ||
           booking.externalLocation?.name ||
@@ -296,14 +310,14 @@ export const useBookings = (photographerId: number) => {
         date: startDate.toISOString().split("T")[0],
         time: startDate.toTimeString().slice(0, 5),
         duration: durationHours,
-        price: booking.totalPrice,
+        price: booking.paymentAmount,
         status: getUIStatus(booking.status),
         description: booking.specialRequests || "Không có yêu cầu đặc biệt",
         createdAt: booking.createdAt,
         specialRequests: booking.specialRequests || undefined,
-        hasPayment: false, // You might need to fetch this separately
-        paymentStatus: "pending", // You might need to fetch this separately
-        paymentAmount: booking.totalPrice,
+        hasPayment: false,
+        paymentStatus: "pending",
+        paymentAmount: booking.paymentAmount,
         pricePerHour: pricePerHour,
       };
 
@@ -363,10 +377,11 @@ export const useBookings = (photographerId: number) => {
     fetchBookings,
     loadMoreBookings,
     refreshBookings,
-    acceptBooking,
+    acceptBooking, // Maps to confirmBooking
+    confirmBooking, // ✅ New method
     rejectBooking,
-    completeBooking,
-
+    completeBooking, // ✅ Updated to use Complete API
+    
     // Helpers
     getBookingsForUI,
     getBookingsByStatus,

@@ -14,11 +14,10 @@ const API_BASE_URL =
   "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 
 class BookingService {
-  // ✅ FIX: Get token from AsyncStorage
+  // ✅ Get token from AsyncStorage
   private async getAuthToken(): Promise<string | null> {
     try {
       const token = await AsyncStorage.getItem("token");
-
       return token;
     } catch (error) {
       console.error("❌ Error getting token from AsyncStorage:", error);
@@ -31,7 +30,7 @@ class BookingService {
     options: RequestInit = {}
   ): Promise<T> {
     try {
-      const token = await this.getAuthToken(); // ✅ Get real token
+      const token = await this.getAuthToken();
 
       if (!token) {
         throw new Error("No authentication token found. Please login again.");
@@ -40,7 +39,7 @@ class BookingService {
       const config: RequestInit = {
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`, // ✅ Add real token
+          Authorization: `Bearer ${token}`,
           ...options.headers,
         },
         ...options,
@@ -61,7 +60,6 @@ class BookingService {
       }
 
       const data = await response.json();
-
       return data;
     } catch (error) {
       console.error("❌ BookingService API Request failed:", error);
@@ -87,16 +85,12 @@ class BookingService {
 
     const response = await this.makeRequest<any>(endpoint);
 
-    // The API returns: { error: 0, message: "...", data: { bookings: [...], totalCount: 3, ... } }
-    // We need to extract the actual bookings array
-
     let processedResponse;
 
     if (response.error === 0 && response.data && response.data.bookings) {
-      // Standard API response format
       processedResponse = {
         data: {
-          bookings: response.data.bookings, // ✅ Extract the actual array
+          bookings: response.data.bookings,
           totalCount: response.data.totalCount,
           page: response.data.page,
           pageSize: response.data.pageSize,
@@ -106,7 +100,6 @@ class BookingService {
         message: response.message || "Success",
       };
     } else if (response.bookings) {
-      // Direct response with bookings array (fallback)
       processedResponse = {
         data: {
           bookings: response.bookings,
@@ -124,7 +117,6 @@ class BookingService {
         message: "Success",
       };
     } else if (Array.isArray(response)) {
-      // Direct array response (fallback)
       processedResponse = {
         data: {
           bookings: response,
@@ -137,7 +129,6 @@ class BookingService {
         message: "Success",
       };
     } else {
-      // Unknown format
       processedResponse = {
         data: {
           bookings: [],
@@ -157,57 +148,96 @@ class BookingService {
   // Get single booking details
   async getBookingById(bookingId: number): Promise<any> {
     const response = await this.makeRequest<any>(`/api/Booking/${bookingId}`);
-
     return response;
   }
 
-  // Update booking status (accept, reject, complete)
-  async updateBookingStatus(
-    bookingId: number,
-    statusData: Partial<UpdateBookingStatusRequest>
-  ): Promise<any> {
-    const response = await this.makeRequest<any>(`/api/Booking/${bookingId}`, {
-      method: "PUT",
-      body: JSON.stringify(statusData),
-    });
+  // ✅ CONFIRM BOOKING - Sử dụng API PUT để confirm booking
+  async confirmBooking(bookingId: number): Promise<any> {
+    try {
+      const response = await this.makeRequest<any>(
+        `/api/Booking/${bookingId}/confirm`,
+        {
+          method: "PUT",
+        }
+      );
 
-    return {
-      error: 0,
-      message: "Success",
-      data: response,
-    };
+      return {
+        error: 0,
+        message: "Booking confirmed successfully",
+        data: response,
+      };
+    } catch (error) {
+      console.error("❌ Error confirming booking:", error);
+      throw error;
+    }
+  }
+
+  // ✅ COMPLETE BOOKING - Sử dụng API PUT Complete
+  async completeBooking(bookingId: number): Promise<any> {
+    try {
+      console.log(`🔄 Completing booking ${bookingId}...`);
+      
+      const response = await this.makeRequest<any>(
+        `/api/Booking/${bookingId}/Complete`, // ✅ Sử dụng đúng endpoint Complete
+        {
+          method: "PUT",
+        }
+      );
+
+      console.log("✅ Complete booking response:", response);
+
+      return {
+        error: 0,
+        message: "Booking completed successfully",
+        data: response,
+      };
+    } catch (error) {
+      console.error("❌ Error completing booking:", error);
+      throw error;
+    }
   }
 
   // Cancel booking
   async cancelBooking(bookingId: number): Promise<any> {
-    const response = await this.makeRequest<any>(
-      `/api/Booking/${bookingId}/cancel`,
-      {
-        method: "PUT",
-      }
-    );
+    try {
+      const response = await this.makeRequest<any>(
+        `/api/Booking/${bookingId}/cancel`,
+        {
+          method: "PUT",
+        }
+      );
 
-    return {
-      error: 0,
-      message: "Booking cancelled successfully",
-      data: response,
-    };
+      return {
+        error: 0,
+        message: "Booking cancelled successfully",
+        data: response,
+      };
+    } catch (error) {
+      console.error("❌ Error cancelling booking:", error);
+      throw error;
+    }
   }
 
-  // Complete booking
-  async completeBooking(bookingId: number): Promise<any> {
-    const response = await this.makeRequest<any>(
-      `/api/Booking/${bookingId}/Complete`,
-      {
+  // ✅ GENERIC UPDATE BOOKING STATUS (if needed for other statuses)
+  async updateBookingStatus(
+    bookingId: number,
+    statusData: Partial<UpdateBookingStatusRequest>
+  ): Promise<any> {
+    try {
+      const response = await this.makeRequest<any>(`/api/Booking/${bookingId}`, {
         method: "PUT",
-      }
-    );
+        body: JSON.stringify(statusData),
+      });
 
-    return {
-      error: 0,
-      message: "Booking completed successfully",
-      data: response,
-    };
+      return {
+        error: 0,
+        message: "Booking status updated successfully",
+        data: response,
+      };
+    } catch (error) {
+      console.error("❌ Error updating booking status:", error);
+      throw error;
+    }
   }
 
   // Get all bookings (if needed for admin/overview)

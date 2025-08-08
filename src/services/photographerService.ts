@@ -66,6 +66,7 @@ export interface CreatePhotographerRequest {
   latitude?: number;
   longitude?: number;
   styleIds?: number[];
+  profileImage?: string; // Optional image URL
   
 }
 
@@ -74,6 +75,7 @@ export interface UpdatePhotographerRequest {
   equipment?: string;
   hourlyRate?: number;
   availabilityStatus?: string;
+  profileImage?: string;
   rating?: number;
   ratingSum?: number;
   ratingCount?: number;

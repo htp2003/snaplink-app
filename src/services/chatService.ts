@@ -29,7 +29,7 @@ import {
 // ===== API ENDPOINTS =====
 const CHAT_ENDPOINTS = {
   // Messages
-  SEND_MESSAGE: '/api/chat/send-message',
+  SEND_MESSAGE: '/api/Chat/send-message',
   GET_MESSAGE: (messageId: number) => `/api/chat/messages/${messageId}`,
   DELETE_MESSAGE: (messageId: number) => `/api/chat/messages/${messageId}`,
   MARK_READ: (messageId: number) => `/api/chat/messages/${messageId}/mark-read`,
@@ -141,45 +141,51 @@ export class ChatService {
   }
   
   async sendMessage(messageData: SendMessageRequest): Promise<SendMessageResponse> {
-    try {
-      console.log('💬 Sending message:', messageData);
-      
-      // Validate input
-      if (!messageData.recipientId || messageData.recipientId <= 0) {
-        throw new Error('Recipient ID is required');
-      }
-      
-      if (!messageData.content || messageData.content.trim() === '') {
-        throw new Error('Message content cannot be empty');
-      }
-      
-      if (messageData.content.length > 1000) {
-        throw new Error('Message content too long (max 1000 characters)');
-      }
-      
-      // Prepare payload
-      const payload = {
-        recipientId: messageData.recipientId,
-        content: messageData.content.trim(),
-        messageType: messageData.messageType || 'text',
-        conversationId: messageData.conversationId || undefined
-      };
-      
-      console.log('💬 Message payload:', payload);
-      
-      const response = await apiClient.post<SendMessageResponse>(
-        CHAT_ENDPOINTS.SEND_MESSAGE,
-        payload
-      );
-      
-      console.log('✅ Message sent successfully:', response);
-      return response;
-      
-    } catch (error) {
-      console.error('❌ Error sending message:', error);
-      throw error;
+  try {
+    console.log('💬 ChatService.sendMessage called with:', {
+      recipientId: messageData.recipientId,
+      content: messageData.content?.substring(0, 50) + '...',
+      conversationId: messageData.conversationId,
+      messageType: messageData.messageType
+    });
+    
+    // Validate input
+    if (!messageData.recipientId || messageData.recipientId <= 0) {
+      throw new Error('Recipient ID is required');
     }
+    
+    if (!messageData.content || messageData.content.trim() === '') {
+      throw new Error('Message content cannot be empty');
+    }
+    
+    if (messageData.content.length > 1000) {
+      throw new Error('Message content too long (max 1000 characters)');
+    }
+    
+    // Prepare payload
+    const payload = {
+      recipientId: messageData.recipientId,
+      content: messageData.content.trim(),
+      messageType: messageData.messageType || 'Text', // ✅ Fix: Backend expects "Text" not "text"
+      conversationId: messageData.conversationId || undefined
+    };
+    
+    console.log('📤 Sending message payload:', payload);
+    
+    // ✅ USE UNIFIED makeRequest method instead of apiClient
+    const response = await this.post<SendMessageResponse>(
+      CHAT_ENDPOINTS.SEND_MESSAGE,
+      payload
+    );
+    
+    console.log('✅ ChatService.sendMessage API response:', response);
+    return response;
+    
+  } catch (error) {
+    console.error('❌ ChatService.sendMessage error:', error);
+    throw error;
   }
+}
   
   async getMessage(messageId: number): Promise<MessageResponse> {
     try {
@@ -220,29 +226,36 @@ export class ChatService {
   }
   
   async markMessageAsRead(messageId: number): Promise<void> {
-    try {
-      console.log('👀 Marking message as read:', messageId);
-      
-      if (!messageId || messageId <= 0) {
-        throw new Error('Invalid message ID');
-      }
-      
-      const payload: MarkMessageAsReadRequest = {
-        messageId
-      };
-      
-      await apiClient.post(
-        CHAT_ENDPOINTS.MARK_READ(messageId),
-        payload
-      );
-      
-      console.log('✅ Message marked as read');
-      
-    } catch (error) {
-      console.error('❌ Error marking message as read:', error);
-      throw error;
+  try {
+    console.log('👀 Marking message as read:', messageId);
+    
+    if (!messageId || messageId <= 0) {
+      throw new Error('Invalid message ID');
     }
+    
+    const payload: MarkMessageAsReadRequest = {
+      messageId
+    };
+
+    console.log('📤 Mark as read payload:', payload);
+    console.log('📤 Mark as read URL:', CHAT_ENDPOINTS.MARK_READ(messageId));
+    
+    const response = await this.post(
+      CHAT_ENDPOINTS.MARK_READ(messageId),
+      payload
+    );
+    
+    console.log('✅ Mark as read response:', response);
+    console.log('✅ Message marked as read successfully');
+    
+  } catch (error) {
+    console.error('❌ Error marking message as read:', {
+      messageId,
+      error: error instanceof Error ? error.message : error
+    });
+    throw error;
   }
+}
   
   // ===== CONVERSATION METHODS =====
   

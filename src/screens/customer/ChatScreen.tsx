@@ -1,4 +1,4 @@
-// ChatScreen.tsx - Fixed to use useChat hook instead of useConversation
+// ChatScreen.tsx - Fixed với SignalR Real-time
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
@@ -18,15 +18,16 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRoute, useNavigation, RouteProp } from "@react-navigation/native";
-import { useChat } from "../../hooks/useChat"; // ✅ Use useChat instead of useConversation
-import { useAuth } from "../../hooks/useAuth";
-import { chatService } from "../../services/chatService";
+import { useConversation } from "../../hooks/useChat";
+import { signalRManager } from "../../services/signalRManager"; // ✅ THÊM SignalR
+import { useAuth } from "../../hooks/useAuth"; // ✅ THÊM để lấy userId
 
 import {
   Message,
   MessageType,
   MessageStatus,
   ConversationParticipant,
+  MessageResponse, // ✅ THÊM type cho SignalR
 } from "../../types/chat";
 
 // Screen dimensions
@@ -47,232 +48,287 @@ type ChatScreenRouteProp = RouteProp<
 const ChatScreen = () => {
   const route = useRoute<ChatScreenRouteProp>();
   const navigation = useNavigation();
-  const { getCurrentUserId } = useAuth();
 
   const { conversationId, title, otherUser } = route.params;
+
+  // ✅ THÊM AUTH để lấy current user ID
+  const { getCurrentUserId } = useAuth();
   const currentUserId = getCurrentUserId();
 
-  // ===== USE CHAT HOOK =====
+  // ===== HOOKS =====
   const {
-    conversations,
-    getConversationById,
-    sendMessageToConversation,
-    isSignalRConnected,
-  } = useChat({
-    userId: currentUserId || 0,
-    autoRefresh: true,
+    messages,
+    conversation,
+    loadingMessages,
+    sendingMessage,
+    hasMoreMessages,
+    error,
+    isTyping,
+    sendMessage,
+    loadMoreMessages,
+    markMessagesAsRead,
+    startTyping,
+    stopTyping,
+    clearError,
+    setMessages, // ✅ CẦN để update messages real-time
+  } = useConversation({
+    conversationId,
+    autoMarkAsRead: true,
+    loadHistoryOnMount: true,
+    enableTypingIndicator: true,
     enableRealtime: true,
   });
 
   // ===== LOCAL STATES =====
   const [messageText, setMessageText] = useState("");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [loadingMessages, setLoadingMessages] = useState(true);
-  const [sendingMessage, setSendingMessage] = useState(false);
-  const [hasMoreMessages, setHasMoreMessages] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isTyping, setIsTyping] = useState(false);
+
+  // ✅ THÊM SignalR states
+  const [isSignalRConnected, setIsSignalRConnected] = useState(false);
+  const [realtimeMessageCount, setRealtimeMessageCount] = useState(0);
 
   // Refs
   const flatListRef = useRef<FlatList>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentPage = useRef(1);
+  const isSignalRSetup = useRef(false);
 
-  // ===== LOAD MESSAGES =====
-  const loadMessages = useCallback(
-    async (page: number = 1, append: boolean = false) => {
-      try {
-        if (page === 1) {
-          setLoadingMessages(true);
-        } else {
-          setIsLoadingMore(true);
-        }
+  // ✅ THÊM SignalR SETUP cho ChatScreen
+  useEffect(() => {
+    const setupChatSignalR = async () => {
+      if (!currentUserId || !conversationId || isSignalRSetup.current) return;
 
-        const response = await chatService.getConversationMessages(
-          conversationId,
-          page,
-          20
-        );
+      console.log("🔥 Setting up SignalR for ChatScreen...", {
+        currentUserId,
+        conversationId,
+      });
 
-        if (response.messages) {
-          const normalizedMessages = response.messages.map((msg) =>
-            chatService.normalizeMessageResponse(msg)
+      // Kiểm tra xem SignalR đã được khởi tạo chưa
+      const status = signalRManager.getStatus();
+      console.log("📡 Current SignalR status:", status);
+
+      if (!status.isConnected) {
+        console.log("🔄 SignalR not connected, initializing...");
+        const connected = await signalRManager.initialize(currentUserId, {});
+        if (!connected) {
+          console.error("❌ Failed to connect SignalR in ChatScreen");
+          Alert.alert(
+            "Connection Issue",
+            "Real-time messages may not work properly."
           );
+          return;
+        }
+      }
 
-          if (append) {
-            setMessages((prev) => [...normalizedMessages, ...prev]);
-          } else {
-            setMessages(normalizedMessages);
+      // ✅ JOIN CONVERSATION để nhận real-time messages
+      try {
+        await signalRManager.joinConversation(conversationId);
+        console.log(
+          "✅ Joined conversation for real-time updates:",
+          conversationId
+        );
+      } catch (error) {
+        console.error("❌ Failed to join conversation:", error);
+      }
+
+      // ✅ SETUP EVENT HANDLERS cho ChatScreen
+      signalRManager.updateEventHandlers({
+        onMessageReceived: (message: MessageResponse) => {
+          console.log("🔥🔥🔥 CHAT SCREEN - New message received:", message);
+
+          // Chỉ xử lý message thuộc conversation này
+          if (message.conversationId !== conversationId) {
+            console.log("📝 Message not for this conversation, ignoring");
+            return;
           }
 
-          setHasMoreMessages(response.hasMore);
-          currentPage.current = page;
-        }
-      } catch (err) {
-        console.error("❌ Error loading messages:", err);
-        setError("Failed to load messages");
-      } finally {
-        setLoadingMessages(false);
-        setIsLoadingMore(false);
-      }
-    },
-    [conversationId]
-  );
+          setRealtimeMessageCount((prev) => prev + 1);
 
-  // ===== LOAD MORE MESSAGES =====
-  const loadMoreMessages = useCallback(async () => {
-    if (!hasMoreMessages || isLoadingMore) return;
+          // ✅ UPDATE MESSAGES LIST với message mới
+          if (setMessages) {
+            setMessages((prevMessages: Message[]) => {
+              // ✅ Kiểm tra duplicate bằng messageId VÀ content VÀ timestamp
+              const existingMessage = prevMessages.find(
+                (m) =>
+                  m.messageId === message.messageId ||
+                  (m.content === message.content &&
+                    m.senderId === message.senderId &&
+                    Math.abs(
+                      new Date(m.createdAt).getTime() -
+                        new Date(message.createdAt).getTime()
+                    ) < 5000) // 5 seconds tolerance
+              );
 
-    await loadMessages(currentPage.current + 1, true);
-  }, [hasMoreMessages, isLoadingMore, loadMessages]);
+              if (existingMessage) {
+                console.log("📝 Message already exists, skipping:", {
+                  existing: {
+                    id: existingMessage.messageId,
+                    localId: existingMessage.localId,
+                  },
+                  new: {
+                    id: message.messageId,
+                    content: message.content.substring(0, 20),
+                  },
+                });
+                return prevMessages;
+              }
 
-  // ===== SEND MESSAGE =====
-  const sendMessage = useCallback(
-    async (content: string, messageType: MessageType = MessageType.TEXT) => {
-      if (!content.trim() || sendingMessage) return null;
+              // Convert MessageResponse to Message
+              const newMessage: Message = {
+                messageId: message.messageId,
+                localId: undefined, // Real messages don't have localId
+                senderId: message.senderId,
+                recipientId: message.recipientId || currentUserId,
+                conversationId: message.conversationId!,
+                content: message.content,
+                messageType:
+                  (message.messageType as MessageType) || MessageType.TEXT,
+                status:
+                  (message.status as MessageStatus) || MessageStatus.DELIVERED,
+                createdAt: message.createdAt,
+                readAt: message.readAt,
+                senderName: message.senderName,
+                senderProfileImage: message.senderProfileImage,
+              };
 
-      const tempMessage: Message = {
-        messageId: Date.now(), // Temporary ID
-        localId: `temp_${Date.now()}`,
-        senderId: currentUserId || 0,
-        conversationId: conversationId,
-        content: content.trim(),
-        createdAt: new Date().toISOString(),
-        messageType,
-        status: MessageStatus.SENDING,
-        senderName: "You",
-      };
+              console.log("✅ Adding new message to chat:", {
+                messageId: newMessage.messageId,
+                content: newMessage.content.substring(0, 30),
+                senderId: newMessage.senderId,
+              });
 
-      // Add temporary message to UI
-      setMessages((prev) => [...prev, tempMessage]);
+              // ✅ Remove any optimistic messages với same content từ current user
+              const filteredMessages = prevMessages.filter((msg) => {
+                if (
+                  msg.isOptimistic &&
+                  msg.senderId === message.senderId &&
+                  msg.content === message.content
+                ) {
+                  console.log("🗑️ Removing optimistic message:", msg.localId);
+                  return false;
+                }
+                return true;
+              });
 
-      try {
-        setSendingMessage(true);
+              // Thêm message mới vào cuối danh sách
+              const updatedMessages = [...filteredMessages, newMessage];
 
-        const response = await chatService.sendMessage({
-          recipientId: otherUser?.userId || 0,
-          content: content.trim(),
-          messageType,
-          conversationId,
-        });
+              // Sort by createdAt để đảm bảo thứ tự đúng
+              const sortedMessages = updatedMessages.sort(
+                (a, b) =>
+                  new Date(a.createdAt).getTime() -
+                  new Date(b.createdAt).getTime()
+              );
 
-        if (response.success && response.messageData) {
-          // Replace temporary message with real message
-          const realMessage = chatService.normalizeMessageResponse(
-            response.messageData
-          );
+              // Auto scroll to bottom khi có message mới
+              setTimeout(() => {
+                flatListRef.current?.scrollToEnd({ animated: true });
+              }, 100);
 
-          setMessages((prev) =>
-            prev.map((msg) =>
-              msg.localId === tempMessage.localId ? realMessage : msg
-            )
-          );
-
-          // Send via SignalR if connected
-          if (isSignalRConnected && sendMessageToConversation) {
-            try {
-              await sendMessageToConversation(conversationId, realMessage);
-            } catch (signalRError) {
-              console.warn("⚠️ SignalR send failed:", signalRError);
-            }
+              return sortedMessages;
+            });
           }
 
-          return realMessage;
-        } else {
-          throw new Error(response.message || "Failed to send message");
-        }
-      } catch (err) {
-        console.error("❌ Error sending message:", err);
+          console.log("✅ Real-time message processed successfully!");
+        },
 
-        // Mark message as failed
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.localId === tempMessage.localId
-              ? { ...msg, status: MessageStatus.FAILED }
-              : msg
-          )
-        );
+        onConnectionStatusChanged: (connected: boolean) => {
+          console.log("🔥 ChatScreen - SignalR connection status:", connected);
+          setIsSignalRConnected(connected);
 
-        return null;
-      } finally {
-        setSendingMessage(false);
+          if (!connected) {
+            Alert.alert(
+              "Connection Lost",
+              "Real-time messages may be delayed. The app will try to reconnect automatically."
+            );
+          }
+        },
+
+        onMessageStatusChanged: (messageId: number, status: string) => {
+          console.log(
+            "🔥 ChatScreen - Message status changed:",
+            messageId,
+            status
+          );
+
+          // Update message status in the list
+          if (setMessages) {
+            setMessages((prevMessages: Message[]) => {
+              return prevMessages.map((msg) => {
+                if (msg.messageId === messageId) {
+                  return {
+                    ...msg,
+                    status: status as MessageStatus,
+                    readAt:
+                      status === "read" ? new Date().toISOString() : msg.readAt,
+                  };
+                }
+                return msg;
+              });
+            });
+          }
+        },
+      });
+
+      setIsSignalRConnected(true);
+      isSignalRSetup.current = true;
+      console.log("✅ SignalR setup completed for ChatScreen");
+    };
+
+    setupChatSignalR();
+
+    // Cleanup khi leave screen
+    return () => {
+      if (isSignalRSetup.current) {
+        console.log("🧹 Cleaning up ChatScreen SignalR...");
+        // Leave conversation khi rời screen
+        signalRManager.leaveConversation(conversationId).catch(console.error);
+        isSignalRSetup.current = false;
       }
-    },
-    [
-      conversationId,
-      currentUserId,
-      otherUser,
-      sendingMessage,
-      isSignalRConnected,
-      sendMessageToConversation,
-    ]
-  );
+    };
+  }, [currentUserId, conversationId, setMessages, markMessagesAsRead]);
 
-  // ===== TYPING HANDLERS (SIMPLIFIED) =====
-  const startTyping = useCallback(() => {
-    if (!isTyping) {
-      setIsTyping(true);
-      console.log("👀 Started typing");
+  // ===== EXISTING HANDLERS (unchanged) =====
+
+  const handleProfilePress = useCallback(() => {
+    if (otherUser) {
+      console.log("👤 View profile for user:", otherUser.userId);
     }
-  }, [isTyping]);
-
-  const stopTyping = useCallback(() => {
-    if (isTyping) {
-      setIsTyping(false);
-      console.log("👀 Stopped typing");
-    }
-  }, [isTyping]);
-
-  // ===== MARK AS READ =====
-  const markMessagesAsRead = useCallback(async () => {
-    try {
-      const unreadMessages = messages.filter(
-        (msg) =>
-          msg.senderId !== currentUserId && msg.status !== MessageStatus.READ
-      );
-
-      for (const message of unreadMessages.slice(-5)) {
-        // Mark last 5 unread messages
-        await chatService.markMessageAsRead(message.messageId);
-      }
-    } catch (err) {
-      console.warn("⚠️ Failed to mark messages as read:", err);
-    }
-  }, [messages, currentUserId]);
+  }, [otherUser]);
 
   // ===== EFFECTS =====
 
-  // Load messages on mount
-  useEffect(() => {
-    loadMessages(1);
-  }, [loadMessages]);
-
-  // Mark messages as read when component mounts or messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      const timer = setTimeout(() => {
-        markMessagesAsRead();
-      }, 1000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [messages, markMessagesAsRead]);
-
-  // Set navigation title
+  // Set navigation title with SignalR status
   useEffect(() => {
     navigation.setOptions({
       title: title || "Chat",
       headerRight: () => (
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={handleProfilePress}
-        >
-          <Text style={styles.headerButtonText}>Profile</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", alignItems: "center" }}>
+          {/* ✅ THÊM SignalR status indicator */}
+          {__DEV__ && (
+            <View
+              style={{
+                marginRight: 12,
+                flexDirection: "row",
+                alignItems: "center",
+                backgroundColor: isSignalRConnected ? "#4CAF50" : "#FF9800",
+                paddingHorizontal: 6,
+                paddingVertical: 2,
+                borderRadius: 8,
+              }}
+            >
+            </View>
+          )}
+
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={handleProfilePress}
+          >
+            <Text style={styles.headerButtonText}>Profile</Text>
+          </TouchableOpacity>
+        </View>
       ),
     });
-  }, [navigation, title]);
+  }, [navigation, title, handleProfilePress, isSignalRConnected]);
 
   // Auto scroll to bottom when new messages arrive
   useEffect(() => {
@@ -283,17 +339,15 @@ const ChatScreen = () => {
     }
   }, [messages.length]);
 
-  // Handle typing indicator with timeout
+  // Handle typing indicator
   useEffect(() => {
     if (messageText.length > 0) {
       startTyping();
 
-      // Clear existing timeout
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
 
-      // Set new timeout to stop typing
       typingTimeoutRef.current = setTimeout(() => {
         stopTyping();
       }, 2000);
@@ -308,32 +362,87 @@ const ChatScreen = () => {
     };
   }, [messageText, startTyping, stopTyping]);
 
-  // ===== HANDLERS =====
-
-  const handleProfilePress = useCallback(() => {
-    if (otherUser) {
-      console.log("👤 View profile for user:", otherUser.userId);
-    }
-  }, [otherUser]);
+  // ===== ENHANCED SEND MESSAGE HANDLER =====
 
   const handleSendMessage = useCallback(async () => {
     if (!messageText.trim() || sendingMessage) return;
 
     const textToSend = messageText.trim();
-    setMessageText(""); // Clear input immediately
+    setMessageText("");
 
-    const sentMessage = await sendMessage(textToSend, MessageType.TEXT);
+    console.log("📤 Sending message...", {
+      textToSend,
+      conversationId,
+      currentUserId,
+    });
 
-    if (!sentMessage) {
-      // Restore message text if sending failed
+    try {
+      // ✅ Gửi message qua API
+      const sentMessage = await sendMessage(textToSend, MessageType.TEXT);
+
+      if (sentMessage) {
+        console.log("✅ Message sent successfully via API:", sentMessage);
+
+        // ✅ MANUAL SIGNALR BROADCAST - FIX CHO BACKEND THIẾU
+        try {
+          console.log("🔄 Triggering manual SignalR broadcast...");
+
+          // Convert Message to MessageResponse format
+          const messageForSignalR: MessageResponse = {
+            messageId: sentMessage.messageId,
+            senderId: sentMessage.senderId,
+            recipientId: sentMessage.recipientId,
+            conversationId: sentMessage.conversationId!,
+            content: sentMessage.content,
+            createdAt: sentMessage.createdAt,
+            messageType: sentMessage.messageType as any,
+            status: sentMessage.status as any,
+            readAt: sentMessage.readAt,
+            senderName: sentMessage.senderName,
+            senderProfileImage: sentMessage.senderProfileImage,
+          };
+
+          // Broadcast to conversation group
+          if (isSignalRConnected) {
+            await signalRManager.sendMessageToConversation(
+              conversationId,
+              messageForSignalR
+            );
+            console.log("✅ Manual SignalR broadcast successful!");
+          } else {
+            console.warn("⚠️ SignalR not connected, cannot broadcast");
+          }
+        } catch (broadcastError) {
+          console.warn("⚠️ Manual SignalR broadcast failed:", broadcastError);
+          // Don't fail the whole operation, message is already sent to API
+        }
+      } else {
+        console.error("❌ Failed to send message via API");
+        setMessageText(textToSend);
+        Alert.alert("Error", "Failed to send message. Please try again.");
+      }
+    } catch (err) {
+      console.error("❌ Error sending message:", err);
       setMessageText(textToSend);
       Alert.alert("Error", "Failed to send message. Please try again.");
     }
-  }, [messageText, sendingMessage, sendMessage]);
+  }, [
+    messageText,
+    sendingMessage,
+    sendMessage,
+    conversationId,
+    currentUserId,
+    isSignalRConnected,
+  ]);
+
+  // ===== REST OF HANDLERS (unchanged) =====
 
   const handleLoadMore = useCallback(async () => {
     if (!hasMoreMessages || isLoadingMore || loadingMessages) return;
+
+    setIsLoadingMore(true);
     await loadMoreMessages();
+    setIsLoadingMore(false);
   }, [hasMoreMessages, isLoadingMore, loadingMessages, loadMoreMessages]);
 
   const handleMessageTextChange = useCallback((text: string) => {
@@ -354,20 +463,24 @@ const ChatScreen = () => {
   );
 
   const handleErrorDismiss = useCallback(() => {
-    setError(null);
-  }, []);
+    clearError();
+  }, [clearError]);
 
-  // ===== RENDER METHODS =====
+  // ===== RENDER METHODS (mostly unchanged, chỉ fix currentUser logic) =====
 
   const renderMessage = useCallback(
     ({ item: message, index }: { item: Message; index: number }) => {
+      // ✅ FIX: So sánh với current user ID thay vì otherUser
       const isCurrentUser = message.senderId === currentUserId;
       const isLastMessage = index === messages.length - 1;
+      const showAvatar =
+        !isCurrentUser &&
+        (isLastMessage || messages[index + 1]?.senderId !== message.senderId);
       const showTimestamp =
         index === 0 ||
         new Date(message.createdAt).getTime() -
           new Date(messages[index - 1].createdAt).getTime() >
-          300000;
+          300000; // 5 minutes
 
       return (
         <View style={styles.messageContainer}>
@@ -391,15 +504,22 @@ const ChatScreen = () => {
           >
             {/* Avatar for other user */}
             {!isCurrentUser && (
-              <View style={styles.avatarContainer}>
-                <Image
-                  source={{
-                    uri:
-                      otherUser?.userProfileImage ||
-                      "https://via.placeholder.com/32x32",
-                  }}
-                  style={styles.messageAvatar}
-                />
+              <View
+                style={[
+                  styles.avatarContainer,
+                  !showAvatar && styles.avatarPlaceholder,
+                ]}
+              >
+                {showAvatar && (
+                  <Image
+                    source={{
+                      uri:
+                        otherUser?.userProfileImage ||
+                        "https://via.placeholder.com/32x32",
+                    }}
+                    style={styles.messageAvatar}
+                  />
+                )}
               </View>
             )}
 
@@ -472,8 +592,10 @@ const ChatScreen = () => {
         </View>
       );
     },
-    [messages, otherUser, currentUserId, handleRetryMessage]
+    [messages, otherUser, handleRetryMessage, currentUserId]
   );
+
+  // ===== REST OF RENDER METHODS (unchanged) =====
 
   const renderLoadMoreHeader = useCallback(() => {
     if (!hasMoreMessages) return null;
@@ -522,7 +644,13 @@ const ChatScreen = () => {
         </Text>
       </View>
     );
-  }, [loadingMessages, messages.length, otherUser]);
+  }, [
+    loadingMessages,
+    messages.length,
+    otherUser,
+    isSignalRConnected,
+    realtimeMessageCount,
+  ]);
 
   const renderErrorState = useCallback(() => {
     if (!error) return null;
@@ -558,9 +686,13 @@ const ChatScreen = () => {
         <FlatList
           ref={flatListRef}
           data={messages}
-          keyExtractor={(item) =>
-            `message_${item.messageId}_${item.localId || ""}`
-          }
+          keyExtractor={(item, index) => {
+            if (item.localId) {
+              return `local_${item.localId}`;
+            } else {
+              return `message_${item.messageId}_${item.createdAt}_${index}`;
+            }
+          }}
           renderItem={renderMessage}
           ListHeaderComponent={renderLoadMoreHeader}
           ListEmptyComponent={renderEmptyState}
@@ -579,8 +711,10 @@ const ChatScreen = () => {
           }}
         />
 
-        {/* Message Input */}
+        {/* Message Input với SignalR status */}
         <View style={styles.inputContainer}>
+
+
           <View style={styles.inputWrapper}>
             <TouchableOpacity style={styles.attachButton}>
               <Text style={styles.attachIcon}>📎</Text>
@@ -619,7 +753,7 @@ const ChatScreen = () => {
   );
 };
 
-// ===== UTILITY FUNCTIONS =====
+// ===== UTILITY FUNCTIONS (unchanged) =====
 
 const formatMessageTimestamp = (dateString: string): string => {
   const date = new Date(dateString);
@@ -647,7 +781,7 @@ const formatMessageTime = (dateString: string): string => {
   });
 };
 
-// ===== STYLES =====
+// ===== STYLES (unchanged) =====
 
 const styles = StyleSheet.create({
   container: {
@@ -727,6 +861,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  avatarPlaceholder: {
+    // Empty space for alignment when no avatar
+  },
   messageAvatar: {
     width: 28,
     height: 28,
@@ -801,7 +938,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    marginLeft: 40,
+    marginLeft: 40, // Account for avatar space
   },
   typingDots: {
     flexDirection: "row",
@@ -814,9 +951,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#8E8E93",
     marginHorizontal: 1,
   },
-  typingDot1: {},
-  typingDot2: {},
-  typingDot3: {},
+  typingDot1: {
+    // Animation would be added here
+  },
+  typingDot2: {
+    // Animation would be added here
+  },
+  typingDot3: {
+    // Animation would be added here
+  },
 
   // Input Styles
   inputContainer: {

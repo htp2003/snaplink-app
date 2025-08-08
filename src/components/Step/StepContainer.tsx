@@ -48,7 +48,6 @@ const StepContainer = () => {
 
   const handleRoleSelect = (roleData: { role: string; roleId: number }) => {
     const role = roleData.role;
-    console.log("🎯 Role selected:", role);
 
     setSelectedRole(role);
     setUserData((prev: any) => ({ ...prev, role, roleId: roleData.roleId }));
@@ -56,8 +55,6 @@ const StepContainer = () => {
     // After role selection, allow and navigate to style selection
     setMaxStep(1); // Now user can access step 1
     setCurrentPosition(1); // Move to step 1 (style selection)
-
-    console.log("✅ Moving to step 1 (style selection)");
   };
 
   const handleStyleSelect = async (styleIds: number[]) => {
@@ -66,8 +63,6 @@ const StepContainer = () => {
         Alert.alert("Lỗi", "Không tìm thấy thông tin user");
         return;
       }
-
-      console.log("🎨 Styles selected:", styleIds);
 
       // Save selected styles to userData
       setUserData((prev: any) => ({ ...prev, styleIds }));
@@ -88,18 +83,14 @@ const StepContainer = () => {
       // Save to AsyncStorage for backward compatibility
       if (selectedRole) {
         await AsyncStorage.setItem("userRole", selectedRole);
-        console.log("💾 Saved role to AsyncStorage:", selectedRole);
       }
 
       if (styleIds && styleIds.length > 0) {
         await AsyncStorage.setItem("userStyleIds", JSON.stringify(styleIds));
-        console.log("💾 Saved style IDs to AsyncStorage:", styleIds);
       }
 
       // Mark onboarding as completed
       await AsyncStorage.setItem("onboardingCompleted", "true");
-
-      console.log("🚀 Navigating based on role:", selectedRole);
 
       // Navigate based on role - updated navigation names
       if (selectedRole === "user") {

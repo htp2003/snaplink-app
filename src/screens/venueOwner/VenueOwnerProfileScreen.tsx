@@ -48,13 +48,10 @@ export default function VenueOwnerProfileScreen() {
   const checkExistingProfile = async () => {
     if (!user?.id) return;
 
-    console.log("🔍 Checking existing profile for userId:", user.id);
-
     // Try to find existing profile by userId
     const existingProfile = await getProfileByUserId(user.id);
 
     if (existingProfile) {
-      console.log("✅ Found existing profile:", existingProfile);
       setVenueOwner(existingProfile);
       setLocationOwnerId(existingProfile.locationOwnerId);
       setFormData({
@@ -65,7 +62,6 @@ export default function VenueOwnerProfileScreen() {
       });
       setShowCreateModal(false);
     } else {
-      console.log("ℹ️ No existing profile found, showing create form");
       setVenueOwner(null);
       setLocationOwnerId(null);
       setShowCreateModal(true);
@@ -74,7 +70,6 @@ export default function VenueOwnerProfileScreen() {
 
   const fetchVenueOwnerProfile = async (ownerIdToFetch?: number) => {
     if (!ownerIdToFetch && !locationOwnerId) {
-      console.log("ℹ️ No locationOwnerId available, showing create form");
       setShowCreateModal(true);
       return;
     }
@@ -123,7 +118,6 @@ export default function VenueOwnerProfileScreen() {
     });
 
     if (result) {
-      console.log("✅ Profile created successfully:", result);
       setVenueOwner(result);
       setLocationOwnerId(result.locationOwnerId);
       setShowCreateModal(false);
@@ -131,7 +125,6 @@ export default function VenueOwnerProfileScreen() {
 
       // If ID is 0 (temporary), try to fetch the real profile
       if (result.locationOwnerId === 0) {
-        console.log("🔄 ID is temporary, refreshing profile...");
         setTimeout(() => {
           checkExistingProfile();
         }, 1000);
@@ -175,11 +168,8 @@ export default function VenueOwnerProfileScreen() {
         onPress: async () => {
           try {
             setIsLoggingOut(true);
-            console.log("🚪 Starting logout process...");
 
             await logout();
-
-            console.log("✅ Logout completed, navigating to login...");
 
             // Reset navigation stack về Login
             navigation.reset({

@@ -29,7 +29,7 @@ class SignalRManager {
    */
   async initialize(userId: number, eventHandlers: SignalREventHandlers = {}): Promise<boolean> {
     try {
-      console.log('🔌 Initializing SignalR for user:', userId);
+      
       
       this.currentUserId = userId;
       this.eventHandlers = eventHandlers;
@@ -59,7 +59,7 @@ class SignalRManager {
       this.isConnected = true;
       this.reconnectAttempts = 0;
 
-      console.log('✅ SignalR connected successfully');
+      
 
       // Register user with hub
       await this.registerUser(userId);
@@ -84,13 +84,14 @@ class SignalRManager {
 
     // Receive new message - QUAN TRỌNG NHẤT!
     this.hubConnection.on('ReceiveMessage', (message: MessageResponse) => {
-      console.log('📨 NEW MESSAGE RECEIVED via SignalR:', message);
+      
       this.eventHandlers.onMessageReceived?.(message);
     });
 
     // User registered
     this.hubConnection.on('UserRegistered', (userId: number) => {
-      console.log('👤 User registered:', userId);
+      this.currentUserId = userId;
+      this.eventHandlers.onConnectionStatusChanged?.(true);
     });
 
     // Joined conversation

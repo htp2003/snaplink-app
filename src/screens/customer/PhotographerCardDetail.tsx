@@ -1,20 +1,41 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StatusBar, Dimensions, Alert, ActivityIndicator, FlatList, Animated } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../navigation/types';
-import { getResponsiveSize } from '../../utils/responsive';
-import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
-import { usePhotographerDetail } from '../../hooks/usePhotographerDetail';
-import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
-import PhotographerReviews from '../../components/Photographer/PhotographerReviews';
+import React, {
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  Dimensions,
+  Alert,
+  ActivityIndicator,
+  FlatList,
+  Animated,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { RouteProp, useNavigation, useRoute } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../../navigation/types";
+import { getResponsiveSize } from "../../utils/responsive";
+import { useFavorites, FavoriteItem } from "../../hooks/useFavorites";
+import { usePhotographerDetail } from "../../hooks/usePhotographerDetail";
+import { useRecentlyViewed } from "../../hooks/useRecentlyViewed";
+import PhotographerReviews from "../../components/Photographer/PhotographerReviews";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-type ProfileCardDetailRouteProp = RouteProp<RootStackParamList, 'PhotographerCardDetail'>;
+type ProfileCardDetailRouteProp = RouteProp<
+  RootStackParamList,
+  "PhotographerCardDetail"
+>;
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 export default function PhotographerCardDetail() {
   const navigation = useNavigation<NavigationProp>();
@@ -26,11 +47,11 @@ export default function PhotographerCardDetail() {
   const [hasTrackedView, setHasTrackedView] = useState(false); // Prevent multiple trackView calls
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
-  
+
   // Hooks
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { trackView } = useRecentlyViewed();
-  const { 
+  const {
     photographerDetail,
     loading,
     error,
@@ -54,26 +75,30 @@ export default function PhotographerCardDetail() {
   // Memoize the track view data to prevent changes on every render
   const trackViewData = useMemo(() => {
     if (!photographerDetail) return null;
-    
+
     return {
       id: photographerDetail.photographerId.toString(),
-      type: 'photographer' as const,
+      type: "photographer" as const,
       data: {
         id: photographerDetail.photographerId.toString(),
-        fullName: photographerDetail.fullName || 'Unknown Photographer',
-        avatar: photographerDetail.profileImage || '',
-        cardImage: primaryImageUrl || (photographerImages && photographerImages.length > 0 ? photographerImages[0] : null),
+        fullName: photographerDetail.fullName || "Unknown Photographer",
+        avatar: photographerDetail.profileImage || "",
+        cardImage:
+          primaryImageUrl ||
+          (photographerImages && photographerImages.length > 0
+            ? photographerImages[0]
+            : null),
         images: photographerImages || [],
         styles: Array.isArray(photographerDetail.styles)
           ? photographerDetail.styles
-          : (photographerDetail.styles && '$values' in photographerDetail.styles)
-            ? (photographerDetail.styles as any).$values
-            : [photographerDetail.specialty || 'Photography'],
+          : photographerDetail.styles && "$values" in photographerDetail.styles
+          ? (photographerDetail.styles as any).$values
+          : [photographerDetail.specialty || "Photography"],
         rating: photographerDetail.rating,
         hourlyRate: photographerDetail.hourlyRate,
         availabilityStatus: photographerDetail.availabilityStatus,
         specialty: photographerDetail.specialty,
-      }
+      },
     };
   }, [
     photographerDetail?.photographerId,
@@ -85,13 +110,12 @@ export default function PhotographerCardDetail() {
     photographerDetail?.availabilityStatus,
     photographerDetail?.specialty,
     primaryImageUrl,
-    photographerImages
+    photographerImages,
   ]);
 
   // Track recently viewed - only once when data is ready
   useEffect(() => {
     if (trackViewData && !hasTrackedView) {
-      console.log('Tracking view for photographer:', trackViewData.id);
       trackView(trackViewData);
       setHasTrackedView(true);
     }
@@ -100,45 +124,44 @@ export default function PhotographerCardDetail() {
   // Handle error
   useEffect(() => {
     if (error) {
-      Alert.alert(
-        'Lỗi',
-        `Không thể tải thông tin photographer: ${error}`,
-        [
-          { text: 'Thử lại', onPress: () => fetchPhotographerById(photographerId) },
-          { text: 'Quay lại', onPress: () => navigation.goBack() }
-        ]
-      );
+      Alert.alert("Lỗi", `Không thể tải thông tin photographer: ${error}`, [
+        {
+          text: "Thử lại",
+          onPress: () => fetchPhotographerById(photographerId),
+        },
+        { text: "Quay lại", onPress: () => navigation.goBack() },
+      ]);
     }
   }, [error, photographerId, fetchPhotographerById, navigation]);
 
   // Handle image error - don't show alert, just log
   useEffect(() => {
     if (imageError) {
-      console.warn('Image loading error:', imageError);
+      console.warn("Image loading error:", imageError);
     }
   }, [imageError]);
 
   // Memoize favorite item to prevent recreation on every render
   const favoriteItem = useMemo((): FavoriteItem | null => {
     if (!photographerDetail) return null;
-    
+
     return {
       id: photographerDetail.photographerId.toString(),
-      type: 'photographer',
+      type: "photographer",
       data: {
         id: photographerDetail.photographerId.toString(),
-        fullName: photographerDetail.fullName || 'Unknown',
-        avatar: photographerDetail.profileImage || '',
+        fullName: photographerDetail.fullName || "Unknown",
+        avatar: photographerDetail.profileImage || "",
         images: photographerImages || [],
         styles: Array.isArray(photographerDetail.styles)
           ? photographerDetail.styles
-          : (photographerDetail.styles && '$values' in photographerDetail.styles)
-            ? (photographerDetail.styles as any).$values
-            : [],
+          : photographerDetail.styles && "$values" in photographerDetail.styles
+          ? (photographerDetail.styles as any).$values
+          : [],
         rating: photographerDetail.rating,
         hourlyRate: photographerDetail.hourlyRate,
-        availabilityStatus: photographerDetail.availabilityStatus
-      }
+        availabilityStatus: photographerDetail.availabilityStatus,
+      },
     };
   }, [
     photographerDetail?.photographerId,
@@ -149,7 +172,7 @@ export default function PhotographerCardDetail() {
     photographerDetail?.hourlyRate,
     photographerDetail?.availabilityStatus,
     primaryImageUrl,
-    photographerImages
+    photographerImages,
   ]);
 
   // Handle favorite toggle
@@ -171,14 +194,35 @@ export default function PhotographerCardDetail() {
     const hasHalfStar = rating % 1 !== 0;
 
     for (let i = 0; i < fullStars; i++) {
-      stars.push(<Ionicons key={i} name="star" size={getResponsiveSize(16)} color="#d97706" />);
+      stars.push(
+        <Ionicons
+          key={i}
+          name="star"
+          size={getResponsiveSize(16)}
+          color="#d97706"
+        />
+      );
     }
     if (hasHalfStar) {
-      stars.push(<Ionicons key="half" name="star-half" size={getResponsiveSize(16)} color="#d97706" />);
+      stars.push(
+        <Ionicons
+          key="half"
+          name="star-half"
+          size={getResponsiveSize(16)}
+          color="#d97706"
+        />
+      );
     }
     const emptyStars = 5 - Math.ceil(rating);
     for (let i = 0; i < emptyStars; i++) {
-      stars.push(<Ionicons key={`empty-${i}`} name="star-outline" size={getResponsiveSize(16)} color="#d1d5db" />);
+      stars.push(
+        <Ionicons
+          key={`empty-${i}`}
+          name="star-outline"
+          size={getResponsiveSize(16)}
+          color="#d1d5db"
+        />
+      );
     }
     return stars;
   }, []);
@@ -191,30 +235,33 @@ export default function PhotographerCardDetail() {
   }).current;
 
   // Render image item
-  const renderImageItem = useCallback(({ item }: { item: string }) => (
-    <View style={{ width }}>
-      <Image
-        source={{ uri: item }}
-        style={{ 
-          width, 
-          height: height * 0.6 + 50,
-          marginTop: -50
-        }}
-        resizeMode="cover"
-        onError={() => {
-          console.log('Failed to load image:', item);
-        }}
-      />
-    </View>
-  ), []);
+  const renderImageItem = useCallback(
+    ({ item }: { item: string }) => (
+      <View style={{ width }}>
+        <Image
+          source={{ uri: item }}
+          style={{
+            width,
+            height: height * 0.6 + 50,
+            marginTop: -50,
+          }}
+          resizeMode="cover"
+          onError={() => {
+            console.log("Failed to load image:", item);
+          }}
+        />
+      </View>
+    ),
+    []
+  );
 
   // Handle status bar style change
   useEffect(() => {
     const listener = scrollY.addListener(({ value }) => {
       if (value > getResponsiveSize(160)) {
-        StatusBar.setBarStyle('dark-content');
+        StatusBar.setBarStyle("dark-content");
       } else {
-        StatusBar.setBarStyle('light-content');
+        StatusBar.setBarStyle("light-content");
       }
     });
     return () => scrollY.removeListener(listener);
@@ -227,18 +274,16 @@ export default function PhotographerCardDetail() {
 
   const handleBooking = useCallback(() => {
     if (!photographerDetail) return;
-    
-    console.log('Navigating to Booking with photographerDetail:', photographerDetail);
-    
-    navigation.navigate('Booking', {
+
+    navigation.navigate("Booking", {
       photographer: {
         ...photographerDetail,
         photographerId: Number(photographerDetail.photographerId),
         userId: String(photographerDetail.userId),
-        fullName: photographerDetail.fullName || 'Unknown Photographer',
-        profileImage: photographerDetail.profileImage || '',
+        fullName: photographerDetail.fullName || "Unknown Photographer",
+        profileImage: photographerDetail.profileImage || "",
         hourlyRate: photographerDetail.hourlyRate || 0,
-        specialty: photographerDetail.specialty || 'Photography',
+        specialty: photographerDetail.specialty || "Photography",
         yearsExperience: photographerDetail.yearsExperience,
         equipment: photographerDetail.equipment,
         availabilityStatus: photographerDetail.availabilityStatus,
@@ -248,9 +293,9 @@ export default function PhotographerCardDetail() {
         phoneNumber: photographerDetail.phoneNumber,
         email: photographerDetail.email,
         styles: photographerDetail.styles,
-      }
+      },
     });
-}, [navigation, photographerDetail]);
+  }, [navigation, photographerDetail]);
 
   // Loading state
   if (loading) {
@@ -280,36 +325,43 @@ export default function PhotographerCardDetail() {
     );
   }
 
-  const isPhotographerFavorite = photographerDetail ? isFavorite(photographerDetail.photographerId.toString()) : false;
-  const isUnavailable = photographerDetail?.availabilityStatus?.toLowerCase() === 'unavailable';
+  const isPhotographerFavorite = photographerDetail
+    ? isFavorite(photographerDetail.photographerId.toString())
+    : false;
+  const isUnavailable =
+    photographerDetail?.availabilityStatus?.toLowerCase() === "unavailable";
 
   return (
     <View className="flex-1 bg-white">
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
       <View className="flex-1">
         {/* Fixed Header Controls */}
         <Animated.View
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 0,
             left: 0,
             right: 0,
             zIndex: 100,
-            backgroundColor: 'rgba(255,255,255,0)',
+            backgroundColor: "rgba(255,255,255,0)",
             opacity: scrollY.interpolate({
               inputRange: [0, getResponsiveSize(120), getResponsiveSize(180)],
               outputRange: [1, 0.5, 0],
-              extrapolate: 'clamp',
+              extrapolate: "clamp",
             }),
           }}
         >
           <SafeAreaView>
             <View
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
                 height: getResponsiveSize(56),
                 paddingHorizontal: getResponsiveSize(16),
               }}
@@ -319,44 +371,52 @@ export default function PhotographerCardDetail() {
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "rgba(0,0,0,0.3)",
                   borderRadius: getResponsiveSize(20),
                 }}
               >
-                <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="white" />
+                <Ionicons
+                  name="arrow-back"
+                  size={getResponsiveSize(24)}
+                  color="white"
+                />
               </TouchableOpacity>
               <View style={{ flex: 1 }} />
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <TouchableOpacity
                   style={{
                     width: getResponsiveSize(40),
                     height: getResponsiveSize(40),
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(0,0,0,0.3)',
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "rgba(0,0,0,0.3)",
                     borderRadius: getResponsiveSize(20),
                     marginRight: getResponsiveSize(8),
                   }}
                 >
-                  <Ionicons name="share-outline" size={getResponsiveSize(22)} color="white" />
+                  <Ionicons
+                    name="share-outline"
+                    size={getResponsiveSize(22)}
+                    color="white"
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleToggleFavorite}
                   style={{
                     width: getResponsiveSize(40),
                     height: getResponsiveSize(40),
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: 'rgba(0,0,0,0.3)',
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "rgba(0,0,0,0.3)",
                     borderRadius: getResponsiveSize(20),
                   }}
                 >
                   <Ionicons
-                    name={isPhotographerFavorite ? 'heart' : 'heart-outline'}
+                    name={isPhotographerFavorite ? "heart" : "heart-outline"}
                     size={getResponsiveSize(22)}
-                    color={isPhotographerFavorite ? '#ef4444' : 'white'}
+                    color={isPhotographerFavorite ? "#ef4444" : "white"}
                   />
                 </TouchableOpacity>
               </View>
@@ -367,27 +427,27 @@ export default function PhotographerCardDetail() {
         {/* Dynamic Header */}
         <Animated.View
           style={{
-            position: 'absolute',
+            position: "absolute",
             top: 0,
             left: 0,
             right: 0,
             zIndex: 101,
-            backgroundColor: 'white',
+            backgroundColor: "white",
             borderBottomWidth: 1,
-            borderBottomColor: '#eee',
+            borderBottomColor: "#eee",
             opacity: scrollY.interpolate({
               inputRange: [getResponsiveSize(300), getResponsiveSize(340)],
               outputRange: [0, 1],
-              extrapolate: 'clamp',
+              extrapolate: "clamp",
             }),
           }}
         >
           <SafeAreaView>
             <View
               style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
                 height: getResponsiveSize(56),
                 paddingHorizontal: getResponsiveSize(16),
               }}
@@ -397,48 +457,56 @@ export default function PhotographerCardDetail() {
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="#222" />
+                <Ionicons
+                  name="arrow-back"
+                  size={getResponsiveSize(24)}
+                  color="#222"
+                />
               </TouchableOpacity>
-              <View style={{ flex: 1, alignItems: 'center' }}>
+              <View style={{ flex: 1, alignItems: "center" }}>
                 <Text
                   style={{
-                    fontWeight: 'bold',
+                    fontWeight: "bold",
                     fontSize: getResponsiveSize(16),
-                    color: '#222',
+                    color: "#222",
                   }}
                   numberOfLines={1}
                 >
-                  {photographerDetail?.fullName || 'Photographer Detail'}
+                  {photographerDetail?.fullName || "Photographer Detail"}
                 </Text>
               </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <TouchableOpacity
                   style={{
                     width: getResponsiveSize(40),
                     height: getResponsiveSize(40),
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  <Ionicons name="share-outline" size={getResponsiveSize(22)} color="#222" />
+                  <Ionicons
+                    name="share-outline"
+                    size={getResponsiveSize(22)}
+                    color="#222"
+                  />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleToggleFavorite}
                   style={{
                     width: getResponsiveSize(40),
                     height: getResponsiveSize(40),
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
                   <Ionicons
-                    name={isPhotographerFavorite ? 'heart' : 'heart-outline'}
+                    name={isPhotographerFavorite ? "heart" : "heart-outline"}
                     size={getResponsiveSize(22)}
-                    color={isPhotographerFavorite ? '#ef4444' : '#222'}
+                    color={isPhotographerFavorite ? "#ef4444" : "#222"}
                   />
                 </TouchableOpacity>
               </View>
@@ -458,17 +526,21 @@ export default function PhotographerCardDetail() {
           contentContainerStyle={{ paddingTop: 0 }}
         >
           {/* Photographer Images Gallery from unified hook */}
-          <View style={{
-            height: height * 0.6,
-            overflow: 'hidden',
-            marginTop: -50,
-            zIndex: 1,
-            backgroundColor: '#eee',
-          }}>
+          <View
+            style={{
+              height: height * 0.6,
+              overflow: "hidden",
+              marginTop: -50,
+              zIndex: 1,
+              backgroundColor: "#eee",
+            }}
+          >
             {loadingImages ? (
               <View className="flex-1 justify-center items-center">
                 <ActivityIndicator size="large" color="#d97706" />
-                <Text className="text-stone-600 mt-2">Đang tải ảnh từ Image API...</Text>
+                <Text className="text-stone-600 mt-2">
+                  Đang tải ảnh từ Image API...
+                </Text>
               </View>
             ) : photographerImages && photographerImages.length > 0 ? (
               <>
@@ -524,7 +596,11 @@ export default function PhotographerCardDetail() {
               </>
             ) : (
               <View className="flex-1 justify-center items-center">
-                <Ionicons name="camera-outline" size={getResponsiveSize(60)} color="#9ca3af" />
+                <Ionicons
+                  name="camera-outline"
+                  size={getResponsiveSize(60)}
+                  color="#9ca3af"
+                />
                 <Text className="text-stone-600 mt-4 text-center">
                   Chưa có ảnh từ photographer
                 </Text>
@@ -542,31 +618,41 @@ export default function PhotographerCardDetail() {
               zIndex: 10,
             }}
           >
-            <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(24) }}>
+            <View
+              style={{
+                paddingHorizontal: getResponsiveSize(24),
+                paddingTop: getResponsiveSize(24),
+              }}
+            >
               {/* Header Info */}
               <View className="items-center mb-4">
                 <View className="flex-row items-center mb-2">
-                  <Ionicons name="camera-outline" size={getResponsiveSize(20)} color="#666" />
+                  <Ionicons
+                    name="camera-outline"
+                    size={getResponsiveSize(20)}
+                    color="#666"
+                  />
                   <Text
                     className="text-stone-900 font-bold ml-2"
                     style={{ fontSize: getResponsiveSize(24) }}
                   >
-                    {photographerDetail?.fullName || 'Photographer'}
+                    {photographerDetail?.fullName || "Photographer"}
                   </Text>
                 </View>
-                
+
                 <Text
                   className="text-stone-600 text-center mb-2"
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
-                  {photographerDetail?.specialty || 'Chuyên gia nhiếp ảnh'}
+                  {photographerDetail?.specialty || "Chuyên gia nhiếp ảnh"}
                 </Text>
 
                 <Text
                   className="text-stone-600 text-center"
                   style={{ fontSize: getResponsiveSize(14) }}
                 >
-                  {photographerDetail?.yearsExperience || 0} năm kinh nghiệm • {photographerDetail?.equipment || 'Thiết bị chuyên nghiệp'}
+                  {photographerDetail?.yearsExperience || 0} năm kinh nghiệm •{" "}
+                  {photographerDetail?.equipment || "Thiết bị chuyên nghiệp"}
                 </Text>
               </View>
 
@@ -580,7 +666,8 @@ export default function PhotographerCardDetail() {
                     className="text-stone-900 font-bold"
                     style={{ fontSize: getResponsiveSize(28) }}
                   >
-                    {photographerDetail?.rating?.toFixed(2).replace('.', ',') || '4,81'}
+                    {photographerDetail?.rating?.toFixed(2).replace(".", ",") ||
+                      "4,81"}
                   </Text>
                   <View className="flex-row mt-1">
                     {renderStars(photographerDetail?.rating || 4.81)}
@@ -588,7 +675,11 @@ export default function PhotographerCardDetail() {
                 </View>
 
                 <View className="items-center">
-                  <Ionicons name="medal-outline" size={getResponsiveSize(32)} color="#d97706" />
+                  <Ionicons
+                    name="medal-outline"
+                    size={getResponsiveSize(32)}
+                    color="#d97706"
+                  />
                   <Text
                     className="text-stone-700 font-medium mt-1"
                     style={{ fontSize: getResponsiveSize(12) }}
@@ -602,7 +693,7 @@ export default function PhotographerCardDetail() {
                     className="text-stone-900 font-bold"
                     style={{ fontSize: getResponsiveSize(28) }}
                   >
-                    {photographerDetail?.ratingCount || '79'}
+                    {photographerDetail?.ratingCount || "79"}
                   </Text>
                   <Text
                     className="text-stone-600"
@@ -619,10 +710,14 @@ export default function PhotographerCardDetail() {
                 style={{ marginBottom: getResponsiveSize(24) }}
               >
                 <Image
-                  source={{ uri: photographerDetail?.profileImage || 'https://via.placeholder.com/60' }}
+                  source={{
+                    uri:
+                      photographerDetail?.profileImage ||
+                      "https://via.placeholder.com/60",
+                  }}
                   style={{
                     width: getResponsiveSize(56),
-                    height: getResponsiveSize(56)
+                    height: getResponsiveSize(56),
                   }}
                   className="rounded-full mr-4"
                 />
@@ -631,20 +726,26 @@ export default function PhotographerCardDetail() {
                     className="text-stone-900 font-semibold"
                     style={{ fontSize: getResponsiveSize(18) }}
                   >
-                    Photographer: {photographerDetail?.fullName || 'Professional'}
+                    Photographer:{" "}
+                    {photographerDetail?.fullName || "Professional"}
                   </Text>
                   <Text
                     className="text-stone-600"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
-                    {photographerDetail?.yearsExperience || 0} năm kinh nghiệm • {photographerDetail?.availabilityStatus || 'Available'}
+                    {photographerDetail?.yearsExperience || 0} năm kinh nghiệm •{" "}
+                    {photographerDetail?.availabilityStatus || "Available"}
                   </Text>
                 </View>
-                
+
                 {/* Verification Badge */}
-                {photographerDetail?.verificationStatus === 'verified' && (
+                {photographerDetail?.verificationStatus === "verified" && (
                   <View className="ml-2">
-                    <Ionicons name="checkmark-circle" size={getResponsiveSize(20)} color="#10b981" />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={getResponsiveSize(20)}
+                      color="#10b981"
+                    />
                   </View>
                 )}
               </View>
@@ -656,12 +757,22 @@ export default function PhotographerCardDetail() {
               >
                 {/* Equipment */}
                 {photographerDetail?.equipment && (
-                  <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
-                    <Ionicons name="camera-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View
+                    className="flex-row"
+                    style={{ marginBottom: getResponsiveSize(20) }}
+                  >
+                    <Ionicons
+                      name="camera-outline"
+                      size={getResponsiveSize(24)}
+                      color="#57534e"
+                    />
                     <View className="ml-4 flex-1">
                       <Text
                         className="text-stone-900 font-semibold"
-                        style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                        style={{
+                          fontSize: getResponsiveSize(16),
+                          marginBottom: getResponsiveSize(4),
+                        }}
                       >
                         Thiết bị chuyên nghiệp
                       </Text>
@@ -677,12 +788,22 @@ export default function PhotographerCardDetail() {
 
                 {/* Specialty */}
                 {photographerDetail?.specialty && (
-                  <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
-                    <Ionicons name="star-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View
+                    className="flex-row"
+                    style={{ marginBottom: getResponsiveSize(20) }}
+                  >
+                    <Ionicons
+                      name="star-outline"
+                      size={getResponsiveSize(24)}
+                      color="#57534e"
+                    />
                     <View className="ml-4 flex-1">
                       <Text
                         className="text-stone-900 font-semibold"
-                        style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                        style={{
+                          fontSize: getResponsiveSize(16),
+                          marginBottom: getResponsiveSize(4),
+                        }}
                       >
                         Chuyên môn
                       </Text>
@@ -698,12 +819,22 @@ export default function PhotographerCardDetail() {
 
                 {/* Portfolio Website */}
                 {photographerDetail?.portfolioUrl && (
-                  <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
-                    <Ionicons name="link-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <View
+                    className="flex-row"
+                    style={{ marginBottom: getResponsiveSize(20) }}
+                  >
+                    <Ionicons
+                      name="link-outline"
+                      size={getResponsiveSize(24)}
+                      color="#57534e"
+                    />
                     <View className="ml-4 flex-1">
                       <Text
                         className="text-stone-900 font-semibold"
-                        style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                        style={{
+                          fontSize: getResponsiveSize(16),
+                          marginBottom: getResponsiveSize(4),
+                        }}
                       >
                         Portfolio Website
                       </Text>
@@ -719,11 +850,18 @@ export default function PhotographerCardDetail() {
 
                 {/* Images from new Image API via unified hook */}
                 <View className="flex-row">
-                  <Ionicons name="images-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <Ionicons
+                    name="images-outline"
+                    size={getResponsiveSize(24)}
+                    color="#57534e"
+                  />
                   <View className="ml-4 flex-1">
                     <Text
                       className="text-stone-900 font-semibold"
-                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                      style={{
+                        fontSize: getResponsiveSize(16),
+                        marginBottom: getResponsiveSize(4),
+                      }}
                     >
                       Ảnh từ photographer
                     </Text>
@@ -731,20 +869,25 @@ export default function PhotographerCardDetail() {
                       className="text-stone-600 leading-6"
                       style={{ fontSize: getResponsiveSize(14) }}
                     >
-                      {photographerImages && photographerImages.length > 0 
-                        ? `${photographerImages.length} ảnh được upload bởi photographer.${primaryImage ? ' Có ảnh chính được đánh dấu.' : ''}`
-                        : 'Đang cập nhật ảnh mới nhất.'
-                      }
+                      {photographerImages && photographerImages.length > 0
+                        ? `${
+                            photographerImages.length
+                          } ảnh được upload bởi photographer.${
+                            primaryImage ? " Có ảnh chính được đánh dấu." : ""
+                          }`
+                        : "Đang cập nhật ảnh mới nhất."}
                     </Text>
                   </View>
                 </View>
-              </View>  
+              </View>
             </View>
           </View>
-          
+
           {/* Reviews Section */}
           <PhotographerReviews
-            photographerId={photographerDetail?.photographerId || parseInt(photographerId)}
+            photographerId={
+              photographerDetail?.photographerId || parseInt(photographerId)
+            }
             currentRating={photographerDetail?.rating}
             totalReviews={photographerDetail?.ratingCount}
           />
@@ -752,7 +895,7 @@ export default function PhotographerCardDetail() {
         </Animated.ScrollView>
 
         {/* Booking Button */}
-        <SafeAreaView style={{ backgroundColor: 'white' }}>
+        <SafeAreaView style={{ backgroundColor: "white" }}>
           <View
             className="bg-white px-6 border-t border-stone-200"
             style={{ paddingVertical: getResponsiveSize(16) }}
@@ -760,17 +903,20 @@ export default function PhotographerCardDetail() {
             <TouchableOpacity
               onPress={handleBooking}
               disabled={isUnavailable}
-              className={`rounded-2xl items-center ${isUnavailable ? 'bg-stone-300' : 'bg-pink-500'}`}
+              className={`rounded-2xl items-center ${
+                isUnavailable ? "bg-stone-300" : "bg-pink-500"
+              }`}
               style={{ paddingVertical: getResponsiveSize(16) }}
             >
               <Text
                 className="text-white font-bold"
                 style={{ fontSize: getResponsiveSize(18) }}
               >
-                {isUnavailable 
-                  ? 'Không khả dụng' 
-                  : `Đặt lịch - ₫${(photographerDetail?.hourlyRate || 0).toLocaleString('vi-VN')}/giờ`
-                }
+                {isUnavailable
+                  ? "Không khả dụng"
+                  : `Đặt lịch - ₫${(
+                      photographerDetail?.hourlyRate || 0
+                    ).toLocaleString("vi-VN")}/giờ`}
               </Text>
             </TouchableOpacity>
           </View>

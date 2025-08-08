@@ -97,17 +97,10 @@ const ChatScreen = () => {
     const setupChatSignalR = async () => {
       if (!currentUserId || !conversationId || isSignalRSetup.current) return;
 
-      console.log("🔥 Setting up SignalR for ChatScreen...", {
-        currentUserId,
-        conversationId,
-      });
-
       // Kiểm tra xem SignalR đã được khởi tạo chưa
       const status = signalRManager.getStatus();
-      console.log("📡 Current SignalR status:", status);
 
       if (!status.isConnected) {
-        console.log("🔄 SignalR not connected, initializing...");
         const connected = await signalRManager.initialize(currentUserId, {});
         if (!connected) {
           console.error("❌ Failed to connect SignalR in ChatScreen");
@@ -122,10 +115,6 @@ const ChatScreen = () => {
       // ✅ JOIN CONVERSATION để nhận real-time messages
       try {
         await signalRManager.joinConversation(conversationId);
-        console.log(
-          "✅ Joined conversation for real-time updates:",
-          conversationId
-        );
       } catch (error) {
         console.error("❌ Failed to join conversation:", error);
       }
@@ -133,11 +122,8 @@ const ChatScreen = () => {
       // ✅ SETUP EVENT HANDLERS cho ChatScreen
       signalRManager.updateEventHandlers({
         onMessageReceived: (message: MessageResponse) => {
-          console.log("🔥🔥🔥 CHAT SCREEN - New message received:", message);
-
           // Chỉ xử lý message thuộc conversation này
           if (message.conversationId !== conversationId) {
-            console.log("📝 Message not for this conversation, ignoring");
             return;
           }
 
@@ -159,16 +145,6 @@ const ChatScreen = () => {
               );
 
               if (existingMessage) {
-                console.log("📝 Message already exists, skipping:", {
-                  existing: {
-                    id: existingMessage.messageId,
-                    localId: existingMessage.localId,
-                  },
-                  new: {
-                    id: message.messageId,
-                    content: message.content.substring(0, 20),
-                  },
-                });
                 return prevMessages;
               }
 
@@ -189,12 +165,6 @@ const ChatScreen = () => {
                 senderName: message.senderName,
                 senderProfileImage: message.senderProfileImage,
               };
-
-              console.log("✅ Adding new message to chat:", {
-                messageId: newMessage.messageId,
-                content: newMessage.content.substring(0, 30),
-                senderId: newMessage.senderId,
-              });
 
               // ✅ Remove any optimistic messages với same content từ current user
               const filteredMessages = prevMessages.filter((msg) => {
@@ -227,12 +197,9 @@ const ChatScreen = () => {
               return sortedMessages;
             });
           }
-
-          console.log("✅ Real-time message processed successfully!");
         },
 
         onConnectionStatusChanged: (connected: boolean) => {
-          console.log("🔥 ChatScreen - SignalR connection status:", connected);
           setIsSignalRConnected(connected);
 
           if (!connected) {
@@ -244,12 +211,6 @@ const ChatScreen = () => {
         },
 
         onMessageStatusChanged: (messageId: number, status: string) => {
-          console.log(
-            "🔥 ChatScreen - Message status changed:",
-            messageId,
-            status
-          );
-
           // Update message status in the list
           if (setMessages) {
             setMessages((prevMessages: Message[]) => {
@@ -271,7 +232,6 @@ const ChatScreen = () => {
 
       setIsSignalRConnected(true);
       isSignalRSetup.current = true;
-      console.log("✅ SignalR setup completed for ChatScreen");
     };
 
     setupChatSignalR();
@@ -279,7 +239,6 @@ const ChatScreen = () => {
     // Cleanup khi leave screen
     return () => {
       if (isSignalRSetup.current) {
-        console.log("🧹 Cleaning up ChatScreen SignalR...");
         // Leave conversation khi rời screen
         signalRManager.leaveConversation(conversationId).catch(console.error);
         isSignalRSetup.current = false;
@@ -315,8 +274,7 @@ const ChatScreen = () => {
                 paddingVertical: 2,
                 borderRadius: 8,
               }}
-            >
-            </View>
+            ></View>
           )}
 
           <TouchableOpacity
@@ -370,23 +328,13 @@ const ChatScreen = () => {
     const textToSend = messageText.trim();
     setMessageText("");
 
-    console.log("📤 Sending message...", {
-      textToSend,
-      conversationId,
-      currentUserId,
-    });
-
     try {
       // ✅ Gửi message qua API
       const sentMessage = await sendMessage(textToSend, MessageType.TEXT);
 
       if (sentMessage) {
-        console.log("✅ Message sent successfully via API:", sentMessage);
-
         // ✅ MANUAL SIGNALR BROADCAST - FIX CHO BACKEND THIẾU
         try {
-          console.log("🔄 Triggering manual SignalR broadcast...");
-
           // Convert Message to MessageResponse format
           const messageForSignalR: MessageResponse = {
             messageId: sentMessage.messageId,
@@ -408,7 +356,6 @@ const ChatScreen = () => {
               conversationId,
               messageForSignalR
             );
-            console.log("✅ Manual SignalR broadcast successful!");
           } else {
             console.warn("⚠️ SignalR not connected, cannot broadcast");
           }
@@ -713,8 +660,6 @@ const ChatScreen = () => {
 
         {/* Message Input với SignalR status */}
         <View style={styles.inputContainer}>
-
-
           <View style={styles.inputWrapper}>
             <TouchableOpacity style={styles.attachButton}>
               <Text style={styles.attachIcon}>📎</Text>

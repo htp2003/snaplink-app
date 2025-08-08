@@ -1,19 +1,26 @@
 // hooks/useCustomerProfile.ts
-import { useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { userService } from '../services/userService';
-import { UserProfile, CustomerStats, UpdateUserDto, UserBooking, UserTransaction, UserNotification } from '../types/userProfile';
+import { useState, useEffect, useCallback } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { userService } from "../services/userService";
+import {
+  UserProfile,
+  CustomerStats,
+  UpdateUserDto,
+  UserBooking,
+  UserTransaction,
+  UserNotification,
+} from "../types/userProfile";
 
 export interface UseCustomerProfileReturn {
   // Data
   user: UserProfile | null;
   stats: CustomerStats | null;
-  
+
   // States
   loading: boolean;
   refreshing: boolean;
   error: string | null;
-  
+
   // Actions
   fetchProfile: () => Promise<void>;
   updateProfile: (updates: {
@@ -26,7 +33,7 @@ export interface UseCustomerProfileReturn {
   updateProfileImage: (imageUri: string) => Promise<void>;
   refresh: () => Promise<void>;
   clearError: () => void;
-  
+
   // Getters
   getUserRoles: () => string[];
   getUserStyles: () => string[];
@@ -36,7 +43,7 @@ export interface UseCustomerProfileReturn {
   isLocationOwner: () => boolean;
   isAdmin: () => boolean;
   isModerator: () => boolean;
-  
+
   // Data getters
   getRecentBookings: (limit?: number) => UserBooking[];
   getRecentTransactions: (limit?: number) => UserTransaction[];
@@ -46,7 +53,7 @@ export interface UseCustomerProfileReturn {
   hasActiveSubscription: () => boolean;
   getActiveSubscription: () => any;
   getMembershipDuration: () => string;
-  
+
   // Utility
   formatDate: (dateString: string) => string;
   formatDateTime: (dateString: string) => string;
@@ -62,10 +69,10 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
   // Get current user ID from storage
   const getCurrentUserId = async (): Promise<number | null> => {
     try {
-      const userId = await AsyncStorage.getItem('currentUserId');
+      const userId = await AsyncStorage.getItem("currentUserId");
       return userId ? parseInt(userId) : null;
     } catch (error) {
-      console.error('Error getting current user ID:', error);
+      console.error("Error getting current user ID:", error);
       return null;
     }
   };
@@ -80,22 +87,20 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     try {
       setError(null);
       const userId = await getCurrentUserId();
-      
+
       if (!userId) {
-        throw new Error('No user ID found. Please login again.');
+        throw new Error("No user ID found. Please login again.");
       }
 
-      console.log('Fetching profile for user ID:', userId);
       const userData = await userService.getUserById(userId);
-      
-      console.log('Profile data received:', userData);
+
       setUser(userData);
       setStats(calculateStats(userData));
-      
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch profile';
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to fetch profile";
       setError(errorMessage);
-      console.error('Error fetching profile:', err);
+      console.error("Error fetching profile:", err);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -103,81 +108,93 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
   }, [calculateStats]);
 
   // Update profile
-  const updateProfile = useCallback(async (updates: {
-    fullName?: string;
-    phoneNumber?: string;
-    bio?: string;
-    profileImage?: string;
-  }) => {
-    try {
-      setError(null);
-      const userId = await getCurrentUserId();
-      
-      if (!userId) {
-        throw new Error('No user ID found. Please login again.');
-      }
+  const updateProfile = useCallback(
+    async (updates: {
+      fullName?: string;
+      phoneNumber?: string;
+      bio?: string;
+      profileImage?: string;
+    }) => {
+      try {
+        setError(null);
+        const userId = await getCurrentUserId();
 
-      console.log('Updating profile with:', updates);
-      const updatedUser = await userService.updateProfile(userId, updates);
-      
-      setUser(updatedUser);
-      setStats(calculateStats(updatedUser));
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update profile';
-      setError(errorMessage);
-      console.error('Error updating profile:', err);
-      throw err; // Re-throw to allow caller to handle
-    }
-  }, [calculateStats]);
+        if (!userId) {
+          throw new Error("No user ID found. Please login again.");
+        }
+
+        const updatedUser = await userService.updateProfile(userId, updates);
+
+        setUser(updatedUser);
+        setStats(calculateStats(updatedUser));
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to update profile";
+        setError(errorMessage);
+        console.error("Error updating profile:", err);
+        throw err; // Re-throw to allow caller to handle
+      }
+    },
+    [calculateStats]
+  );
 
   // Change password
-  const changePassword = useCallback(async (newPassword: string) => {
-    try {
-      setError(null);
-      const userId = await getCurrentUserId();
-      
-      if (!userId) {
-        throw new Error('No user ID found. Please login again.');
-      }
+  const changePassword = useCallback(
+    async (newPassword: string) => {
+      try {
+        setError(null);
+        const userId = await getCurrentUserId();
 
-      console.log('Changing password for user ID:', userId);
-      const updatedUser = await userService.changePassword(userId, newPassword);
-      
-      setUser(updatedUser);
-      setStats(calculateStats(updatedUser));
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to change password';
-      setError(errorMessage);
-      console.error('Error changing password:', err);
-      throw err;
-    }
-  }, [calculateStats]);
+        if (!userId) {
+          throw new Error("No user ID found. Please login again.");
+        }
+
+        const updatedUser = await userService.changePassword(
+          userId,
+          newPassword
+        );
+
+        setUser(updatedUser);
+        setStats(calculateStats(updatedUser));
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to change password";
+        setError(errorMessage);
+        console.error("Error changing password:", err);
+        throw err;
+      }
+    },
+    [calculateStats]
+  );
 
   // Update profile image
-  const updateProfileImage = useCallback(async (imageUri: string) => {
-    try {
-      setError(null);
-      const userId = await getCurrentUserId();
-      
-      if (!userId) {
-        throw new Error('No user ID found. Please login again.');
-      }
+  const updateProfileImage = useCallback(
+    async (imageUri: string) => {
+      try {
+        setError(null);
+        const userId = await getCurrentUserId();
 
-      console.log('Updating profile image for user ID:', userId);
-      const updatedUser = await userService.updateProfileImage(userId, imageUri);
-      
-      setUser(updatedUser);
-      setStats(calculateStats(updatedUser));
-      
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to update profile image';
-      setError(errorMessage);
-      console.error('Error updating profile image:', err);
-      throw err;
-    }
-  }, [calculateStats]);
+        if (!userId) {
+          throw new Error("No user ID found. Please login again.");
+        }
+
+        const updatedUser = await userService.updateProfileImage(
+          userId,
+          imageUri
+        );
+
+        setUser(updatedUser);
+        setStats(calculateStats(updatedUser));
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Failed to update profile image";
+        setError(errorMessage);
+        console.error("Error updating profile image:", err);
+        throw err;
+      }
+    },
+    [calculateStats]
+  );
 
   // Refresh data
   const refresh = useCallback(async () => {
@@ -199,9 +216,12 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     return user ? userService.getUserStyles(user) : [];
   }, [user]);
 
-  const hasRole = useCallback((roleName: string): boolean => {
-    return user ? userService.hasRole(user, roleName) : false;
-  }, [user]);
+  const hasRole = useCallback(
+    (roleName: string): boolean => {
+      return user ? userService.hasRole(user, roleName) : false;
+    },
+    [user]
+  );
 
   const isVerified = useCallback((): boolean => {
     return user ? userService.isVerified(user) : false;
@@ -224,13 +244,19 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
   }, [user]);
 
   // Data getters
-  const getRecentBookings = useCallback((limit: number = 10): UserBooking[] => {
-    return user ? userService.getRecentBookings(user, limit) : [];
-  }, [user]);
+  const getRecentBookings = useCallback(
+    (limit: number = 10): UserBooking[] => {
+      return user ? userService.getRecentBookings(user, limit) : [];
+    },
+    [user]
+  );
 
-  const getRecentTransactions = useCallback((limit: number = 10): UserTransaction[] => {
-    return user ? userService.getRecentTransactions(user, limit) : [];
-  }, [user]);
+  const getRecentTransactions = useCallback(
+    (limit: number = 10): UserTransaction[] => {
+      return user ? userService.getRecentTransactions(user, limit) : [];
+    },
+    [user]
+  );
 
   const getUnreadNotifications = useCallback((): UserNotification[] => {
     return user ? userService.getUnreadNotifications(user) : [];
@@ -253,7 +279,7 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
   }, [user]);
 
   const getMembershipDuration = useCallback((): string => {
-    return user ? userService.getMembershipDurationFormatted(user) : '';
+    return user ? userService.getMembershipDurationFormatted(user) : "";
   }, [user]);
 
   // Utility functions
@@ -273,7 +299,7 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
   // Auto-refresh on app focus (optional)
   useEffect(() => {
     const handleAppStateChange = (nextAppState: string) => {
-      if (nextAppState === 'active' && user) {
+      if (nextAppState === "active" && user) {
         // Optionally refresh data when app becomes active
         // refresh();
       }
@@ -291,12 +317,12 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     // Data
     user,
     stats,
-    
+
     // States
     loading,
     refreshing,
     error,
-    
+
     // Actions
     fetchProfile,
     updateProfile,
@@ -304,7 +330,7 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     updateProfileImage,
     refresh,
     clearError,
-    
+
     // Getters
     getUserRoles,
     getUserStyles,
@@ -314,7 +340,7 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     isLocationOwner,
     isAdmin,
     isModerator,
-    
+
     // Data getters
     getRecentBookings,
     getRecentTransactions,
@@ -324,7 +350,7 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     hasActiveSubscription,
     getActiveSubscription,
     getMembershipDuration,
-    
+
     // Utility
     formatDate,
     formatDateTime,

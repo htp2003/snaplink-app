@@ -7,9 +7,10 @@ import {
   PhotoDeliveryApiResponse,
   PhotoDeliveryListApiResponse,
   BooleanApiResponse,
-} from '../types/photoDelivery';
+} from "../types/photoDelivery";
 
-const API_BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
+const API_BASE_URL =
+  "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 
 class PhotoDeliveryService {
   private async makeRequest<T>(
@@ -18,11 +19,10 @@ class PhotoDeliveryService {
   ): Promise<T> {
     try {
       const fullUrl = `${API_BASE_URL}${endpoint}`;
-      console.log('🌐 PhotoDelivery API Request:', fullUrl); // Debug log
-      
+
       const response = await fetch(fullUrl, {
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           // Add authorization header if needed
           // 'Authorization': `Bearer ${token}`,
           ...options.headers,
@@ -30,16 +30,18 @@ class PhotoDeliveryService {
         ...options,
       });
 
-      console.log('📥 PhotoDelivery API Response Status:', response.status); // Debug log
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(`API request failed for ${endpoint}:`, response.status, errorText);
+        console.error(
+          `API request failed for ${endpoint}:`,
+          response.status,
+          errorText
+        );
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-      console.log('📦 PhotoDelivery API Response:', result); // Debug log
+
       return result;
     } catch (error) {
       console.error(`API request failed for ${endpoint}:`, error);
@@ -54,10 +56,8 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<PhotoDeliveryListApiResponse>(
         `/api/PhotoDelivery/photographer/${photographerId}`,
-        { method: 'GET' }
+        { method: "GET" }
       );
-
-      console.log('📥 Photo delivery API result:', result);
 
       // Handle both new API format and direct array response
       if (result.error === 0) {
@@ -66,20 +66,19 @@ class PhotoDeliveryService {
         return result; // ✅ Handle direct array response
       } else {
         // Not an error if empty, just return empty array
-        console.log('📝 No photo deliveries found, returning empty array');
+
         return [];
       }
     } catch (error) {
-      console.error('PhotoDelivery API error:', error);
+      console.error("PhotoDelivery API error:", error);
       // Don't throw error for 404 or empty results, return empty array
-      if (error instanceof Error && error.message.includes('404')) {
-        console.log('📝 404 response, returning empty array (no deliveries yet)');
+      if (error instanceof Error && error.message.includes("404")) {
         return [];
       }
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi tải danh sách giao hàng ảnh'
+          : "Có lỗi xảy ra khi tải danh sách giao hàng ảnh"
       );
     }
   }
@@ -91,7 +90,7 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<PhotoDeliveryApiResponse>(
         `/api/PhotoDelivery/booking/${bookingId}`,
-        { method: 'GET' }
+        { method: "GET" }
       );
 
       if (result.error === 0 && result.data) {
@@ -101,11 +100,10 @@ class PhotoDeliveryService {
       return null;
     } catch (error) {
       // Return null if not found (404) - this is expected for bookings without photo delivery
-      if (error instanceof Error && error.message.includes('404')) {
-        console.log(`📝 No photo delivery found for booking ${bookingId} (this is normal)`);
+      if (error instanceof Error && error.message.includes("404")) {
         return null;
       }
-      console.error('Error fetching photo delivery by booking:', error);
+      console.error("Error fetching photo delivery by booking:", error);
       return null;
     }
   }
@@ -117,7 +115,7 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<PhotoDeliveryApiResponse>(
         `/api/PhotoDelivery/${photoDeliveryId}`,
-        { method: 'GET' }
+        { method: "GET" }
       );
 
       if (result.error === 0 && result.data) {
@@ -126,7 +124,7 @@ class PhotoDeliveryService {
 
       return null;
     } catch (error) {
-      console.error('Error fetching photo delivery by ID:', error);
+      console.error("Error fetching photo delivery by ID:", error);
       return null;
     }
   }
@@ -138,19 +136,19 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<PhotoDeliveryListApiResponse>(
         `/api/PhotoDelivery/customer/${customerId}`,
-        { method: 'GET' }
+        { method: "GET" }
       );
 
       if (result.error === 0 && result.data) {
         return result.data;
       } else {
-        throw new Error(result.message || 'Failed to fetch photo deliveries');
+        throw new Error(result.message || "Failed to fetch photo deliveries");
       }
     } catch (error) {
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi tải danh sách giao hàng ảnh'
+          : "Có lỗi xảy ra khi tải danh sách giao hàng ảnh"
       );
     }
   }
@@ -162,19 +160,19 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<PhotoDeliveryListApiResponse>(
         `/api/PhotoDelivery/status/${status}`,
-        { method: 'GET' }
+        { method: "GET" }
       );
 
       if (result.error === 0 && result.data) {
         return result.data;
       } else {
-        throw new Error(result.message || 'Failed to fetch photo deliveries');
+        throw new Error(result.message || "Failed to fetch photo deliveries");
       }
     } catch (error) {
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi tải danh sách giao hàng ảnh'
+          : "Có lỗi xảy ra khi tải danh sách giao hàng ảnh"
       );
     }
   }
@@ -184,19 +182,21 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<PhotoDeliveryListApiResponse>(
         `/api/PhotoDelivery/pending`,
-        { method: 'GET' }
+        { method: "GET" }
       );
 
       if (result.error === 0 && result.data) {
         return result.data;
       } else {
-        throw new Error(result.message || 'Failed to fetch pending photo deliveries');
+        throw new Error(
+          result.message || "Failed to fetch pending photo deliveries"
+        );
       }
     } catch (error) {
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi tải danh sách giao hàng ảnh chờ xử lý'
+          : "Có lỗi xảy ra khi tải danh sách giao hàng ảnh chờ xử lý"
       );
     }
   }
@@ -206,19 +206,21 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<PhotoDeliveryListApiResponse>(
         `/api/PhotoDelivery/expired`,
-        { method: 'GET' }
+        { method: "GET" }
       );
 
       if (result.error === 0 && result.data) {
         return result.data;
       } else {
-        throw new Error(result.message || 'Failed to fetch expired photo deliveries');
+        throw new Error(
+          result.message || "Failed to fetch expired photo deliveries"
+        );
       }
     } catch (error) {
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi tải danh sách giao hàng ảnh hết hạn'
+          : "Có lỗi xảy ra khi tải danh sách giao hàng ảnh hết hạn"
       );
     }
   }
@@ -238,29 +240,25 @@ class PhotoDeliveryService {
         notes: request.notes || null,
       };
 
-      console.log('📤 Creating photo delivery with request:', JSON.stringify(fullRequest, null, 2));
-      
       const result = await this.makeRequest<PhotoDeliveryApiResponse>(
         `/api/PhotoDelivery`,
         {
-          method: 'POST',
+          method: "POST",
           body: JSON.stringify(fullRequest),
         }
       );
 
-      console.log('📥 Create photo delivery result:', result);
-
       if (result.error === 0 && result.data) {
         return result.data;
       } else {
-        throw new Error(result.message || 'Failed to create photo delivery');
+        throw new Error(result.message || "Failed to create photo delivery");
       }
     } catch (error) {
-      console.error('❌ Create photo delivery error:', error);
+      console.error("❌ Create photo delivery error:", error);
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi tạo giao hàng ảnh'
+          : "Có lỗi xảy ra khi tạo giao hàng ảnh"
       );
     }
   }
@@ -274,7 +272,7 @@ class PhotoDeliveryService {
       const result = await this.makeRequest<PhotoDeliveryApiResponse>(
         `/api/PhotoDelivery/${photoDeliveryId}`,
         {
-          method: 'PUT',
+          method: "PUT",
           body: JSON.stringify(request),
         }
       );
@@ -282,13 +280,13 @@ class PhotoDeliveryService {
       if (result.error === 0 && result.data) {
         return result.data;
       } else {
-        throw new Error(result.message || 'Failed to update photo delivery');
+        throw new Error(result.message || "Failed to update photo delivery");
       }
     } catch (error) {
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi cập nhật giao hàng ảnh'
+          : "Có lỗi xảy ra khi cập nhật giao hàng ảnh"
       );
     }
   }
@@ -298,19 +296,19 @@ class PhotoDeliveryService {
     try {
       const result = await this.makeRequest<BooleanApiResponse>(
         `/api/PhotoDelivery/${photoDeliveryId}`,
-        { method: 'DELETE' }
+        { method: "DELETE" }
       );
 
       if (result.error === 0) {
         return result.data;
       } else {
-        throw new Error(result.message || 'Failed to delete photo delivery');
+        throw new Error(result.message || "Failed to delete photo delivery");
       }
     } catch (error) {
       throw new Error(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra khi xóa giao hàng ảnh'
+          : "Có lỗi xảy ra khi xóa giao hàng ảnh"
       );
     }
   }

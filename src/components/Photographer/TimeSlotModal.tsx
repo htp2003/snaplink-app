@@ -62,12 +62,10 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
   useEffect(() => {
     if (visible) {
       if (selectedSlot) {
-        // Editing mode
         setStartTime(selectedSlot.startTime.substring(0, 5));
         setEndTime(selectedSlot.endTime.substring(0, 5));
         setStatus(selectedSlot.status);
       } else {
-        // Creating mode
         resetForm();
       }
       setValidationErrors({});
@@ -83,11 +81,10 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
 
   const handleSave = async () => {
     if (!photographerId) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin nhiếp ảnh gia');
+      Alert.alert('Error', 'Photographer information not found');
       return;
     }
 
-    // Validate form
     const formData = {
       photographerId,
       dayOfWeek: selectedDay,
@@ -98,14 +95,8 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
 
     const errors = validateAvailabilityForm(formData);
     
-    // if (Object.keys(errors).length > 0) {
-    //   setValidationErrors(errors);
-    //   return;
-    // }
-
     try {
       if (isEditing && selectedSlot?.availabilityId) {
-        // Update existing slot
         const updateData: UpdateAvailabilityRequest = {
           dayOfWeek: selectedDay,
           startTime: `${startTime}:00`,
@@ -115,12 +106,11 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
         
         const result = await updateAvailability(selectedSlot.availabilityId, updateData);
         if (result) {
-          Alert.alert('Thành công', 'Cập nhật khung giờ thành công');
+          Alert.alert('Success', 'Time slot updated successfully');
           onSave?.();
           onClose();
         }
       } else {
-        // Create new slot
         const createData: CreateAvailabilityRequest = {
           photographerId,
           dayOfWeek: selectedDay,
@@ -131,14 +121,14 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
         
         const result = await createAvailability(createData);
         if (result) {
-          Alert.alert('Thành công', 'Tạo khung giờ thành công');
+          Alert.alert('Success', 'Time slot created successfully');
           onSave?.();
           onClose();
         }
       }
     } catch (err) {
       console.error('Error saving time slot:', err);
-      Alert.alert('Lỗi', 'Không thể lưu khung giờ. Vui lòng thử lại.');
+      Alert.alert('Error', 'Could not save time slot. Please try again.');
     }
   };
 
@@ -147,213 +137,340 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
     onClose();
   };
 
-  const generateHours = () => {
-    const hours = [];
-    for (let i = 6; i <= 23; i++) {
-      hours.push(i.toString().padStart(2, '0'));
+  // Generate time options (every 30 minutes from 6:00 to 23:30)
+  const generateTimeOptions = () => {
+    const options = [];
+    for (let hour = 6; hour <= 23; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        options.push(timeString);
+      }
     }
-    return hours;
+    return options;
   };
 
-  const generateMinutes = () => {
-    return ['00', '15', '30', '45'];
+  const timeOptions = generateTimeOptions();
+
+  // Calculate duration
+  const calculateDuration = () => {
+    const start = new Date(`2000-01-01 ${startTime}:00`);
+    const end = new Date(`2000-01-01 ${endTime}:00`);
+    const diff = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60));
+    const hours = Math.floor(diff / 60);
+    const minutes = diff % 60;
+    
+    if (hours === 0) return `${minutes}min`;
+    if (minutes === 0) return `${hours}h`;
+    return `${hours}h ${minutes}min`;
   };
 
-  const hours = generateHours();
-  const minutes = generateMinutes();
+  // Professional Header
+  const renderHeader = () => (
+    <View style={{
+      paddingTop: insets.top + 20,
+      paddingHorizontal: 24,
+      paddingBottom: 20,
+      backgroundColor: '#FFFFFF',
+      borderBottomWidth: 1,
+      borderBottomColor: '#E8E8E8',
+    }}>
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <TouchableOpacity
+          onPress={handleClose}
+          style={{ padding: 4 }}
+        >
+          <Ionicons name="close" size={24} color="#8A8A8A" />
+        </TouchableOpacity>
+        
+        <View style={{ flex: 1, alignItems: 'center' }}>
+          <Text style={{
+            fontSize: 18,
+            fontWeight: '600',
+            color: '#1A1A1A',
+            letterSpacing: 0.5,
+          }}>
+            {isEditing ? 'EDIT SLOT' : 'ADD SLOT'}
+          </Text>
+        </View>
+        
+        <TouchableOpacity
+          onPress={handleSave}
+          disabled={creating || updating}
+          style={{
+            backgroundColor: creating || updating ? '#E8E8E8' : '#1A1A1A',
+            paddingHorizontal: 16,
+            paddingVertical: 8,
+            borderRadius: 4,
+          }}
+        >
+          {creating || updating ? (
+            <ActivityIndicator size="small" color="#8A8A8A" />
+          ) : (
+            <Text style={{
+              color: '#FFFFFF',
+              fontSize: 12,
+              fontWeight: '500',
+              letterSpacing: 0.8,
+            }}>
+              SAVE
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
-  const parseTime = (timeString: string) => {
-    const [hour, minute] = timeString.split(':');
-    return { hour, minute };
-  };
+  // Day Section
+  const renderDaySection = () => (
+    <View style={{
+      backgroundColor: '#FFFFFF',
+      paddingVertical: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F5F5F5',
+    }}>
+      <View style={{ paddingHorizontal: 24 }}>
+        <Text style={{
+          fontSize: 14,
+          color: '#8A8A8A',
+          marginBottom: 8,
+          letterSpacing: 0.5,
+        }}>
+          DAY
+        </Text>
+        <Text style={{
+          fontSize: 18,
+          fontWeight: '400',
+          color: '#1A1A1A',
+          letterSpacing: 0.3,
+        }}>
+          {DAY_NAMES[selectedDay]}
+        </Text>
+      </View>
+    </View>
+  );
 
-  const formatTime = (hour: string, minute: string) => {
-    return `${hour}:${minute}`;
-  };
-
-  const renderWheelPicker = (
+  // Professional Time Picker
+  const renderTimePicker = (
     label: string,
     value: string,
-    onSelect: (time: string) => void,
-    errorKey: string
+    onValueChange: (time: string) => void,
+    excludeAfter?: string
   ) => {
-    const { hour: selectedHour, minute: selectedMinute } = parseTime(value);
-    
+    const filteredOptions = excludeAfter 
+      ? timeOptions.filter(time => time > excludeAfter)
+      : timeOptions;
+
     return (
-      <View style={{ marginBottom: 20 }}>
-        <Text style={{ fontSize: 16, fontWeight: '600', color: '#000000', marginBottom: 8 }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{
+          fontSize: 14,
+          color: '#8A8A8A',
+          marginBottom: 12,
+          letterSpacing: 0.5,
+        }}>
           {label}
         </Text>
         
-        <View style={{ 
-          flexDirection: 'row', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          backgroundColor: '#1C1C1E',
-          borderRadius: 12,
-          paddingVertical: 20,
-          marginBottom: 8
-        }}>
-          {/* Hour Picker */}
-          <ScrollView
-            style={{ 
-              height: 180, 
-              width: 80,
-            }}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ 
-              paddingVertical: 60,
-              alignItems: 'center'
-            }}
-            snapToInterval={40}
-            decelerationRate="fast"
-          >
-            {hours.map((hour) => (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingHorizontal: 4,
+          }}
+        >
+          {filteredOptions.map((time) => {
+            const isSelected = time === value;
+            return (
               <TouchableOpacity
-                key={hour}
+                key={time}
+                onPress={() => onValueChange(time)}
                 style={{
-                  height: 40,
-                  justifyContent: 'center',
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  marginRight: 8,
+                  borderRadius: 4,
+                  backgroundColor: isSelected ? '#1A1A1A' : '#F8F8F8',
+                  borderWidth: 1,
+                  borderColor: isSelected ? '#1A1A1A' : '#E8E8E8',
+                  minWidth: 70,
                   alignItems: 'center',
-                  paddingHorizontal: 10
                 }}
-                onPress={() => onSelect(formatTime(hour, selectedMinute))}
               >
-                <Text
-                  style={{
-                    fontSize: selectedHour === hour ? 24 : 18,
-                    fontWeight: selectedHour === hour ? '600' : '400',
-                    color: selectedHour === hour ? '#FFFFFF' : '#8E8E93'
-                  }}
-                >
-                  {hour}
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: '500',
+                  color: isSelected ? '#FFFFFF' : '#1A1A1A',
+                  letterSpacing: 0.3,
+                }}>
+                  {time}
                 </Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Separator */}
-          <Text style={{ 
-            fontSize: 24, 
-            fontWeight: '600', 
-            color: '#FFFFFF',
-            marginHorizontal: 10
-          }}>
-            :
-          </Text>
-
-          {/* Minute Picker */}
-          <ScrollView
-            style={{ 
-              height: 180, 
-              width: 80,
-            }}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ 
-              paddingVertical: 60,
-              alignItems: 'center'
-            }}
-            snapToInterval={40}
-            decelerationRate="fast"
-          >
-            {minutes.map((minute) => (
-              <TouchableOpacity
-                key={minute}
-                style={{
-                  height: 40,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  paddingHorizontal: 10
-                }}
-                onPress={() => onSelect(formatTime(selectedHour, minute))}
-              >
-                <Text
-                  style={{
-                    fontSize: selectedMinute === minute ? 24 : 18,
-                    fontWeight: selectedMinute === minute ? '600' : '400',
-                    color: selectedMinute === minute ? '#FFFFFF' : '#8E8E93'
-                  }}
-                >
-                  {minute}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          {/* Hour/Minute Labels */}
-          <View style={{ 
-            position: 'absolute', 
-            right: 20, 
-            top: '50%', 
-            transform: [{ translateY: -15 }]
-          }}>
-            <Text style={{ fontSize: 14, color: '#8E8E93', marginBottom: 5 }}>H</Text>
-            <Text style={{ fontSize: 14, color: '#8E8E93' }}>M</Text>
-          </View>
-        </View>
-        
-        {/* Selected Time Display */}
-        <View style={{ 
-          backgroundColor: '#F2F2F7', 
-          padding: 12, 
-          borderRadius: 8, 
-          alignItems: 'center',
-          marginBottom: 8
-        }}>
-          <Text style={{ fontSize: 16, fontWeight: '600', color: '#000000' }}>
-            {value}
-          </Text>
-        </View>
-        
-        {validationErrors[errorKey] && (
-          <Text style={{ fontSize: 12, color: '#FF3B30', marginTop: 4 }}>
-            {validationErrors[errorKey]}
-          </Text>
-        )}
+            );
+          })}
+        </ScrollView>
       </View>
     );
   };
 
-  const renderStatusPicker = () => (
-    <View style={{ marginBottom: 20 }}>
-      <Text style={{ fontSize: 16, fontWeight: '600', color: '#000000', marginBottom: 8 }}>
-        Trạng thái
-      </Text>
-      
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-        {Object.values(AvailabilityStatus).map((statusOption) => (
-          <TouchableOpacity
-            key={statusOption}
-            style={{
-              paddingHorizontal: 16,
-              paddingVertical: 10,
-              marginRight: 8,
-              marginBottom: 8,
-              borderRadius: 20,
-              backgroundColor: status === statusOption ? STATUS_COLORS[statusOption] : '#F2F2F7',
-              borderWidth: 1,
-              borderColor: status === statusOption ? STATUS_COLORS[statusOption] : '#E5E5EA'
-            }}
-            onPress={() => setStatus(statusOption)}
-          >
-            <Text
-              style={{
-                fontSize: 14,
-                fontWeight: '500',
-                color: status === statusOption ? '#FFFFFF' : '#000000'
-              }}
-            >
-              {STATUS_LABELS[statusOption]}
-            </Text>
-          </TouchableOpacity>
-        ))}
+  // Time Section
+  const renderTimeSection = () => (
+    <View style={{
+      backgroundColor: '#FFFFFF',
+      paddingVertical: 24,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F5F5F5',
+    }}>
+      <View style={{ paddingHorizontal: 24 }}>
+        {/* Start Time */}
+        <View style={{ marginBottom: 32 }}>
+          {renderTimePicker('START TIME', startTime, setStartTime)}
+        </View>
+        
+        {/* End Time */}
+        <View style={{ marginBottom: 20 }}>
+          {renderTimePicker('END TIME', endTime, setEndTime, startTime)}
+        </View>
+
+        {/* Duration Display */}
+        <View style={{
+          backgroundColor: '#FAFAFA',
+          padding: 16,
+          borderRadius: 4,
+          alignItems: 'center',
+        }}>
+          <Text style={{
+            fontSize: 12,
+            color: '#8A8A8A',
+            marginBottom: 4,
+            letterSpacing: 0.5,
+          }}>
+            DURATION
+          </Text>
+          <Text style={{
+            fontSize: 16,
+            fontWeight: '400',
+            color: '#1A1A1A',
+            letterSpacing: 0.3,
+          }}>
+            {calculateDuration()}
+          </Text>
+        </View>
       </View>
-      
-      {validationErrors.status && (
-        <Text style={{ fontSize: 12, color: '#FF3B30', marginTop: 4 }}>
-          {validationErrors.status}
+    </View>
+  );
+
+  // Professional Status Picker
+  const renderStatusSection = () => (
+    <View style={{
+      backgroundColor: '#FFFFFF',
+      paddingVertical: 24,
+      borderBottomWidth: 1,
+      borderBottomColor: '#F5F5F5',
+    }}>
+      <View style={{ paddingHorizontal: 24 }}>
+        <Text style={{
+          fontSize: 14,
+          color: '#8A8A8A',
+          marginBottom: 16,
+          letterSpacing: 0.5,
+        }}>
+          STATUS
         </Text>
-      )}
+        
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          {Object.values(AvailabilityStatus).map((statusOption) => {
+            const isSelected = status === statusOption;
+            const isAvailable = statusOption === AvailabilityStatus.AVAILABLE;
+            
+            return (
+              <TouchableOpacity
+                key={statusOption}
+                style={{
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  marginRight: 12,
+                  marginBottom: 8,
+                  borderRadius: 4,
+                  backgroundColor: isSelected 
+                    ? (isAvailable ? '#1A1A1A' : '#8A8A8A') 
+                    : '#F8F8F8',
+                  borderWidth: 1,
+                  borderColor: isSelected 
+                    ? (isAvailable ? '#1A1A1A' : '#8A8A8A') 
+                    : '#E8E8E8',
+                }}
+                onPress={() => setStatus(statusOption)}
+              >
+                <Text style={{
+                  fontSize: 14,
+                  fontWeight: '500',
+                  color: isSelected ? '#FFFFFF' : '#1A1A1A',
+                  letterSpacing: 0.3,
+                }}>
+                  {isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    </View>
+  );
+
+  // Professional Guidelines
+  const renderGuidelines = () => (
+    <View style={{
+      backgroundColor: '#FAFAFA',
+      paddingVertical: 24,
+    }}>
+      <View style={{ paddingHorizontal: 24 }}>
+        <Text style={{
+          fontSize: 14,
+          color: '#8A8A8A',
+          marginBottom: 16,
+          letterSpacing: 0.5,
+        }}>
+          GUIDELINES
+        </Text>
+        
+        <View style={{ marginBottom: 12 }}>
+          <Text style={{
+            fontSize: 13,
+            color: '#8A8A8A',
+            lineHeight: 18,
+            marginBottom: 8,
+          }}>
+            • Minimum slot duration is 30 minutes
+          </Text>
+          <Text style={{
+            fontSize: 13,
+            color: '#8A8A8A',
+            lineHeight: 18,
+            marginBottom: 8,
+          }}>
+            • Avoid overlapping time slots
+          </Text>
+          <Text style={{
+            fontSize: 13,
+            color: '#8A8A8A',
+            lineHeight: 18,
+            marginBottom: 8,
+          }}>
+            • Only available slots are visible to clients
+          </Text>
+          <Text style={{
+            fontSize: 13,
+            color: '#8A8A8A',
+            lineHeight: 18,
+          }}>
+            • You can modify status after creation
+          </Text>
+        </View>
+      </View>
     </View>
   );
 
@@ -364,120 +481,42 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      <View style={{ flex: 1, backgroundColor: '#F2F2F7' }}>
-        {/* Header */}
-        <View
-          style={{
-            paddingTop: insets.top + 16,
-            paddingHorizontal: 20,
-            paddingBottom: 16,
-            backgroundColor: '#FFFFFF',
-            borderBottomWidth: 1,
-            borderBottomColor: '#E5E5EA'
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <TouchableOpacity onPress={handleClose}>
-              <Text style={{ fontSize: 16, color: '#007AFF' }}>Hủy</Text>
-            </TouchableOpacity>
-            
-            <Text style={{ fontSize: 18, fontWeight: '600', color: '#000000' }}>
-              {isEditing ? 'Chỉnh sửa khung giờ' : 'Thêm khung giờ'}
-            </Text>
-            
-            <TouchableOpacity
-              onPress={handleSave}
-              disabled={creating || updating}
-            >
-              {creating || updating ? (
-                <ActivityIndicator size="small" color="#007AFF" />
-              ) : (
-                <Text style={{ fontSize: 16, color: '#007AFF', fontWeight: '600' }}>
-                  Lưu
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
+      <View style={{ flex: 1, backgroundColor: '#FAFAFA' }}>
+        {renderHeader()}
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20 }}>
-          {/* Day Info */}
-          <View style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 20 }}>
-            <Text style={{ fontSize: 16, fontWeight: '600', color: '#000000', marginBottom: 4 }}>
-              Ngày trong tuần
-            </Text>
-            <Text style={{ fontSize: 14, color: '#8E8E93' }}>
-              {DAY_NAMES[selectedDay]}
-            </Text>
-          </View>
-
-          {/* Time Selection */}
-          <View style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 20 }}>
-            {renderWheelPicker('Giờ bắt đầu', startTime, setStartTime, 'startTime')}
-            {renderWheelPicker('Giờ kết thúc', endTime, setEndTime, 'endTime')}
-            
-            {/* Duration Display */}
-            <View style={{ padding: 12, backgroundColor: '#F2F2F7', borderRadius: 8 }}>
-              <Text style={{ fontSize: 14, color: '#8E8E93', textAlign: 'center' }}>
-                Thời lượng: {(() => {
-                  const start = new Date(`2000-01-01 ${startTime}:00`);
-                  const end = new Date(`2000-01-01 ${endTime}:00`);
-                  const diff = Math.max(0, (end.getTime() - start.getTime()) / (1000 * 60));
-                  const hours = Math.floor(diff / 60);
-                  const minutes = diff % 60;
-                  return hours > 0 
-                    ? `${hours} giờ ${minutes > 0 ? `${minutes} phút` : ''}` 
-                    : `${minutes} phút`;
-                })()}
-              </Text>
-            </View>
-          </View>
-
-          {/* Status Selection */}
-          <View style={{ backgroundColor: '#FFFFFF', padding: 16, borderRadius: 12, marginBottom: 20 }}>
-            {renderStatusPicker()}
-          </View>
-
-          {/* Validation Errors */}
-          {Object.keys(validationErrors).length > 0 && (
-            <View style={{ backgroundColor: '#FFEBEE', padding: 16, borderRadius: 8, marginBottom: 20 }}>
-              <Text style={{ fontSize: 14, fontWeight: '600', color: '#D32F2F', marginBottom: 8 }}>
-                Vui lòng kiểm tra lại:
-              </Text>
-              {Object.entries(validationErrors).map(([key, message]) => (
-                <Text key={key} style={{ fontSize: 12, color: '#D32F2F', marginBottom: 4 }}>
-                  • {message}
-                </Text>
-              ))}
-            </View>
-          )}
-
-          {/* API Error */}
+        <ScrollView style={{ flex: 1 }}>
+          {renderDaySection()}
+          {renderTimeSection()}
+          {renderStatusSection()}
+          
+          {/* Error Display */}
           {error && (
-            <View style={{ backgroundColor: '#FFEBEE', padding: 16, borderRadius: 8, marginBottom: 20 }}>
-              <Text style={{ fontSize: 14, color: '#D32F2F' }}>
-                {error}
-              </Text>
-            </View>
-          )}
-
-          {/* Tips */}
-          <View style={{ backgroundColor: '#E3F2FD', padding: 16, borderRadius: 8 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-              <Ionicons name="information-circle" size={20} color="#1976D2" style={{ marginRight: 8, marginTop: 2 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1976D2', marginBottom: 8 }}>
-                  Gợi ý:
-                </Text>
-                <Text style={{ fontSize: 12, color: '#1976D2', lineHeight: 18 }}>
-                  • Thiết lập các khung giờ không trùng lặp{'\n'}
-                  • Khung giờ tối thiểu là 30 phút{'\n'}
-                  • Bạn có thể thay đổi trạng thái sau khi tạo{'\n'}
-                  • Khách hàng chỉ thấy các khung giờ "Có thể đặt lịch"
+            <View style={{
+              backgroundColor: '#FFFFFF',
+              paddingVertical: 20,
+              borderBottomWidth: 1,
+              borderBottomColor: '#F5F5F5',
+            }}>
+              <View style={{
+                marginHorizontal: 24,
+                padding: 16,
+                backgroundColor: '#FFE5E5',
+                borderRadius: 4,
+              }}>
+                <Text style={{
+                  fontSize: 14,
+                  color: '#DC3545',
+                  letterSpacing: 0.3,
+                }}>
+                  {error}
                 </Text>
               </View>
             </View>
-          </View>
+          )}
+          
+          {renderGuidelines()}
+          
+          <View style={{ height: 40 }} />
         </ScrollView>
       </View>
     </Modal>

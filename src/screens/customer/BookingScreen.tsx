@@ -62,11 +62,39 @@ interface RouteParams {
 export default function BookingScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute();
-  const { photographer, editMode, existingBookingId, existingBookingData } =
-    route.params as RouteParams;
+
+  const { photographer, editMode, existingBookingId, existingBookingData } = route.params as RouteParams;
+
+  
+
+
 
   // Extract photographerId ngay đầu
   const photographerId = photographer?.photographerId;
+
+  if (!photographer || !photographerId || typeof photographerId !== 'number') {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+        <Text style={{ color: '#E91E63', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
+          Lỗi tải thông tin photographer
+        </Text>
+        <Text style={{ color: '#666', fontSize: 14, textAlign: 'center', marginTop: 10 }}>
+          Dữ liệu photographer không hợp lệ. Vui lòng thử lại.
+        </Text>
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={{
+            backgroundColor: '#E91E63',
+            padding: 15,
+            borderRadius: 8,
+            marginTop: 20
+          }}
+        >
+          <Text style={{ color: '#fff', fontWeight: 'bold' }}>← Quay lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   // Auth hook
   const { user, isAuthenticated } = useAuth();
@@ -379,7 +407,17 @@ export default function BookingScreen() {
   };
 
   const handleLocationSelect = (location: any) => {
-    setSelectedLocation(location);
+
+    if (location && (location.id || location.locationId)) {
+      const validLocation = {
+        ...location,
+        id: location.id || location.locationId, 
+      };
+      setSelectedLocation(validLocation);
+    } else {
+      console.warn('⚠️ Location selected without valid ID:', location);
+      setSelectedLocation(null);
+    }
     setShowLocationPicker(false);
   };
 
@@ -434,30 +472,64 @@ export default function BookingScreen() {
               });
             } else {
               setLocalAvailability(null);
+              if (isValidLocationId) {
+                console.log('✅ Calling checkAvailability WITH location:', locationId);
+                await checkAvailability(
+                  photographerId,
+                  startDateTimeString,
+                  endDateTimeString,
+                  locationId
+                );
+              } else {
+                console.log('✅ Calling checkAvailability WITHOUT location');
+                await checkAvailability(
+                  photographerId,
+                  startDateTimeString,
+                  endDateTimeString
+                  // ❌ KHÔNG truyền undefined: , undefined
+                );
+              }
+            }
+          } else {
+            // Create mode → Clear local availability, use hook's result
+            console.log('📝 Create mode: Normal availability check');
+            setLocalAvailability(null);
+            if (isValidLocationId) {
+              console.log('✅ Calling checkAvailability WITH location:', locationId);
               await checkAvailability(
                 photographerId,
                 startDateTimeString,
                 endDateTimeString,
-                selectedLocation?.id
+                locationId
+              );
+            } else {
+              console.log('✅ Calling checkAvailability WITHOUT location');
+              await checkAvailability(
+                photographerId,
+                startDateTimeString,
+                endDateTimeString
+                // ❌ KHÔNG truyền undefined: , undefined
               );
             }
+
           } else {
             setLocalAvailability(null);
             await checkAvailability(
+
               photographerId,
               startDateTimeString,
               endDateTimeString,
-              selectedLocation?.id
+              locationId
+            );
+          } else {
+            console.log('✅ Calling calculatePrice WITHOUT location');
+            calculatePriceResult = await calculatePrice(
+              photographerId,
+              startDateTimeString,
+              endDateTimeString
+              // ❌ KHÔNG truyền undefined: , undefined
             );
           }
-
-          // Price calculation (unchanged)
-          const calculatePriceResult = await calculatePrice(
-            photographerId,
-            startDateTimeString,
-            endDateTimeString,
-            selectedLocation?.id
-          );
 
           if (calculatePriceResult) {
             const startDateObj = new Date(startDateTimeString);
@@ -488,7 +560,7 @@ export default function BookingScreen() {
         } catch (error) {
           console.error("Error in availability/price check:", error);
         }
-      }
+      
     };
 
     calculateAndSetPrice();
@@ -503,6 +575,7 @@ export default function BookingScreen() {
     checkAvailability,
     calculatePrice,
   ]);
+
 
   const handleSubmitBooking = async () => {
     // Basic validation
@@ -1473,6 +1546,7 @@ export default function BookingScreen() {
               Ví dụ: Phong cách chụp, góc độ yêu thích, số lượng ảnh mong
               muốn...
             </Text>
+
           </View>
 
           {/* Price Summary */}

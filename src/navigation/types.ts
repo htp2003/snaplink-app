@@ -1,8 +1,25 @@
-// navigation/types.ts (Add venue owner types)
+// navigation/types.ts
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { PriceCalculationResponse } from "../types/booking";
 import { PaymentFlowData } from "../types/payment";
+
+// Thêm interface cho external location data
+export interface ExternalLocationData {
+  id: string;
+  name: string;
+  address?: string;
+  latitude?: number;
+  longitude?: number;
+  distanceInKm: number;
+  type?: string;
+  rating?: number;
+  source: 'internal' | 'external';
+  locationId?: number;
+  externalId?: string;
+  hourlyRate?: number;
+  availabilityStatus?: string;
+}
 
 export interface Location {
   id: number;
@@ -46,9 +63,6 @@ export type RootStackParamList = {
   ManageAvailabilityScreen: undefined;
   PortfolioScreen: undefined;
   PaymentWaitingScreen: PaymentFlowData;
-
-
-
 
   PhotoDeliveryScreen: {
     bookingId: number;
@@ -131,9 +145,12 @@ export type RootStackParamList = {
     selectedEndTime: string;
     selectedLocation?: {
       id: number;
+      locationId?: number;
       name: string;
+      address?: string;
       hourlyRate?: number;
     };
+    selectedExternalLocation?: ExternalLocationData | null; // ← THÊM DÒNG NÀY
     specialRequests?: string;
     priceCalculation: PriceCalculationResponse;
   };
@@ -168,10 +185,10 @@ export type PhotographerTabParamList = {
 };
 
 export type VenueOwnerTabParamList = {
-  VenueOwnerHomeScreen: undefined; // Ví
-  VenueManagement: undefined; // Quản lý venue
-  VenueOwnerProfile: undefined; // Hồ sơ
-  VenueOwnerEvents: undefined; // Sự kiện
+  VenueOwnerHomeScreen: undefined;
+  VenueManagement: undefined;
+  VenueOwnerProfile: undefined;
+  VenueOwnerEvents: undefined;
 };
 
 export type RootStackNavigationProp =

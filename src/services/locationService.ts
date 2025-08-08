@@ -1,12 +1,43 @@
 import { apiClient } from "./base";
 import { Location, LocationDto, LocationOwner, LocationOwnerDto, LocationApiResponse } from "../types";
 
+export interface NearbyLocationRequest {
+  address: string;
+  radiusInKm: number;
+  tags: string;
+  limit: number;
+}
+
+export interface NearbyLocationResponse {
+  source: 'internal' | 'external';
+  locationId?: number;
+  externalId?: string;
+  class?: string;
+  type?: string;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  distanceInKm: number;
+  // Internal fields
+  images?: any[];
+  hourlyRate?: number;
+  capacity?: number;
+  availabilityStatus?: string;
+  styles?: string[];
+  // External fields
+  rating?: number;
+  place_id?: string;
+}
+
 const ENDPOINTS = {
   ALL: "/api/Location/GetAllLocations",
   BY_ID: (id: number) => `/api/Location/GetLocationById?id=${id}`,
   CREATE: "/api/Location/CreateLocation",
   UPDATE: (id: number) => `/api/Location/UpdateLocation?id=${id}`,
   DELETE: (id: number) => `/api/Location/DeleteLocation?id=${id}`,
+
+  NEARBY_COMBINED: "/api/Location/nearby/combined",
 
   // Location Owner endpoints
   OWNERS: "/api/LocationOwner",
@@ -39,6 +70,9 @@ export const locationService = {
   // Delete location
   delete: (id: number): Promise<void> => 
     apiClient.delete<void>(ENDPOINTS.DELETE(id)),
+
+  searchNearby: (data: NearbyLocationRequest): Promise<NearbyLocationResponse[] | { $values: NearbyLocationResponse[] }> => 
+    apiClient.post<NearbyLocationResponse[] | { $values: NearbyLocationResponse[] }>(ENDPOINTS.NEARBY_COMBINED, data),
 };
 
 export const locationOwnerService = {

@@ -27,6 +27,12 @@ export interface ExternalLocationRequest {
   types?: string;
 }
 
+export interface ExternalLocationResponse extends ExternalLocationRequest {
+  id: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface BookingResponse {
   id: number;
   bookingId: number;
@@ -136,7 +142,13 @@ export interface PriceCalculationResponse {
     general?: string;
   }
 
-  // types/booking.ts
+  export interface CheckAvailabilityResponse {
+    available: boolean;
+    conflictingBookings?: any[];
+    suggestedTimes?: string[];
+    message?: string;
+  }
+
 
 export interface Booking {
   bookingId: number;

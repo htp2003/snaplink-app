@@ -19,7 +19,7 @@ export const useVenueWallet = (userId?: number) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await venueWalletService.getBalance(userId);
+      const data = await venueWalletService.getBalance();
       setBalance(data);
     } catch (err) {
       setError(

@@ -9,6 +9,7 @@ import {
   Modal,
   ActivityIndicator,
   Alert,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
@@ -25,6 +26,8 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { userService } from "../../services/userService";
+import { getResponsiveSize } from "../../utils/responsive";
 
 interface ProfileField {
   id: string;
@@ -41,9 +44,9 @@ interface ProfileField {
 
 const EditProfilePhotographerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
-  const { getCurrentUserId } = useAuth();
+  const { user,getCurrentUserId } = useAuth();
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
-  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
   // Sử dụng hook thay vì state và API calls trực tiếp
   const {
@@ -72,7 +75,6 @@ const EditProfilePhotographerScreen = () => {
   const [allStyles, setAllStyles] = useState<Style[]>([]);
   const [selectedStyleIds, setSelectedStyleIds] = useState<number[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
-
   // Form data state
   const [profileData, setProfileData] = useState<ProfileField[]>([
     {
@@ -143,6 +145,7 @@ const EditProfilePhotographerScreen = () => {
       console.error("Error initializing data:", error);
     }
   };
+  
 
   const loadStyles = async () => {
     try {
@@ -153,9 +156,170 @@ const EditProfilePhotographerScreen = () => {
       Alert.alert("Lỗi", "Không thể tải danh sách styles");
     }
   };
+  const getUserInitials = (): string => {
+    if (!user) return "U";
 
-  
+    const fullName =
+      profileData.find((f) => f.id === "fullName")?.value ||
+      user.fullName ||
+      "";
+    if (fullName) {
+      return fullName
+        .split(" ")
+        .map((word) => word[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+    }
 
+    return user.email?.[0]?.toUpperCase() || "U";
+  };
+
+    const handleImagePress = () => {
+        Alert.alert("Chọn ảnh đại diện", "Bạn muốn chọn ảnh từ đâu?", [
+          {
+            text: "Hủy",
+            style: "cancel",
+          },
+          {
+            text: "Thư viện ảnh",
+            onPress: () => pickImageFromLibrary(),
+          },
+          {
+            text: "Chụp ảnh mới",
+            onPress: () => takePhoto(),
+          },
+        ]);
+      };
+
+
+const pickImageFromLibrary = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert("Lỗi", "Cần cấp quyền truy cập thư viện ảnh");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8, // Good quality for upload
+        allowsMultipleSelection: false,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+
+        // Upload to server and get URL
+        await uploadImageToServer(imageUri);
+      }
+    } catch (error) {
+      console.error("❌ Error picking image:", error);
+      Alert.alert("Lỗi", "Không thể chọn ảnh");
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const permissionResult =
+        await ImagePicker.requestCameraPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        Alert.alert("Lỗi", "Cần cấp quyền truy cập camera");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8, // Good quality for upload
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        const imageUri = result.assets[0].uri;
+
+        // Upload to server and get URL
+        await uploadImageToServer(imageUri);
+      }
+    } catch (error) {
+      console.error("❌ Error taking photo:", error);
+      Alert.alert("Lỗi", "Không thể chụp ảnh");
+    }
+  };
+
+  const uploadImageToServer = async (imageUri: string) => {
+  try {
+    setIsUploadingImage(true);
+
+    // Get token for authorization
+    const token = await AsyncStorage.getItem("token");
+    const userId = getCurrentUserId();
+    if (!token) {
+      throw new Error("No authentication token found");
+    }
+
+    if (!userId) {
+      throw new Error("Không tìm thấy thông tin user");
+    }
+    
+    const formData = new FormData();
+    // Add the image file
+    formData.append("File", {
+      uri: imageUri,
+      type: "image/jpeg", 
+      name: "profile_image.jpg",
+    } as any);
+    formData.append("UserId", userId.toString());
+    formData.append("IsPrimary", "true");
+
+    // Call the API endpoint
+    const response = await fetch(
+      `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/Image`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          // Don't set Content-Type for FormData
+        },
+        body: formData,
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ Upload failed:", errorText);
+      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+    }
+    
+    // Parse the response to get the image data
+    const imageResponse = await response.json();
+    console.log("✅ Image upload response:", imageResponse); // Debug log
+
+    // Extract the URL from the response
+    const imageUrl = imageResponse.url;
+    if (!imageUrl) {
+      throw new Error("No URL returned from image upload");
+    }
+
+    // Set the profile image to the URL returned from server
+    setProfileImage(imageUrl);
+    
+    Alert.alert("Thành công", "Ảnh đại diện đã được cập nhật");
+    
+    setIsUploadingImage(false);
+    return imageUrl;
+    
+  } catch (error) {
+    console.error("❌ Error uploading image:", error);
+    setIsUploadingImage(false);
+    Alert.alert("Lỗi", "Không thể tải ảnh lên server. Vui lòng thử lại.");
+    throw error;
+  }
+};
   // Populate form khi có data từ hook
   useEffect(() => {
     if (photographer) {
@@ -165,6 +329,12 @@ const EditProfilePhotographerScreen = () => {
       setIsEditMode(false);
     }
   }, [photographer]);
+
+  useEffect(() => {
+  if (user?.profileImage && !profileImage) {
+    setProfileImage(user.profileImage);
+  }
+}, [user, profileImage]);
 
   // Populate styles khi có data - FIX HERE
   useEffect(() => {
@@ -192,34 +362,42 @@ const EditProfilePhotographerScreen = () => {
   }, [photographerStyles, allStyles]);
 
   const populateFormData = () => {
-    if (!photographer) return;
+  if (!photographer) return;
 
-    setProfileData((prev) =>
-      prev.map((field) => {
-        switch (field.id) {
-          case "yearsExperience":
-            return {
-              ...field,
-              value: photographer.yearsExperience?.toString() || "",
-            };
-          case "equipment":
-            return { ...field, value: photographer.equipment || "" };
-          case "hourlyRate":
-            return {
-              ...field,
-              value: photographer.hourlyRate?.toString() || "",
-            };
-          case "availabilityStatus":
-            return {
-              ...field,
-              value: photographer.availabilityStatus || "Available",
-            };
-          default:
-            return field;
-        }
-      })
-    );
-  };
+  setProfileData((prev) =>
+    prev.map((field) => {
+      switch (field.id) {
+        case "yearsExperience":
+          return {
+            ...field,
+            value: photographer.yearsExperience?.toString() || "",
+          };
+        case "equipment":
+          return { ...field, value: photographer.equipment || "" };
+        case "hourlyRate":
+          return {
+            ...field,
+            value: photographer.hourlyRate?.toString() || "",
+          };
+        case "availabilityStatus":
+          return {
+            ...field,
+            value: photographer.availabilityStatus || "Available",
+          };
+        default:
+          return field;
+      }
+    })
+  );
+  
+  // Sửa lại logic này để ưu tiên user profileImage trước
+  setProfileImage(
+    photographer.user?.profileImage || 
+    photographer.profileImage || 
+    user?.profileImage || 
+    null
+  );
+};
 
   const requestImagePickerPermissions = async () => {
   try {
@@ -330,6 +508,7 @@ const EditProfilePhotographerScreen = () => {
           equipment: equipmentValue,
           hourlyRate: hourlyRateValue,
           availabilityStatus: availabilityValue,
+          profileImage: profileImage || photographer.profileImage, // Preserve existing image if not updated 
           // Remove styleIds from here - handle separately
         };
 
@@ -350,6 +529,7 @@ const EditProfilePhotographerScreen = () => {
           hourlyRate: hourlyRateValue,
           availabilityStatus: availabilityValue,
           styleIds: selectedStyleIds,
+          profileImage: profileImage || undefined,  // Preserve existing image if not updated
         };
 
         await createProfile(createData);
@@ -524,22 +704,105 @@ const EditProfilePhotographerScreen = () => {
         <View style={{ width: 24 }} />
       </View>
 
+      
+
       <ScrollView style={{ flex: 1 }}>
-        {/* Error Message */}
-        {error && (
-          <View
-            style={{
-              backgroundColor: "#FFE6E6",
-              margin: 16,
-              padding: 16,
-              borderRadius: 8,
-              borderLeftWidth: 4,
-              borderLeftColor: "#FF4444",
-            }}
-          >
-            <Text style={{ color: "#CC0000", fontSize: 14 }}>{error}</Text>
-          </View>
-        )}
+        {/* Profile Image Section */}
+                <View
+                  style={{
+                    alignItems: "center",
+                    paddingTop: getResponsiveSize(40),
+                    paddingBottom: getResponsiveSize(30),
+                    backgroundColor: "#FFFFFF",
+                    marginHorizontal: getResponsiveSize(16),
+                    marginTop: getResponsiveSize(16),
+                    borderRadius: getResponsiveSize(12),
+                    shadowColor: "#000",
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                >
+                  <TouchableOpacity
+                    onPress={handleImagePress}
+                    disabled={isUploadingImage}
+                    style={{
+                      position: "relative",
+                      marginBottom: getResponsiveSize(20),
+                    }}
+                  >
+                    <View
+                      style={{
+                        width: getResponsiveSize(120),
+                        height: getResponsiveSize(120),
+                        borderRadius: getResponsiveSize(60),
+                        backgroundColor: "#333333",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      {profileImage ? (
+                        <Image
+                          source={{ uri: profileImage }}
+                          style={{
+                            width: getResponsiveSize(120),
+                            height: getResponsiveSize(120),
+                            borderRadius: getResponsiveSize(60),
+                          }}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text
+                          style={{
+                            color: "#FFFFFF",
+                            fontSize: getResponsiveSize(48),
+                            fontWeight: "bold",
+                          }}
+                        >
+                          {getUserInitials()}
+                        </Text>
+                      )}
+                    </View>
+        
+                    {/* Upload indicator or camera icon */}
+                    <View
+                      style={{
+                        position: "absolute",
+                        bottom: 0,
+                        right: 0,
+                        width: getResponsiveSize(36),
+                        height: getResponsiveSize(36),
+                        borderRadius: getResponsiveSize(18),
+                        backgroundColor: "#E91E63",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        borderWidth: 3,
+                        borderColor: "#FFFFFF",
+                      }}
+                    >
+                      {isUploadingImage ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Ionicons
+                          name="camera"
+                          size={getResponsiveSize(18)}
+                          color="#FFFFFF"
+                        />
+                      )}
+                    </View>
+                  </TouchableOpacity>
+        
+                  <Text
+                    style={{
+                      fontSize: getResponsiveSize(14),
+                      color: "#666666",
+                      textAlign: "center",
+                    }}
+                  >
+                    Nhấn để thay đổi ảnh đại diện
+                  </Text>
+                </View>
         {/* Photographer Fields */}
         <View style={{ marginTop: 20 }}>
           <Text

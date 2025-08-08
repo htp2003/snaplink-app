@@ -120,6 +120,8 @@ const ProfilePhotographerScreen = () => {
     }
   };
 
+  
+
   const handleLogout = async () => {
       Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
         {

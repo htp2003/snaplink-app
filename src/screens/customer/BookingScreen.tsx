@@ -440,37 +440,69 @@ export default function BookingScreen() {
   // Effects for price calculation
   useEffect(() => {
     const calculateAndSetPrice = async () => {
-      if (selectedStartTime && selectedEndTime && photographerId) {
-        const dateString = selectedDate.toISOString().split("T")[0];
-        const [startHour, startMinute] = selectedStartTime
-          .split(":")
-          .map(Number);
-        const [endHour, endMinute] = selectedEndTime.split(":").map(Number);
 
-        const startDateTimeString = `${dateString}T${startHour
-          .toString()
-          .padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}:00`;
-        const endDateTimeString = `${dateString}T${endHour
-          .toString()
-          .padStart(2, "0")}:${endMinute.toString().padStart(2, "0")}:00`;
-        try {
-          // Check if same time slot in edit mode
+          // ✅ FIX 1: Thêm RETURN khi validation fail
+    if (!selectedStartTime || !selectedEndTime || !photographerId) {
+      console.log('⏭️ Skipping price calculation - missing required data:', {
+        selectedStartTime,
+        selectedEndTime,
+        photographerId
+      });
+      return;
+    }
+
+      // ✅ FIX 2: Validate photographerId type
+      if (typeof photographerId !== 'number' || photographerId <= 0) {
+        console.warn('⚠️ Invalid photographerId:', photographerId);
+        return;
+      }
+
+
+
+
+
+
+      const dateString = selectedDate.toISOString().split('T')[0];
+      const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
+      const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
+  
+      const startDateTimeString = `${dateString}T${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}:00`;
+      const endDateTimeString = `${dateString}T${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
+        
+      try {
+         // ✅ FIX 3: Validate locationId trước khi sử dụng
+
+         const locationId = selectedLocation?.id || selectedLocation?.locationId;
+         const isValidLocationId = locationId && typeof locationId === 'number' && locationId > 0;
+         console.log('🔍 Price calculation params:', {
+          photographerId,
+          locationId,
+          isValidLocationId,
+          selectedLocation: selectedLocation ? { 
+            id: selectedLocation.id, 
+            locationId: selectedLocation.locationId,
+            name: selectedLocation.name 
+          } : null
+        });
+
+
           if (isEditMode && existingBookingData) {
-            const isSameDate =
-              existingBookingData.selectedDate === selectedDate.toISOString();
-            const isSameStartTime =
-              existingBookingData.selectedStartTime === selectedStartTime;
-            const isSameEndTime =
-              existingBookingData.selectedEndTime === selectedEndTime;
+            const isSameDate = existingBookingData.selectedDate === selectedDate.toISOString();
+            const isSameStartTime = existingBookingData.selectedStartTime === selectedStartTime;
+            const isSameEndTime = existingBookingData.selectedEndTime === selectedEndTime;
 
             if (isSameDate && isSameStartTime && isSameEndTime) {
+              // Same time slot → Set local availability
+              console.log('✅ Edit mode: Same time slot - auto available');
               setLocalAvailability({
                 available: true,
                 conflictingBookings: [],
                 suggestedTimes: [],
-                message: "Thời gian hiện tại (có thể chỉnh sửa)",
+                message: 'Thời gian hiện tại (có thể chỉnh sửa)'
               });
             } else {
+              // Different time → Clear local availability, use hook's result
+              console.log('🔍 Edit mode: Time changed - checking availability');
               setLocalAvailability(null);
               if (isValidLocationId) {
                 console.log('✅ Calling checkAvailability WITH location:', locationId);
@@ -511,11 +543,13 @@ export default function BookingScreen() {
                 // ❌ KHÔNG truyền undefined: , undefined
               );
             }
+          }
 
-          } else {
-            setLocalAvailability(null);
-            await checkAvailability(
-
+          // ✅ FIX 6: Price calculation cũng conditional
+          let calculatePriceResult;
+          if (isValidLocationId) {
+            console.log('✅ Calling calculatePrice WITH location:', locationId);
+            calculatePriceResult = await calculatePrice(
               photographerId,
               startDateTimeString,
               endDateTimeString,
@@ -534,47 +568,30 @@ export default function BookingScreen() {
           if (calculatePriceResult) {
             const startDateObj = new Date(startDateTimeString);
             const endDateObj = new Date(endDateTimeString);
-            const duration =
-              (endDateObj.getTime() - startDateObj.getTime()) /
-              (1000 * 60 * 60);
+            const duration = (endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60);
             const photographerFee = photographerRate * duration;
-            const locationFee = selectedLocation?.hourlyRate
-              ? selectedLocation.hourlyRate * duration
-              : 0;
+            const locationFee = selectedLocation?.hourlyRate ? selectedLocation.hourlyRate * duration : 0;
 
             setPriceCalculation({
-              totalPrice:
-                calculatePriceResult?.totalPrice ??
-                photographerFee + locationFee,
-              photographerFee:
-                calculatePriceResult?.photographerFee ?? photographerFee,
+              totalPrice: calculatePriceResult?.totalPrice ?? (photographerFee + locationFee),
+              photographerFee: calculatePriceResult?.photographerFee ?? photographerFee,
               locationFee: calculatePriceResult?.locationFee ?? locationFee,
               duration: calculatePriceResult?.duration ?? duration,
               breakdown: calculatePriceResult?.breakdown ?? {
                 baseRate: photographerFee,
                 locationRate: locationFee,
-                additionalFees: [],
-              },
+                additionalFees: []
+              }
             });
           }
         } catch (error) {
-          console.error("Error in availability/price check:", error);
+          console.error('Error in availability/price check:', error);
         }
       
     };
 
     calculateAndSetPrice();
-  }, [
-    selectedStartTime,
-    selectedEndTime,
-    selectedLocation,
-    selectedDate,
-    photographerId,
-    isEditMode,
-    existingBookingData,
-    checkAvailability,
-    calculatePrice,
-  ]);
+  }, [selectedStartTime, selectedEndTime, selectedLocation, selectedDate, photographerId, isEditMode, existingBookingData, checkAvailability, calculatePrice]);
 
 
   const handleSubmitBooking = async () => {

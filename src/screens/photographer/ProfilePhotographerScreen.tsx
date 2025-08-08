@@ -121,41 +121,41 @@ const ProfilePhotographerScreen = () => {
   };
 
   const handleLogout = async () => {
-    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
-      {
-        text: "Hủy",
-        style: "cancel",
-      },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            setIsLoggingOut(true);
-
-            await logout();
-
-            // Navigate to login screen or reset navigation stack
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "Login" }], // Adjust route name as needed
-            });
-          } catch (error) {
-            console.error("❌ Logout error:", error);
-
-            // Show error alert
-            Alert.alert(
-              "Lỗi đăng xuất",
-              "Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.",
-              [{ text: "OK" }]
-            );
-          } finally {
-            setIsLoggingOut(false);
-          }
+      Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
+        {
+          text: "Hủy",
+          style: "cancel",
         },
-      },
-    ]);
-  };
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setIsLoggingOut(true);
+  
+              await logout();
+  
+              // Navigate to login screen or reset navigation stack
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "Login" }], // Adjust route name as needed
+              });
+            } catch (error) {
+              console.error("❌ Logout error:", error);
+  
+              // Show error alert
+              Alert.alert(
+                "Lỗi đăng xuất",
+                "Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.",
+                [{ text: "OK" }]
+              );
+            } finally {
+              setIsLoggingOut(false);
+            }
+          },
+        },
+      ]);
+    };
 
   const menuItems = [
     {

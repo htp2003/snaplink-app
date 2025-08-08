@@ -164,8 +164,8 @@ export class ChatService {
       const payload = {
         recipientId: messageData.recipientId,
         content: messageData.content.trim(),
-        messageType: messageData.messageType || "Text", // ✅ Fix: Backend expects "Text" not "text"
-        conversationId: messageData.conversationId || undefined,
+        // messageType: messageData.messageType || "Text", 
+        // conversationId: messageData.conversationId || undefined,
       };
 
       // ✅ USE UNIFIED makeRequest method instead of apiClient

@@ -870,25 +870,25 @@ export const useConversation = (options: UseConversationOptions) => {
         }
 
         // Mark messages as read on server
-        const markPromises = messagesToMark.map(async (message) => {
-          try {
-            // ✅ Only mark messages from other users
-            if (message.senderId === currentUserId) {
-              return;
-            }
+        // const markPromises = messagesToMark.map(async (message) => {
+        //   try {
+        //     // ✅ Only mark messages from other users
+        //     if (message.senderId === currentUserId) {
+        //       return;
+        //     }
 
-            await chatService.markMessageAsRead(message.messageId);
-          } catch (err) {
-            console.warn(
-              "⚠️ Failed to mark message as read:",
-              message.messageId,
-              err
-            );
-            // Don't throw, continue with other messages
-          }
-        });
+        //     await chatService.markMessageAsRead(message.messageId);
+        //   } catch (err) {
+        //     console.warn(
+        //       "⚠️ Failed to mark message as read:",
+        //       message.messageId,
+        //       err
+        //     );
+        //     // Don't throw, continue with other messages
+        //   }
+        // });
 
-        await Promise.allSettled(markPromises);
+        // await Promise.allSettled(markPromises);
 
         // Update local state for successfully marked messages
         setMessages((prev) =>

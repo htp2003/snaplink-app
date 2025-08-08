@@ -281,35 +281,51 @@ export default function MessagesScreen() {
     clearSearch();
   }, [clearSearch]);
 
-  const handleConversationPress = useCallback(
-    async (conversation: Conversation) => {
-      if (!conversation.otherParticipant) {
-        console.warn("No other participant found in conversation");
-        return;
-      }
+ const handleConversationPress = useCallback(
+  async (conversation: Conversation) => {
+    console.log("🔍 Conversation data:", JSON.stringify(conversation, null, 2));
+    
+    // ✅ TÌM OTHER PARTICIPANT từ participants array
+    let otherParticipant = conversation.otherParticipant;
+    
+    if (!otherParticipant && conversation.participants?.length > 0) {
+      // Tìm participant khác current user
+      otherParticipant = conversation.participants.find(
+        (p) => p.userId !== getCurrentUserId());
+    }
+    
+    if (!otherParticipant) {
+      console.warn("❌ No other participant found in conversation:", conversation);
+      Alert.alert(
+        "Error", 
+        "Cannot open this conversation. Missing participant information."
+      );
+      return;
+    }
 
-      // Join conversation for real-time updates (if SignalR is connected)
-      if (isSignalRConnected) {
-        try {
-          await signalRManager.joinConversation(conversation.conversationId);
-        } catch (error) {
-          console.warn("⚠️ Failed to join conversation for real-time:", error);
-        }
+    // Join conversation for real-time updates
+    if (isSignalRConnected) {
+      try {
+        await signalRManager.joinConversation(conversation.conversationId);
+      } catch (error) {
+        console.warn("⚠️ Failed to join conversation for real-time:", error);
       }
+    }
 
-      navigation.navigate("ChatScreen", {
-        conversationId: conversation.conversationId,
-        title: conversation.title || "Chat",
-        otherUser: {
-          userId: conversation.otherParticipant.userId,
-          userName: conversation.otherParticipant.userName || "User",
-          userFullName: conversation.otherParticipant.userFullName || "User",
-          userProfileImage: conversation.otherParticipant.userProfileImage,
-        },
-      });
-    },
-    [navigation, isSignalRConnected]
-  );
+    // ✅ NAVIGATE với fallback data
+    navigation.navigate("ChatScreen", {
+      conversationId: conversation.conversationId,
+      title: conversation.title || otherParticipant.userFullName || otherParticipant.userName || "Chat",
+      otherUser: {
+        userId: otherParticipant.userId,
+        userName: otherParticipant.userName || "User",
+        userFullName: otherParticipant.userFullName || otherParticipant.userName || "User",
+        userProfileImage: otherParticipant.userProfileImage,
+      },
+    });
+  },
+  [navigation, isSignalRConnected, getCurrentUserId] // ✅ THÊM currentUserId dependency
+);
 
   const handlePhotographerPress = useCallback(
     async (photographer: PhotographerSearchResult) => {

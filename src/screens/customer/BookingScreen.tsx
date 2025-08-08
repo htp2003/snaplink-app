@@ -24,6 +24,10 @@ import { useAuth } from "../../hooks/useAuth";
 import { bookingService } from "../../services/bookingService";
 import { cleanupService } from "../../services/cleanupService";
 
+import * as Location from "expo-location";
+import { useNearbyLocations } from "../../hooks/useNearbyLocations";
+import LocationModal from "../../components/LocationCard/LocationModal";
+
 // Route params interface - match với actual data structure
 interface RouteParams {
   photographer: {
@@ -63,34 +67,52 @@ export default function BookingScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute();
 
-  const { photographer, editMode, existingBookingId, existingBookingData } = route.params as RouteParams;
-
-  
-
-
+  const { photographer, editMode, existingBookingId, existingBookingData } =
+    route.params as RouteParams;
 
   // Extract photographerId ngay đầu
   const photographerId = photographer?.photographerId;
 
-  if (!photographer || !photographerId || typeof photographerId !== 'number') {
+  if (!photographer || !photographerId || typeof photographerId !== "number") {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-        <Text style={{ color: '#E91E63', fontSize: 18, fontWeight: 'bold', textAlign: 'center' }}>
-          Lỗi tải thông tin photographer
-        </Text>
-        <Text style={{ color: '#666', fontSize: 14, textAlign: 'center', marginTop: 10 }}>
-          Dữ liệu photographer không hợp lệ. Vui lòng thử lại.
-        </Text>
-        <TouchableOpacity 
-          onPress={() => navigation.goBack()}
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 20,
+        }}
+      >
+        <Text
           style={{
-            backgroundColor: '#E91E63',
-            padding: 15,
-            borderRadius: 8,
-            marginTop: 20
+            color: "#E91E63",
+            fontSize: 18,
+            fontWeight: "bold",
+            textAlign: "center",
           }}
         >
-          <Text style={{ color: '#fff', fontWeight: 'bold' }}>← Quay lại</Text>
+          Lỗi tải thông tin photographer
+        </Text>
+        <Text
+          style={{
+            color: "#666",
+            fontSize: 14,
+            textAlign: "center",
+            marginTop: 10,
+          }}
+        >
+          Dữ liệu photographer không hợp lệ. Vui lòng thử lại.
+        </Text>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={{
+            backgroundColor: "#E91E63",
+            padding: 15,
+            borderRadius: 8,
+            marginTop: 20,
+          }}
+        >
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>← Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
@@ -407,15 +429,14 @@ export default function BookingScreen() {
   };
 
   const handleLocationSelect = (location: any) => {
-
     if (location && (location.id || location.locationId)) {
       const validLocation = {
         ...location,
-        id: location.id || location.locationId, 
+        id: location.id || location.locationId,
       };
       setSelectedLocation(validLocation);
     } else {
-      console.warn('⚠️ Location selected without valid ID:', location);
+      console.warn("⚠️ Location selected without valid ID:", location);
       setSelectedLocation(null);
     }
     setShowLocationPicker(false);
@@ -440,94 +461,78 @@ export default function BookingScreen() {
   // Effects for price calculation
   useEffect(() => {
     const calculateAndSetPrice = async () => {
-
-          // ✅ FIX 1: Thêm RETURN khi validation fail
-    if (!selectedStartTime || !selectedEndTime || !photographerId) {
-      console.log('⏭️ Skipping price calculation - missing required data:', {
-        selectedStartTime,
-        selectedEndTime,
-        photographerId
-      });
-      return;
-    }
-
-      // ✅ FIX 2: Validate photographerId type
-      if (typeof photographerId !== 'number' || photographerId <= 0) {
-        console.warn('⚠️ Invalid photographerId:', photographerId);
+      // ✅ FIX 1: Thêm RETURN khi validation fail
+      if (!selectedStartTime || !selectedEndTime || !photographerId) {
+        console.log("⏭️ Skipping price calculation - missing required data:", {
+          selectedStartTime,
+          selectedEndTime,
+          photographerId,
+        });
         return;
       }
 
+      // ✅ FIX 2: Validate photographerId type
+      if (typeof photographerId !== "number" || photographerId <= 0) {
+        console.warn("⚠️ Invalid photographerId:", photographerId);
+        return;
+      }
 
+      const dateString = selectedDate.toISOString().split("T")[0];
+      const [startHour, startMinute] = selectedStartTime.split(":").map(Number);
+      const [endHour, endMinute] = selectedEndTime.split(":").map(Number);
 
+      const startDateTimeString = `${dateString}T${startHour
+        .toString()
+        .padStart(2, "0")}:${startMinute.toString().padStart(2, "0")}:00`;
+      const endDateTimeString = `${dateString}T${endHour
+        .toString()
+        .padStart(2, "0")}:${endMinute.toString().padStart(2, "0")}:00`;
 
-
-
-      const dateString = selectedDate.toISOString().split('T')[0];
-      const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
-      const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
-  
-      const startDateTimeString = `${dateString}T${startHour.toString().padStart(2, '0')}:${startMinute.toString().padStart(2, '0')}:00`;
-      const endDateTimeString = `${dateString}T${endHour.toString().padStart(2, '0')}:${endMinute.toString().padStart(2, '0')}:00`;
-        
       try {
-         // ✅ FIX 3: Validate locationId trước khi sử dụng
+        // ✅ FIX 3: Validate locationId trước khi sử dụng
 
-         const locationId = selectedLocation?.id || selectedLocation?.locationId;
-         const isValidLocationId = locationId && typeof locationId === 'number' && locationId > 0;
-         console.log('🔍 Price calculation params:', {
+        const locationId = selectedLocation?.id || selectedLocation?.locationId;
+        const isValidLocationId =
+          locationId && typeof locationId === "number" && locationId > 0;
+        console.log("🔍 Price calculation params:", {
           photographerId,
           locationId,
           isValidLocationId,
-          selectedLocation: selectedLocation ? { 
-            id: selectedLocation.id, 
-            locationId: selectedLocation.locationId,
-            name: selectedLocation.name 
-          } : null
+          selectedLocation: selectedLocation
+            ? {
+                id: selectedLocation.id,
+                locationId: selectedLocation.locationId,
+                name: selectedLocation.name,
+              }
+            : null,
         });
 
+        if (isEditMode && existingBookingData) {
+          const isSameDate =
+            existingBookingData.selectedDate === selectedDate.toISOString();
+          const isSameStartTime =
+            existingBookingData.selectedStartTime === selectedStartTime;
+          const isSameEndTime =
+            existingBookingData.selectedEndTime === selectedEndTime;
 
-          if (isEditMode && existingBookingData) {
-            const isSameDate = existingBookingData.selectedDate === selectedDate.toISOString();
-            const isSameStartTime = existingBookingData.selectedStartTime === selectedStartTime;
-            const isSameEndTime = existingBookingData.selectedEndTime === selectedEndTime;
-
-            if (isSameDate && isSameStartTime && isSameEndTime) {
-              // Same time slot → Set local availability
-              console.log('✅ Edit mode: Same time slot - auto available');
-              setLocalAvailability({
-                available: true,
-                conflictingBookings: [],
-                suggestedTimes: [],
-                message: 'Thời gian hiện tại (có thể chỉnh sửa)'
-              });
-            } else {
-              // Different time → Clear local availability, use hook's result
-              console.log('🔍 Edit mode: Time changed - checking availability');
-              setLocalAvailability(null);
-              if (isValidLocationId) {
-                console.log('✅ Calling checkAvailability WITH location:', locationId);
-                await checkAvailability(
-                  photographerId,
-                  startDateTimeString,
-                  endDateTimeString,
-                  locationId
-                );
-              } else {
-                console.log('✅ Calling checkAvailability WITHOUT location');
-                await checkAvailability(
-                  photographerId,
-                  startDateTimeString,
-                  endDateTimeString
-                  // ❌ KHÔNG truyền undefined: , undefined
-                );
-              }
-            }
+          if (isSameDate && isSameStartTime && isSameEndTime) {
+            // Same time slot → Set local availability
+            console.log("✅ Edit mode: Same time slot - auto available");
+            setLocalAvailability({
+              available: true,
+              conflictingBookings: [],
+              suggestedTimes: [],
+              message: "Thời gian hiện tại (có thể chỉnh sửa)",
+            });
           } else {
-            // Create mode → Clear local availability, use hook's result
-            console.log('📝 Create mode: Normal availability check');
+            // Different time → Clear local availability, use hook's result
+            console.log("🔍 Edit mode: Time changed - checking availability");
             setLocalAvailability(null);
             if (isValidLocationId) {
-              console.log('✅ Calling checkAvailability WITH location:', locationId);
+              console.log(
+                "✅ Calling checkAvailability WITH location:",
+                locationId
+              );
               await checkAvailability(
                 photographerId,
                 startDateTimeString,
@@ -535,7 +540,7 @@ export default function BookingScreen() {
                 locationId
               );
             } else {
-              console.log('✅ Calling checkAvailability WITHOUT location');
+              console.log("✅ Calling checkAvailability WITHOUT location");
               await checkAvailability(
                 photographerId,
                 startDateTimeString,
@@ -544,55 +549,93 @@ export default function BookingScreen() {
               );
             }
           }
-
-          // ✅ FIX 6: Price calculation cũng conditional
-          let calculatePriceResult;
+        } else {
+          // Create mode → Clear local availability, use hook's result
+          console.log("📝 Create mode: Normal availability check");
+          setLocalAvailability(null);
           if (isValidLocationId) {
-            console.log('✅ Calling calculatePrice WITH location:', locationId);
-            calculatePriceResult = await calculatePrice(
+            console.log(
+              "✅ Calling checkAvailability WITH location:",
+              locationId
+            );
+            await checkAvailability(
               photographerId,
               startDateTimeString,
               endDateTimeString,
               locationId
             );
           } else {
-            console.log('✅ Calling calculatePrice WITHOUT location');
-            calculatePriceResult = await calculatePrice(
+            console.log("✅ Calling checkAvailability WITHOUT location");
+            await checkAvailability(
               photographerId,
               startDateTimeString,
               endDateTimeString
               // ❌ KHÔNG truyền undefined: , undefined
             );
           }
-
-          if (calculatePriceResult) {
-            const startDateObj = new Date(startDateTimeString);
-            const endDateObj = new Date(endDateTimeString);
-            const duration = (endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60);
-            const photographerFee = photographerRate * duration;
-            const locationFee = selectedLocation?.hourlyRate ? selectedLocation.hourlyRate * duration : 0;
-
-            setPriceCalculation({
-              totalPrice: calculatePriceResult?.totalPrice ?? (photographerFee + locationFee),
-              photographerFee: calculatePriceResult?.photographerFee ?? photographerFee,
-              locationFee: calculatePriceResult?.locationFee ?? locationFee,
-              duration: calculatePriceResult?.duration ?? duration,
-              breakdown: calculatePriceResult?.breakdown ?? {
-                baseRate: photographerFee,
-                locationRate: locationFee,
-                additionalFees: []
-              }
-            });
-          }
-        } catch (error) {
-          console.error('Error in availability/price check:', error);
         }
-      
+
+        // ✅ FIX 6: Price calculation cũng conditional
+        let calculatePriceResult;
+        if (isValidLocationId) {
+          console.log("✅ Calling calculatePrice WITH location:", locationId);
+          calculatePriceResult = await calculatePrice(
+            photographerId,
+            startDateTimeString,
+            endDateTimeString,
+            locationId
+          );
+        } else {
+          console.log("✅ Calling calculatePrice WITHOUT location");
+          calculatePriceResult = await calculatePrice(
+            photographerId,
+            startDateTimeString,
+            endDateTimeString
+            // ❌ KHÔNG truyền undefined: , undefined
+          );
+        }
+
+        if (calculatePriceResult) {
+          const startDateObj = new Date(startDateTimeString);
+          const endDateObj = new Date(endDateTimeString);
+          const duration =
+            (endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60);
+          const photographerFee = photographerRate * duration;
+          const locationFee = selectedLocation?.hourlyRate
+            ? selectedLocation.hourlyRate * duration
+            : 0;
+
+          setPriceCalculation({
+            totalPrice:
+              calculatePriceResult?.totalPrice ?? photographerFee + locationFee,
+            photographerFee:
+              calculatePriceResult?.photographerFee ?? photographerFee,
+            locationFee: calculatePriceResult?.locationFee ?? locationFee,
+            duration: calculatePriceResult?.duration ?? duration,
+            breakdown: calculatePriceResult?.breakdown ?? {
+              baseRate: photographerFee,
+              locationRate: locationFee,
+              additionalFees: [],
+            },
+          });
+        }
+      } catch (error) {
+        console.error("Error in availability/price check:", error);
+      }
     };
 
     calculateAndSetPrice();
-  }, [selectedStartTime, selectedEndTime, selectedLocation, selectedDate, photographerId, isEditMode, existingBookingData, checkAvailability, calculatePrice]);
-
+  }, [
+    selectedStartTime,
+    selectedEndTime,
+    selectedLocation,
+    selectedDate,
+    photographerId,
+    isEditMode,
+    existingBookingData,
+    checkAvailability,
+    calculatePrice,
+  ]);
 
   const handleSubmitBooking = async () => {
     // Basic validation
@@ -618,7 +661,6 @@ export default function BookingScreen() {
       Alert.alert("Lỗi", "Vui lòng đăng nhập để đặt lịch");
       return;
     }
-
     try {
       const dateString = selectedDate.toISOString().split("T")[0];
       const [startHour, startMinute] = selectedStartTime.split(":").map(Number);
@@ -946,130 +988,6 @@ export default function BookingScreen() {
     !updating;
 
   // Modal Components
-
-  const LocationModal = () => (
-    <Modal
-      animationType="slide"
-      transparent={true}
-      visible={showLocationPicker}
-      onRequestClose={() => setShowLocationPicker(false)}
-    >
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "rgba(0,0,0,0.5)",
-          justifyContent: "flex-end",
-        }}
-      >
-        <View
-          style={{
-            backgroundColor: "#fff",
-            borderTopLeftRadius: getResponsiveSize(20),
-            borderTopRightRadius: getResponsiveSize(20),
-            paddingTop: getResponsiveSize(20),
-            paddingHorizontal: getResponsiveSize(20),
-            paddingBottom: getResponsiveSize(40),
-            maxHeight: "70%",
-          }}
-        >
-          <View
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: getResponsiveSize(20),
-            }}
-          >
-            <Text
-              style={{
-                fontSize: getResponsiveSize(18),
-                fontWeight: "bold",
-                color: "#333",
-              }}
-            >
-              Chọn địa điểm
-            </Text>
-            <TouchableOpacity
-              onPress={() => setShowLocationPicker(false)}
-              style={{
-                backgroundColor: "#f5f5f5",
-                borderRadius: getResponsiveSize(20),
-                padding: getResponsiveSize(8),
-              }}
-            >
-              <AntDesign
-                name="close"
-                size={getResponsiveSize(18)}
-                color="#666"
-              />
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {locationsLoading ? (
-              <Text
-                style={{
-                  textAlign: "center",
-                  color: "#666",
-                  padding: getResponsiveSize(20),
-                }}
-              >
-                Đang tải...
-              </Text>
-            ) : locations.length === 0 ? (
-              <Text
-                style={{
-                  textAlign: "center",
-                  color: "#666",
-                  padding: getResponsiveSize(20),
-                }}
-              >
-                Không có địa điểm nào
-              </Text>
-            ) : (
-              locations.map((location) => (
-                <TouchableOpacity
-                  key={location.id}
-                  onPress={() => handleLocationSelect(location)}
-                  style={{
-                    backgroundColor:
-                      selectedLocation?.id === location.id ? "#fff" : "#f8f9fa",
-                    borderRadius: getResponsiveSize(12),
-                    marginBottom: getResponsiveSize(12),
-                    borderWidth: selectedLocation?.id === location.id ? 2 : 1,
-                    borderColor:
-                      selectedLocation?.id === location.id
-                        ? "#E91E63"
-                        : "#e0e0e0",
-                    padding: getResponsiveSize(15),
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: getResponsiveSize(16),
-                      fontWeight: "bold",
-                      color: "#333",
-                      marginBottom: getResponsiveSize(4),
-                    }}
-                  >
-                    {location?.name || "Không có tên"}
-                  </Text>
-                  <Text
-                    style={{
-                      fontSize: getResponsiveSize(14),
-                      color: "#666",
-                    }}
-                  >
-                    {location?.address || "Địa chỉ chưa cập nhật"}
-                  </Text>
-                </TouchableOpacity>
-              ))
-            )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
@@ -1563,7 +1481,6 @@ export default function BookingScreen() {
               Ví dụ: Phong cách chụp, góc độ yêu thích, số lượng ảnh mong
               muốn...
             </Text>
-
           </View>
 
           {/* Price Summary */}
@@ -1711,40 +1628,6 @@ export default function BookingScreen() {
               {buttonText}
             </Text>
           </TouchableOpacity>
-
-          {/* 🆕 THÊM: Debug Info cho development */}
-          {__DEV__ && (
-            <View
-              style={{
-                backgroundColor: "#f0f0f0",
-                padding: getResponsiveSize(10),
-                borderRadius: getResponsiveSize(8),
-                marginBottom: getResponsiveSize(10),
-              }}
-            >
-              <Text style={{ fontSize: getResponsiveSize(12), color: "#666" }}>
-                Debug: photographerId={photographerId}, rate={photographerRate}
-              </Text>
-              <Text style={{ fontSize: getResponsiveSize(12), color: "#666" }}>
-                Availability: {photographerSchedule.length} slots, Loading:{" "}
-                {availabilityLoading.toString()}
-              </Text>
-              <Text style={{ fontSize: getResponsiveSize(12), color: "#666" }}>
-                Booked slots: [{bookedSlots.join(", ")}], Loading:{" "}
-                {loadingBookedSlots.toString()}
-              </Text>
-              <Text style={{ fontSize: getResponsiveSize(12), color: "#666" }}>
-                Available times: [{getFilteredTimes().join(", ")}]
-              </Text>
-              <Text style={{ fontSize: getResponsiveSize(12), color: "#666" }}>
-                Selected: {selectedStartTime} - {selectedEndTime}
-              </Text>
-              <Text style={{ fontSize: getResponsiveSize(12), color: "#666" }}>
-                Edit mode: {isEditMode ? "Yes" : "No"}, Booking ID:{" "}
-                {existingBookingId || "None"}
-              </Text>
-            </View>
-          )}
         </View>
       </ScrollView>
 
@@ -1756,7 +1639,15 @@ export default function BookingScreen() {
         onClose={() => setShowDatePicker(false)}
       />
 
-      <LocationModal />
+      <LocationModal
+        visible={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        onLocationSelect={handleLocationSelect}
+        selectedLocation={selectedLocation}
+        locations={locations}
+        locationsLoading={locationsLoading}
+        formatPrice={formatPrice}
+      />
       {/* Error Display */}
       {error && (
         <View

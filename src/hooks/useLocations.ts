@@ -1,4 +1,4 @@
-// hooks/useLocations.ts - Updated with Image API integration
+// hooks/useLocations.ts - Đã sửa, bỏ hàm fetchAllLocationImages có vấn đề
 import { useState, useEffect } from 'react';
 import { locationService } from '../services/locationService';
 import { imageService } from '../services/imageService';
@@ -9,7 +9,7 @@ export interface LocationData {
   id: string;
   locationId: number;
   name: string;
-  images: string[]; // Array of image URLs - will only contain first image for card
+  images: string[]; // Array of image URLs - chỉ chứa ảnh đầu tiên cho card
   styles: string[];
   address?: string;
   description?: string;
@@ -27,52 +27,30 @@ export const useLocations = () => {
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [allLocationImages, setAllLocationImages] = useState<any[]>([]); // Cache all images
 
-  // 🖼️ Lấy tất cả ảnh location một lần và cache lại
-  const fetchAllLocationImages = async () => {
+  // 🖼️ Hàm helper để lấy ảnh chính cho một location cụ thể
+  const getLocationMainImage = async (locationId: number): Promise<string> => {
     try {
+      console.log(`🔍 Đang lấy ảnh cho location ${locationId}...`);
       
-      
-      // ✅ ĐÚNG: Dùng getAllImages() để lấy tất cả ảnh theo type location
-      const locationId = 1; // ID của location bạn muốn lấy ảnh
+      // Lấy ảnh cho location cụ thể này
       const apiImages = await imageService.location.getImages(locationId);
       
-      console.log(`📦 Tìm thấy ${apiImages.length} ảnh location tổng cộng`);
-      setAllLocationImages(apiImages);
-      
-      return apiImages;
-    } catch (error) {
-      console.log(`❌ Lỗi khi lấy tất cả ảnh location:`, error);
-      return [];
-    }
-  };
-
-  // 🖼️ Hàm helper để lấy ảnh đầu tiên cho location cụ thể từ cache
-  const getLocationMainImage = (locationId: number, cachedImages: any[]): string => {
-    try {
-      console.log(`🔍 Đang tìm ảnh cho location ${locationId}...`);
-      
-      // Lọc ảnh theo refId (locationId)
-      const locationImages = cachedImages.filter(img => img.refId === locationId);
-      
-      if (locationImages.length > 0) {
-        const firstImageUrl = locationImages[0].url;
-        console.log(`✅ Tìm thấy ảnh cache cho location ${locationId}:`, firstImageUrl);
+      if (apiImages && apiImages.length > 0) {
+        const firstImageUrl = apiImages[0].url;
+        console.log(`✅ Tìm thấy ảnh cho location ${locationId}:`, firstImageUrl);
         return firstImageUrl;
       } else {
-        console.log(`🔄 Không có ảnh cho location ${locationId}, trả về empty string`);
+        console.log(`⚠️ Location ${locationId} không có ảnh`);
+        return ''; // Trả về chuỗi rỗng nếu không có ảnh
       }
     } catch (error) {
-      console.log(`❌ Lỗi khi lọc ảnh cho location ${locationId}:`, error);
+      console.log(`❌ Lỗi khi lấy ảnh cho location ${locationId}:`, error);
+      return ''; // Trả về chuỗi rỗng nếu có lỗi
     }
-    
-    // Trả về empty string để test xem có ảnh thật không
-    console.log(`⚠️ Location ${locationId} không có ảnh từ API`);
-    return '';
   };
 
-  const transformLocationData = (location: any, cachedImages: any[]): LocationData => {
+  const transformLocationData = async (location: any): Promise<LocationData> => {
     console.log('🔄 Đang transform dữ liệu location:', location.locationId);
     
     // Tách amenities thành styles
@@ -85,8 +63,8 @@ export const useLocations = () => {
               location.outdoor ? ['Outdoor'] : ['Studio'];
     }
 
-    // 🚀 MỚI: Lấy ảnh chính từ cache
-    const mainImageUrl = getLocationMainImage(location.locationId, cachedImages);
+    // 🚀 Lấy ảnh chính cho location này
+    const mainImageUrl = await getLocationMainImage(location.locationId);
 
     const transformedData: LocationData = {
       id: location.locationId.toString(),
@@ -123,10 +101,7 @@ export const useLocations = () => {
       
       console.log('🏢 Đang lấy tất cả locations...');
       
-      // ✅ Bước 1: Lấy tất cả ảnh location trước
-      const cachedImages = await fetchAllLocationImages();
-      
-      // ✅ Bước 2: Lấy dữ liệu location
+      // ✅ Lấy dữ liệu location
       const data = await locationService.getAll();
       console.log('📦 Dữ liệu thô từ Location API:', data);
       
@@ -158,11 +133,11 @@ export const useLocations = () => {
 
       console.log('🏢 Location IDs from API:', validLocations.map(loc => loc.locationId));
 
-      // 🚀 Transform với ảnh đã cache (đồng bộ bây giờ)
+      // 🚀 Transform từng location một (với async/await)
       const transformedData: LocationData[] = [];
       for (const location of validLocations) {
         try {
-          const transformed = transformLocationData(location, cachedImages);
+          const transformed = await transformLocationData(location);
           transformedData.push(transformed);
         } catch (error) {
           console.error(`❌ Lỗi transform location ${location.locationId}:`, error);
@@ -171,7 +146,7 @@ export const useLocations = () => {
             id: location.locationId.toString(),
             locationId: location.locationId,
             name: location.name || 'Unknown Location',
-            images: [''], // Empty string để test
+            images: [''], // Chuỗi rỗng nếu không lấy được ảnh
             styles: ['Studio'],
             address: location.address,
             hourlyRate: location.hourlyRate,
@@ -199,12 +174,7 @@ export const useLocations = () => {
       const data = await locationService.getById(id);
       console.log('📦 Dữ liệu thô location theo ID:', data);
       
-      // Dùng ảnh đã cache nếu có, nếu không thì fetch mới
-      const cachedImages = allLocationImages.length > 0 
-        ? allLocationImages 
-        : await fetchAllLocationImages();
-      
-      return transformLocationData(data, cachedImages);
+      return await transformLocationData(data);
     } catch (err) {
       console.error('❌ Lỗi khi lấy location theo ID:', err);
       return null;

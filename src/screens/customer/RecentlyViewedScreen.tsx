@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -8,22 +8,22 @@ import {
   RefreshControl,
   Image,
   Dimensions,
-  Alert
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 // Hooks and Components
-import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
-import { useFavorites } from '../../hooks/useFavorites';
-import { getResponsiveSize } from '../../utils/responsive';
-import { RootStackParamList } from '../../navigation/types';
+import { useRecentlyViewed } from "../../hooks/useRecentlyViewed";
+import { useFavorites } from "../../hooks/useFavorites";
+import { getResponsiveSize } from "../../utils/responsive";
+import { RootStackParamList } from "../../navigation/types";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 const cardWidth = (width - 48) / 2; // 2 cards per row
 
 export default function RecentlyViewedScreen() {
@@ -39,18 +39,24 @@ export default function RecentlyViewedScreen() {
     getRecentlyViewedLocations,
     getTimeAgo,
     refetch,
-    removeFromRecentlyViewed
+    removeFromRecentlyViewed,
   } = useRecentlyViewed();
 
   const { isFavorite, toggleFavorite } = useFavorites();
 
   // Get all recent items
-  const recentPhotographers = useMemo(() => getRecentlyViewedPhotographers(), [recentlyViewed]);
-  const recentLocations = useMemo(() => getRecentlyViewedLocations(), [recentlyViewed]);
-  
+  const recentPhotographers = useMemo(
+    () => getRecentlyViewedPhotographers(),
+    [recentlyViewed]
+  );
+  const recentLocations = useMemo(
+    () => getRecentlyViewedLocations(),
+    [recentlyViewed]
+  );
+
   const allRecentItems = useMemo(() => {
-    return [...recentPhotographers, ...recentLocations].sort((a, b) =>
-      new Date(b.viewedAt).getTime() - new Date(a.viewedAt).getTime()
+    return [...recentPhotographers, ...recentLocations].sort(
+      (a, b) => new Date(b.viewedAt).getTime() - new Date(a.viewedAt).getTime()
     );
   }, [recentPhotographers, recentLocations]);
 
@@ -62,20 +68,22 @@ export default function RecentlyViewedScreen() {
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    const todayItems = allRecentItems.filter(item => {
+    const todayItems = allRecentItems.filter((item) => {
       const itemDate = new Date(item.viewedAt);
       return itemDate.toDateString() === today.toDateString();
     });
 
-    const yesterdayItems = allRecentItems.filter(item => {
+    const yesterdayItems = allRecentItems.filter((item) => {
       const itemDate = new Date(item.viewedAt);
       return itemDate.toDateString() === yesterday.toDateString();
     });
 
-    const olderItems = allRecentItems.filter(item => {
+    const olderItems = allRecentItems.filter((item) => {
       const itemDate = new Date(item.viewedAt);
-      return itemDate.toDateString() !== today.toDateString() &&
-        itemDate.toDateString() !== yesterday.toDateString();
+      return (
+        itemDate.toDateString() !== today.toDateString() &&
+        itemDate.toDateString() !== yesterday.toDateString()
+      );
     });
 
     return { todayItems, yesterdayItems, olderItems };
@@ -84,7 +92,6 @@ export default function RecentlyViewedScreen() {
   // Auto tắt edit mode khi không còn recent items
   useEffect(() => {
     if (!hasRecentItems && editMode) {
-      console.log('No recent items left, turning off edit mode');
       setEditMode(false);
     }
   }, [hasRecentItems, editMode]);
@@ -95,7 +102,7 @@ export default function RecentlyViewedScreen() {
     try {
       await refetch();
     } catch (error) {
-      console.error('Error refreshing recently viewed:', error);
+      console.error("Error refreshing recently viewed:", error);
     } finally {
       setRefreshing(false);
     }
@@ -111,17 +118,20 @@ export default function RecentlyViewedScreen() {
   };
 
   // Handle remove recent item
-  const handleRemoveRecent = (id: string, type: 'photographer' | 'location') => {
+  const handleRemoveRecent = (
+    id: string,
+    type: "photographer" | "location"
+  ) => {
     Alert.alert(
-      'Xác nhận xóa',
-      'Bạn có chắc muốn xóa khỏi danh sách đã xem gần đây?',
+      "Xác nhận xóa",
+      "Bạn có chắc muốn xóa khỏi danh sách đã xem gần đây?",
       [
-        { text: 'Hủy', style: 'cancel' },
+        { text: "Hủy", style: "cancel" },
         {
-          text: 'Xóa',
-          style: 'destructive',
-          onPress: () => removeFromRecentlyViewed(id, type)
-        }
+          text: "Xóa",
+          style: "destructive",
+          onPress: () => removeFromRecentlyViewed(id, type),
+        },
       ]
     );
   };
@@ -130,11 +140,11 @@ export default function RecentlyViewedScreen() {
   const handleFavoriteToggle = (item: any) => {
     const isLocation = item.locationId !== undefined;
     const actualItem = item.data || item;
-    
+
     const favoriteItem = {
       id: isLocation ? actualItem.locationId?.toString() : actualItem.id,
-      type: isLocation ? 'location' as const : 'photographer' as const,
-      data: actualItem
+      type: isLocation ? ("location" as const) : ("photographer" as const),
+      data: actualItem,
     };
 
     toggleFavorite(favoriteItem);
@@ -144,14 +154,16 @@ export default function RecentlyViewedScreen() {
   const renderRecentCard = (item: any, index: number) => {
     const isLocation = item.locationId !== undefined;
     const actualItem = item.data || item;
-    
-    const id = isLocation ? (actualItem.locationId?.toString() || actualItem.id) : actualItem.id;
+
+    const id = isLocation
+      ? actualItem.locationId?.toString() || actualItem.id
+      : actualItem.id;
     const name = isLocation ? actualItem.name : actualItem.fullName;
-    const subtitle = isLocation ? actualItem.address : (actualItem.styles?.[0] || actualItem.specialty || 'Photographer');
+    const subtitle = isLocation
+      ? actualItem.address
+      : actualItem.styles?.[0] || actualItem.specialty || "Photographer";
     const imageUri = actualItem.images?.[0] || actualItem.avatar;
     const rating = isLocation ? null : actualItem.rating;
-
-
 
     return (
       <TouchableOpacity
@@ -159,14 +171,16 @@ export default function RecentlyViewedScreen() {
         className="mb-6"
         onPress={() => {
           if (editMode) {
-            handleRemoveRecent(id, isLocation ? 'location' : 'photographer');
+            handleRemoveRecent(id, isLocation ? "location" : "photographer");
             return;
           }
-          
+
           if (isLocation) {
-            navigation.navigate('LocationCardDetail', { locationId: id });
+            navigation.navigate("LocationCardDetail", { locationId: id });
           } else {
-            navigation.navigate('PhotographerCardDetail', { photographerId: id });
+            navigation.navigate("PhotographerCardDetail", {
+              photographerId: id,
+            });
           }
         }}
         style={{ width: cardWidth }}
@@ -174,11 +188,11 @@ export default function RecentlyViewedScreen() {
         {/* Image container */}
         <View className="relative">
           <Image
-            source={{ uri: imageUri}}
+            source={{ uri: imageUri }}
             style={{
-              width: '100%',
+              width: "100%",
               height: cardWidth * 0.75,
-              borderRadius: 12
+              borderRadius: 12,
             }}
             className="bg-stone-200"
             resizeMode="cover"
@@ -188,7 +202,9 @@ export default function RecentlyViewedScreen() {
           {editMode && (
             <TouchableOpacity
               className="absolute top-2 left-2 bg-white rounded-full w-6 h-6 items-center justify-center shadow-sm"
-              onPress={() => handleRemoveRecent(id, isLocation ? 'location' : 'photographer')}
+              onPress={() =>
+                handleRemoveRecent(id, isLocation ? "location" : "photographer")
+              }
             >
               <Ionicons name="close" size={16} color="black" />
             </TouchableOpacity>
@@ -201,9 +217,17 @@ export default function RecentlyViewedScreen() {
               onPress={() => handleFavoriteToggle(item)}
             >
               <Ionicons
-                name={isFavorite(id, isLocation ? 'location' : 'photographer') ? "heart" : "heart-outline"}
+                name={
+                  isFavorite(id, isLocation ? "location" : "photographer")
+                    ? "heart"
+                    : "heart-outline"
+                }
                 size={24}
-                color={isFavorite(id, isLocation ? 'location' : 'photographer') ? "#ef4444" : "white"}
+                color={
+                  isFavorite(id, isLocation ? "location" : "photographer")
+                    ? "#ef4444"
+                    : "white"
+                }
               />
             </TouchableOpacity>
           )}
@@ -216,7 +240,7 @@ export default function RecentlyViewedScreen() {
             style={{ fontSize: getResponsiveSize(16) }}
             numberOfLines={1}
           >
-            {name || 'Unnamed'}
+            {name || "Unnamed"}
           </Text>
           <Text
             className="text-stone-600 mt-1"
@@ -225,7 +249,7 @@ export default function RecentlyViewedScreen() {
           >
             {subtitle}
           </Text>
-          
+
           {/* Rating and price row */}
           <View className="flex-row items-center justify-between mt-2">
             {/* Guests info or rating */}
@@ -233,12 +257,18 @@ export default function RecentlyViewedScreen() {
               {rating ? (
                 <>
                   <Ionicons name="star" size={12} color="#d97706" />
-                  <Text className="text-stone-700 font-medium ml-1" style={{ fontSize: getResponsiveSize(12) }}>
+                  <Text
+                    className="text-stone-700 font-medium ml-1"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
                     {rating.toFixed(2)}
                   </Text>
                 </>
               ) : isLocation ? (
-                <Text className="text-stone-600" style={{ fontSize: getResponsiveSize(12) }}>
+                <Text
+                  className="text-stone-600"
+                  style={{ fontSize: getResponsiveSize(12) }}
+                >
                   {actualItem.capacity || 1} giường
                 </Text>
               ) : null}
@@ -246,7 +276,10 @@ export default function RecentlyViewedScreen() {
 
             {/* Price */}
             {actualItem.hourlyRate && (
-              <Text className="text-stone-700 font-medium" style={{ fontSize: getResponsiveSize(12) }}>
+              <Text
+                className="text-stone-700 font-medium"
+                style={{ fontSize: getResponsiveSize(12) }}
+              >
                 ₫{actualItem.hourlyRate.toLocaleString()}/giờ
               </Text>
             )}
@@ -281,38 +314,45 @@ export default function RecentlyViewedScreen() {
 
       {/* Header */}
       <SafeAreaView className="bg-white border-b border-stone-100">
-        <View className="flex-row items-center justify-between px-6 py-3" style={{ minHeight: getResponsiveSize(44) }}>
+        <View
+          className="flex-row items-center justify-between px-6 py-3"
+          style={{ minHeight: getResponsiveSize(44) }}
+        >
           <TouchableOpacity
             className="mr-3 p-2 bg-stone-100 rounded-full"
             onPress={() => navigation.goBack()}
           >
-            <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="#1c1917" />
+            <Ionicons
+              name="arrow-back"
+              size={getResponsiveSize(24)}
+              color="#1c1917"
+            />
           </TouchableOpacity>
-          
+
           {/* Edit button - CHỈ hiển thị khi có recent items */}
           {hasRecentItems && !loading && (
-            <TouchableOpacity 
+            <TouchableOpacity
               className="bg-stone-100 rounded-full px-6 py-3"
               onPress={toggleEditMode}
             >
-              <Text 
+              <Text
                 className="text-stone-700 font-medium"
                 style={{ fontSize: getResponsiveSize(14) }}
               >
-                {editMode ? 'Hoàn tất' : 'Chỉnh sửa'}
+                {editMode ? "Hoàn tất" : "Chỉnh sửa"}
               </Text>
             </TouchableOpacity>
           )}
         </View>
 
         <View className="px-6">
-            <Text
-              className="text-stone-900 font-bold"
-              style={{ fontSize: getResponsiveSize(30) }}
-            >
-              Đã xem gần đây
-            </Text>
-          </View>
+          <Text
+            className="text-stone-900 font-bold"
+            style={{ fontSize: getResponsiveSize(30) }}
+          >
+            Đã xem gần đây
+          </Text>
+        </View>
       </SafeAreaView>
 
       {/* Content */}
@@ -323,14 +363,14 @@ export default function RecentlyViewedScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#10b981']}
+            colors={["#10b981"]}
             tintColor="#10b981"
           />
         }
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 16,
-          paddingBottom: getResponsiveSize(100)
+          paddingBottom: getResponsiveSize(100),
         }}
       >
         {/* Error State */}
@@ -362,17 +402,15 @@ export default function RecentlyViewedScreen() {
         ) : allRecentItems.length > 0 ? (
           <>
             {/* Today */}
-            {renderDateSection('Hôm nay', groupedItems.todayItems)}
+            {renderDateSection("Hôm nay", groupedItems.todayItems)}
 
             {/* Yesterday */}
-            {renderDateSection('Hôm qua', groupedItems.yesterdayItems)}
+            {renderDateSection("Hôm qua", groupedItems.yesterdayItems)}
 
             {/* Older */}
-            {renderDateSection('Trước đó', groupedItems.olderItems)}
+            {renderDateSection("Trước đó", groupedItems.olderItems)}
           </>
-        ) : (
-          null
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );

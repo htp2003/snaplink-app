@@ -61,7 +61,6 @@ const LocationCard: React.FC<LocationCardProps> = ({
 
     // Handle image load error
     const handleImageError = (error: any) => {
-        console.log(`❌ Failed to load image for location ${locationId}:`, error?.nativeEvent?.error);
         setImageError(true);
     };
 

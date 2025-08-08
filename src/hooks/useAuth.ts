@@ -56,7 +56,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
       setCurrentUserId(authState.user.id);
       // Also save to AsyncStorage for persistence
       AsyncStorage.setItem("currentUserId", authState.user.id.toString());
-      console.log("🔄 Synced currentUserId with user.id:", authState.user.id);
+      
     }
   }, [authState.user]);
 
@@ -109,7 +109,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
 
-      console.log("📥 Login response status:", response.status);
+      
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -120,12 +120,12 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
       if (contentType && contentType.includes("application/json")) {
         const data = await response.json();
-        console.log("✅ Login success (JSON):", data);
+        
 
         if (data.token) {
           await AsyncStorage.setItem("token", data.token);
 
-          console.log("🔍 Getting user data using getUserByEmail API...");
+         
 
           try {
             const userResponse = await fetch(
@@ -143,10 +143,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
             if (userResponse.ok) {
               const userData = await userResponse.json();
-              console.log(
-                "✅ Retrieved user data from getUserByEmail:",
-                userData
-              );
+              
 
               // Parse roles correctly
               let userRoles = [];
@@ -162,7 +159,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
                 roles: userRoles,
               };
 
-              console.log("✅ Normalized user:", normalizedUser);
+              
 
               // ✅ CRITICAL: Save both user data and currentUserId consistently
               await AsyncStorage.setItem(
@@ -175,10 +172,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
               );
 
               setCurrentUserId(normalizedUser.id);
-              console.log(
-                "💾 Saved userId to state and AsyncStorage:",
-                normalizedUser.id
-              );
+              
 
               setAuthState({
                 user: normalizedUser,
@@ -200,7 +194,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         }
       } else {
         const textResponse = await response.text();
-        console.log("✅ Login success (text):", textResponse);
+        
         throw new Error(
           "Login successful but user data unavailable. Please contact support."
         );
@@ -216,14 +210,14 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     try {
       setAuthState((prev) => ({ ...prev, isLoading: true }));
 
-      console.log("📤 Starting logout process...");
+      
 
       // Get token before clearing it
       const token = await AsyncStorage.getItem("token");
 
       if (token) {
         try {
-          console.log("📤 Calling logout API endpoint...");
+          
 
           // Call the logout API endpoint
           const response = await fetch(`${API_BASE_URL}/api/Auth/Logout`, {
@@ -234,7 +228,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
             },
           });
 
-          console.log("📥 Logout API response status:", response.status);
+          
 
           if (response.ok) {
             console.log("✅ Logout API call successful");
@@ -246,7 +240,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         } catch (apiError) {
           console.error("❌ Logout API error:", apiError);
           // Continue with local cleanup even if API fails
-          console.log("🔄 Continuing with local cleanup despite API error...");
+          
         }
       } else {
         console.log("ℹ️ No token found, skipping API call");
@@ -266,7 +260,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         isAuthenticated: false,
       });
 
-      console.log("✅ Logout completed successfully");
+      
     } catch (error) {
       console.error("❌ Error during logout:", error);
 
@@ -301,20 +295,19 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         body: JSON.stringify(userData),
       });
 
-      console.log("📥 Register response status:", response.status);
+      
 
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const textResponse = await response.text();
-      console.log("✅ Registration successful:", textResponse);
+     
 
       // Step 2: Wait for database to process
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Step 3: Get real user data using GetUserByEmail API
-      console.log("🔍 Getting real user data by email:", userData.email);
+      
 
       const userResponse = await fetch(
         `${API_BASE_URL}/api/User/GetUserByEmail?email=${encodeURIComponent(
@@ -328,20 +321,17 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
       if (userResponse.ok) {
         const realUser = await userResponse.json();
-        console.log("✅ Found real user:", realUser);
+        
 
         const userId = realUser.id || realUser.userId;
 
         if (userId) {
-          console.log("✅ Using userId:", userId);
+          
 
           // ✅ CRITICAL: Set currentUserId immediately after registration
           setCurrentUserId(userId);
           await AsyncStorage.setItem("currentUserId", userId.toString());
-          console.log(
-            "💾 Saved registered userId to state and AsyncStorage:",
-            userId
-          );
+          
 
           const normalizedUser = {
             ...realUser,
@@ -379,13 +369,10 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
   const updateProfile = async (userId: number, profileData: any) => {
     try {
-      console.log('🔧 updateProfile called with:', {
-        userId,
-        profileData: JSON.stringify(profileData, null, 2)
-      });
+      
   
       const token = await AsyncStorage.getItem("token");
-      console.log('🔑 Token exists:', !!token);
+      
   
       // ✅ VALIDATE: Prepare request body theo UpdateUserDto schema
       const requestBody = {
@@ -396,15 +383,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         profileImage: profileData.profileImage || null // ✅ nullable string
       };
   
-      console.log('📤 Request details:', {
-        url: `${API_BASE_URL}/api/User/update`,
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token ? '***' : 'MISSING'}`
-        },
-        body: JSON.stringify(requestBody, null, 2)
-      });
+     
   
       const response = await fetch(`${API_BASE_URL}/api/User/update`, {
         method: "PUT",
@@ -415,8 +394,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         body: JSON.stringify(requestBody),  // ✅ Use validated requestBody
       });
   
-      console.log('📥 Response status:', response.status);
-      console.log('📥 Response headers:', response.headers);
+      
   
       if (!response.ok) {
         // ✅ DETAILED ERROR LOGGING
@@ -441,25 +419,24 @@ export function AuthProvider(props: { children: React.ReactNode }) {
   
       // ✅ LOG SUCCESS RESPONSE
       const responseText = await response.text();
-      console.log('✅ Update successful, raw response:', responseText);
+      
   
       let responseData;
       try {
         responseData = JSON.parse(responseText);
-        console.log('✅ Parsed response data:', responseData);
+        
       } catch (e) {
-        console.log('ℹ️ Response is not JSON, treating as success');
+        
         responseData = null;
       }
   
       // Refresh user data
       const updatedUser = { ...authState.user, ...profileData };
-      console.log('💾 Updating local user data:', updatedUser);
+      
       
       await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
       setAuthState((prev) => ({ ...prev, user: updatedUser }));
-  
-      console.log('✅ Profile update completed successfully');
+
       return responseData;
   
     } catch (error: unknown) {
@@ -477,11 +454,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
   const getCurrentUserId = () => {
     // ✅ Priority: authState.user.id > currentUserId > AsyncStorage
     const userId = authState.user?.id || currentUserId;
-    console.log("🔍 getCurrentUserId called:", {
-      "authState.user.id": authState.user?.id,
-      currentUserId: currentUserId,
-      returned: userId,
-    });
     return userId;
   };
 

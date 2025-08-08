@@ -83,15 +83,6 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
   // Get the current user ID consistently
   const userId = getCurrentUserId();
 
-  // Debug logging
-  useEffect(() => {
-    console.log("🔍 Step1 mounted with:");
-    console.log("  - getCurrentUserId():", getCurrentUserId());
-    console.log("  - user?.id:", user?.id);
-    console.log("  - user?.roles:", user?.roles);
-    console.log("  - Final userId:", userId);
-  }, [userId, user]);
-
   const handleSelectRole = (role: string, index: number) => {
     setSelectedRole(role);
     // Animate selection
@@ -135,30 +126,16 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
     }
 
     setLoading(true);
-    console.log(
-      "🚀 Starting role assignment for userId:",
-      userId,
-      "role:",
-      selectedRole,
-      "roleId:",
-      selectedRoleData.roleId
-    );
 
     try {
-      // ✅ Call assign-roles API with correct roleId from database
-      console.log("📤 Calling assign-roles API...");
       await assignRoleToUser(userId, selectedRoleData.roleId);
 
-      console.log("✅ Role assigned successfully");
-
-      // Create additional profile based on role
       if (selectedRole === "photographer") {
         await createPhotographerProfile(userId);
       } else if (selectedRole === "venueowner") {
         await createLocationOwnerProfile(userId);
       }
 
-      // Call success callback
       onSelectRole?.({
         role: selectedRole,
         roleId: selectedRoleData.roleId,
@@ -177,13 +154,6 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
   // ✅ New function to assign role using assign-roles API
   const assignRoleToUser = async (userIdParam: number, roleId: number) => {
     try {
-      console.log(
-        "📋 Assigning role - userId:",
-        userIdParam,
-        "roleId:",
-        roleId
-      );
-
       const token = await AuthService.getToken();
       const response = await fetch(`${API_BASE_URL}/api/User/assign-roles`, {
         method: "POST",
@@ -197,8 +167,6 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
         }),
       });
 
-      console.log("📥 Assign-roles response status:", response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error("❌ Assign-roles API error:", response.status, errorText);
@@ -209,11 +177,11 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
         const data = await response.json();
-        console.log("✅ Role assignment success (JSON):", data);
+
         return data;
       } else {
         const textResponse = await response.text();
-        console.log("✅ Role assignment success (text):", textResponse);
+
         return { message: textResponse, success: true };
       }
     } catch (error) {
@@ -224,8 +192,6 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
 
   const createPhotographerProfile = async (userIdParam: number) => {
     try {
-      console.log("📸 Creating photographer profile for userId:", userIdParam);
-
       const token = await AuthService.getToken();
       const response = await fetch(`${API_BASE_URL}/api/Photographer`, {
         method: "POST",
@@ -257,11 +223,6 @@ const Step1: React.FC<Step1Props> = ({ onSelectRole }) => {
 
   const createLocationOwnerProfile = async (userIdParam: number) => {
     try {
-      console.log(
-        "🏢 Creating location owner profile for userId:",
-        userIdParam
-      );
-
       const token = await AuthService.getToken();
       const response = await fetch(
         `${API_BASE_URL}/api/LocationOwner/CreatedLocationOwnerId`,

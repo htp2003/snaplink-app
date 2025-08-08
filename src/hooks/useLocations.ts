@@ -27,15 +27,16 @@ export const useLocations = () => {
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [allLocationImages, setAllLocationImages] = useState<any[]>([]); 
+  const [allLocationImages, setAllLocationImages] = useState<any[]>([]); // Cache all images
 
   // 🖼️ Lấy tất cả ảnh location một lần và cache lại
   const fetchAllLocationImages = async () => {
     try {
-      console.log(`🖼️ Đang lấy TẤT CẢ ảnh location...`);
+      
       
       // ✅ ĐÚNG: Dùng getAllImages() để lấy tất cả ảnh theo type location
-      const apiImages = await imageService.location.getImages();
+      const locationId = 1; // ID của location bạn muốn lấy ảnh
+      const apiImages = await imageService.location.getImages(locationId);
       
       console.log(`📦 Tìm thấy ${apiImages.length} ảnh location tổng cộng`);
       setAllLocationImages(apiImages);
@@ -154,7 +155,9 @@ export const useLocations = () => {
         }
         return isValid;
       });
-      
+
+      console.log('🏢 Location IDs from API:', validLocations.map(loc => loc.locationId));
+
       // 🚀 Transform với ảnh đã cache (đồng bộ bây giờ)
       const transformedData: LocationData[] = [];
       for (const location of validLocations) {

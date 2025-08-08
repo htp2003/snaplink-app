@@ -61,7 +61,6 @@ const ProfileUserScreen = () => {
       ) {
         // If we have authUser data, use it as fallback
         if (authUser) {
-          console.log("Using authUser as fallback:", authUser);
           setUserProfile(authUser);
           setLoading(false);
           return;
@@ -82,7 +81,6 @@ const ProfileUserScreen = () => {
 
         // If API fails but we have authUser, use it as fallback
         if (authUser) {
-          console.log("API failed, using authUser as fallback:", authUser);
           setUserProfile(authUser);
           setError(null);
         } else {
@@ -108,11 +106,8 @@ const ProfileUserScreen = () => {
         onPress: async () => {
           try {
             setIsLoggingOut(true);
-            console.log("🚪 Starting logout process...");
 
             await logout();
-
-            console.log("✅ Logout completed, navigating to login...");
 
             // Navigate to login screen or reset navigation stack
             navigation.reset({
@@ -292,7 +287,9 @@ const ProfileUserScreen = () => {
       title: "Xem hồ sơ",
       onPress: () => {
         if (currentUserId !== null) {
-          navigation.navigate('ViewProfileUserScreen', { userId: currentUserId });
+          navigation.navigate("ViewProfileUserScreen", {
+            userId: currentUserId,
+          });
         } else {
           Alert.alert("Lỗi", "Không tìm thấy ID người dùng");
         }
@@ -659,13 +656,19 @@ const ProfileUserScreen = () => {
                 elevation: 3,
               }}
               onPress={() => {
-                if (currentUserId && typeof currentUserId === 'number' && currentUserId > 0) {
-                  navigation.navigate('OrderHistoryScreen', { userId: currentUserId });
+                if (
+                  currentUserId &&
+                  typeof currentUserId === "number" &&
+                  currentUserId > 0
+                ) {
+                  navigation.navigate("OrderHistoryScreen", {
+                    userId: currentUserId,
+                  });
                 } else {
                   Alert.alert(
-                    'Thông báo',
-                    'Không thể tải thông tin đơn hàng. Vui lòng thử lại sau.',
-                    [{ text: 'OK' }]
+                    "Thông báo",
+                    "Không thể tải thông tin đơn hàng. Vui lòng thử lại sau.",
+                    [{ text: "OK" }]
                   );
                 }
               }}

@@ -122,16 +122,10 @@ export class AuthService {
   // ✅ NEW: Logout with API endpoint
   static async logout(): Promise<void> {
     try {
-      console.log("📤 Calling logout API endpoint...");
-
       // Call the logout endpoint
       await apiClient.post(`/api/Auth/Logout`);
-
-      console.log("✅ Logout API call successful");
     } catch (error) {
       console.error("❌ Logout API error:", error);
-      // Even if API fails, we still want to clear local storage
-      console.log("🔄 Continuing with local cleanup despite API error...");
     } finally {
       // Always clear local storage regardless of API success/failure
       await this.clearLocalStorage();
@@ -140,7 +134,6 @@ export class AuthService {
 
   // ✅ NEW: Client-side logout (fallback)
   static async logoutLocal(): Promise<void> {
-    console.log("📱 Performing client-side logout...");
     await this.clearLocalStorage();
   }
 
@@ -150,7 +143,6 @@ export class AuthService {
       await AsyncStorage.removeItem("token");
       await AsyncStorage.removeItem("user");
       await AsyncStorage.removeItem("currentUserId");
-      console.log("✅ Local storage cleared successfully");
     } catch (error) {
       console.error("❌ Error clearing local storage:", error);
     }

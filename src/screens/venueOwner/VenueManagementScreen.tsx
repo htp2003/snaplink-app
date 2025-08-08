@@ -93,14 +93,11 @@ export default function VenueManagementScreen() {
 
       setProfileLoading(true);
       try {
-        console.log("🔍 Getting venue owner profile for userId:", user.id);
         const profile = await getProfileByUserId(user.id);
 
         if (profile) {
-          console.log("✅ Found venue owner profile:", profile);
           setLocationOwnerId(profile.locationOwnerId);
         } else {
-          console.log("ℹ️ No venue owner profile found");
           setLocationOwnerId(null);
         }
       } catch (error) {
@@ -117,7 +114,6 @@ export default function VenueManagementScreen() {
   // Load all locations after we have the profile
   useEffect(() => {
     if (!profileLoading) {
-      console.log("📍 Loading all locations...");
       getAllLocations();
     }
   }, [profileLoading]);

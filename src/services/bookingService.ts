@@ -19,6 +19,7 @@ const BOOKING_ENDPOINTS = {
     `/api/Booking/photographer/${photographerId}`,
   CANCEL: (bookingId: number) => `/api/Booking/${bookingId}/cancel`,
   COMPLETE: (bookingId: number) => `/api/Booking/${bookingId}/complete`,
+  CONFIRM: (bookingId: number) => `/api/Booking/${bookingId}/confirm`,
   PHOTOGRAPHER_AVAILABILITY: (photographerId: number) =>
     `/api/Booking/availability/photographer/${photographerId}`,
   LOCATION_AVAILABILITY: (locationId: number) =>
@@ -122,6 +123,8 @@ export class BookingService {
         // ✅ API trả về totalPrice, map thành totalAmount
         status: bookingData.status || "pending",
         totalPrice: bookingData.totalPrice || bookingData.totalAmount || 0,
+        paymentAmount: bookingData.paymentAmount || 0,
+        escrowBalance: bookingData.escrowBalance || 0,
 
         // Timestamps
         createdAt: bookingData.createdAt || new Date().toISOString(),
@@ -257,6 +260,17 @@ export class BookingService {
       await apiClient.put<void>(BOOKING_ENDPOINTS.COMPLETE(bookingId));
     } catch (error) {
       console.error("❌ Error completing booking:", error);
+      throw error;
+    }
+  }
+
+   async confirmBooking(bookingId: number): Promise<void> {
+    try {
+      console.log(`🔄 Confirming booking ${bookingId}...`);
+      await apiClient.put<void>(BOOKING_ENDPOINTS.CONFIRM(bookingId));
+      console.log(`✅ Booking ${bookingId} confirmed successfully`);
+    } catch (error) {
+      console.error("❌ Error confirming booking:", error);
       throw error;
     }
   }

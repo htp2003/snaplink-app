@@ -47,6 +47,8 @@ export interface BookingResponse {
   totalPrice: number;
   createdAt: string;
   updatedAt: string;
+  paymentAmount: number
+  escrowBalance: number;
   // Extended fields
   photographer?: {
     photographerId: number;

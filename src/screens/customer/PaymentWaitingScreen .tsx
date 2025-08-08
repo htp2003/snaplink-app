@@ -17,6 +17,7 @@ import {
   Animated,
   Linking,
   Modal,
+  AppState, // ✅ NEW: Add AppState for background detection
 } from "react-native";
 import { getResponsiveSize } from "../../utils/responsive";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -25,6 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackNavigationProp } from "../../navigation/types";
 import { usePayment } from "../../hooks/usePayment";
+import { useBooking } from "../../hooks/useBooking"; // ✅ NEW: Import useBooking
 import type { PaymentFlowData } from "../../types/payment";
 import { EnhancedQRDisplay } from "../../components/EnhancedQRDisplay";
 import { handleDeepLink } from "../../config/deepLinks";
@@ -40,24 +42,38 @@ export default function PaymentWaitingScreen() {
   const route = useRoute<PaymentWaitingScreenRouteProp>();
   const { booking, payment, user } = route.params;
 
+  // ✅ FIX: Add booking hook for confirm functionality with explicit typing
+  const bookingHook = useBooking();
+  const confirmBooking = (bookingHook as any).confirmBooking;
+  const confirming = (bookingHook as any).confirming;
+
   // State management
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutes
 
   // Payment polling states
   const [isPolling, setIsPolling] = useState(false);
-  const [paymentStatus, setPaymentStatus] = useState<string>("Pending"); // ✅ NEW: Use correct initial status
+  const [paymentStatus, setPaymentStatus] = useState<string>("Pending");
   const [statusCheckCount, setStatusCheckCount] = useState(0);
   const [isPaymentComplete, setIsPaymentComplete] = useState(false);
-  const maxPollingAttempts = 60; // 5 phút với interval 5s
+  
+  // ✅ OPTIMIZED: More aggressive polling for faster detection
+  const maxPollingAttempts = 60; // Increase to 5 minutes
+  const pollingInterval = 3000; // Reduce to 3 seconds
+  const earlyPollingInterval = 1000; // Reduce to 1 second for first minute
+  const fastPollingDuration = 60000; // Extend fast polling to 60 seconds
 
   // Cancel states
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // ✅ NEW: Booking confirmation state
+  const [isConfirmingBooking, setIsConfirmingBooking] = useState(false);
 
   // Refs
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
+  const pollingStartTimeRef = useRef<number>(Date.now()); // ✅ NEW: Track polling start time
 
   const {
     getPayment,
@@ -104,7 +120,48 @@ export default function PaymentWaitingScreen() {
     }
   }, []);
 
-  // ✅ UPDATED: Handle cancel payment with new API structure
+  // ✅ NEW: Auto confirm booking when payment is successful
+  const handlePaymentSuccess = useCallback(async () => {
+    console.log("🎉 Payment successful! Confirming booking...");
+    
+    try {
+      setIsConfirmingBooking(true);
+      
+      // Confirm the booking
+      const confirmSuccess = await confirmBooking(booking.id);
+      
+      if (confirmSuccess) {
+        console.log("✅ Booking confirmed successfully");
+        
+        // Show success modal after a short delay
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setShowSuccessModal(true);
+          }
+        }, 1000);
+      } else {
+        console.warn("⚠️ Booking confirmation failed, but payment succeeded");
+        // Still show success since payment worked
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setShowSuccessModal(true);
+          }
+        }, 1000);
+      }
+    } catch (error) {
+      console.error("❌ Error confirming booking:", error);
+      // Still show success since payment worked
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          setShowSuccessModal(true);
+        }
+      }, 1000);
+    } finally {
+      setIsConfirmingBooking(false);
+    }
+  }, [booking.id, confirmBooking]);
+
+  // Handle cancel payment
   const handleCancelPayment = useCallback(
     async (isAutoCancel: boolean = false) => {
       if (isCancelling) return;
@@ -112,7 +169,6 @@ export default function PaymentWaitingScreen() {
       try {
         setIsCancelling(true);
 
-        // ✅ NEW: Use paymentId (database primary key) for checking
         const apiPaymentId = payment.paymentId || payment.id;
 
         let existingPayment;
@@ -123,7 +179,6 @@ export default function PaymentWaitingScreen() {
             error instanceof Error &&
             error.message.includes("Payment not found")
           ) {
-            // ✅ Handle missing payment gracefully
             setPaymentStatus("Cancelled");
             setIsPaymentComplete(true);
             stopPolling();
@@ -143,7 +198,6 @@ export default function PaymentWaitingScreen() {
           throw error;
         }
 
-        // ✅ NEW: Check status with correct casing
         if (
           ["Cancelled", "Completed", "Paid", "Success"].includes(
             existingPayment?.status || ""
@@ -154,11 +208,9 @@ export default function PaymentWaitingScreen() {
           );
         }
 
-        // Call API to cancel payment
         const cancelSuccess = await cancelPayment(booking.id);
 
         if (cancelSuccess) {
-          // Update local state with correct status format
           setPaymentStatus("Cancelled");
           setIsPaymentComplete(true);
           stopPolling();
@@ -210,8 +262,6 @@ export default function PaymentWaitingScreen() {
       booking.id,
       payment.paymentId,
       payment.id,
-      payment.externalTransactionId,
-      payment.orderCode,
       getPayment,
       cancelPayment,
       isCancelling,
@@ -221,61 +271,70 @@ export default function PaymentWaitingScreen() {
     ]
   );
 
-  // ✅ UPDATED: Check payment status with new API structure
+  // ✅ ENHANCED: Check payment status with better debugging
   const checkPaymentStatus = useCallback(async () => {
-    // ✅ CRITICAL: Use paymentId (database primary key) for API calls
     const apiPaymentId = payment?.paymentId || payment?.id;
 
-    if (!apiPaymentId || isPaymentComplete) return;
+    if (!apiPaymentId || isPaymentComplete) {
+      console.log("🛑 Skipping status check:", { apiPaymentId, isPaymentComplete });
+      return;
+    }
 
-    // ✅ NEW: Use correct status values with proper casing
     const finalStatuses = [
       "Success",
-      "Paid",
+      "Paid", 
       "Completed",
       "Cancelled",
       "Failed",
       "Expired",
     ];
+    
     if (finalStatuses.includes(paymentStatus)) {
+      console.log("🛑 Status already final:", paymentStatus);
       setIsPaymentComplete(true);
       stopPolling();
       return;
     }
 
     try {
+      console.log(`🔄 Checking payment status for ID: ${apiPaymentId} (attempt ${statusCheckCount + 1})`);
+      
       const updatedPayment = await getPayment(apiPaymentId);
+      console.log("📦 Payment response:", {
+        id: updatedPayment?.id,
+        paymentId: updatedPayment?.paymentId,
+        status: updatedPayment?.status,
+        orderCode: updatedPayment?.orderCode,
+        amount: updatedPayment?.amount,
+        totalAmount: updatedPayment?.totalAmount,
+      });
 
       if (updatedPayment && isMountedRef.current) {
         const newStatus = updatedPayment.status;
+        console.log(`📊 Status check: ${paymentStatus} → ${newStatus}`);
 
         if (newStatus !== paymentStatus) {
+          console.log(`🔄 Payment status changed: ${paymentStatus} → ${newStatus}`);
           setPaymentStatus(newStatus);
         }
 
-        // ✅ NEW: Success case with correct status values
-        if (
-          newStatus === "Success" ||
-          newStatus === "Paid" ||
-          newStatus === "Completed"
-        ) {
+        // ✅ ENHANCED: Check multiple success variations
+        const successStatuses = ["Success", "Paid", "Completed", "PAID", "SUCCESS", "COMPLETED"];
+        if (successStatuses.includes(newStatus)) {
+          console.log("🎉 Payment SUCCESS detected!");
           setIsPaymentComplete(true);
           stopPolling();
           stopCountdown();
-          setTimeout(() => {
-            if (isMountedRef.current) {
-              setShowSuccessModal(true);
-            }
-          }, 500);
+          
+          // ✅ NEW: Auto-confirm booking on payment success
+          await handlePaymentSuccess();
           return;
         }
 
-        // ✅ NEW: Failure case with correct status values
-        if (
-          newStatus === "Cancelled" ||
-          newStatus === "Failed" ||
-          newStatus === "Expired"
-        ) {
+        // ✅ ENHANCED: Check multiple failure variations
+        const failureStatuses = ["Cancelled", "Failed", "Expired", "CANCELLED", "FAILED", "EXPIRED"];
+        if (failureStatuses.includes(newStatus)) {
+          console.log("❌ Payment FAILED detected:", newStatus);
           setIsPaymentComplete(true);
           stopPolling();
           stopCountdown();
@@ -284,7 +343,7 @@ export default function PaymentWaitingScreen() {
             if (isMountedRef.current) {
               Alert.alert(
                 "Thanh toán thất bại",
-                "Thanh toán của bạn đã thất bại hoặc bị hủy. Vui lòng thử lại.",
+                `Thanh toán của bạn đã thất bại (${newStatus}). Vui lòng thử lại.`,
                 [
                   { text: "Thử lại", onPress: () => navigation.goBack() },
                   { text: "Đóng", style: "cancel" },
@@ -296,26 +355,26 @@ export default function PaymentWaitingScreen() {
         }
 
         setStatusCheckCount((prev) => prev + 1);
+      } else {
+        console.warn("⚠️ No payment data received or component unmounted");
       }
     } catch (error) {
       console.error("❌ Error checking payment status:", error);
 
-      // ✅ NEW: Enhanced error handling for payment not found
       if (
         error instanceof Error &&
         error.message.includes("Payment not found")
       ) {
         console.log("💀 Payment not found with paymentId:", apiPaymentId);
-        console.log("💡 This should be database primary key, not orderCode");
 
-        // Check if this is early attempts (payment might be processing)
-        if (statusCheckCount < 5) {
+        // ✅ OPTIMIZED: Be more lenient in early checks
+        if (statusCheckCount < 10) {
+          console.log(`⏳ Early attempt ${statusCheckCount + 1}/10, continuing...`);
           setStatusCheckCount((prev) => prev + 1);
           return;
         }
 
-        // After several attempts, treat as expired
-
+        console.log("⏰ Payment expired after 10 attempts");
         setPaymentStatus("Expired");
         setIsPaymentComplete(true);
         stopPolling();
@@ -336,11 +395,11 @@ export default function PaymentWaitingScreen() {
         return;
       }
 
-      // Other errors - continue polling but count attempts
       setStatusCheckCount((prev) => prev + 1);
 
-      // Stop after too many errors
-      if (statusCheckCount >= maxPollingAttempts - 5) {
+      // ✅ OPTIMIZED: Stop after reasonable attempts
+      if (statusCheckCount >= maxPollingAttempts - 3) {
+        console.log("🚫 Max polling attempts reached, stopping...");
         stopPolling();
 
         Alert.alert(
@@ -350,8 +409,10 @@ export default function PaymentWaitingScreen() {
             {
               text: "Thử lại",
               onPress: () => {
+                console.log("🔄 Restarting polling...");
                 setStatusCheckCount(0);
                 setIsPaymentComplete(false);
+                pollingStartTimeRef.current = Date.now();
                 startPolling();
               },
             },
@@ -363,8 +424,6 @@ export default function PaymentWaitingScreen() {
   }, [
     payment?.paymentId,
     payment?.id,
-    payment?.externalTransactionId,
-    payment?.orderCode,
     paymentStatus,
     statusCheckCount,
     isPaymentComplete,
@@ -372,9 +431,10 @@ export default function PaymentWaitingScreen() {
     stopPolling,
     stopCountdown,
     navigation,
+    handlePaymentSuccess,
   ]);
 
-  // ✅ UPDATED: Start polling with correct paymentId
+  // ✅ OPTIMIZED: Smart polling with adaptive intervals
   const startPolling = useCallback(() => {
     const apiPaymentId = payment?.paymentId || payment?.id;
 
@@ -387,15 +447,15 @@ export default function PaymentWaitingScreen() {
       return;
     }
 
-    // ✅ NEW: Use correct final status values
     const finalStatuses = [
       "Success",
       "Paid",
-      "Completed",
+      "Completed", 
       "Cancelled",
       "Failed",
       "Expired",
     ];
+    
     if (finalStatuses.includes(paymentStatus)) {
       setIsPaymentComplete(true);
       return;
@@ -403,12 +463,13 @@ export default function PaymentWaitingScreen() {
 
     setIsPolling(true);
     setStatusCheckCount(0);
+    pollingStartTimeRef.current = Date.now();
 
     // Check immediately
     checkPaymentStatus();
 
-    // Then check every 5 seconds
-    pollingIntervalRef.current = setInterval(() => {
+    // ✅ OPTIMIZED: Adaptive polling intervals
+    const scheduleNextCheck = () => {
       if (!isMountedRef.current || isPaymentComplete) {
         stopPolling();
         return;
@@ -439,8 +500,20 @@ export default function PaymentWaitingScreen() {
         return;
       }
 
-      checkPaymentStatus();
-    }, 5000);
+      // ✅ OPTIMIZED: Use faster polling for first 30 seconds
+      const elapsedTime = Date.now() - pollingStartTimeRef.current;
+      const currentInterval = elapsedTime < fastPollingDuration 
+        ? earlyPollingInterval 
+        : pollingInterval;
+
+      pollingIntervalRef.current = setTimeout(() => {
+        checkPaymentStatus();
+        scheduleNextCheck();
+      }, currentInterval);
+    };
+
+    // Start the adaptive polling cycle
+    scheduleNextCheck();
   }, [
     isPolling,
     payment?.paymentId,
@@ -452,7 +525,24 @@ export default function PaymentWaitingScreen() {
     stopPolling,
   ]);
 
-  // ✅ NEW: Handle deep links
+  // ✅ NEW: Add app state monitoring for background polling
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      console.log("📱 App state changed:", nextAppState);
+      
+      if (nextAppState === "active" && paymentStatus === "Pending") {
+        console.log("🔄 App became active, checking payment status...");
+        // Check immediately when app becomes active
+        setTimeout(() => {
+          if (isMountedRef.current && !isPaymentComplete) {
+            checkPaymentStatus();
+          }
+        }, 500);
+      }
+    });
+
+    return () => subscription?.remove();
+  }, [paymentStatus, isPaymentComplete, checkPaymentStatus]);
   useEffect(() => {
     const handleURL = (event: { url: string }) => {
       const result = handleDeepLink(event.url);
@@ -462,11 +552,9 @@ export default function PaymentWaitingScreen() {
         setIsPaymentComplete(true);
         stopPolling();
         stopCountdown();
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            setShowSuccessModal(true);
-          }
-        }, 500);
+        
+        // ✅ NEW: Auto-confirm booking on deep link success
+        handlePaymentSuccess();
       } else if (result.type === "PAYMENT_CANCEL") {
         setPaymentStatus("Cancelled");
         setIsPaymentComplete(true);
@@ -481,50 +569,25 @@ export default function PaymentWaitingScreen() {
 
     const subscription = Linking.addEventListener("url", handleURL);
     return () => subscription?.remove();
-  }, [stopPolling, stopCountdown]);
+  }, [stopPolling, stopCountdown, handlePaymentSuccess]);
 
-  // ✅ UPDATED: Component initialization with enhanced debug info
+  // Component initialization
   useEffect(() => {
     console.log("💳 PaymentWaitingScreen mounted");
     console.log("💳 Payment data structure check:", {
-      // Database IDs
-      paymentId: payment.paymentId, // Database primary key (13)
-      id: payment.id, // Should be same as paymentId
-
-      // PayOS/Display IDs
-      externalTransactionId: payment.externalTransactionId, // PayOS orderCode (8668026703)
-      orderCode: payment.orderCode, // Legacy field, should be same as externalTransactionId
-
-      // Amounts
-      totalAmount: payment.totalAmount, // New API field (5050)
-      amount: payment.amount, // Legacy field, should be same as totalAmount
-
-      // Status and info
-      status: payment.status, // "Success", "Pending", etc.
-      customerName: payment.customerName, // "Phan Van Doi"
-      photographerName: payment.photographerName, // "Alice Smith"
-      locationName: payment.locationName, // "Central Park Studio"
-
-      // Types validation
-      paymentIdType: typeof payment.paymentId,
-      idType: typeof payment.id,
-      externalTransactionIdType: typeof payment.externalTransactionId,
-      orderCodeType: typeof payment.orderCode,
-
-      // API call validation
-      apiCallId: payment.paymentId || payment.id, // This will be used for /api/Payment/{id}
-
-      // Other fields
-      hasQR: !!payment.qrCode,
-      qrCodeLength: payment.qrCode?.length,
-      paymentUrl: payment.paymentUrl,
+      paymentId: payment.paymentId,
+      id: payment.id,
+      externalTransactionId: payment.externalTransactionId,
+      orderCode: payment.orderCode,
+      totalAmount: payment.totalAmount,
+      amount: payment.amount,
+      status: payment.status,
+      apiCallId: payment.paymentId || payment.id,
     });
 
-    // ✅ CRITICAL: Validate we have the correct database ID for API calls
     const apiPaymentId = payment.paymentId || payment.id;
     if (!apiPaymentId) {
       console.error("❌ CRITICAL: No database paymentId found!");
-      console.error("Available payment fields:", Object.keys(payment));
       Alert.alert(
         "Lỗi dữ liệu payment",
         "Không tìm thấy paymentId để gọi API. Dữ liệu payment không hợp lệ.",
@@ -533,7 +596,6 @@ export default function PaymentWaitingScreen() {
       return;
     }
 
-    // ✅ NEW: Set initial status from payment data if available
     if (payment.status && payment.status !== paymentStatus) {
       setPaymentStatus(payment.status);
     }
@@ -552,7 +614,7 @@ export default function PaymentWaitingScreen() {
                 {
                   text: "Đóng",
                   onPress: async () => {
-                    await handleCancelPayment(true); // Auto cancel on timeout
+                    await handleCancelPayment(true);
                   },
                 },
               ]
@@ -571,28 +633,19 @@ export default function PaymentWaitingScreen() {
     };
   }, []);
 
-  // ✅ UPDATED: Auto start polling with correct paymentId
+  // ✅ ENHANCED: Auto start polling immediately
   useEffect(() => {
     const apiPaymentId = payment?.paymentId || payment?.id;
 
     if (
       apiPaymentId &&
       !isPolling &&
-      paymentStatus === "Pending" &&
+      (paymentStatus === "Pending" || paymentStatus === "PENDING") &&
       !isPaymentComplete
     ) {
-      const startTimeout = setTimeout(() => {
-        if (
-          isMountedRef.current &&
-          paymentStatus === "Pending" &&
-          !isPolling &&
-          !isPaymentComplete
-        ) {
-          startPolling();
-        }
-      }, 3000);
-
-      return () => clearTimeout(startTimeout);
+      console.log("🚀 Auto-starting polling immediately...");
+      // ✅ OPTIMIZED: Start polling immediately
+      startPolling();
     }
   }, [
     payment?.paymentId,
@@ -603,11 +656,11 @@ export default function PaymentWaitingScreen() {
     startPolling,
   ]);
 
-  // ✅ UPDATED: Stop polling when payment status changes to final
+  // Stop polling when payment status changes to final
   useEffect(() => {
     const finalStatuses = [
       "Success",
-      "Paid",
+      "Paid", 
       "Completed",
       "Cancelled",
       "Failed",
@@ -644,23 +697,30 @@ export default function PaymentWaitingScreen() {
     pulse();
   }, [pulseAnim, isPaymentComplete]);
 
-  // ✅ UPDATED: Status message with correct status values
+  // Status message
   const statusMessage = useMemo(() => {
+    if (isConfirmingBooking) {
+      return {
+        title: "🔄 Đang xác nhận booking...",
+        subtitle: "Vui lòng đợi trong giây lát",
+      };
+    }
+
     switch (paymentStatus) {
-      case "Success": // ✅ NEW: Capital S
+      case "Success":
       case "Paid":
       case "Completed":
         return {
           title: "🎉 Thanh toán thành công!",
           subtitle: "Booking của bạn đã được xác nhận",
         };
-      case "Cancelled": // ✅ NEW: Capital C
+      case "Cancelled":
         return {
           title: "❌ Đã hủy thanh toán",
           subtitle: "Thanh toán đã được hủy",
         };
-      case "Failed": // ✅ NEW: Capital F
-      case "Expired": // ✅ NEW: Capital E
+      case "Failed":
+      case "Expired":
         return {
           title: "❌ Thanh toán thất bại",
           subtitle: "Vui lòng thử lại hoặc sử dụng phương thức khác",
@@ -673,11 +733,20 @@ export default function PaymentWaitingScreen() {
             : "Vui lòng thực hiện thanh toán",
         };
     }
-  }, [paymentStatus, isPolling]);
+  }, [paymentStatus, isPolling, isConfirmingBooking]);
 
-  // ✅ UPDATED: Status Icon with correct status values
+  // Status Icon
   const StatusIcon = React.memo(() => {
     const getStatusIcon = () => {
+      if (isConfirmingBooking) {
+        return (
+          <ActivityIndicator
+            size={getResponsiveSize(60)}
+            color="#E91E63"
+          />
+        );
+      }
+
       switch (paymentStatus) {
         case "Success":
         case "Paid":
@@ -711,6 +780,10 @@ export default function PaymentWaitingScreen() {
     };
 
     const getStatusStyle = () => {
+      if (isConfirmingBooking) {
+        return [styles.statusIconContainer, styles.processingIcon];
+      }
+
       switch (paymentStatus) {
         case "Success":
         case "Paid":
@@ -760,14 +833,15 @@ export default function PaymentWaitingScreen() {
     );
   }, [handleCancelPayment]);
 
-  // ✅ UPDATED: Simplified handlePaymentComplete
   const handlePaymentComplete = useCallback(() => {
     setIsPaymentComplete(true);
     setPaymentStatus("Success");
     stopPolling();
     stopCountdown();
-    setShowSuccessModal(true);
-  }, [stopPolling, stopCountdown]);
+    
+    // ✅ NEW: Auto-confirm booking on manual completion
+    handlePaymentSuccess();
+  }, [stopPolling, stopCountdown, handlePaymentSuccess]);
 
   const handleManualStatusCheck = useCallback(async () => {
     const apiPaymentId = payment?.paymentId || payment?.id;
@@ -827,7 +901,6 @@ export default function PaymentWaitingScreen() {
               setShowSuccessModal(false);
               stopCountdown();
               stopPolling();
-              // ✅ SỬA: Navigation về CustomerHomeScreen
               navigation.reset({
                 index: 0,
                 routes: [
@@ -895,34 +968,133 @@ export default function PaymentWaitingScreen() {
               Mã đơn hàng: {payment.orderCode}
             </Text>
 
-            {/* ✅ THÊM: Time left display */}
-            {paymentStatus === "PENDING" && timeLeft > 0 && (
+            {/* Time left display */}
+            {paymentStatus === "Pending" && timeLeft > 0 && (
               <Text style={styles.timeLeft}>
                 Thời gian còn lại: {formatTime(timeLeft)}
               </Text>
             )}
 
-            {/* ✅ THÊM: Polling indicator */}
-            {isPolling && paymentStatus === "PENDING" && (
+            {/* ✅ OPTIMIZED: Enhanced polling indicator */}
+            {isPolling && paymentStatus === "Pending" && (
               <View style={styles.pollingIndicator}>
                 <ActivityIndicator size="small" color="#E91E63" />
                 <Text style={styles.pollingText}>
                   Đang kiểm tra ({statusCheckCount}/{maxPollingAttempts})
+                  {Date.now() - pollingStartTimeRef.current < fastPollingDuration && " - Tốc độ cao"}
+                </Text>
+              </View>
+            )}
+
+            {/* ✅ NEW: Booking confirmation indicator */}
+            {isConfirmingBooking && (
+              <View style={styles.confirmingIndicator}>
+                <ActivityIndicator size="small" color="#4CAF50" />
+                <Text style={styles.confirmingText}>
+                  Đang xác nhận booking...
                 </Text>
               </View>
             )}
           </View>
         </View>
 
-        {/* Enhanced QR Display */}
-        {paymentStatus === "PENDING" && !isPaymentComplete && (
+        {/* Enhanced QR Display - ✅ FIX: Make sure QR always shows when pending */}
+        {(paymentStatus === "Pending" || paymentStatus === "PENDING") && 
+         !isPaymentComplete && 
+         payment.qrCode && (
           <View style={styles.qrSection}>
             <EnhancedQRDisplay
               paymentData={payment}
-              amount={payment.amount || booking.totalAmount}
-              orderCode={payment.orderCode || ""}
+              amount={payment.amount || payment.totalAmount || booking.totalAmount}
+              orderCode={payment.orderCode || payment.externalTransactionId || ""}
               onOpenPaymentURL={handleOpenPaymentURL}
             />
+          </View>
+        )}
+
+        {/* ✅ FALLBACK: Show basic QR info if EnhancedQRDisplay fails */}
+        {(paymentStatus === "Pending" || paymentStatus === "PENDING") && 
+         !isPaymentComplete && 
+         !payment.qrCode && 
+         payment.paymentUrl && (
+          <View style={styles.qrSection}>
+            <View style={styles.qrFallback}>
+              <MaterialIcons 
+                name="qr-code" 
+                size={getResponsiveSize(80)} 
+                color="#E91E63" 
+              />
+              <Text style={styles.qrFallbackTitle}>Thanh toán QR</Text>
+              <Text style={styles.qrFallbackSubtitle}>
+                Nhấn nút bên dưới để mở ứng dụng banking
+              </Text>
+              <TouchableOpacity
+                onPress={handleOpenPaymentURL}
+                style={styles.openPaymentButton}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={["#E91E63", "#F06292"]}
+                  style={styles.openPaymentGradient}
+                >
+                  <MaterialIcons 
+                    name="open-in-new" 
+                    size={getResponsiveSize(20)} 
+                    color="#fff" 
+                  />
+                  <Text style={styles.openPaymentText}>Mở ứng dụng thanh toán</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* ✅ ENHANCED: Debug panel with real-time status */}
+        {__DEV__ && (
+          <View style={styles.debugSection}>
+            <Text style={styles.debugTitle}>🐛 Debug Payment Status:</Text>
+            <Text style={styles.debugText}>QR Code: {payment.qrCode ? "✅ Available" : "❌ Missing"}</Text>
+            <Text style={styles.debugText}>Payment URL: {payment.paymentUrl ? "✅ Available" : "❌ Missing"}</Text>
+            <Text style={styles.debugText}>Payment ID: {payment.paymentId || payment.id}</Text>
+            <Text style={styles.debugText}>Order Code: {payment.orderCode || payment.externalTransactionId || "❌ Missing"}</Text>
+            <Text style={styles.debugText}>Status: {paymentStatus}</Text>
+            <Text style={styles.debugText}>Is Complete: {isPaymentComplete ? "Yes" : "No"}</Text>
+            <Text style={styles.debugText}>Is Polling: {isPolling ? "Yes" : "No"}</Text>
+            <Text style={styles.debugText}>Check Count: {statusCheckCount}/{maxPollingAttempts}</Text>
+            <Text style={styles.debugText}>Time Left: {formatTime(timeLeft)}</Text>
+            
+            {/* ✅ NEW: Manual test buttons */}
+            <View style={styles.debugButtons}>
+              <TouchableOpacity
+                onPress={handleManualStatusCheck}
+                style={styles.debugButton}
+                disabled={loadingPayment}
+              >
+                <Text style={styles.debugButtonText}>
+                  {loadingPayment ? "Checking..." : "Manual Check"}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={handlePaymentComplete}
+                style={[styles.debugButton, styles.debugButtonSuccess]}
+              >
+                <Text style={styles.debugButtonText}>Force Success</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                onPress={() => {
+                  console.log("🔄 Forcing polling restart...");
+                  setStatusCheckCount(0);
+                  setIsPaymentComplete(false);
+                  pollingStartTimeRef.current = Date.now();
+                  startPolling();
+                }}
+                style={[styles.debugButton, styles.debugButtonWarning]}
+              >
+                <Text style={styles.debugButtonText}>Restart Polling</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
 
@@ -963,10 +1135,10 @@ export default function PaymentWaitingScreen() {
 
         {/* Payment Actions */}
         <View style={styles.actionsContainer}>
-          {/* ✅ SỬA: Success button navigation */}
-          {(paymentStatus === "SUCCESS" ||
-            paymentStatus === "PAID" ||
-            paymentStatus === "COMPLETED") && (
+          {/* Success button */}
+          {(paymentStatus === "Success" ||
+            paymentStatus === "Paid" ||
+            paymentStatus === "Completed") && (
             <TouchableOpacity
               onPress={() => {
                 stopCountdown();
@@ -999,7 +1171,7 @@ export default function PaymentWaitingScreen() {
           )}
 
           {/* Manual status check button */}
-          {paymentStatus === "PENDING" && (
+          {paymentStatus === "Pending" && (
             <TouchableOpacity
               onPress={handleManualStatusCheck}
               style={styles.checkStatusAction}
@@ -1021,8 +1193,8 @@ export default function PaymentWaitingScreen() {
             </TouchableOpacity>
           )}
 
-          {/* ✅ THÊM: Test complete button (for testing only) */}
-          {paymentStatus === "PENDING" && __DEV__ && (
+          {/* Test complete button (for testing only) */}
+          {paymentStatus === "Pending" && __DEV__ && (
             <TouchableOpacity
               onPress={handlePaymentComplete}
               style={styles.testCompleteButton}
@@ -1034,8 +1206,8 @@ export default function PaymentWaitingScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Cancel button - now fixed */}
-          {paymentStatus === "PENDING" && (
+          {/* Cancel button */}
+          {paymentStatus === "Pending" && (
             <TouchableOpacity
               onPress={handleCancel}
               style={[
@@ -1132,6 +1304,11 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: "#F44336",
   },
+  processingIcon: {
+    backgroundColor: "rgba(233, 30, 99, 0.1)",
+    borderWidth: 3,
+    borderColor: "#E91E63",
+  },
   statusMessageContainer: {
     alignItems: "center",
     marginBottom: getResponsiveSize(20),
@@ -1176,6 +1353,21 @@ const styles = StyleSheet.create({
     color: "#E91E63",
     fontWeight: "500",
   },
+  confirmingIndicator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: getResponsiveSize(12),
+    paddingHorizontal: getResponsiveSize(16),
+    paddingVertical: getResponsiveSize(8),
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderRadius: getResponsiveSize(20),
+  },
+  confirmingText: {
+    marginLeft: getResponsiveSize(8),
+    fontSize: getResponsiveSize(12),
+    color: "#4CAF50",
+    fontWeight: "500",
+  },
 
   // QR Section
   qrSection: {
@@ -1189,6 +1381,92 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+  },
+
+  // ✅ NEW: QR Fallback styles
+  qrFallback: {
+    alignItems: "center",
+    paddingVertical: getResponsiveSize(20),
+  },
+  qrFallbackTitle: {
+    fontSize: getResponsiveSize(18),
+    fontWeight: "bold",
+    color: "#333",
+    marginTop: getResponsiveSize(16),
+    marginBottom: getResponsiveSize(8),
+  },
+  qrFallbackSubtitle: {
+    fontSize: getResponsiveSize(14),
+    color: "#666",
+    textAlign: "center",
+    marginBottom: getResponsiveSize(20),
+    lineHeight: getResponsiveSize(20),
+  },
+  openPaymentButton: {
+    borderRadius: getResponsiveSize(12),
+    overflow: "hidden",
+    width: "100%",
+  },
+  openPaymentGradient: {
+    paddingVertical: getResponsiveSize(16),
+    paddingHorizontal: getResponsiveSize(24),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: getResponsiveSize(8),
+  },
+  openPaymentText: {
+    color: "#fff",
+    fontSize: getResponsiveSize(16),
+    fontWeight: "600",
+  },
+
+  // ✅ NEW: Debug styles
+  debugSection: {
+    backgroundColor: "#f0f0f0",
+    marginHorizontal: getResponsiveSize(20),
+    borderRadius: getResponsiveSize(12),
+    padding: getResponsiveSize(16),
+    marginBottom: getResponsiveSize(20),
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  debugTitle: {
+    fontSize: getResponsiveSize(14),
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: getResponsiveSize(8),
+  },
+  debugText: {
+    fontSize: getResponsiveSize(12),
+    color: "#666",
+    marginBottom: getResponsiveSize(4),
+    fontFamily: "monospace",
+  },
+  debugButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: getResponsiveSize(12),
+    gap: getResponsiveSize(8),
+  },
+  debugButton: {
+    flex: 1,
+    backgroundColor: "#007AFF",
+    paddingVertical: getResponsiveSize(8),
+    paddingHorizontal: getResponsiveSize(12),
+    borderRadius: getResponsiveSize(6),
+    alignItems: "center",
+  },
+  debugButtonSuccess: {
+    backgroundColor: "#4CAF50",
+  },
+  debugButtonWarning: {
+    backgroundColor: "#FF9800",
+  },
+  debugButtonText: {
+    color: "#fff",
+    fontSize: getResponsiveSize(10),
+    fontWeight: "600",
   },
 
   // Booking Card

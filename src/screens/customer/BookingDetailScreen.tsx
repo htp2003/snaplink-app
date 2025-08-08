@@ -105,7 +105,7 @@ const BookingDetailScreen = () => {
 
   // Handle confirm received photos
   const handleConfirmReceived = async () => {
-    if (!booking) return;
+    if (!booking || !photoDelivery) return;
 
     Alert.alert(
       'Xác nhận nhận ảnh',
@@ -120,10 +120,23 @@ const BookingDetailScreen = () => {
           onPress: async () => {
             try {
               setUpdating(true);
+              // Complete the booking
               await bookingService.completeBooking(booking.id || booking.bookingId);
 
-              // Refresh photo delivery data
-              await fetchBookingDetails();
+              // Update photo delivery status to "Delivered"
+              await photoDeliveryService.updatePhotoDelivery(
+                photoDelivery.photoDeliveryId,
+                {
+                  status: 'Delivered'
+                }
+              );
+
+
+              // Refresh both booking and photo delivery data
+              await Promise.all([
+                fetchBookingDetails(),
+                fetchPhotoDelivery()
+              ]);
 
               Alert.alert(
                 'Thành công',
@@ -152,7 +165,7 @@ const BookingDetailScreen = () => {
       case BookingStatus.CANCELLED:
         return 'bg-red-500';
       case BookingStatus.COMPLETED:
-        return 'bg-blue-500';
+        return 'bg-green-500';
       case BookingStatus.IN_PROGRESS:
         return 'bg-purple-500';
       case BookingStatus.EXPIRED:
@@ -238,6 +251,7 @@ const BookingDetailScreen = () => {
       booking &&
       photoDelivery &&
       photoDelivery.driveLink &&
+      photoDelivery.status.toLowerCase() !== 'delivered' &&
       (booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.IN_PROGRESS)
     );
   };
@@ -393,7 +407,7 @@ const BookingDetailScreen = () => {
             <Ionicons name="cash-outline" size={20} color="#666666" />
             <View className="flex-1 ml-3">
               <Text className="text-sm text-gray-600 mb-1">Tổng tiền</Text>
-              <Text className="text-base text-black font-medium">{formatPrice(booking.totalPrice || 0)}</Text>
+              <Text className="text-base text-black font-medium">{formatPrice(booking.paymentAmount || 0)}</Text>
             </View>
           </View>
 

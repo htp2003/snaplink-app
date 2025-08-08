@@ -1,4 +1,4 @@
-// hooks/useBooking.ts - FIXED VERSION WITH setAvailability
+// hooks/useBooking.ts - UPDATED WITH CONFIRM BOOKING
 
 import { useState, useCallback, useEffect } from "react";
 import { bookingService } from "../services/bookingService";
@@ -26,6 +26,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [confirming, setConfirming] = useState(false); // ✅ NEW: confirming state
   const [error, setError] = useState<string | null>(null);
 
   // ===== AVAILABILITY & PRICING STATES =====
@@ -327,6 +328,47 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     [currentBooking]
   );
 
+  // ✅ NEW: Confirm booking method
+  const confirmBooking = useCallback(
+    async (bookingId: number): Promise<boolean> => {
+      if (confirming) return false;
+
+      try {
+        setConfirming(true);
+        setError(null);
+
+        await bookingService.confirmBooking(bookingId);
+
+        // Update local state
+        setBookings((prev) =>
+          prev.map((booking) =>
+            booking.id === bookingId
+              ? { ...booking, status: BookingStatus.CONFIRMED }
+              : booking
+          )
+        );
+
+        if (currentBooking?.id === bookingId) {
+          setCurrentBooking((prev) =>
+            prev ? { ...prev, status: BookingStatus.CONFIRMED } : null
+          );
+        }
+
+        console.log(`✅ Booking ${bookingId} confirmed successfully in hook`);
+        return true;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Không thể xác nhận booking";
+        setError(errorMessage);
+        console.error("❌ Hook: Error in confirmBooking:", err);
+        return false;
+      } finally {
+        setConfirming(false);
+      }
+    },
+    [confirming, currentBooking]
+  );
+
   // ===== AVAILABILITY & PRICING METHODS =====
 
   const checkAvailability = useCallback(
@@ -467,6 +509,10 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     []
   );
 
+  const canConfirmBooking = useCallback((booking: BookingResponse): boolean => {
+    return booking.status === BookingStatus.PENDING;
+  }, []);
+
   const getBookingStatusColor = useCallback((status: BookingStatus): string => {
     switch (status) {
       case BookingStatus.PENDING:
@@ -532,6 +578,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     loading,
     creating,
     updating,
+    confirming, // ✅ NEW: confirming state
     checkingAvailability,
     calculatingPrice,
     error,
@@ -544,6 +591,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     fetchPhotographerBookings,
     cancelBooking,
     completeBooking,
+    confirmBooking, // ✅ NEW: confirmBooking method
     validateBookingForm,
 
     // ===== AVAILABILITY & PRICING METHODS =====
@@ -555,6 +603,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     refreshCurrentBooking,
     canCancelBooking,
     canCompleteBooking,
+    canConfirmBooking, // ✅ NEW: canConfirmBooking utility
     getBookingStatusColor,
     getBookingStatusText,
 
@@ -562,8 +611,8 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     setCurrentBooking,
     setBookings,
     setError,
-    setAvailability, // ✅ THÊM: setAvailability
-    setPriceCalculation, // ✅ ĐÃ CÓ: setPriceCalculation
+    setAvailability,
+    setPriceCalculation,
 
     // ===== REFRESH UTILITIES =====
     refreshUserBookings: () =>

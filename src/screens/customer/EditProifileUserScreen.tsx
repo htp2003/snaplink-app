@@ -21,8 +21,6 @@ import { useUserStyle } from "../../hooks/useUserStyle";
 import { userService } from "../../services/userService";
 import FieldEditModal from "../../components/Photographer/FileEditModal";
 import { getResponsiveSize } from "../../utils/responsive";
-import * as ImageManipulator from "expo-image-manipulator";
-import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width: screenWidth } = Dimensions.get("window");

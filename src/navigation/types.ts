@@ -14,7 +14,7 @@ export interface ExternalLocationData {
   distanceInKm: number;
   type?: string;
   rating?: number;
-  source: 'internal' | 'external';
+  source: "internal" | "external";
   locationId?: number;
   externalId?: string;
   hourlyRate?: number;
@@ -151,7 +151,7 @@ export type RootStackParamList = {
       address?: string;
       hourlyRate?: number;
     };
-    selectedExternalLocation?: ExternalLocationData | null; // ← THÊM DÒNG NÀY
+    selectedExternalLocation?: ExternalLocationData | null;
     specialRequests?: string;
     priceCalculation: PriceCalculationResponse;
   };
@@ -164,6 +164,28 @@ export type RootStackParamList = {
   VenueOwnerEvents: undefined;
   EditVenueScreen: { venueId?: number };
   VenueDetailScreen: { venueId: number };
+
+  // VenueOwner Event Management screens
+  VenueOwnerEventDetail: {
+    eventId: number;
+    eventName?: string;
+  };
+  VenueOwnerCreateEvent: {
+    locationId?: number;
+  };
+  VenueOwnerEventImages: {
+    eventId: number;
+    eventName?: string;
+  };
+  VenueOwnerEditEvent: {
+    eventId: number;
+  };
+  VenueOwnerEventApplications: {
+    eventId: number;
+  };
+  VenueOwnerEventBookings: {
+    eventId: number;
+  };
 };
 
 export type CustomerTabParamList = {

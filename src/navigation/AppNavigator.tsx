@@ -47,6 +47,10 @@ import ChatScreen from "../screens/customer/ChatScreen";
 import MessagesScreen from "../screens/customer/MessagesScreen";
 import WalletScreen from "../screens/customer/WalletScreen";
 
+// VenueOwner Event Screens
+import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDetailScreen";
+import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
+import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -66,6 +70,7 @@ const AppNavigator = () => {
       <Stack.Screen name="CustomerMain" component={CustomerStack} />
       <Stack.Screen name="PhotographerMain" component={PhotographerStack} />
       <Stack.Screen name="VenueOwnerMain" component={VenueOwnerStack} />
+
       {/* Các màn hình chung */}
       <Stack.Screen name="Layout" component={LayoutPage} />
       <Stack.Screen name="Login" component={LoginScreen} />
@@ -98,10 +103,16 @@ const AppNavigator = () => {
         component={EditProfileUserScreen}
       />
       <Stack.Screen name="OrderHistoryScreen" component={OrderHistoryScreen} />
-      <Stack.Screen name="PaymentWaitingScreen" component={PaymentWaitingScreen} />
-      <Stack.Screen name="BookingDetailScreen" component={BookingDetailScreen} />
+      <Stack.Screen
+        name="PaymentWaitingScreen"
+        component={PaymentWaitingScreen}
+      />
+      <Stack.Screen
+        name="BookingDetailScreen"
+        component={BookingDetailScreen}
+      />
       <Stack.Screen name="ChatScreen" component={ChatScreen} />
-      <Stack.Screen name="NewChatScreen" component={MessagesScreen}/>
+      <Stack.Screen name="NewChatScreen" component={MessagesScreen} />
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen
@@ -144,16 +155,42 @@ const AppNavigator = () => {
       <Stack.Screen name="PortfolioScreen" component={PortfolioScreen} />
       <Stack.Screen
         name="PhotoDeliveryScreen"
-        component={PhotoDeliveryScreen}/>
-        <Stack.Screen name="WalletScreen" component={WalletScreen}/>
+        component={PhotoDeliveryScreen}
+      />
+      <Stack.Screen name="WalletScreen" component={WalletScreen} />
 
       {/* Các màn hình dành riêng cho VenueOwner */}
       <Stack.Screen
         name="VenueOwnerProfile"
         component={VenueOwnerProfileScreen}
       />
-
       <Stack.Screen name="VenueManagement" component={VenueManagementScreen} />
+
+      {/* VenueOwner Event Management Screens */}
+      <Stack.Screen
+        name="VenueOwnerEventDetail"
+        component={VenueOwnerEventDetailScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
+      <Stack.Screen
+        name="VenueOwnerCreateEvent"
+        component={VenueOwnerCreateEventScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="VenueOwnerEventImages"
+        component={VenueOwnerEventImagesScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
     </Stack.Navigator>
   );
 };

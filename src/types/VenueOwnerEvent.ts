@@ -31,8 +31,23 @@ export interface EventPhotographer {
   fullName: string;
   profileImage?: string;
   rating?: number;
+  ratingCount?: number;
   yearsExperience?: number;
   hourlyRate?: number;
+  phoneNumber?: string;
+  email?: string;
+  bio?: string;
+  specialties?: string[];
+}
+
+// Extended EventPhotographer for approved photographers list
+export interface ApprovedEventPhotographer extends EventPhotographer {
+  eventPhotographerId: number;
+  eventId: number;
+  specialRate?: number;
+  status: ApplicationStatus;
+  appliedAt: string;
+  approvedAt?: string;
 }
 
 // Event Image
@@ -109,6 +124,8 @@ export interface EventBooking {
     userId: number;
     fullName: string;
     profileImage?: string;
+    phoneNumber?: string;
+    email?: string;
   };
 }
 
@@ -232,4 +249,10 @@ export interface StatisticsApiResponse {
   error: number;
   message: string;
   data: EventStatistics;
+}
+
+export interface ApprovedPhotographersApiResponse {
+  error: number;
+  message: string;
+  data: ApprovedEventPhotographer[];
 }

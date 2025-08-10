@@ -14,6 +14,7 @@ import {
   VenueOwnerEventsDashboard,
   EventStatus,
   ApplicationStatus,
+  ApprovedEventPhotographer,
 } from "../types/VenueOwnerEvent";
 
 const API_BASE_URL =
@@ -544,7 +545,7 @@ class VenueOwnerEventService {
    */
   async getApprovedPhotographers(
     eventId: number
-  ): Promise<EventPhotographer[]> {
+  ): Promise<ApprovedEventPhotographer[]> {
     try {
       console.log("👥 Getting approved photographers for event:", eventId);
 

@@ -184,9 +184,11 @@ export type RootStackParamList = {
   };
   VenueOwnerEventApplications: {
     eventId: number;
+    eventName?: string;
   };
   VenueOwnerEventBookings: {
     eventId: number;
+    eventName?: string;
   };
 };
 

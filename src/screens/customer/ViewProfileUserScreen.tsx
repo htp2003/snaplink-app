@@ -62,12 +62,12 @@ const ViewProfileUserScreen = () => {
           console.log("🔍 Fetching user from API for userId:", userId);
           const userData = await userService.getUserById(userId);
           console.log("🔍 API response userData:", userData);
-          
+
           setUserProfile(userData);
           setError(null);
         } catch (apiError) {
           console.error("❌ API fetch failed:", apiError);
-          
+
           // If API fails and viewing own profile, use currentUser as fallback
           if (isOwnProfile && currentUser) {
             console.log("🔍 Using currentUser as fallback:", currentUser);
@@ -134,7 +134,7 @@ const ViewProfileUserScreen = () => {
         console.log("🔍 Found direct profileImage:", user.profileImage);
         return user.profileImage;
       }
-      
+
       // Handle nested structure if exists
       if (user.profileImage && typeof user.profileImage === "object") {
         // @ts-ignore - Check if it's a nested object with value
@@ -243,6 +243,17 @@ const ViewProfileUserScreen = () => {
       navigation.navigate("EditProfileUserScreen" as any);
     } else {
       Alert.alert("Thông báo", "Bạn chỉ có thể chỉnh sửa hồ sơ của chính mình");
+    }
+  };
+
+  const handleChangePasswordPress = () => {
+    if (isOwnProfile) {
+      navigation.navigate("ChangePasswordScreen" as any, { userId });
+    } else {
+      Alert.alert(
+        "Thông báo",
+        "Bạn chỉ có thể thay đổi mật khẩu của chính mình"
+      );
     }
   };
 
@@ -467,29 +478,7 @@ const ViewProfileUserScreen = () => {
           Hồ sơ
         </Text>
 
-        {isOwnProfile && (
-          <TouchableOpacity
-            onPress={handleEditPress}
-            style={{
-              paddingHorizontal: getResponsiveSize(16),
-              paddingVertical: getResponsiveSize(8),
-              backgroundColor: "#FFFFFF",
-              borderRadius: getResponsiveSize(20),
-              borderWidth: 1,
-              borderColor: "#E5E5E5",
-            }}
-          >
-            <Text
-              style={{
-                fontSize: getResponsiveSize(14),
-                fontWeight: "500",
-                color: "#000000",
-              }}
-            >
-              Chỉnh sửa
-            </Text>
-          </TouchableOpacity>
-        )}
+        <View style={{ width: getResponsiveSize(40) }} />
 
         {!isOwnProfile && <View style={{ width: getResponsiveSize(40) }} />}
       </View>
@@ -749,6 +738,8 @@ const ViewProfileUserScreen = () => {
                     Styles của bạn:
                   </Text>
 
+                  
+
                   {loadingStyles ? (
                     <View
                       style={{
@@ -821,6 +812,52 @@ const ViewProfileUserScreen = () => {
                 </View>
               </View>
             </View>
+                    {isOwnProfile && (
+          <TouchableOpacity
+            onPress={handleChangePasswordPress}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingVertical: getResponsiveSize(20),
+              borderTopWidth: 1,
+              borderTopColor: "#F0F0F0",
+            }}
+          >
+            <View
+              style={{
+                width: getResponsiveSize(40),
+                height: getResponsiveSize(40),
+                borderRadius: getResponsiveSize(20),
+                backgroundColor: "#F5F5F5",
+                justifyContent: "center",
+                alignItems: "center",
+                marginRight: getResponsiveSize(16),
+              }}
+            >
+              <Ionicons
+                name="lock-closed-outline"
+                size={getResponsiveSize(20)}
+                color="#666666"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: getResponsiveSize(16),
+                  color: "#000000",
+                  fontWeight: "500",
+                }}
+              >
+                Mật khẩu
+              </Text>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={getResponsiveSize(20)}
+              color="#C0C0C0"
+            />
+          </TouchableOpacity>
+        )}
           </View>
         </ScrollView>
       </View>

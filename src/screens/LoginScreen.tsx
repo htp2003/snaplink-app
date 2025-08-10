@@ -6,7 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  ImageBackground,
   StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -18,13 +17,18 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
   const handleLogin = (email: string, password: string) => {
-    // TODO: Implement login logic
-    console.log('Login:', email, password);
+    // Login logic is now handled inside LoginForm component via useAuth
+    console.log('Login triggered for:', email);
   };
 
   const handleForgotPassword = () => {
-    // TODO: Implement forgot password logic
-    console.log('Forgot password');
+    // Legacy handler - kept for compatibility
+    console.log('Forgot password (legacy)');
+  };
+
+  // ✅ NEW: Navigate to ForgotPassword screen
+  const handleNavigateToForgotPassword = () => {
+    navigation.navigate('ForgotPassword');
   };
 
   return (
@@ -67,6 +71,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                   onSubmit={handleLogin}
                   onForgotPassword={handleForgotPassword}
                   onRegister={() => navigation.navigate('Register')}
+                  onNavigateToForgotPassword={handleNavigateToForgotPassword} // ✅ NEW: Pass navigation function
                 />
               </View>
             </View>

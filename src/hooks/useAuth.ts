@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_BASE_URL =
   "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
+
 export interface User {
   id: number;
   photographerId?: number;
@@ -25,6 +26,11 @@ interface AuthState {
   isAuthenticated: boolean;
 }
 
+// ✅ NEW: Forgot Password Response Types
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<User>;
   register: (userData: any) => Promise<any>;
@@ -33,6 +39,11 @@ interface AuthContextType extends AuthState {
   checkAuthState: () => Promise<void>;
   currentUserId: number | null;
   getCurrentUserId: () => number | null;
+  
+  // ✅ NEW: Forgot Password Methods
+  sendResetCode: (email: string) => Promise<ForgotPasswordResponse>;
+  verifyResetCode: (email: string, code: string) => Promise<ForgotPasswordResponse>;
+  resetPassword: (email: string, code: string, newPassword: string, confirmPassword: string) => Promise<ForgotPasswordResponse>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -56,7 +67,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
       setCurrentUserId(authState.user.id);
       // Also save to AsyncStorage for persistence
       AsyncStorage.setItem("currentUserId", authState.user.id.toString());
-      
     }
   }, [authState.user]);
 
@@ -109,23 +119,32 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
 
-      
-
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(errorText || `HTTP ${response.status}`);
+        
+        // ✅ ENHANCED: Better error handling
+        let userFriendlyMessage = "Đăng nhập thất bại";
+        
+        if (response.status === 401) {
+          userFriendlyMessage = "Email hoặc mật khẩu không đúng";
+        } else if (response.status === 404) {
+          userFriendlyMessage = "Tài khoản không tồn tại";
+        } else if (response.status >= 500) {
+          userFriendlyMessage = "Lỗi server. Vui lòng thử lại sau";
+        } else if (errorText.includes("Invalid")) {
+          userFriendlyMessage = "Thông tin đăng nhập không hợp lệ";
+        }
+        
+        throw new Error(userFriendlyMessage);
       }
 
       const contentType = response.headers.get("content-type");
 
       if (contentType && contentType.includes("application/json")) {
         const data = await response.json();
-        
 
         if (data.token) {
           await AsyncStorage.setItem("token", data.token);
-
-         
 
           try {
             const userResponse = await fetch(
@@ -143,7 +162,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
             if (userResponse.ok) {
               const userData = await userResponse.json();
-              
 
               // Parse roles correctly
               let userRoles = [];
@@ -159,8 +177,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
                 roles: userRoles,
               };
 
-              
-
               // ✅ CRITICAL: Save both user data and currentUserId consistently
               await AsyncStorage.setItem(
                 "user",
@@ -172,7 +188,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
               );
 
               setCurrentUserId(normalizedUser.id);
-              
 
               setAuthState({
                 user: normalizedUser,
@@ -183,21 +198,17 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
               return normalizedUser;
             } else {
-              throw new Error("Could not retrieve user data");
+              throw new Error("Không thể lấy thông tin người dùng");
             }
           } catch (userFetchError) {
             console.error("❌ Error fetching user data:", userFetchError);
-            throw userFetchError;
+            throw new Error("Đăng nhập thành công nhưng không thể lấy thông tin người dùng");
           }
         } else {
-          throw new Error("No token in login response");
+          throw new Error("Phản hồi đăng nhập không hợp lệ");
         }
       } else {
-        const textResponse = await response.text();
-        
-        throw new Error(
-          "Login successful but user data unavailable. Please contact support."
-        );
+        throw new Error("Lỗi server. Vui lòng thử lại sau");
       }
     } catch (error) {
       console.error("❌ Login error:", error);
@@ -206,19 +217,151 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     }
   };
 
+  // ✅ NEW: Send Reset Code
+  const sendResetCode = async (email: string): Promise<ForgotPasswordResponse> => {
+    try {
+      console.log('🔄 Sending reset code to:', email);
+      
+      const response = await fetch(`${API_BASE_URL}/api/Auth/forgot-password/start`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        // ✅ Enhanced error handling
+        let userFriendlyMessage = "Không thể gửi mã đặt lại";
+        
+        if (response.status === 404) {
+          userFriendlyMessage = "Email không tồn tại trong hệ thống";
+        } else if (response.status >= 500) {
+          userFriendlyMessage = "Lỗi server. Vui lòng thử lại sau";
+        } else if (errorText.includes("rate limit")) {
+          userFriendlyMessage = "Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau";
+        }
+        
+        throw new Error(userFriendlyMessage);
+      }
+
+      const data = await response.json();
+      console.log('✅ Reset code sent successfully:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Send reset code error:', error);
+      throw error;
+    }
+  };
+
+  // ✅ NEW: Verify Reset Code
+  const verifyResetCode = async (email: string, code: string): Promise<ForgotPasswordResponse> => {
+    try {
+      console.log('🔄 Verifying reset code for:', email);
+      
+      const response = await fetch(`${API_BASE_URL}/api/Auth/forgot-password/verify`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, code }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        // ✅ Enhanced error handling
+        let userFriendlyMessage = "Mã xác nhận không đúng";
+        
+        if (response.status === 400) {
+          userFriendlyMessage = "Mã xác nhận không hợp lệ hoặc đã hết hạn";
+        } else if (response.status === 404) {
+          userFriendlyMessage = "Không tìm thấy yêu cầu đặt lại mật khẩu";
+        } else if (response.status >= 500) {
+          userFriendlyMessage = "Lỗi server. Vui lòng thử lại sau";
+        }
+        
+        throw new Error(userFriendlyMessage);
+      }
+
+      const data = await response.json();
+      console.log('✅ Reset code verified successfully:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Verify reset code error:', error);
+      throw error;
+    }
+  };
+
+  // ✅ NEW: Reset Password
+  const resetPassword = async (
+    email: string, 
+    code: string, 
+    newPassword: string, 
+    confirmPassword: string
+  ): Promise<ForgotPasswordResponse> => {
+    try {
+      console.log('🔄 Resetting password for:', email);
+      
+      const response = await fetch(`${API_BASE_URL}/api/Auth/forgot-password/reset`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          email, 
+          code, 
+          newPassword, 
+          confirmNewPassword: confirmPassword 
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        // ✅ Enhanced error handling
+        let userFriendlyMessage = "Không thể đặt lại mật khẩu";
+        
+        if (response.status === 400) {
+          if (errorText.includes("password")) {
+            userFriendlyMessage = "Mật khẩu không hợp lệ hoặc không khớp";
+          } else if (errorText.includes("code")) {
+            userFriendlyMessage = "Mã xác nhận không hợp lệ hoặc đã hết hạn";
+          } else {
+            userFriendlyMessage = "Thông tin không hợp lệ";
+          }
+        } else if (response.status === 404) {
+          userFriendlyMessage = "Không tìm thấy yêu cầu đặt lại mật khẩu";
+        } else if (response.status >= 500) {
+          userFriendlyMessage = "Lỗi server. Vui lòng thử lại sau";
+        }
+        
+        throw new Error(userFriendlyMessage);
+      }
+
+      const data = await response.json();
+      console.log('✅ Password reset successfully:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('❌ Reset password error:', error);
+      throw error;
+    }
+  };
+
   const logout = async () => {
     try {
       setAuthState((prev) => ({ ...prev, isLoading: true }));
-
-      
 
       // Get token before clearing it
       const token = await AsyncStorage.getItem("token");
 
       if (token) {
         try {
-          
-
           // Call the logout API endpoint
           const response = await fetch(`${API_BASE_URL}/api/Auth/Logout`, {
             method: "POST",
@@ -227,8 +370,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
               "Content-Type": "application/json",
             },
           });
-
-          
 
           if (response.ok) {
             console.log("✅ Logout API call successful");
@@ -240,7 +381,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         } catch (apiError) {
           console.error("❌ Logout API error:", apiError);
           // Continue with local cleanup even if API fails
-          
         }
       } else {
         console.log("ℹ️ No token found, skipping API call");
@@ -260,7 +400,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         isAuthenticated: false,
       });
 
-      
     } catch (error) {
       console.error("❌ Error during logout:", error);
 
@@ -295,19 +434,14 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         body: JSON.stringify(userData),
       });
 
-      
-
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
 
       const textResponse = await response.text();
-     
 
       // Step 2: Wait for database to process
       await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      
 
       const userResponse = await fetch(
         `${API_BASE_URL}/api/User/GetUserByEmail?email=${encodeURIComponent(
@@ -321,17 +455,13 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
       if (userResponse.ok) {
         const realUser = await userResponse.json();
-        
 
         const userId = realUser.id || realUser.userId;
 
         if (userId) {
-          
-
           // ✅ CRITICAL: Set currentUserId immediately after registration
           setCurrentUserId(userId);
           await AsyncStorage.setItem("currentUserId", userId.toString());
-          
 
           const normalizedUser = {
             ...realUser,
@@ -369,11 +499,8 @@ export function AuthProvider(props: { children: React.ReactNode }) {
 
   const updateProfile = async (userId: number, profileData: any) => {
     try {
-      
-  
       const token = await AsyncStorage.getItem("token");
-      
-  
+
       // ✅ VALIDATE: Prepare request body theo UpdateUserDto schema
       const requestBody = {
         userId: userId,                              // ✅ Required integer
@@ -382,9 +509,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         bio: profileData.bio || null,               // ✅ nullable string
         profileImage: profileData.profileImage || null // ✅ nullable string
       };
-  
-     
-  
+
       const response = await fetch(`${API_BASE_URL}/api/User/update`, {
         method: "PUT",
         headers: {
@@ -393,9 +518,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         },
         body: JSON.stringify(requestBody),  // ✅ Use validated requestBody
       });
-  
-      
-  
+
       if (!response.ok) {
         // ✅ DETAILED ERROR LOGGING
         const errorText = await response.text();
@@ -405,7 +528,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
           body: errorText,
           url: response.url
         });
-  
+
         // Try to parse error as JSON if possible
         try {
           const errorJson = JSON.parse(errorText);
@@ -413,32 +536,28 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         } catch (e) {
           console.error('❌ Error is not JSON:', errorText);
         }
-  
+
         throw new Error(`Update profile failed: ${response.status} - ${errorText}`);
       }
-  
+
       // ✅ LOG SUCCESS RESPONSE
       const responseText = await response.text();
-      
-  
+
       let responseData;
       try {
         responseData = JSON.parse(responseText);
-        
       } catch (e) {
-        
         responseData = null;
       }
-  
+
       // Refresh user data
       const updatedUser = { ...authState.user, ...profileData };
-      
       
       await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
       setAuthState((prev) => ({ ...prev, user: updatedUser }));
 
       return responseData;
-  
+
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('❌ updateProfile error:', {
@@ -469,6 +588,11 @@ export function AuthProvider(props: { children: React.ReactNode }) {
     checkAuthState,
     currentUserId,
     getCurrentUserId,
+    
+    // ✅ NEW: Forgot Password methods
+    sendResetCode,
+    verifyResetCode,
+    resetPassword,
   };
 
   return React.createElement(

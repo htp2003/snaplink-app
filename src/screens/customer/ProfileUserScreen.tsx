@@ -23,6 +23,7 @@ import NotificationModal from "../../components/Notification/NotificationModal";
 import { userService } from "../../services/userService";
 import { UserProfile } from "../../types/userProfile";
 import { useAuth, User as AuthUser } from "../../hooks/useAuth";
+import AntDesign from '@expo/vector-icons/AntDesign';
 
 const { width } = Dimensions.get("window");
 const HEADER_HEIGHT = 60;
@@ -276,22 +277,10 @@ const ProfileUserScreen = () => {
   );
 
   const menuItems = [
+    
     {
-      icon: "settings-outline",
-      title: "Cài đặt tài khoản",
-      hasNotification: true,
-      // onPress: () => navigation.navigate('Settings')
-    },
-    {
-    icon: "wallet-outline", // Đổi icon thành wallet
-    title: "Ví của bạn",
-    onPress: () => {
-      navigation.navigate("WalletScreen");
-    },
-  },
-    {
-      icon: "person-outline",
-      title: "Xem hồ sơ",
+      icon: "shield-outline",
+      title: "Tài khoản và bảo mật",
       onPress: () => {
         if (currentUserId !== null) {
           navigation.navigate('ViewProfileUserScreen', { userId: currentUserId });
@@ -300,6 +289,13 @@ const ProfileUserScreen = () => {
         }
       },
     },
+    {
+    icon: "wallet-outline", 
+    title: "Ví của bạn",
+    onPress: () => {
+      navigation.navigate("WalletScreen");
+    },
+  },
     {
       icon: "hand-left-outline",
       title: "Quyền riêng tư",

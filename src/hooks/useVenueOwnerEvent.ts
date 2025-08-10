@@ -13,6 +13,8 @@ import {
   EventStatus,
   ApplicationStatus,
   EventFilters,
+  EventPhotographer,
+  ApprovedEventPhotographer,
 } from "../types/VenueOwnerEvent";
 
 export function useVenueOwnerEvent() {
@@ -30,7 +32,9 @@ export function useVenueOwnerEvent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-
+  const [approvedPhotographers, setApprovedPhotographers] = useState<
+    ApprovedEventPhotographer[]
+  >([]);
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -404,7 +408,40 @@ export function useVenueOwnerEvent() {
     },
     []
   );
+  /**
+   * Get approved photographers for event
+   */
+  const getApprovedPhotographers = useCallback(
+    async (eventId: number): Promise<ApprovedEventPhotographer[]> => {
+      setLoading(true);
+      setError(null);
 
+      try {
+        const result = await venueOwnerEventService.getApprovedPhotographers(
+          eventId
+        );
+        console.log("✅ Approved photographers retrieved:", result.length);
+        setApprovedPhotographers(result);
+        return result;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Không thể tải danh sách nhiếp ảnh gia";
+        console.error("❌ Get approved photographers error:", errorMessage);
+
+        if (!errorMessage.includes("404")) {
+          setError(errorMessage);
+        } else {
+          setApprovedPhotographers([]);
+        }
+        return [];
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
   /**
    * Respond to photographer application
    */
@@ -639,6 +676,8 @@ export function useVenueOwnerEvent() {
     respondToApplication,
     getEventBookings,
     getEventStatistics,
+    approvedPhotographers,
+    getApprovedPhotographers,
 
     // Utilities
     refreshEvents,

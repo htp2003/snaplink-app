@@ -51,6 +51,9 @@ import WalletScreen from "../screens/customer/WalletScreen";
 import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDetailScreen";
 import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
 import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
+import VenueOwnerEditEventScreen from "../screens/venueOwner/VenueOwnerEditEventScreen";
+import VenueOwnerEventApplicationsScreen from "../screens/venueOwner/VenueOwnerEventApplicationsScreen";
+import VenueOwnerEventBookingsScreen from "../screens/venueOwner/VenueOwnerEventBookingsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -186,6 +189,30 @@ const AppNavigator = () => {
       <Stack.Screen
         name="VenueOwnerEventImages"
         component={VenueOwnerEventImagesScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
+      <Stack.Screen
+        name="VenueOwnerEditEvent"
+        component={VenueOwnerEditEventScreen}
+        options={{
+          headerShown: false,
+          presentation: "modal",
+        }}
+      />
+      <Stack.Screen
+        name="VenueOwnerEventApplications"
+        component={VenueOwnerEventApplicationsScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
+      <Stack.Screen
+        name="VenueOwnerEventBookings"
+        component={VenueOwnerEventBookingsScreen}
         options={{
           headerShown: false,
           presentation: "card",

@@ -1,5 +1,3 @@
-// services/userService.ts
-
 import { 
   UserProfile, 
   CreateUserDto, 
@@ -10,7 +8,8 @@ import {
   NotificationType,
   UserBooking,
   UserTransaction,
-  UserNotification
+  UserNotification,
+  ChangePasswordRequest
 } from '../types/userProfile';
 import { apiClient } from './base';
 
@@ -26,6 +25,7 @@ const ENDPOINTS = {
   CREATE_MODERATOR: '/api/User/create-moderator',
   UPDATE: '/api/User/update',
   DELETE: (id: number) => `/api/User/delete/${id}`,
+  CHANGE_PASSWORD: '/api/User/change-password'
 };
 
 export class UserService {
@@ -104,11 +104,81 @@ export class UserService {
     });
   }
 
-  async changePassword(userId: number, newPassword: string): Promise<UserProfile> {
-    return this.updateUser({
-      userId,
-      passwordHash: newPassword,
-    });
+  async changePassword(request: ChangePasswordRequest): Promise<void> {
+    try {
+      console.log('🔄 Changing password for userId:', request.userId);
+      
+      await apiClient.post<void>(ENDPOINTS.CHANGE_PASSWORD, request);
+      
+      console.log('✅ Password changed successfully');
+    } catch (error: any) {
+      console.error('❌ Password change error:', error);
+      
+      // Enhanced error handling
+      let userFriendlyMessage = 'Không thể thay đổi mật khẩu';
+      
+      if (error.response) {
+        switch (error.response.status) {
+          case 400:
+            if (error.response.data?.message?.includes('current password')) {
+              userFriendlyMessage = 'Mật khẩu hiện tại không đúng';
+            } else if (error.response.data?.message?.includes('password')) {
+              userFriendlyMessage = 'Mật khẩu mới không hợp lệ hoặc không khớp';
+            } else {
+              userFriendlyMessage = 'Thông tin không hợp lệ';
+            }
+            break;
+          case 401:
+            userFriendlyMessage = 'Bạn không có quyền thực hiện thao tác này';
+            break;
+          case 404:
+            userFriendlyMessage = 'Không tìm thấy tài khoản';
+            break;
+          case 500:
+            userFriendlyMessage = 'Lỗi server. Vui lòng thử lại sau';
+            break;
+          default:
+            userFriendlyMessage = error.response.data?.message || 'Có lỗi xảy ra';
+        }
+      } else if (error.message) {
+        userFriendlyMessage = error.message;
+      }
+      
+      throw new Error(userFriendlyMessage);
+    }
+  }
+
+    // ✅ NEW: Validate Password Strength
+  validatePassword(password: string): { isValid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    
+    if (password.length < 6) {
+      errors.push('Mật khẩu phải có ít nhất 6 ký tự');
+    }
+    
+    if (password.length > 100) {
+      errors.push('Mật khẩu không được quá 100 ký tự');
+    }
+    
+    // Check for at least one letter
+    if (!/[a-zA-Z]/.test(password)) {
+      errors.push('Mật khẩu phải chứa ít nhất một chữ cái');
+    }
+    
+    // Check for at least one number (optional but recommended)
+    if (!/\d/.test(password)) {
+      errors.push('Mật khẩu nên chứa ít nhất một số');
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
+  // ✅ NEW: Check Password Match
+  validatePasswordMatch(password: string, confirmPassword: string): boolean {
+    return password === confirmPassword;
   }
 
   async updateProfileImage(userId: number, imageUri: string): Promise<UserProfile> {

@@ -1,7 +1,7 @@
-// hooks/useCustomerProfile.ts
+// hooks/useCustomerProfile.ts - Updated with new changePassword method
 import { useState, useEffect, useCallback } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { userService } from "../services/userService";
+import { userService,  } from "../services/userService"; // ✅ Import ChangePasswordRequest
 import {
   UserProfile,
   CustomerStats,
@@ -9,6 +9,7 @@ import {
   UserBooking,
   UserTransaction,
   UserNotification,
+  ChangePasswordRequest,
 } from "../types/userProfile";
 
 export interface UseCustomerProfileReturn {
@@ -29,10 +30,15 @@ export interface UseCustomerProfileReturn {
     bio?: string;
     profileImage?: string;
   }) => Promise<void>;
-  changePassword: (newPassword: string) => Promise<void>;
+  // ✅ UPDATED: changePassword now accepts proper parameters
+  changePassword: (currentPassword: string, newPassword: string, confirmNewPassword: string) => Promise<void>;
   updateProfileImage: (imageUri: string) => Promise<void>;
   refresh: () => Promise<void>;
   clearError: () => void;
+
+  // ✅ NEW: Password validation methods
+  validatePassword: (password: string) => { isValid: boolean; errors: string[] };
+  validatePasswordMatch: (password: string, confirmPassword: string) => boolean;
 
   // Getters
   getUserRoles: () => string[];
@@ -138,9 +144,9 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     [calculateStats]
   );
 
-  // Change password
+  // ✅ UPDATED: Change password with proper API request format
   const changePassword = useCallback(
-    async (newPassword: string) => {
+    async (currentPassword: string, newPassword: string, confirmNewPassword: string) => {
       try {
         setError(null);
         const userId = await getCurrentUserId();
@@ -149,13 +155,21 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
           throw new Error("No user ID found. Please login again.");
         }
 
-        const updatedUser = await userService.changePassword(
+        // ✅ Use the new ChangePasswordRequest format
+        const changePasswordRequest: ChangePasswordRequest = {
           userId,
-          newPassword
-        );
+          currentPassword,
+          newPassword,
+          confirmNewPassword
+        };
 
-        setUser(updatedUser);
-        setStats(calculateStats(updatedUser));
+        // ✅ Call the updated changePassword method
+        await userService.changePassword(changePasswordRequest);
+
+        // ✅ Password change API doesn't return user data, so we don't update user/stats
+        // The API call will throw an error if it fails, so reaching this point means success
+        console.log("✅ Password changed successfully");
+
       } catch (err) {
         const errorMessage =
           err instanceof Error ? err.message : "Failed to change password";
@@ -164,7 +178,7 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
         throw err;
       }
     },
-    [calculateStats]
+    []
   );
 
   // Update profile image
@@ -195,6 +209,15 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     },
     [calculateStats]
   );
+
+  // ✅ NEW: Password validation methods
+  const validatePassword = useCallback((password: string) => {
+    return userService.validatePassword(password);
+  }, []);
+
+  const validatePasswordMatch = useCallback((password: string, confirmPassword: string) => {
+    return userService.validatePasswordMatch(password, confirmPassword);
+  }, []);
 
   // Refresh data
   const refresh = useCallback(async () => {
@@ -326,10 +349,14 @@ export const useCustomerProfile = (): UseCustomerProfileReturn => {
     // Actions
     fetchProfile,
     updateProfile,
-    changePassword,
+    changePassword, // ✅ Updated method signature
     updateProfileImage,
     refresh,
     clearError,
+
+    // ✅ NEW: Password validation methods
+    validatePassword,
+    validatePasswordMatch,
 
     // Getters
     getUserRoles,

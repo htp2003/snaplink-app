@@ -1,4 +1,4 @@
-// authService.ts - Updated with logout endpoint
+// authService.ts - Updated with forgot password endpoints
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const API_BASE_URL =
@@ -33,6 +33,23 @@ export interface AuthResponse {
     fullName: string;
     roles: string[];
   };
+}
+
+// ✅ NEW: Forgot Password Types
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface VerifyResetCodeRequest {
+  email: string;
+  code: string;
+}
+
+export interface ResetPasswordRequest {
+  email: string;
+  code: string;
+  newPassword: string;
+  confirmNewPassword: string;
 }
 
 // API Client for React Native
@@ -145,6 +162,65 @@ export class AuthService {
       await AsyncStorage.removeItem("currentUserId");
     } catch (error) {
       console.error("❌ Error clearing local storage:", error);
+    }
+  }
+
+  // ✅ NEW: Forgot Password Flow - Step 1: Send Reset Code
+  static async sendResetCode(email: string): Promise<{ message: string }> {
+    try {
+      console.log('🔄 Sending reset code to:', email);
+      
+      const requestBody: ForgotPasswordRequest = { email };
+      const response = await apiClient.post(`/api/Auth/forgot-password/start`, requestBody);
+      
+      console.log('✅ Reset code sent successfully:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Send reset code error:', error);
+      throw error;
+    }
+  }
+
+  // ✅ NEW: Forgot Password Flow - Step 2: Verify Reset Code
+  static async verifyResetCode(email: string, code: string): Promise<{ message: string }> {
+    try {
+      console.log('🔄 Verifying reset code for:', email);
+      
+      const requestBody: VerifyResetCodeRequest = { email, code };
+      const response = await apiClient.post(`/api/Auth/forgot-password/verify`, requestBody);
+      
+      console.log('✅ Reset code verified successfully:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Verify reset code error:', error);
+      throw error;
+    }
+  }
+
+  // ✅ NEW: Forgot Password Flow - Step 3: Reset Password
+  static async resetPassword(
+    email: string, 
+    code: string, 
+    newPassword: string, 
+    confirmNewPassword: string
+  ): Promise<{ message: string }> {
+    try {
+      console.log('🔄 Resetting password for:', email);
+      
+      const requestBody: ResetPasswordRequest = {
+        email,
+        code,
+        newPassword,
+        confirmNewPassword
+      };
+      
+      const response = await apiClient.post(`/api/Auth/forgot-password/reset`, requestBody);
+      
+      console.log('✅ Password reset successfully:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ Reset password error:', error);
+      throw error;
     }
   }
 

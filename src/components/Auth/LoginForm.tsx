@@ -11,6 +11,7 @@ interface LoginFormProps {
   onForgotPassword: () => void;
   onRegister: () => void;
   onSuccess?: (user: any) => void;
+  onNavigateToForgotPassword?: () => void;
 }
 
 const LoginForm: React.FC<LoginFormProps> = ({
@@ -18,6 +19,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
   onForgotPassword,
   onRegister,
   onSuccess,
+  onNavigateToForgotPassword
 }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -103,6 +105,14 @@ const LoginForm: React.FC<LoginFormProps> = ({
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
+  
+   const handleForgotPassword = () => {
+    if (onNavigateToForgotPassword) {
+      onNavigateToForgotPassword();
+    } else {
+      onForgotPassword();
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -128,7 +138,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
         onPress={onForgotPassword}
         disabled={isLoading}
       >
-        <Text style={styles.forgotPasswordText}>Quên mật khẩu?</Text>
+        <Text style={styles.forgotPasswordText} onPress={handleForgotPassword} disabled={isLoading}>Quên mật khẩu?</Text>
       </TouchableOpacity>
 
       <Button

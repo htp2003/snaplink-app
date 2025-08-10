@@ -251,6 +251,19 @@ export interface UserProfile {
     bio?: string;
     profileImage?: string;
   }
+
+  export interface ChangePasswordRequest {
+  userId: number;
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}
+
+export interface ChangePasswordResponse {
+  success: boolean;
+  message: string;
+  data?: any;
+}
   
   // Response types
   export interface ApiResponse<T> {

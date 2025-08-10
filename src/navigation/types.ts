@@ -50,6 +50,7 @@ export type RootStackParamList = {
   EmailVerification: {
     email: string;
   };
+  ForgotPassword: undefined;
   // Photographer screens
   EditProfilePhotographer: undefined;
   Subscription: undefined;

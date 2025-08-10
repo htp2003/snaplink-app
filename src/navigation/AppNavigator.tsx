@@ -51,6 +51,7 @@ import WalletScreen from "../screens/customer/WalletScreen";
 import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDetailScreen";
 import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
 import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
+import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -79,6 +80,7 @@ const AppNavigator = () => {
         name="EmailVerification"
         component={EmailVerificationScreen}
       />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen}/>
 
       {/* Các màn hình dành riêng cho Customer */}
       <Stack.Screen

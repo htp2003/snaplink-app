@@ -177,7 +177,7 @@ const ManageAvailabilityScreen = () => {
             color: '#1A1A1A',
             letterSpacing: 0.5,
           }}>
-            AVAILABILITY
+            LỊCH CỦA BẠN
           </Text>
         </View>
         
@@ -200,7 +200,7 @@ const ManageAvailabilityScreen = () => {
               fontWeight: '500',
               letterSpacing: 0.8,
             }}>
-              ADD
+              THÊM
             </Text>
           )}
         </TouchableOpacity>
@@ -228,7 +228,7 @@ const ManageAvailabilityScreen = () => {
               marginBottom: 4,
               letterSpacing: 0.5,
             }}>
-              TOTAL SLOTS
+              TỔNG SỐ SLOTS
             </Text>
             <Text style={{
               fontSize: 24,
@@ -246,7 +246,7 @@ const ManageAvailabilityScreen = () => {
               marginBottom: 4,
               letterSpacing: 0.5,
             }}>
-              AVAILABLE
+              KHẢ DỤNG
             </Text>
             <Text style={{
               fontSize: 24,
@@ -264,7 +264,7 @@ const ManageAvailabilityScreen = () => {
               marginBottom: 4,
               letterSpacing: 0.5,
             }}>
-              BOOKED
+              ĐÃ ĐẶT
             </Text>
             <Text style={{
               fontSize: 24,
@@ -459,7 +459,7 @@ const ManageAvailabilityScreen = () => {
         textAlign: 'center',
         letterSpacing: 0.5,
       }}>
-        No Time Slots
+        Không Có Lịch Trống
       </Text>
       
       <Text style={{
@@ -470,7 +470,7 @@ const ManageAvailabilityScreen = () => {
         lineHeight: 22,
         maxWidth: 280,
       }}>
-        Set your availability to start receiving bookings from clients
+        Đặt lịch của bạn để bắt đầu nhận đặt chỗ từ khách hàng
       </Text>
       
       <TouchableOpacity
@@ -488,7 +488,7 @@ const ManageAvailabilityScreen = () => {
           fontWeight: '500',
           letterSpacing: 0.8,
         }}>
-          ADD TIME SLOT
+          THÊM LỊCH TRỐNG
         </Text>
       </TouchableOpacity>
     </View>

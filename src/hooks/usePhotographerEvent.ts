@@ -1,194 +1,327 @@
 // hooks/usePhotographerEvent.ts
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
-  CreatePhotographerEventRequest, 
-  Location, 
-  PhotographerEvent,
-  CreateEventFormData 
+  LocationEvent, 
+  EventApplication, 
+  EventApplicationRequest,
+  ApiResponse,
+  EventPhotographer
 } from '../types/photographerEvent';
-import photographerEventService from '../services/photographerEventService';
+import { photographerEventService } from '../services/photographerEventService';
 
-export const usePhotographerEvent = () => {
+// Hook for discovering events (active, upcoming, featured)
+export const useEventDiscovery = () => {
+  const [activeEvents, setActiveEvents] = useState<LocationEvent[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<LocationEvent[]>([]);
+  const [featuredEvents, setFeaturedEvents] = useState<LocationEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
-  // Create event
-  const createEvent = async (
-    photographerId: number,
-    eventData: CreatePhotographerEventRequest
-  ): Promise<boolean> => {
+  const fetchAllEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setSuccess(false);
-
+    
     try {
-      const response = await photographerEventService.createPhotographerEvent(
-        photographerId,
-        eventData
-      );
+      console.log('Fetching events...');
+      
+      const [activeResponse, upcomingResponse, featuredResponse] = await Promise.all([
+        photographerEventService.getActiveEvents(),
+        photographerEventService.getUpcomingEvents(),
+        photographerEventService.getFeaturedEvents()
+      ]);
+      
+      console.log('Featured events response:', featuredResponse);
+      console.log('Active events response:', activeResponse);
+      console.log('Upcoming events response:', upcomingResponse);
+      
+      if (activeResponse.error === 0) {
+        setActiveEvents(activeResponse.data || []);
+      }
+      if (upcomingResponse.error === 0) {
+        setUpcomingEvents(upcomingResponse.data || []);
+      }
+      if (featuredResponse.error === 0) {
+        setFeaturedEvents(featuredResponse.data || []);
+      }
+      
+      if (activeResponse.error !== 0 && upcomingResponse.error !== 0 && featuredResponse.error !== 0) {
+        setError('Failed to load events');
+      }
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-      if (response.success) {
-        setSuccess(true);
+  useEffect(() => {
+    fetchAllEvents();
+  }, [fetchAllEvents]);
+
+  return {
+    activeEvents,
+    upcomingEvents,
+    featuredEvents,
+    loading,
+    error,
+    refetch: fetchAllEvents
+  };
+};
+
+// Hook for searching events
+export const useEventSearch = () => {
+  const [events, setEvents] = useState<LocationEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const searchEvents = useCallback(async (searchTerm: string) => {
+    if (!searchTerm.trim()) {
+      setEvents([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.searchEvents(searchTerm);
+      
+      if (response.error === 0) {
+        setEvents(response.data);
+      } else {
+        setError(response.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const searchNearbyEvents = useCallback(async (latitude: number, longitude: number, radiusKm: number = 10) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.getNearbyEvents(latitude, longitude, radiusKm);
+      
+      if (response.error === 0) {
+        setEvents(response.data);
+      } else {
+        setError(response.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return {
+    events,
+    loading,
+    error,
+    searchEvents,
+    searchNearbyEvents
+  };
+};
+
+// Hook for event details
+export const useEventDetail = (eventId: number | null) => {
+  const [event, setEvent] = useState<LocationEvent | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchEventDetail = useCallback(async () => {
+    if (!eventId) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.getEventDetail(eventId);
+      
+      if (response.error === 0) {
+        setEvent(response.data);
+      } else {
+        setError(response.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    fetchEventDetail();
+  }, [fetchEventDetail]);
+
+  return {
+    event,
+    loading,
+    error,
+    refetch: fetchEventDetail
+  };
+};
+
+// Hook for photographer applications management
+export const usePhotographerApplications = (photographerId: number | null) => {
+  const [applications, setApplications] = useState<EventApplication[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchApplications = useCallback(async () => {
+    if (!photographerId) {
+      console.log('No photographerId provided');
+      return;
+    }
+    
+    console.log('Fetching applications for photographer:', photographerId);
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.getPhotographerApplications(photographerId);
+      console.log('Applications response:', response);
+      
+      if (response.error === 0) {
+        setApplications(response.data || []);
+      } else {
+        setError(response.message);
+      }
+    } catch (err) {
+      console.error('Error fetching applications:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, [photographerId]);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
+
+  return {
+    applications,
+    loading,
+    error,
+    refetch: fetchApplications
+  };
+};
+
+// Hook for application actions (apply, withdraw)
+export const useApplicationActions = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const applyToEvent = async (request: EventApplicationRequest): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.applyToEvent(request);
+      
+      if (response.error === 0) {
         return true;
       } else {
         setError(response.message);
         return false;
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create event';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'An error occurred');
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Reset states
-  const resetStates = () => {
-    setError(null);
-    setSuccess(false);
-    setLoading(false);
-  };
-
-  return {
-    loading,
-    error,
-    success,
-    createEvent,
-    resetStates,
-  };
-};
-
-export const useLocations = () => {
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchAllLocations = async () => {
+  const withdrawApplication = async (eventId: number, photographerId: number): Promise<boolean> => {
     setLoading(true);
     setError(null);
-
+    
     try {
-      const response = await photographerEventService.getAllLocations();
+      const response = await photographerEventService.withdrawApplication(eventId, photographerId);
       
-      if (response.success) {
-        setLocations(response.data);
+      if (response.error === 0) {
+        return true;
       } else {
         setError(response.message);
+        return false;
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch locations';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchLocationById = async (locationId: number): Promise<Location | null> => {
+  const checkApplicationEligibility = async (eventId: number, photographerId: number): Promise<boolean> => {
     try {
-      const response = await photographerEventService.getLocationById(locationId);
-      return response.success ? response.data : null;
+      return await photographerEventService.canApplyToEvent(eventId, photographerId);
     } catch (err) {
-      console.error('Failed to fetch location:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      return false;
+    }
+  };
+
+  const getApplicationStatus = async (eventId: number, photographerId: number): Promise<string | null> => {
+    try {
+      return await photographerEventService.getApplicationStatus(eventId, photographerId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
       return null;
     }
   };
 
-  useEffect(() => {
-    fetchAllLocations();
-  }, []);
-
   return {
-    locations,
+    applyToEvent,
+    withdrawApplication,
+    checkApplicationEligibility,
+    getApplicationStatus,
     loading,
-    error,
-    fetchAllLocations,
-    fetchLocationById,
+    error
   };
 };
 
-// Form validation hook
-export const useEventFormValidation = () => {
-  const [errors, setErrors] = useState<Partial<CreateEventFormData>>({});
+// Hook for approved photographers (to see competition)
+export const useApprovedPhotographers = (eventId: number | null) => {
+  const [photographers, setPhotographers] = useState<EventPhotographer[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const validateForm = (formData: CreateEventFormData): boolean => {
-    const newErrors: Partial<CreateEventFormData> = {};
-
-    // Title validation
-    if (!formData.title.trim()) {
-      newErrors.title = 'Title is required';
-    } else if (formData.title.length < 3) {
-      newErrors.title = 'Title must be at least 3 characters';
-    }
-
-    // Description validation
-    if (!formData.description.trim()) {
-      newErrors.description = 'Description is required';
-    } else if (formData.description.length < 10) {
-      newErrors.description = 'Description must be at least 10 characters';
-    }
-
-    // Price validation
-    const originalPrice = parseFloat(formData.originalPrice);
-    if (!formData.originalPrice || isNaN(originalPrice) || originalPrice <= 0) {
-      newErrors.originalPrice = 'Valid original price is required';
-    }
-
-    // Discount validation
-    if (formData.discountedPrice) {
-      const discountedPrice = parseFloat(formData.discountedPrice);
-      if (isNaN(discountedPrice) || discountedPrice < 0) {
-        newErrors.discountedPrice = 'Valid discounted price is required';
-      } else if (discountedPrice >= originalPrice) {
-        newErrors.discountedPrice = 'Discounted price must be less than original price';
+  const fetchApprovedPhotographers = useCallback(async () => {
+    if (!eventId) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.getApprovedPhotographers(eventId);
+      
+      if (response.error === 0) {
+        setPhotographers(response.data);
+      } else {
+        setError(response.message);
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
     }
+  }, [eventId]);
 
-    // Discount percentage validation
-    if (formData.discountPercentage) {
-      const discountPercentage = parseFloat(formData.discountPercentage);
-      if (isNaN(discountPercentage) || discountPercentage < 0 || discountPercentage > 100) {
-        newErrors.discountPercentage = 'Discount percentage must be between 0-100';
-      }
-    }
-
-    // Date validation
-    if (!formData.startDate) {
-      newErrors.startDate = 'Start date is required' as any;
-    }
-
-    if (!formData.endDate) {
-      newErrors.endDate = 'End date is required' as any;
-    }
-
-    if (formData.startDate && formData.endDate && formData.startDate >= formData.endDate) {
-      newErrors.endDate = 'End date must be after start date' as any;
-    }
-
-    // Max bookings validation
-    const maxBookings = parseInt(formData.maxBookings);
-    if (!formData.maxBookings || isNaN(maxBookings) || maxBookings <= 0) {
-      newErrors.maxBookings = 'Valid max bookings number is required';
-    }
-
-    // Location validation
-    if (formData.selectedLocationIds.length === 0) {
-      newErrors.selectedLocationIds = 'At least one location must be selected' as any;
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const clearErrors = () => {
-    setErrors({});
-  };
+  useEffect(() => {
+    fetchApprovedPhotographers();
+  }, [fetchApprovedPhotographers]);
 
   return {
-    errors,
-    validateForm,
-    clearErrors,
+    photographers,
+    loading,
+    error,
+    refetch: fetchApprovedPhotographers
   };
 };

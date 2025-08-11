@@ -11,8 +11,6 @@ export enum DayOfWeek {
   export enum AvailabilityStatus {
     AVAILABLE = 'Available',
     UNAVAILABLE = 'unavailable',
-    BUSY = 'busy',
-    BREAK = 'break'
   }
   
   // ===== REQUEST TYPES =====
@@ -207,15 +205,12 @@ export enum DayOfWeek {
   export const STATUS_LABELS: Record<AvailabilityStatus, string> = {
     [AvailabilityStatus.AVAILABLE]: 'Có thể đặt lịch',
     [AvailabilityStatus.UNAVAILABLE]: 'Không rảnh',
-    [AvailabilityStatus.BUSY]: 'Bận',
-    [AvailabilityStatus.BREAK]: 'Nghỉ giải lao'
+
   };
   
   export const STATUS_COLORS: Record<AvailabilityStatus, string> = {
     [AvailabilityStatus.AVAILABLE]: '#4CAF50',
     [AvailabilityStatus.UNAVAILABLE]: '#F44336',
-    [AvailabilityStatus.BUSY]: '#FF9800',
-    [AvailabilityStatus.BREAK]: '#9E9E9E'
   };
   
   // ===== TIME UTILITIES =====

@@ -1,4 +1,3 @@
-// screens/RegisterScreen.tsx - Clean version sử dụng RegisterForm component
 import React from "react";
 import {
   View,
@@ -8,6 +7,7 @@ import {
   Platform,
   ScrollView,
   StatusBar,
+  Image,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -17,23 +17,21 @@ import RegisterForm from "../components/Auth/RegisterForm";
 type Props = NativeStackScreenProps<RootStackParamList, "Register">;
 
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
-  // ✨ Handle register success - navigate to EmailVerification
   const handleRegisterSuccess = (userData: any) => {
     navigation.navigate("EmailVerification", {
       email: userData.email,
     });
   };
 
-  // Handle navigate to login
   const handleNavigateToLogin = () => {
     navigation.navigate("Login");
   };
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#10B981" />
+      <StatusBar barStyle="light-content" backgroundColor="#059669" />
       <LinearGradient
-        colors={["#10B981", "#06B6D4", "#3B82F6"]}
+        colors={['#ECFDF5', '#D1FAE5', '#10B981']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
@@ -46,14 +44,18 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             contentContainerStyle={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
           >
-            {/* Header Section */}
+            {/* Header Section - Simple Logo Only */}
             <View style={styles.headerSection}>
               <View style={styles.logoContainer}>
-                <View style={styles.logoCircle}>
-                  <Text style={styles.logoText}>📸</Text>
+                <View style={styles.logoBackground}>
+                  <Image
+                    source={require('../../assets/logo1.png')} // Thay đổi path này theo đường dẫn logo của bạn
+                    style={styles.logo}
+                    resizeMode="contain"
+                  />
                 </View>
               </View>
-
+              
               <View style={styles.titleContainer}>
                 <Text style={styles.title}>Tạo tài khoản mới</Text>
                 <Text style={styles.subtitle}>
@@ -65,7 +67,6 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             {/* Form Section */}
             <View style={styles.formSection}>
               <View style={styles.formContainer}>
-                {/* ✨ Sử dụng RegisterForm component với clean props */}
                 <RegisterForm
                   onSuccess={handleRegisterSuccess}
                   onLogin={handleNavigateToLogin}
@@ -73,40 +74,19 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Benefits Section */}
-            <View style={styles.benefitsContainer}>
-              <View style={styles.benefitItem}>
-                <View style={styles.benefitIcon}>
-                  <Text style={styles.benefitEmoji}>🎯</Text>
-                </View>
-                <Text style={styles.benefitText}>
-                  Tìm nhiếp ảnh gia phù hợp
-                </Text>
-              </View>
-
-              <View style={styles.benefitItem}>
-                <View style={styles.benefitIcon}>
-                  <Text style={styles.benefitEmoji}>📍</Text>
-                </View>
-                <Text style={styles.benefitText}>Khám phá địa điểm đẹp</Text>
-              </View>
-
-              <View style={styles.benefitItem}>
-                <View style={styles.benefitIcon}>
-                  <Text style={styles.benefitEmoji}>💎</Text>
-                </View>
-                <Text style={styles.benefitText}>
-                  Trải nghiệm chất lượng cao
-                </Text>
-              </View>
-            </View>
-
             {/* Decorative Elements */}
             <View style={styles.decorativeContainer}>
-              <View style={[styles.decorativeShape, styles.shape1]} />
-              <View style={[styles.decorativeShape, styles.shape2]} />
-              <View style={[styles.decorativeShape, styles.shape3]} />
-              <View style={[styles.decorativeShape, styles.shape4]} />
+              <View style={[styles.professionalShape, styles.shape1]}>
+                <Text style={styles.shapeIcon}>📷</Text>
+              </View>
+              <View style={[styles.professionalShape, styles.shape2]}>
+                <Text style={styles.shapeIcon}>🌟</Text>
+              </View>
+              <View style={[styles.professionalShape, styles.shape3]}>
+                <Text style={styles.shapeIcon}>💼</Text>
+              </View>
+              <View style={[styles.lightEffect, styles.light1]} />
+              <View style={[styles.lightEffect, styles.light2]} />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -129,132 +109,126 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
   },
   headerSection: {
-    alignItems: "center",
+    alignItems: 'center',
     marginBottom: 32,
   },
   logoContainer: {
     marginBottom: 24,
   },
-  logoCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "rgba(255, 255, 255, 0.25)",
+  logoBackground: {
+    width: 120,
+    height: 120,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#059669',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 12,
     borderWidth: 3,
-    borderColor: "rgba(255, 255, 255, 0.4)",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 10,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
-  logoText: {
-    fontSize: 40,
+  logo: {
+    width: 80,
+    height: 80,
   },
   titleContainer: {
-    alignItems: "center",
+    alignItems: 'center',
   },
   title: {
     fontSize: 26,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: '700',
+    color: '#047857',
     marginBottom: 12,
-    textAlign: "center",
+    textAlign: 'center',
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 15,
-    color: "rgba(255, 255, 255, 0.85)",
-    textAlign: "center",
+    color: '#065F46',
+    textAlign: 'center',
     lineHeight: 21,
     paddingHorizontal: 16,
+    fontWeight: '500',
   },
   formSection: {
-    marginBottom: 32,
+    marginBottom: 28,
   },
   formContainer: {
-    backgroundColor: "rgba(255, 255, 255, 0.96)",
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
     borderRadius: 20,
-    padding: 28,
+    padding: 24,
     marginHorizontal: 4,
-    shadowColor: "#000",
+    shadowColor: '#059669',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.12,
     shadowRadius: 14,
     elevation: 10,
-  },
-  benefitsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    paddingHorizontal: 16,
-    marginTop: 16,
-  },
-  benefitItem: {
-    alignItems: "center",
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  benefitIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  benefitEmoji: {
-    fontSize: 20,
-  },
-  benefitText: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.9)",
-    textAlign: "center",
-    fontWeight: "500",
-    lineHeight: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.1)',
   },
   decorativeContainer: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: -1,
   },
-  decorativeShape: {
-    position: "absolute",
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-  },
-  shape1: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    top: 80,
-    right: -40,
-  },
-  shape2: {
+  professionalShape: {
+    position: 'absolute',
     width: 60,
     height: 60,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     borderRadius: 30,
-    bottom: 300,
-    left: -15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 2,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  shape1: {
+    top: 100,
+    right: 10,
+    transform: [{ rotate: '15deg' }],
+  },
+  shape2: {
+    bottom: 400,
+    left: 5,
+    transform: [{ rotate: '-20deg' }],
   },
   shape3: {
-    width: 100,
-    height: 100,
-    borderRadius: 20,
-    top: 250,
-    left: 30,
-    transform: [{ rotate: "45deg" }],
+    top: 350,
+    right: 30,
+    transform: [{ rotate: '25deg' }],
   },
-  shape4: {
+  shapeIcon: {
+    fontSize: 20,
+  },
+  lightEffect: {
+    position: 'absolute',
+    backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    borderRadius: 100,
+  },
+  light1: {
+    width: 120,
+    height: 120,
+    top: 150,
+    left: -30,
+    opacity: 0.6,
+  },
+  light2: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    bottom: 150,
-    right: 20,
+    bottom: 200,
+    right: -20,
+    opacity: 0.4,
   },
 });
 

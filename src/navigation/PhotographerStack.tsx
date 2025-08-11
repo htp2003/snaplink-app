@@ -10,6 +10,7 @@ import PhotographerHomeScreen from '../screens/photographer/PhotographerHomeScre
 import OrderManagementScreen from '../screens/photographer/OrderManagementScreen';
 import ProfilePhotographerScreen from '../screens/photographer/ProfilePhotographerScreen';
 import MessagesScreen from '../screens/customer/MessagesScreen';
+import PhotographerEventScreen from '../screens/photographer/PhotographerEventScreen';
 const Tab = createBottomTabNavigator<PhotographerTabParamList>();
 
 const PhotographerStack = () => {
@@ -67,6 +68,16 @@ const PhotographerStack = () => {
                 tabBarLabel: 'Tin nhắn',
                 tabBarIcon: ({ color, size, focused }) => (
                   <Ionicons name="chatbox-outline" size={26} color={focused ? '#FF5A5F' : '#717171'} />
+                ),
+              }}
+            />
+      <Tab.Screen
+              name="PhotographerEventScreen"
+              component={PhotographerEventScreen}
+              options={{
+                tabBarLabel: 'Sự kiện',
+                tabBarIcon: ({ color, size, focused }) => (
+                  <Ionicons name="calendar-outline" size={26} color={focused ? '#FF5A5F' : '#717171'} />
                 ),
               }}
             />

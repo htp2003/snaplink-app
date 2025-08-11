@@ -193,7 +193,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
             color: '#1A1A1A',
             letterSpacing: 0.5,
           }}>
-            {isEditing ? 'EDIT SLOT' : 'ADD SLOT'}
+            {isEditing ? 'EDIT SLOT' : 'THÊM LỊCH TRỐNG'}
           </Text>
         </View>
         
@@ -216,7 +216,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
               fontWeight: '500',
               letterSpacing: 0.8,
             }}>
-              SAVE
+              LƯU
             </Text>
           )}
         </TouchableOpacity>
@@ -239,7 +239,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
           marginBottom: 8,
           letterSpacing: 0.5,
         }}>
-          DAY
+          Ngày
         </Text>
         <Text style={{
           fontSize: 18,
@@ -327,12 +327,12 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
       <View style={{ paddingHorizontal: 24 }}>
         {/* Start Time */}
         <View style={{ marginBottom: 32 }}>
-          {renderTimePicker('START TIME', startTime, setStartTime)}
+          {renderTimePicker('THỜI GIAN BẮT ĐẦU', startTime, setStartTime)}
         </View>
         
         {/* End Time */}
         <View style={{ marginBottom: 20 }}>
-          {renderTimePicker('END TIME', endTime, setEndTime, startTime)}
+          {renderTimePicker('THỜI GIAN KẾT THÚC', endTime, setEndTime, startTime)}
         </View>
 
         {/* Duration Display */}
@@ -348,7 +348,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
             marginBottom: 4,
             letterSpacing: 0.5,
           }}>
-            DURATION
+            THỜI GIAN
           </Text>
           <Text style={{
             fontSize: 16,
@@ -378,7 +378,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
           marginBottom: 16,
           letterSpacing: 0.5,
         }}>
-          STATUS
+          TRẠNG THÁI
         </Text>
         
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
@@ -411,7 +411,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
                   color: isSelected ? '#FFFFFF' : '#1A1A1A',
                   letterSpacing: 0.3,
                 }}>
-                  {isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}
+                  {isAvailable ? 'KHẢ DỤNG' : 'KHÔNG KHẢ DỤNG'}
                 </Text>
               </TouchableOpacity>
             );
@@ -434,7 +434,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
           marginBottom: 16,
           letterSpacing: 0.5,
         }}>
-          GUIDELINES
+          HƯỚNG DẪN
         </Text>
         
         <View style={{ marginBottom: 12 }}>
@@ -444,7 +444,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
             lineHeight: 18,
             marginBottom: 8,
           }}>
-            • Minimum slot duration is 30 minutes
+            • Thời gian tối thiểu cho một slot là 30 phút
           </Text>
           <Text style={{
             fontSize: 13,
@@ -452,7 +452,7 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
             lineHeight: 18,
             marginBottom: 8,
           }}>
-            • Avoid overlapping time slots
+            • Tránh chồng chéo thời gian
           </Text>
           <Text style={{
             fontSize: 13,
@@ -460,14 +460,14 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
             lineHeight: 18,
             marginBottom: 8,
           }}>
-            • Only available slots are visible to clients
+            • Chỉ những slot khả dụng mới có thể được đặt lịch
           </Text>
           <Text style={{
             fontSize: 13,
             color: '#8A8A8A',
             lineHeight: 18,
           }}>
-            • You can modify status after creation
+            • Bạn có thể thay đổi trạng thái sau khi tạo
           </Text>
         </View>
       </View>

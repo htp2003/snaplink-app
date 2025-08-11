@@ -207,7 +207,7 @@ export type PhotographerTabParamList = {
   OrderManagementScreen: undefined;
   PhotographerEventScreen: {
     photographerId: number;
-  };
+  };  
   Messages: undefined;
 };
 

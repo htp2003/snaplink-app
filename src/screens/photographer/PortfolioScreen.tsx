@@ -215,7 +215,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
               fontWeight: '500',
               letterSpacing: 0.8,
             }}>
-              ADD
+              THÊM
             </Text>
           )}
         </TouchableOpacity>
@@ -245,7 +245,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
               marginBottom: 4,
               letterSpacing: 0.5,
             }}>
-              IMAGES
+              HÌNH ẢNH
             </Text>
             <Text style={{
               fontSize: 24,
@@ -263,7 +263,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
               marginBottom: 4,
               letterSpacing: 0.5,
             }}>
-              PROFILE IMAGE
+              HÌNH ẢNH CHÍNH
             </Text>
             <Text style={{
               fontSize: 16,
@@ -307,7 +307,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
         textAlign: 'center',
         letterSpacing: 0.5,
       }}>
-        Build Your Portfolio
+        Xây Dựng Danh Mục Của Bạn
       </Text>
       
       <Text style={{
@@ -318,7 +318,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
         lineHeight: 22,
         maxWidth: 280,
       }}>
-        Showcase your best work to attract clients and grow your photography business
+        Trưng bày những tác phẩm tốt nhất của bạn để thu hút khách hàng và phát triển doanh nghiệp nhiếp ảnh của bạn
       </Text>
       
       <TouchableOpacity
@@ -336,7 +336,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
           fontWeight: '500',
           letterSpacing: 0.8,
         }}>
-          ADD FIRST IMAGE
+          THÊM HÌNH ẢNH ĐẦU TIÊN
         </Text>
       </TouchableOpacity>
     </View>
@@ -402,7 +402,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
                   color: '#1A1A1A',
                   letterSpacing: 0.5,
                 }}>
-                  PROFILE
+                  HÌNH ẢNH CHÍNH
                 </Text>
               </View>
             )}
@@ -599,7 +599,7 @@ const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
               fontSize: 14,
               letterSpacing: 0.5
             }}>
-              TRY AGAIN
+              THỬ LẠI
             </Text>
           </TouchableOpacity>
         </View>

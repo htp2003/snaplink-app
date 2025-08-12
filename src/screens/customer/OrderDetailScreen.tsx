@@ -486,11 +486,14 @@ export default function OrderDetailScreen() {
                 <Text style={styles.locationName} numberOfLines={2}>
                   {params.selectedLocation.name}
                 </Text>
-                {params.selectedLocation.hourlyRate && (
-                  <Text style={styles.locationPrice}>
-                    {formatCurrency(params.selectedLocation.hourlyRate)}/giờ
-                  </Text>
-                )}
+                {typeof params.selectedLocation.hourlyRate === 'number' && (
+  <Text style={styles.locationPrice}>
+    {params.selectedLocation.hourlyRate > 0 
+      ? `${formatCurrency(params.selectedLocation.hourlyRate)}/giờ`
+      : 'Miễn phí'
+    }
+  </Text>
+)}
               </View>
             </View>
           </View>

@@ -1,11 +1,16 @@
-// hooks/usePhotographerReviews.ts
 import { useState, useEffect, useCallback } from 'react';
-import { Review } from '../types/review';
-import { reviewService } from '../services/reviewService';
+import { ratingService } from '../services/ratingService';
+import { userService } from '../services/userService';
+import type { RatingResponse } from '../types/rating';
 
+// Enhanced rating response with user info
+interface EnhancedRatingResponse extends RatingResponse {
+  reviewerFullName?: string;
+  reviewerProfileImage?: string | null; // Allow null to match userService response
+}
 
 interface UsePhotographerReviewsResult {
-  reviews: Review[];
+  reviews: EnhancedRatingResponse[];
   averageRating: number;
   totalReviews: number;
   loading: boolean;
@@ -13,68 +18,130 @@ interface UsePhotographerReviewsResult {
   refreshReviews: () => Promise<void>;
 }
 
-export const usePhotographerReviews = (
+export function usePhotographerReviews(
   photographerId: number | string,
-  initialRating?: number,
-  initialCount?: number
-): UsePhotographerReviewsResult => {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [averageRating, setAverageRating] = useState(initialRating || 0);
-  const [totalReviews, setTotalReviews] = useState(initialCount || 0);
-  const [loading, setLoading] = useState(true);
+  currentRating?: number,
+  totalReviews?: number
+): UsePhotographerReviewsResult {
+  const [reviews, setReviews] = useState<EnhancedRatingResponse[]>([]);
+  const [averageRating, setAverageRating] = useState<number>(currentRating || 0);
+  const [totalReviewsCount, setTotalReviewsCount] = useState<number>(totalReviews || 0);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  const photographerIdNum = typeof photographerId === 'string' 
+    ? parseInt(photographerId) 
+    : photographerId;
+
+  // Helper function to fetch user info using existing userService
+  const fetchUserInfo = async (userId: number) => {
+    try {
+      console.log('🔍 Fetching user info for ID:', userId);
+      
+      const userData = await userService.getUserById(userId);
+      
+      console.log('✅ User info fetched:', userData);
+      return userData;
+    } catch (error) {
+      console.warn('Failed to fetch user info for ID:', userId, error);
+      return null;
+    }
+  };
+
   const fetchReviews = useCallback(async () => {
+    if (!photographerIdNum || isNaN(photographerIdNum) || photographerIdNum <= 0) {
+      console.warn('Invalid photographer ID:', photographerId);
+      setError('ID photographer không hợp lệ');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      // Convert photographerId to number if it's string
-      const id = typeof photographerId === 'string' ? parseInt(photographerId) : photographerId;
+      console.log('📸 Fetching reviews for photographer:', photographerIdNum);
       
-      // Validate ID
-      if (!id || isNaN(id)) {
-        throw new Error('Invalid photographer ID');
-      }
+      // Sử dụng Rating API endpoint: /api/Rating/ByPhotographer/{photographerId}
+      const fetchedRatings = await ratingService.getRatingsByPhotographer(photographerIdNum);
       
-      // Sử dụng reviewService thay vì photographerService
-      const data = await reviewService.getPhotographerReviewsWithStats(id);
-
-      setReviews(data.reviews);
-      setAverageRating(data.averageRating || initialRating || 0);
-      setTotalReviews(data.totalReviews || initialCount || 0);
-
+      console.log('✅ Reviews fetched successfully:', fetchedRatings);
+      
+      // Enhance ratings with user information
+      const enhancedRatings: EnhancedRatingResponse[] = await Promise.all(
+        fetchedRatings.map(async (rating) => {
+          const userInfo = await fetchUserInfo(rating.reviewerUserId);
+          
+          return {
+            ...rating,
+            reviewerFullName: userInfo?.fullName || userInfo?.userName || 'Người dùng ẩn danh',
+            reviewerProfileImage: userInfo?.profileImage || null
+          };
+        })
+      );
+      
+      console.log('✅ Enhanced ratings with user info:', enhancedRatings);
+      
+      setReviews(enhancedRatings);
+      
+      // Tính toán average rating và total count từ data thực tế
+      const calculatedAverage = ratingService.calculateAverageRating(enhancedRatings);
+      const calculatedTotal = enhancedRatings.length;
+      
+      setAverageRating(calculatedAverage || currentRating || 0);
+      setTotalReviewsCount(calculatedTotal || totalReviews || 0);
+      
+      console.log('📊 Rating stats:', {
+        average: calculatedAverage,
+        total: calculatedTotal,
+        reviews: enhancedRatings.length
+      });
+      
     } catch (err) {
-      console.error('Error fetching reviews:', err);
-      setError(err instanceof Error ? err.message : 'Không thể tải đánh giá');
+      console.error('❌ Error fetching photographer reviews:', err);
       
-      // Fallback to initial data if available
-      if (initialRating !== undefined) {
-        setAverageRating(initialRating);
-        setTotalReviews(initialCount || 0);
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : 'Không thể tải đánh giá';
+      
+      setError(errorMessage);
+      
+      // Fallback to provided values if API fails
+      if (currentRating !== undefined) {
+        setAverageRating(currentRating);
+      }
+      if (totalReviews !== undefined) {
+        setTotalReviewsCount(totalReviews);
       }
     } finally {
       setLoading(false);
     }
-  }, [photographerId]); // ← CHỈ DEPEND VÀO photographerId
+  }, [photographerIdNum, currentRating, totalReviews, photographerId]);
 
   const refreshReviews = useCallback(async () => {
+    console.log('🔄 Refreshing photographer reviews...');
     await fetchReviews();
   }, [fetchReviews]);
 
+  // Fetch reviews when component mounts or photographerId changes
   useEffect(() => {
-    const id = typeof photographerId === 'string' ? parseInt(photographerId) : photographerId;
-    if (id && !isNaN(id)) {
+    if (photographerIdNum && photographerIdNum > 0) {
       fetchReviews();
+    } else {
+      // Use fallback values if no valid photographer ID
+      setAverageRating(currentRating || 0);
+      setTotalReviewsCount(totalReviews || 0);
+      setReviews([]);
+      setError(null);
+      setLoading(false);
     }
-  }, [photographerId]); // ← CHỈ DEPEND VÀO photographerId
+  }, [fetchReviews, photographerIdNum, currentRating, totalReviews]);
 
   return {
     reviews,
     averageRating,
-    totalReviews,
+    totalReviews: totalReviewsCount,
     loading,
     error,
     refreshReviews
   };
-};
+}

@@ -2,9 +2,27 @@ import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Image, FlatList, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getResponsiveSize } from '../../utils/responsive';
-import { Review } from '../../types/review';
 import { usePhotographerReviews } from '../../hooks/usePhotographerReviews';
 
+// Use the enhanced rating response from the hook
+interface EnhancedRatingResponse {
+  id: number;
+  bookingId: number;
+  reviewerUserId: number;
+  photographerId?: number | null;
+  locationId?: number | null;
+  score: number;
+  comment?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  reviewerName?: string;
+  photographerName?: string;
+  locationName?: string;
+  bookingDate?: string;
+  // Enhanced fields
+  reviewerFullName?: string;
+  reviewerProfileImage?: string | null; // Allow null to match userService response
+}
 
 interface PhotographerReviewsProps {
   photographerId: number | string;
@@ -88,7 +106,7 @@ export default function PhotographerReviews({
     }
   };
 
-  const renderReviewItem = ({ item: review }: { item: Review }) => (
+  const renderReviewItem = ({ item: review }: { item: EnhancedRatingResponse }) => (
     <View 
       style={{
         width: width - getResponsiveSize(48), // Full width minus padding
@@ -106,9 +124,9 @@ export default function PhotographerReviews({
       <View className="flex-row items-start">
         {/* Avatar */}
         <View className="mr-3">
-          {review.reviewer?.profilePictureUrl ? (
+          {review.reviewerProfileImage ? (
             <Image
-              source={{ uri: review.reviewer.profilePictureUrl }}
+              source={{ uri: review.reviewerProfileImage }}
               style={{
                 width: getResponsiveSize(40),
                 height: getResponsiveSize(40)
@@ -127,7 +145,7 @@ export default function PhotographerReviews({
                 className="text-stone-600 font-medium"
                 style={{ fontSize: getResponsiveSize(16) }}
               >
-                {review.reviewer?.fullName?.charAt(0)?.toUpperCase() || 'U'}
+                {review.reviewerFullName?.charAt(0)?.toUpperCase() || 'U'}
               </Text>
             </View>
           )}
@@ -140,7 +158,7 @@ export default function PhotographerReviews({
               className="text-stone-900 font-semibold"
               style={{ fontSize: getResponsiveSize(16) }}
             >
-              {review.reviewer?.fullName || 'Người dùng ẩn danh'}
+              {review.reviewerFullName || review.reviewerName || 'Người dùng ẩn danh'}
             </Text>
             <Text 
               className="text-stone-500"
@@ -152,7 +170,7 @@ export default function PhotographerReviews({
 
           {/* Rating stars */}
           <View className="flex-row items-center mb-3">
-            {renderStars(review.rating || 5, getResponsiveSize(14))}
+            {renderStars(review.score || 5, getResponsiveSize(14))}
           </View>
 
           {/* Comment */}
@@ -163,6 +181,16 @@ export default function PhotographerReviews({
               numberOfLines={4}
             >
               {review.comment}
+            </Text>
+          )}
+
+          {/* Booking date if available */}
+          {review.bookingDate && (
+            <Text 
+              className="text-stone-500 mt-2"
+              style={{ fontSize: getResponsiveSize(12) }}
+            >
+              Booking: {formatDate(review.bookingDate)}
             </Text>
           )}
         </View>
@@ -189,30 +217,32 @@ export default function PhotographerReviews({
   if (error && !averageRating) {
     return (
       <View style={{ marginTop: getResponsiveSize(20), paddingHorizontal: getResponsiveSize(24) }}>
-        <Ionicons name="warning-outline" size={getResponsiveSize(48)} color="#f59e0b" />
-        <Text 
-          className="text-stone-800 font-medium mt-3 text-center"
-          style={{ fontSize: getResponsiveSize(16) }}
-        >
-          {error}
-        </Text>
-        <TouchableOpacity
-          onPress={refreshReviews}
-          className="mt-4 px-6 py-2 bg-amber-500 rounded-full self-center"
-        >
+        <View className="items-center">
+          <Ionicons name="warning-outline" size={getResponsiveSize(48)} color="#f59e0b" />
           <Text 
-            className="text-white font-medium"
-            style={{ fontSize: getResponsiveSize(14) }}
+            className="text-stone-800 font-medium mt-3 text-center"
+            style={{ fontSize: getResponsiveSize(16) }}
           >
-            Thử lại
+            {error}
           </Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={refreshReviews}
+            className="mt-4 px-6 py-2 bg-amber-500 rounded-full"
+          >
+            <Text 
+              className="text-white font-medium"
+              style={{ fontSize: getResponsiveSize(14) }}
+            >
+              Thử lại
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
-    <View >
+    <View>
       {/* Header với rating tổng - KHÔNG có border, nằm trực tiếp trên background */}
       <View 
         className="items-center"
@@ -274,6 +304,13 @@ export default function PhotographerReviews({
             >
               {reviewCount} đánh giá
             </Text>
+            
+            {/* Show error but still display reviews if we have them */}
+            {error && (
+              <TouchableOpacity onPress={refreshReviews}>
+                <Ionicons name="refresh-outline" size={getResponsiveSize(20)} color="#f59e0b" />
+              </TouchableOpacity>
+            )}
           </View>
           
           {/* Horizontal scroll reviews */}

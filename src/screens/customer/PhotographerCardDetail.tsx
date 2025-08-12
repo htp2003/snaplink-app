@@ -28,6 +28,7 @@ import { useFavorites, FavoriteItem } from "../../hooks/useFavorites";
 import { usePhotographerDetail } from "../../hooks/usePhotographerDetail";
 import { useRecentlyViewed } from "../../hooks/useRecentlyViewed";
 import PhotographerReviews from "../../components/Photographer/PhotographerReviews";
+// import PhotographerReviews from "../../components/Photographer/PhotographerReviews";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ProfileCardDetailRouteProp = RouteProp<
@@ -44,7 +45,7 @@ export default function PhotographerCardDetail() {
 
   // State management
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [hasTrackedView, setHasTrackedView] = useState(false); // Prevent multiple trackView calls
+  const [hasTrackedView, setHasTrackedView] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -882,7 +883,6 @@ export default function PhotographerCardDetail() {
               </View>
             </View>
           </View>
-
           {/* Reviews Section */}
           <PhotographerReviews
             photographerId={

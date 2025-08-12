@@ -20,9 +20,13 @@ import { usePhotoDelivery } from '../../hooks/usePhotoDelivery';
 import photoDeliveryService from '../../services/photoDeliveryService';
 import { BookingResponse, BookingStatus } from '../../types/booking';
 import { PhotoDeliveryData } from '../../types/photoDelivery';
+import { getResponsiveSize } from '../../utils/responsive';
+import RatingModal from '../../components/RatingModel';
+import { useAuth } from '../../hooks/useAuth';
 
 interface RouteParams {
   bookingId: number;
+  userId?: number;
 }
 
 const BookingDetailScreen = () => {
@@ -30,6 +34,8 @@ const BookingDetailScreen = () => {
   const route = useRoute();
   const insets = useSafeAreaInsets();
   const { bookingId } = route.params as RouteParams;
+  const { user } = useAuth();
+  const userId = user?.id;
 
   // State for booking details
   const [booking, setBooking] = useState<BookingResponse | null>(null);
@@ -42,6 +48,10 @@ const BookingDetailScreen = () => {
   const [deliveryLoading, setDeliveryLoading] = useState(true);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+
+  // Rating Modal State 
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [hasRated, setHasRated] = useState(false);
 
   // Fetch booking details
   const fetchBookingDetails = async () => {
@@ -103,7 +113,7 @@ const BookingDetailScreen = () => {
     }
   };
 
-  // Handle confirm received photos
+  // Handle confirm received photos and complete booking and photo delivery and rating
   const handleConfirmReceived = async () => {
     if (!booking || !photoDelivery) return;
 
@@ -137,12 +147,8 @@ const BookingDetailScreen = () => {
                 fetchBookingDetails(),
                 fetchPhotoDelivery()
               ]);
-
-              Alert.alert(
-                'Thành công',
-                'Cảm ơn bạn đã xác nhận! Đơn hàng đã được hoàn thành.',
-                [{ text: 'OK' }]
-              );
+              // Show rating modal after successful completion
+               setShowRatingModal(true);
             } catch (error: any) {
               console.error('Error completing booking:', error);
               Alert.alert('Lỗi', 'Không thể hoàn thành đơn hàng');
@@ -153,6 +159,22 @@ const BookingDetailScreen = () => {
         },
       ]
     );
+  };
+
+  // Rating handlers
+  const handleRatingComplete = () => {
+    setHasRated(true);
+   Alert.alert(
+      'Cảm ơn bạn!',
+      'Đánh giá của bạn đã được gửi thành công. Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!',
+      [{ text: 'OK' }]
+    );
+  }
+
+   const handleShowRating = () => {
+    if (booking && (booking.status === BookingStatus.COMPLETED)) {
+      setShowRatingModal(true);
+    }
   };
 
   // Utility functions
@@ -253,6 +275,14 @@ const BookingDetailScreen = () => {
       photoDelivery.driveLink &&
       photoDelivery.status.toLowerCase() !== 'delivered' &&
       (booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.IN_PROGRESS)
+    );
+  };
+
+    const canShowRating = () => {
+    return (
+      booking &&
+      booking.status === BookingStatus.COMPLETED &&
+      !hasRated
     );
   };
 
@@ -541,6 +571,21 @@ const BookingDetailScreen = () => {
                   </Text>
                 </TouchableOpacity>
               )}
+              {/* Rating Button */}
+              {canShowRating() && (
+                <TouchableOpacity
+                  className="bg-yellow-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
+                  onPress={handleShowRating}
+                >
+                  <Ionicons name="star-outline" size={getResponsiveSize(24)} color="#FFFFFF" />
+                  <Text 
+                    className="text-white text-base font-semibold ml-2"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    Đánh giá dịch vụ
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               {/* Already Completed */}
               {booking.status === BookingStatus.COMPLETED && (
@@ -584,6 +629,15 @@ const BookingDetailScreen = () => {
           )}
         </View>
       </ScrollView>
+      {booking && userId !== undefined && (
+        <RatingModal
+          visible={showRatingModal}
+          onClose={() => setShowRatingModal(false)}
+          booking={booking}
+          userId={userId}
+          onComplete={handleRatingComplete}
+        />
+      )}
     </View>
   );
 };

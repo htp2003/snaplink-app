@@ -729,8 +729,8 @@ export default function PaymentWaitingScreen() {
         return {
           title: "⏳ Đang chờ thanh toán",
           subtitle: isPolling
-            ? "Đang kiểm tra trạng thái thanh toán..."
-            : "Vui lòng thực hiện thanh toán",
+            ? "Vui lòng đợi trong giây lát"
+            : "Vui lòng đợi trong giây lát",
         };
     }
   }, [paymentStatus, isPolling, isConfirmingBooking]);
@@ -1044,55 +1044,6 @@ export default function PaymentWaitingScreen() {
                   />
                   <Text style={styles.openPaymentText}>Mở ứng dụng thanh toán</Text>
                 </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* ✅ ENHANCED: Debug panel with real-time status */}
-        {__DEV__ && (
-          <View style={styles.debugSection}>
-            <Text style={styles.debugTitle}>🐛 Debug Payment Status:</Text>
-            <Text style={styles.debugText}>QR Code: {payment.qrCode ? "✅ Available" : "❌ Missing"}</Text>
-            <Text style={styles.debugText}>Payment URL: {payment.paymentUrl ? "✅ Available" : "❌ Missing"}</Text>
-            <Text style={styles.debugText}>Payment ID: {payment.paymentId || payment.id}</Text>
-            <Text style={styles.debugText}>Order Code: {payment.orderCode || payment.externalTransactionId || "❌ Missing"}</Text>
-            <Text style={styles.debugText}>Status: {paymentStatus}</Text>
-            <Text style={styles.debugText}>Is Complete: {isPaymentComplete ? "Yes" : "No"}</Text>
-            <Text style={styles.debugText}>Is Polling: {isPolling ? "Yes" : "No"}</Text>
-            <Text style={styles.debugText}>Check Count: {statusCheckCount}/{maxPollingAttempts}</Text>
-            <Text style={styles.debugText}>Time Left: {formatTime(timeLeft)}</Text>
-            
-            {/* ✅ NEW: Manual test buttons */}
-            <View style={styles.debugButtons}>
-              <TouchableOpacity
-                onPress={handleManualStatusCheck}
-                style={styles.debugButton}
-                disabled={loadingPayment}
-              >
-                <Text style={styles.debugButtonText}>
-                  {loadingPayment ? "Checking..." : "Manual Check"}
-                </Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                onPress={handlePaymentComplete}
-                style={[styles.debugButton, styles.debugButtonSuccess]}
-              >
-                <Text style={styles.debugButtonText}>Force Success</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity
-                onPress={() => {
-                  console.log("🔄 Forcing polling restart...");
-                  setStatusCheckCount(0);
-                  setIsPaymentComplete(false);
-                  pollingStartTimeRef.current = Date.now();
-                  startPolling();
-                }}
-                style={[styles.debugButton, styles.debugButtonWarning]}
-              >
-                <Text style={styles.debugButtonText}>Restart Polling</Text>
               </TouchableOpacity>
             </View>
           </View>

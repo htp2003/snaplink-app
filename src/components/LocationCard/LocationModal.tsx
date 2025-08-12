@@ -33,30 +33,7 @@ export default function LocationModal({
   locationsLoading = false,
   formatPrice,
 }: LocationModalProps) {
-  
-  // 🐛 DEBUG: Log props khi component render
-  useEffect(() => {
-    if (visible) {
-      console.log('🐛 LocationModal Debug:', {
-        visible,
-        locationsCount: locations?.length,
-        selectedLocation: selectedLocation?.id,
-        formatPriceType: typeof formatPrice,
-      });
-      
-      // Debug từng location
-      if (Array.isArray(locations)) {
-        locations.forEach((loc, idx) => {
-          console.log(`🐛 Location ${idx}:`, {
-            id: loc?.id,
-            name: typeof loc?.name,
-            address: typeof loc?.address,
-            hourlyRate: typeof loc?.hourlyRate,
-          });
-        });
-      }
-    }
-  }, [visible, locations, selectedLocation, formatPrice]);
+
   
   const [activeTab, setActiveTab] = useState<'system' | 'nearby'>('system');
   const [userLocation, setUserLocation] = useState<{
@@ -124,18 +101,11 @@ export default function LocationModal({
     console.log('🐛 Processing safeLocations, input:', locations);
     
     if (!Array.isArray(locations)) {
-      console.log('🐛 locations is not array:', typeof locations);
       return [];
     }
     
     const filtered = locations.filter((loc, idx) => {
       const isValid = loc && (loc.id || loc.locationId) && loc.name;
-      console.log(`🐛 Location ${idx} validation:`, {
-        loc: !!loc,
-        hasId: !!(loc?.id || loc?.locationId),
-        hasName: !!loc?.name,
-        isValid
-      });
       return isValid;
     });
     
@@ -222,8 +192,6 @@ export default function LocationModal({
     }
   }, [onLocationSelect]);
 
-  // 🐛 DEBUG: Render debugging
-  console.log('🐛 LocationModal rendering, visible:', visible, 'activeTab:', activeTab);
 
   return (
     <Modal
@@ -359,7 +327,7 @@ export default function LocationModal({
                   <View>
                     {/* 🐛 DEBUG: Ultra safe location rendering */}
                     {safeLocations.map((location, index) => {
-                      console.log(`🐛 Rendering location ${index}:`, location);
+
                       
                       // 🐛 ULTRA SAFE: Extract all values first
                       const locationId = location?.id || location?.locationId || `fallback-${index}`;
@@ -367,14 +335,7 @@ export default function LocationModal({
                       const locationAddress = safeString(location?.address, "Địa chỉ chưa cập nhật");
                       const hourlyRate = location?.hourlyRate;
                       const isSelected = selectedLocation?.id === locationId;
-                      
-                      console.log(`🐛 Location ${index} processed:`, {
-                        locationId,
-                        locationName,
-                        locationAddress,
-                        hourlyRate,
-                        isSelected
-                      });
+
                       
                       return (
                         <View key={`debug-location-${index}`}>

@@ -387,33 +387,179 @@ export class AvailabilityService {
     }
   }
 
-  async checkAvailability(
-    data: CheckAvailabilityRequest
-  ): Promise<CheckAvailabilityResponse> {
-    try {
-      const response = await apiClient.post<any>(
-        AVAILABILITY_ENDPOINTS.CHECK_AVAILABILITY,
-        data
-      );
+// Sửa lại availabilityService.checkAvailability để handle nhiều format response:
 
-      const responseData = response.data || response;
+async checkAvailability(
+  data: CheckAvailabilityRequest
+): Promise<CheckAvailabilityResponse> {
+  try {
+    console.log("🔍 Checking availability with data:", data);
+    
+    const response = await apiClient.post<any>(
+      AVAILABILITY_ENDPOINTS.CHECK_AVAILABILITY,
+      data
+    );
 
-      const normalizedResponse: CheckAvailabilityResponse = {
-        available: responseData.available ?? false,
-        conflictingBookings: responseData.conflictingBookings || [],
-        suggestedTimes: responseData.suggestedTimes || [],
-        message: responseData.message,
-      };
+    console.log("🔍 Full API response:", response);
+    
+    const responseData = response.data || response;
+    
+    console.log("🔍 Response data structure:", {
+      keys: Object.keys(responseData),
+      values: responseData,
+      type: typeof responseData,
+    });
 
-      return normalizedResponse;
-    } catch (error) {
-      console.error("❌ Error checking availability:", error);
+    // ✅ TRY MULTIPLE POSSIBLE RESPONSE FORMATS:
+    let available = false;
+    let message = "";
+    let conflictingBookings: any[] = [];
+    let suggestedTimes: any[] = [];
+
+    // Format 1: { isAvailable: boolean }
+    if (typeof responseData.isAvailable === "boolean") {
+      available = responseData.isAvailable;
+      console.log("🔍 Using format 1: isAvailable =", available);
+    }
+    // Format 2: { available: boolean }
+    else if (typeof responseData.available === "boolean") {
+      available = responseData.available;
+      console.log("🔍 Using format 2: available =", available);
+    }
+    // Format 3: { success: boolean }
+    else if (typeof responseData.success === "boolean") {
+      available = responseData.success;
+      console.log("🔍 Using format 3: success =", available);
+    }
+    // Format 4: { error: 0 } (success), { error: 1 } (failure)
+    else if (typeof responseData.error === "number") {
+      available = responseData.error === 0;
+      console.log("🔍 Using format 4: error =", responseData.error, "-> available =", available);
+    }
+    // Format 5: Status code based
+    else if (response.status && response.status >= 200 && response.status < 300) {
+      available = true;
+      console.log("🔍 Using format 5: HTTP status =", response.status, "-> available = true");
+    }
+    else {
+      console.warn("🔍 Unknown response format, defaulting to false");
+      available = false;
+    }
+
+    // Extract message
+    message = responseData.message || responseData.msg || responseData.description || "";
+
+    // Extract conflicting bookings
+    conflictingBookings = responseData.conflictingAvailabilities || 
+                         responseData.conflictingBookings || 
+                         responseData.conflicts || 
+                         [];
+
+    // Extract suggested times  
+    suggestedTimes = responseData.suggestedTimes || 
+                    responseData.suggestions || 
+                    responseData.alternativeTimes || 
+                    [];
+
+    const normalizedResponse: CheckAvailabilityResponse = {
+      available,
+      conflictingBookings,
+      suggestedTimes,
+      message,
+    };
+
+    console.log("🔍 Final normalized response:", normalizedResponse);
+
+    return normalizedResponse;
+  } catch (error) {
+    console.error("❌ Error checking availability:", error);
+    
+    // ✅ CHECK IF IT'S A NETWORK ERROR OR API ERROR
+    if ((error as any).response) {
+      console.error("❌ API Error Response:", (error as any).response.data);
+      console.error("❌ API Error Status:", (error as any).response.status);
+    } else if ((error as any).request) {
+      console.error("❌ Network Error:", (error as any).request);
+    }
+    
+    return {
+      available: false,
+      message: `Lỗi kiểm tra: ${(error as any).message || "Không thể kết nối API"}`,
+    };
+  }
+}
+
+// ✅ THÊM: Fallback availability check
+async checkAvailabilityFallback(
+  photographerId: number,
+  startTime: string,
+  endTime: string
+): Promise<CheckAvailabilityResponse> {
+  try {
+    console.log("🔄 Fallback: Checking photographer schedule manually");
+
+    // Get photographer's weekly schedule
+    const schedule = await this.getPhotographerAvailability(photographerId);
+    console.log("🔄 Photographer schedule:", schedule);
+
+    if (schedule.length === 0) {
       return {
         available: false,
-        message: "Không thể kiểm tra tình trạng",
+        message: "Photographer chưa thiết lập lịch làm việc",
       };
     }
+
+    // Extract day and time from the request
+    const startDate = new Date(startTime);
+    const dayOfWeek = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const requestStartTime = startDate.toTimeString().substring(0, 8); // "HH:MM:SS"
+    const requestEndTime = new Date(endTime).toTimeString().substring(0, 8);
+
+    console.log("🔄 Checking for:", {
+      dayOfWeek,
+      requestStartTime,
+      requestEndTime,
+    });
+
+    // Find availability for this day
+    const dayAvailability = schedule.filter(slot =>
+      slot.dayOfWeek === dayOfWeek &&
+      slot.status === "Available"
+    );
+
+    console.log("🔄 Day availability:", dayAvailability);
+
+    if (dayAvailability.length === 0) {
+      return {
+        available: false,
+        message: "Photographer không làm việc vào ngày này",
+      };
+    }
+
+    // Check if requested time falls within any available slot
+    const isWithinSchedule = dayAvailability.some(slot => {
+      const slotStart = slot.startTime;
+      const slotEnd = slot.endTime;
+
+      const isWithin = requestStartTime >= slotStart && requestEndTime <= slotEnd;
+      console.log("🔄 Checking slot:", { slotStart, slotEnd, requestStartTime, requestEndTime, isWithin });
+
+      return isWithin;
+    });
+
+    return {
+      available: isWithinSchedule,
+      message: isWithinSchedule ? "Trong khung giờ làm việc" : "Ngoài khung giờ làm việc",
+    };
+
+  } catch (error) {
+    console.error("❌ Fallback check failed:", error);
+    return {
+      available: false,
+      message: "Không thể kiểm tra lịch",
+    };
   }
+}
 
   // ===== UTILITY METHODS =====
 

@@ -57,6 +57,7 @@ export interface BookingResponse {
     hourlyRate: number;
   };
   location?: {
+    id: number;
     locationId: number;
     name: string;
     address: string;

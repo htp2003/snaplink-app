@@ -122,8 +122,7 @@ export class BookingService {
 
         // ✅ API trả về totalPrice, map thành totalAmount
         status: bookingData.status || "pending",
-        totalPrice: bookingData.totalPrice || bookingData.totalAmount || 0,
-        paymentAmount: bookingData.paymentAmount || 0,
+        totalPrice: bookingData.totalPrice || 0,
         escrowBalance: bookingData.escrowBalance || 0,
 
         // Timestamps
@@ -142,6 +141,7 @@ export class BookingService {
 
         location: bookingData.locationName
           ? {
+              id: bookingData.locationId,
               locationId: bookingData.locationId,
               name: bookingData.locationName,
               address: bookingData.locationAddress,

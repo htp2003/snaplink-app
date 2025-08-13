@@ -13,7 +13,31 @@ export enum DayOfWeek {
     UNAVAILABLE = 'unavailable',
   }
   
-  // ===== REQUEST TYPES =====
+  // ===== API RESPONSE TYPES FOR AVAILABLE SLOTS =====
+  
+  export interface TimeSlotInfo {
+    startTime: string;    
+    endTime: string;     
+    status: string;      
+    bookingInfo?: any;   
+  }
+  
+  export interface AvailableSlotsData {
+    photographerId: number;
+    date: string;         
+    dayOfWeek: DayOfWeek;
+    availableSlots: TimeSlotInfo[];
+    bookedSlots: TimeSlotInfo[];
+    registeredAvailability: TimeSlotInfo[];
+  }
+  
+  export interface AvailableSlotsResponse {
+    error: number;
+    message: string;
+    data: AvailableSlotsData[];
+  }
+  
+  // ===== ORIGINAL REQUEST TYPES =====
   
   export interface CreateAvailabilityRequest {
     photographerId: number;
@@ -39,6 +63,13 @@ export enum DayOfWeek {
     photographerId: number;
     startTime: string; 
     endTime: string;   
+  }
+  
+  // ===== NEW: REQUEST FOR AVAILABLE SLOTS =====
+  
+  export interface GetAvailableSlotsRequest {
+    photographerId: number;
+    date: string; 
   }
   
   // ===== RESPONSE TYPES =====
@@ -95,6 +126,29 @@ export enum DayOfWeek {
       endTime: string;
     }[];
     message?: string;
+  }
+  
+  // ===== NEW: PROCESSED SLOTS FOR UI =====
+  
+  export interface ProcessedTimeSlot {
+    time: string;        // "09:00" format for UI
+    hour: number;        // 9, 10, 11, etc.
+    isAvailable: boolean;
+    isBooked: boolean;
+    status: 'available' | 'booked' | 'unavailable';
+    bookingInfo?: any;
+  }
+  
+  export interface DayAvailabilityInfo {
+    date: string;
+    dayOfWeek: DayOfWeek;
+    photographerId: number;
+    availableSlots: ProcessedTimeSlot[];
+    totalAvailableHours: number;
+    availabilityRange: {
+      start: string;  // "09:00"
+      end: string;    // "17:00"
+    } | null;
   }
   
   // ===== FORM DATA TYPES =====
@@ -205,7 +259,6 @@ export enum DayOfWeek {
   export const STATUS_LABELS: Record<AvailabilityStatus, string> = {
     [AvailabilityStatus.AVAILABLE]: 'Có thể đặt lịch',
     [AvailabilityStatus.UNAVAILABLE]: 'Không rảnh',
-
   };
   
   export const STATUS_COLORS: Record<AvailabilityStatus, string> = {

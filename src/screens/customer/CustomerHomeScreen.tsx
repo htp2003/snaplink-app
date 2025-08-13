@@ -187,9 +187,9 @@ export default function CustomerHomeScreen() {
   // Categories - memoized để tránh re-create
   const categories = useMemo(
     (): CategoryItem[] => [
-      { id: "photographers", icon: "camera", label: "Thợ chụp ảnh" },
       { id: "locations", icon: "location", label: "Địa điểm" },
-      { id: "services", icon: "construct", label: "Dịch vụ" },
+      { id: "photographers", icon: "camera", label: "Thợ chụp ảnh" },
+      { id: "events", icon: "time-outline", label: "Sự kiện" },
     ],
     []
   );
@@ -239,13 +239,15 @@ export default function CustomerHomeScreen() {
             });
           }}
           isFavorite={isFavorite(photographer.id, "photographer")}
-          onFavoriteToggle={() =>
-            toggleFavorite({
+          onFavoriteToggle={() => {
+            const favoriteItem = {
               id: photographer.id,
-              type: "photographer",
+              type: "photographer" as const,
               data: photographer,
-            })
-          }
+            };
+
+            toggleFavorite(favoriteItem);
+          }}
         />
       </View>
     ),
@@ -468,32 +470,36 @@ export default function CustomerHomeScreen() {
                 renderLoadingSkeleton()
               ) : locations.length > 0 ? (
                 locations
-                .filter((location) => location.locationId !== undefined && location.locationId !== null)
-                .map((location) => (
-                  <View
-                    key={location.locationId}
-                    style={{ width: getResponsiveSize(260), marginRight: 12 }}
-                  >
-                    <LocationCard
-                      locationId={location.locationId}
-                      name={location.name}
-                      images={location.images}
-                      address={location.address}
-                      hourlyRate={location.hourlyRate}
-                      capacity={location.capacity}
-                      availabilityStatus={location.availabilityStatus}
-                      styles={location.styles}
-                      isFavorite={isFavorite(location.id, "location")}
-                      onFavoriteToggle={() =>
-                        toggleFavorite({
-                          id: location.id,
-                          type: "location",
-                          data: location,
-                        })
-                      }
-                    />
-                  </View>
-                ))
+                  .filter(
+                    (location) =>
+                      location.locationId !== undefined &&
+                      location.locationId !== null
+                  )
+                  .map((location) => (
+                    <View
+                      key={location.locationId}
+                      style={{ width: getResponsiveSize(260), marginRight: 12 }}
+                    >
+                      <LocationCard
+                        locationId={location.locationId}
+                        name={location.name}
+                        images={location.images}
+                        address={location.address}
+                        hourlyRate={location.hourlyRate}
+                        capacity={location.capacity}
+                        availabilityStatus={location.availabilityStatus}
+                        styles={location.styles}
+                        isFavorite={isFavorite(location.id, "location")}
+                        onFavoriteToggle={() =>
+                          toggleFavorite({
+                            id: location.id,
+                            type: "location",
+                            data: location,
+                          })
+                        }
+                      />
+                    </View>
+                  ))
               ) : (
                 <View className="flex-1 items-center justify-center py-8">
                   <Text className="text-stone-500 text-center">

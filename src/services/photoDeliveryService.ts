@@ -23,8 +23,6 @@ class PhotoDeliveryService {
       const response = await fetch(fullUrl, {
         headers: {
           "Content-Type": "application/json",
-          // Add authorization header if needed
-          // 'Authorization': `Bearer ${token}`,
           ...options.headers,
         },
         ...options,
@@ -32,19 +30,31 @@ class PhotoDeliveryService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error(
-          `API request failed for ${endpoint}:`,
-          response.status,
-          errorText
-        );
+
+        // ✅ KHÔNG LOG GÌ CẢ CHO 404
+        if (response.status !== 404) {
+          console.error(
+            `API request failed for ${endpoint}:`,
+            response.status,
+            errorText
+          );
+        }
+
+        // ✅ IM LẶNG CHO 404
+        if (response.status === 404) {
+          throw new Error("NOT_FOUND");
+        }
+
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const result = await response.json();
-
       return result;
     } catch (error) {
-      console.error(`API request failed for ${endpoint}:`, error);
+      // ✅ KHÔNG LOG GÌ CHO NOT_FOUND
+      if (error instanceof Error && error.message !== "NOT_FOUND") {
+        console.error(`API request failed for ${endpoint}:`, error);
+      }
       throw error;
     }
   }
@@ -65,16 +75,20 @@ class PhotoDeliveryService {
       } else if (Array.isArray(result)) {
         return result; // ✅ Handle direct array response
       } else {
-        // Not an error if empty, just return empty array
-
         return [];
       }
     } catch (error) {
       console.error("PhotoDelivery API error:", error);
-      // Don't throw error for 404 or empty results, return empty array
-      if (error instanceof Error && error.message.includes("404")) {
+
+      // ✅ Don't throw error for 404 or empty results, return empty array
+      if (
+        error instanceof Error &&
+        (error.message.includes("404") || error.message === "NOT_FOUND")
+      ) {
         return [];
       }
+
+      // ✅ Chỉ throw error cho các lỗi thực sự (500, network, etc.)
       throw new Error(
         error instanceof Error
           ? error.message
@@ -99,15 +113,19 @@ class PhotoDeliveryService {
 
       return null;
     } catch (error) {
-      // Return null if not found (404) - this is expected for bookings without photo delivery
-      if (error instanceof Error && error.message.includes("404")) {
+      // ✅ IM LẶNG HOÀN TOÀN - KHÔNG LOG GÌ
+      if (
+        error instanceof Error &&
+        (error.message.includes("404") || error.message === "NOT_FOUND")
+      ) {
         return null;
       }
-      console.error("Error fetching photo delivery by booking:", error);
-      return null;
+
+      // ✅ CHỈ LOG CHO LỖI THỰC SỰ (network, server error)
+      console.error("Real error fetching photo delivery:", error);
+      throw error;
     }
   }
-
   // Get photo delivery by ID
   async getPhotoDeliveryById(
     photoDeliveryId: number
@@ -124,8 +142,14 @@ class PhotoDeliveryService {
 
       return null;
     } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("404") || error.message === "NOT_FOUND")
+      ) {
+        return null;
+      }
       console.error("Error fetching photo delivery by ID:", error);
-      return null;
+      throw error;
     }
   }
 
@@ -139,12 +163,18 @@ class PhotoDeliveryService {
         { method: "GET" }
       );
 
-      if (result.error === 0 && result.data) {
-        return result.data;
+      if (result.error === 0) {
+        return result.data || [];
       } else {
         throw new Error(result.message || "Failed to fetch photo deliveries");
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("404") || error.message === "NOT_FOUND")
+      ) {
+        return [];
+      }
       throw new Error(
         error instanceof Error
           ? error.message
@@ -163,12 +193,18 @@ class PhotoDeliveryService {
         { method: "GET" }
       );
 
-      if (result.error === 0 && result.data) {
-        return result.data;
+      if (result.error === 0) {
+        return result.data || [];
       } else {
         throw new Error(result.message || "Failed to fetch photo deliveries");
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("404") || error.message === "NOT_FOUND")
+      ) {
+        return [];
+      }
       throw new Error(
         error instanceof Error
           ? error.message
@@ -185,14 +221,20 @@ class PhotoDeliveryService {
         { method: "GET" }
       );
 
-      if (result.error === 0 && result.data) {
-        return result.data;
+      if (result.error === 0) {
+        return result.data || [];
       } else {
         throw new Error(
           result.message || "Failed to fetch pending photo deliveries"
         );
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("404") || error.message === "NOT_FOUND")
+      ) {
+        return [];
+      }
       throw new Error(
         error instanceof Error
           ? error.message
@@ -209,14 +251,20 @@ class PhotoDeliveryService {
         { method: "GET" }
       );
 
-      if (result.error === 0 && result.data) {
-        return result.data;
+      if (result.error === 0) {
+        return result.data || [];
       } else {
         throw new Error(
           result.message || "Failed to fetch expired photo deliveries"
         );
       }
     } catch (error) {
+      if (
+        error instanceof Error &&
+        (error.message.includes("404") || error.message === "NOT_FOUND")
+      ) {
+        return [];
+      }
       throw new Error(
         error instanceof Error
           ? error.message

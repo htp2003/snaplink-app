@@ -50,7 +50,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
 
   // Helper function để render rating
   const renderRating = (rating?: number) => {
-    if (!rating)
+    if (!rating) {
       return (
         <Text
           className="text-stone-900 font-medium"
@@ -59,6 +59,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
           5.0
         </Text>
       );
+    }
 
     return (
       <View className="flex-row items-center">
@@ -75,13 +76,30 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
 
   // State cho fallback handling
   const [imageError, setImageError] = useState(false);
+  
   // Handle image error
   const handleImageError = (error: any) => {
+    console.log("Image loading error:", error);
     setImageError(true);
   };
 
+  // Safe handling cho onFavoriteToggle
+  const handleFavoriteToggle = () => {
+    try {
+      if (typeof onFavoriteToggle === 'function') {
+        onFavoriteToggle();
+      } else {
+        console.warn('onFavoriteToggle is not a function');
+      }
+    } catch (error) {
+      console.error('Error in onFavoriteToggle:', error);
+    }
+  };
+
+  // Safe data handling
   const displayName = fullName || "Photographer";
-  const specialty = styles.length > 0 ? styles[0] : "Professional Photographer";
+  const safeStyles = Array.isArray(styles) ? styles : [];
+  const specialty = safeStyles.length > 0 ? safeStyles[0] : "Professional Photographer";
 
   // Check nếu có profile image thật từ User API
   const hasRealProfileImage = avatar && avatar !== "" && !imageError;
@@ -91,7 +109,9 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
       {/* Main Image - Avatar từ User API */}
       <TouchableOpacity onPress={handlePress} className="relative">
         <Image
-          source={{ uri: avatar }}
+          source={{ 
+            uri: hasRealProfileImage ? avatar : 'https://via.placeholder.com/240x240/e5e7eb/6b7280?text=No+Image'
+          }}
           style={{ width: "100%", height: getResponsiveSize(240) }}
           className="bg-stone-200"
           resizeMode="cover"
@@ -102,7 +122,8 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
         <TouchableOpacity
           className="absolute top-3 right-3 bg-black/20 rounded-full"
           style={{ padding: getResponsiveSize(8) }}
-          onPress={onFavoriteToggle}
+          onPress={handleFavoriteToggle}
+          activeOpacity={0.7}
         >
           <Ionicons
             name={isFavorite ? "heart" : "heart-outline"}
@@ -242,8 +263,8 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
               className="text-stone-600 ml-1"
               style={{ fontSize: getResponsiveSize(13) }}
             >
-              {styles.length > 0
-                ? `${styles.length} phong cách`
+              {safeStyles.length > 0
+                ? `${safeStyles.length} phong cách`
                 : "Photographer"}
             </Text>
           </View>
@@ -273,18 +294,22 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
         {/* Price and Rating */}
         <View className="flex-row items-center justify-between">
           <View className="flex-1">
-            <Text
-              className="text-stone-600"
-              style={{ fontSize: getResponsiveSize(14) }}
-            >
+            <View className="flex-row items-baseline">
               <Text
                 className="text-stone-900 font-semibold"
                 style={{ fontSize: getResponsiveSize(16) }}
               >
                 {formatPrice(hourlyRate)}
               </Text>
-              {hourlyRate && <Text className="text-stone-600"> / giờ</Text>}
-            </Text>
+              {hourlyRate && (
+                <Text 
+                  className="text-stone-600"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  {" / giờ"}
+                </Text>
+              )}
+            </View>
           </View>
           <View className="flex-row items-center">{renderRating(rating)}</View>
         </View>

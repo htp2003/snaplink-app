@@ -3,18 +3,19 @@ import {
   CreateAvailabilityRequest,
   UpdateAvailabilityRequest,
   BulkAvailabilityRequest,
-  CheckAvailabilityRequest,
   AvailabilityResponse,
   AvailabilityDetailResponse,
-  AvailabilityListResponse,
   AvailablePhotographersResponse,
-  CheckAvailabilityResponse,
   GetAvailablePhotographersParams,
   DayOfWeek,
   WeeklySchedule,
   DaySchedule,
   TimeSlot,
   AvailabilityStats,
+  ProcessedTimeSlot,
+  DayAvailabilityInfo,
+  AvailableSlotsResponse,
+  TimeSlotInfo,
 } from "../types/availability";
 
 const AVAILABILITY_ENDPOINTS = {
@@ -41,9 +42,202 @@ const AVAILABILITY_ENDPOINTS = {
   // Search & filters
   GET_AVAILABLE_PHOTOGRAPHERS: "/api/Availability/available-photographers",
   CHECK_AVAILABILITY: "/api/Availability/check",
+  
+  // Available slots endpoint
+GET_AVAILABLE_SLOTS: (photographerId: number, date: string) =>
+    `/api/Availability/photographer/${photographerId}/available-slots?date=${date}`
 };
 
 export class AvailabilityService {
+
+    // ===== NEW: MAIN METHOD FOR GETTING AVAILABLE SLOTS =====
+
+  /**
+   * Get available time slots for a photographer on a specific date
+   * Uses the new API: /api/Availability/photographer/{photographerId}/available-slots?date=2025-08-13
+   */
+  async getAvailableSlots(
+    photographerId: number,
+    date: string 
+  ): Promise<DayAvailabilityInfo | null> {
+    try {
+      console.log("🔍 Getting available slots:", { photographerId, date });
+
+      const response = await apiClient.get<AvailableSlotsResponse>(
+        AVAILABILITY_ENDPOINTS.GET_AVAILABLE_SLOTS(photographerId, date)
+      );
+
+      console.log("📅 Available slots API response:", response);
+
+      if (response.error !== 0 || !response.data || response.data.length === 0) {
+        console.warn("⚠️ No available slots found or API error");
+        return null;
+      }
+
+      const dayData = response.data[0]; 
+      const processedSlots = this.processTimeSlots(dayData);
+
+      const dayInfo: DayAvailabilityInfo = {
+        date: dayData.date,
+        dayOfWeek: dayData.dayOfWeek,
+        photographerId: dayData.photographerId,
+        availableSlots: processedSlots,
+        totalAvailableHours: processedSlots.filter(slot => slot.isAvailable).length,
+        availabilityRange: this.getAvailabilityRange(dayData.availableSlots),
+      };
+
+      console.log("✅ Processed day availability:", dayInfo);
+      return dayInfo;
+    } catch (error) {
+      console.error("❌ Error getting available slots:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Process time slots from API response into UI-friendly format
+   */
+  private processTimeSlots(dayData: any): ProcessedTimeSlot[] {
+    const processedSlots: ProcessedTimeSlot[] = [];
+    
+    // Extract available range
+    const availableSlots = dayData.availableSlots || [];
+    const bookedSlots = dayData.bookedSlots || [];
+    
+    if (availableSlots.length === 0) {
+      console.log("📭 No available slots for this day");
+      return [];
+    }
+
+    // Assume one main availability range (like 9:00-17:00)
+    const mainSlot = availableSlots[0];
+    if (!mainSlot) return [];
+
+    const startHour = parseInt(mainSlot.startTime.split(':')[0]);
+    const endHour = parseInt(mainSlot.endTime.split(':')[0]);
+
+    console.log("⏰ Processing time range:", { startHour, endHour, bookedSlots });
+
+    // Generate hourly slots from start to end
+    for (let hour = startHour; hour < endHour; hour++) {
+      const timeStr = hour.toString().padStart(2, '0') + ':00';
+      const fullTimeStr = timeStr + ':00';
+
+      // Check if this hour is booked
+      const isBooked = bookedSlots.some((bookedSlot: TimeSlotInfo) => {
+        const bookedStartHour = parseInt(bookedSlot.startTime.split(':')[0]);
+        const bookedEndHour = parseInt(bookedSlot.endTime.split(':')[0]);
+        return hour >= bookedStartHour && hour < bookedEndHour;
+      });
+
+      const slot: ProcessedTimeSlot = {
+        time: timeStr,
+        hour: hour,
+        isAvailable: !isBooked,
+        isBooked: isBooked,
+        status: isBooked ? 'booked' : 'available',
+        bookingInfo: isBooked ? this.getBookingInfo(bookedSlots, hour) : null,
+      };
+
+      processedSlots.push(slot);
+    }
+
+    console.log("✅ Generated processed slots:", processedSlots);
+    return processedSlots;
+  }
+
+  /**
+   * Get booking info for a specific hour
+   */
+  private getBookingInfo(bookedSlots: TimeSlotInfo[], hour: number): any {
+    const relevantBooking = bookedSlots.find((bookedSlot: TimeSlotInfo) => {
+      const bookedStartHour = parseInt(bookedSlot.startTime.split(':')[0]);
+      const bookedEndHour = parseInt(bookedSlot.endTime.split(':')[0]);
+      return hour >= bookedStartHour && hour < bookedEndHour;
+    });
+
+    return relevantBooking?.bookingInfo || null;
+  }
+
+  /**
+   * Get availability range (start and end time) from available slots
+   */
+  private getAvailabilityRange(availableSlots: TimeSlotInfo[]): { start: string; end: string } | null {
+    if (availableSlots.length === 0) return null;
+
+    const slot = availableSlots[0];
+    return {
+      start: slot.startTime.substring(0, 5), // "09:00:00" -> "09:00"
+      end: slot.endTime.substring(0, 5),     // "17:00:00" -> "17:00"
+    };
+  }
+
+  /**
+   * Get available times for UI (array of time strings like ["09:00", "10:00", ...])
+   */
+  async getAvailableTimesForDate(
+    photographerId: number,
+    date: string
+  ): Promise<string[]> {
+    try {
+      const dayInfo = await this.getAvailableSlots(photographerId, date);
+      
+      if (!dayInfo) return [];
+
+      const availableTimes = dayInfo.availableSlots
+        .filter(slot => slot.isAvailable)
+        .map(slot => slot.time);
+
+      console.log("🕐 Available times for UI:", availableTimes);
+      return availableTimes;
+    } catch (error) {
+      console.error("❌ Error getting available times:", error);
+      return [];
+    }
+  }
+
+  async getAvailableSlotsForDate(
+  photographerId: number,
+  date: string
+): Promise<DayAvailabilityInfo | null> {
+  return await this.getAvailableSlots(photographerId, date);
+}
+
+  /**
+   * Check if a specific time slot is available
+   */
+  async isTimeSlotAvailable(
+    photographerId: number,
+    date: string,
+    startTime: string, 
+    endTime: string    
+  ): Promise<boolean> {
+    try {
+      const dayInfo = await this.getAvailableSlots(photographerId, date);
+      
+      if (!dayInfo) return false;
+
+      const startHour = parseInt(startTime.split(':')[0]);
+      const endHour = parseInt(endTime.split(':')[0]);
+
+      // Check all hours in the range
+      for (let hour = startHour; hour < endHour; hour++) {
+        const slot = dayInfo.availableSlots.find(s => s.hour === hour);
+        if (!slot || !slot.isAvailable) {
+          return false;
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error("❌ Error checking time slot availability:", error);
+      return false;
+    }
+  }
+
+
+
+
   // ===== CRUD OPERATIONS =====
 
   async createAvailability(
@@ -386,180 +580,6 @@ export class AvailabilityService {
       return { photographers: [] };
     }
   }
-
-// Sửa lại availabilityService.checkAvailability để handle nhiều format response:
-
-async checkAvailability(
-  data: CheckAvailabilityRequest
-): Promise<CheckAvailabilityResponse> {
-  try {
-    console.log("🔍 Checking availability with data:", data);
-    
-    const response = await apiClient.post<any>(
-      AVAILABILITY_ENDPOINTS.CHECK_AVAILABILITY,
-      data
-    );
-
-    console.log("🔍 Full API response:", response);
-    
-    const responseData = response.data || response;
-    
-    console.log("🔍 Response data structure:", {
-      keys: Object.keys(responseData),
-      values: responseData,
-      type: typeof responseData,
-    });
-
-    // ✅ TRY MULTIPLE POSSIBLE RESPONSE FORMATS:
-    let available = false;
-    let message = "";
-    let conflictingBookings: any[] = [];
-    let suggestedTimes: any[] = [];
-
-    // Format 1: { isAvailable: boolean }
-    if (typeof responseData.isAvailable === "boolean") {
-      available = responseData.isAvailable;
-      console.log("🔍 Using format 1: isAvailable =", available);
-    }
-    // Format 2: { available: boolean }
-    else if (typeof responseData.available === "boolean") {
-      available = responseData.available;
-      console.log("🔍 Using format 2: available =", available);
-    }
-    // Format 3: { success: boolean }
-    else if (typeof responseData.success === "boolean") {
-      available = responseData.success;
-      console.log("🔍 Using format 3: success =", available);
-    }
-    // Format 4: { error: 0 } (success), { error: 1 } (failure)
-    else if (typeof responseData.error === "number") {
-      available = responseData.error === 0;
-      console.log("🔍 Using format 4: error =", responseData.error, "-> available =", available);
-    }
-    // Format 5: Status code based
-    else if (response.status && response.status >= 200 && response.status < 300) {
-      available = true;
-      console.log("🔍 Using format 5: HTTP status =", response.status, "-> available = true");
-    }
-    else {
-      console.warn("🔍 Unknown response format, defaulting to false");
-      available = false;
-    }
-
-    // Extract message
-    message = responseData.message || responseData.msg || responseData.description || "";
-
-    // Extract conflicting bookings
-    conflictingBookings = responseData.conflictingAvailabilities || 
-                         responseData.conflictingBookings || 
-                         responseData.conflicts || 
-                         [];
-
-    // Extract suggested times  
-    suggestedTimes = responseData.suggestedTimes || 
-                    responseData.suggestions || 
-                    responseData.alternativeTimes || 
-                    [];
-
-    const normalizedResponse: CheckAvailabilityResponse = {
-      available,
-      conflictingBookings,
-      suggestedTimes,
-      message,
-    };
-
-    console.log("🔍 Final normalized response:", normalizedResponse);
-
-    return normalizedResponse;
-  } catch (error) {
-    console.error("❌ Error checking availability:", error);
-    
-    // ✅ CHECK IF IT'S A NETWORK ERROR OR API ERROR
-    if ((error as any).response) {
-      console.error("❌ API Error Response:", (error as any).response.data);
-      console.error("❌ API Error Status:", (error as any).response.status);
-    } else if ((error as any).request) {
-      console.error("❌ Network Error:", (error as any).request);
-    }
-    
-    return {
-      available: false,
-      message: `Lỗi kiểm tra: ${(error as any).message || "Không thể kết nối API"}`,
-    };
-  }
-}
-
-// ✅ THÊM: Fallback availability check
-async checkAvailabilityFallback(
-  photographerId: number,
-  startTime: string,
-  endTime: string
-): Promise<CheckAvailabilityResponse> {
-  try {
-    console.log("🔄 Fallback: Checking photographer schedule manually");
-
-    // Get photographer's weekly schedule
-    const schedule = await this.getPhotographerAvailability(photographerId);
-    console.log("🔄 Photographer schedule:", schedule);
-
-    if (schedule.length === 0) {
-      return {
-        available: false,
-        message: "Photographer chưa thiết lập lịch làm việc",
-      };
-    }
-
-    // Extract day and time from the request
-    const startDate = new Date(startTime);
-    const dayOfWeek = startDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const requestStartTime = startDate.toTimeString().substring(0, 8); // "HH:MM:SS"
-    const requestEndTime = new Date(endTime).toTimeString().substring(0, 8);
-
-    console.log("🔄 Checking for:", {
-      dayOfWeek,
-      requestStartTime,
-      requestEndTime,
-    });
-
-    // Find availability for this day
-    const dayAvailability = schedule.filter(slot =>
-      slot.dayOfWeek === dayOfWeek &&
-      slot.status === "Available"
-    );
-
-    console.log("🔄 Day availability:", dayAvailability);
-
-    if (dayAvailability.length === 0) {
-      return {
-        available: false,
-        message: "Photographer không làm việc vào ngày này",
-      };
-    }
-
-    // Check if requested time falls within any available slot
-    const isWithinSchedule = dayAvailability.some(slot => {
-      const slotStart = slot.startTime;
-      const slotEnd = slot.endTime;
-
-      const isWithin = requestStartTime >= slotStart && requestEndTime <= slotEnd;
-      console.log("🔄 Checking slot:", { slotStart, slotEnd, requestStartTime, requestEndTime, isWithin });
-
-      return isWithin;
-    });
-
-    return {
-      available: isWithinSchedule,
-      message: isWithinSchedule ? "Trong khung giờ làm việc" : "Ngoài khung giờ làm việc",
-    };
-
-  } catch (error) {
-    console.error("❌ Fallback check failed:", error);
-    return {
-      available: false,
-      message: "Không thể kiểm tra lịch",
-    };
-  }
-}
 
   // ===== UTILITY METHODS =====
 

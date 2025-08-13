@@ -15,6 +15,10 @@ export const usePhotoDelivery = (photographerId: number) => {
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // ✅ Thêm state để phân biệt empty vs error
+  const [isEmpty, setIsEmpty] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   // Fetch photo deliveries by photographer
   const fetchPhotoDeliveries = useCallback(
@@ -22,17 +26,30 @@ export const usePhotoDelivery = (photographerId: number) => {
       try {
         if (showLoading) setLoading(true);
         setError(null);
+        setHasError(false);
+        setIsEmpty(false);
 
         const deliveries = await photoDeliveryService.getPhotoDeliveriesByPhotographer(
           photographerId
         );
+        
         setPhotoDeliveries(deliveries);
+        
+        // ✅ Set empty state if no deliveries found
+        if (deliveries.length === 0) {
+          setIsEmpty(true);
+        }
+        
       } catch (err) {
         const errorMessage =
           err instanceof Error
             ? err.message
             : 'Có lỗi xảy ra khi tải danh sách giao hàng ảnh';
+        
+        // ✅ Only set error state for real errors, not empty results
         setError(errorMessage);
+        setHasError(true);
+        setPhotoDeliveries([]); // Reset to empty array
         console.error('Error fetching photo deliveries:', err);
       } finally {
         setLoading(false);
@@ -41,12 +58,13 @@ export const usePhotoDelivery = (photographerId: number) => {
     [photographerId]
   );
 
-  // Get photo delivery by booking ID
+  // ✅ Get photo delivery by booking ID - NO ALERT/TOAST
   const getPhotoDeliveryByBooking = useCallback(
     async (bookingId: number): Promise<PhotoDeliveryData | null> => {
       try {
         return await photoDeliveryService.getPhotoDeliveryByBooking(bookingId);
       } catch (err) {
+        // ✅ SILENT ERROR - không hiển thị alert/toast
         console.error('Error fetching photo delivery by booking:', err);
         return null;
       }
@@ -54,12 +72,13 @@ export const usePhotoDelivery = (photographerId: number) => {
     []
   );
 
-  // Create photo delivery
+  // Create photo delivery - CÓ THỂ hiển thị alert
   const createPhotoDelivery = useCallback(
     async (request: CreatePhotoDeliveryRequest): Promise<boolean> => {
       try {
         setLoading(true);
         setError(null);
+        setHasError(false);
 
         await photoDeliveryService.createPhotoDelivery(request);
         
@@ -72,6 +91,7 @@ export const usePhotoDelivery = (photographerId: number) => {
             ? err.message
             : 'Có lỗi xảy ra khi tạo giao hàng ảnh';
         setError(errorMessage);
+        setHasError(true);
         Alert.alert('Lỗi', errorMessage);
         console.error('Error creating photo delivery:', err);
         return false;
@@ -82,7 +102,7 @@ export const usePhotoDelivery = (photographerId: number) => {
     [fetchPhotoDeliveries]
   );
 
-  // Update photo delivery
+  // Update photo delivery - CÓ THỂ hiển thị alert
   const updatePhotoDelivery = useCallback(
     async (
       photoDeliveryId: number,
@@ -91,6 +111,7 @@ export const usePhotoDelivery = (photographerId: number) => {
       try {
         setLoading(true);
         setError(null);
+        setHasError(false);
 
         await photoDeliveryService.updatePhotoDelivery(photoDeliveryId, request);
         
@@ -103,6 +124,7 @@ export const usePhotoDelivery = (photographerId: number) => {
             ? err.message
             : 'Có lỗi xảy ra khi cập nhật giao hàng ảnh';
         setError(errorMessage);
+        setHasError(true);
         Alert.alert('Lỗi', errorMessage);
         console.error('Error updating photo delivery:', err);
         return false;
@@ -113,12 +135,13 @@ export const usePhotoDelivery = (photographerId: number) => {
     [fetchPhotoDeliveries]
   );
 
-  // Delete photo delivery
+  // Delete photo delivery - CÓ THỂ hiển thị alert
   const deletePhotoDelivery = useCallback(
     async (photoDeliveryId: number): Promise<boolean> => {
       try {
         setLoading(true);
         setError(null);
+        setHasError(false);
 
         await photoDeliveryService.deletePhotoDelivery(photoDeliveryId);
         
@@ -131,6 +154,7 @@ export const usePhotoDelivery = (photographerId: number) => {
             ? err.message
             : 'Có lỗi xảy ra khi xóa giao hàng ảnh';
         setError(errorMessage);
+        setHasError(true);
         Alert.alert('Lỗi', errorMessage);
         console.error('Error deleting photo delivery:', err);
         return false;
@@ -194,6 +218,12 @@ export const usePhotoDelivery = (photographerId: number) => {
     return photoDeliveries;
   }, [photoDeliveries]);
 
+  // ✅ Reset error state when needed
+  const clearError = useCallback(() => {
+    setError(null);
+    setHasError(false);
+  }, []);
+
   // Initialize data fetch
   useEffect(() => {
     if (photographerId) {
@@ -209,14 +239,17 @@ export const usePhotoDelivery = (photographerId: number) => {
     loading,
     refreshing,
     error,
+    isEmpty,        // ✅ Thêm state để check empty
+    hasError,       // ✅ Thêm state để check real error
     
     // Actions
     fetchPhotoDeliveries,
-    getPhotoDeliveryByBooking,
+    getPhotoDeliveryByBooking,  // ✅ SILENT - không hiển thị toast
     createPhotoDelivery,
     updatePhotoDelivery,
     deletePhotoDelivery,
     refreshPhotoDeliveries,
+    clearError,     // ✅ Thêm action để clear error
     
     // Computed values
     getPhotoDeliveriesByStatus,

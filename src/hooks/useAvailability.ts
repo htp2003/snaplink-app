@@ -1,4 +1,4 @@
-// hooks/useAvailability.ts - AVAILABILITY HOOK FOR PHOTOGRAPHER SCHEDULE MANAGEMENT
+// hooks/useAvailability.ts - UPDATED FOR NEW AVAILABLE SLOTS API
 
 import { useState, useCallback, useEffect } from "react";
 import { availabilityService } from "../services/availabilityService";
@@ -6,11 +6,9 @@ import {
   CreateAvailabilityRequest,
   UpdateAvailabilityRequest,
   BulkAvailabilityRequest,
-  CheckAvailabilityRequest,
   AvailabilityResponse,
   AvailabilityDetailResponse,
   AvailablePhotographersResponse,
-  CheckAvailabilityResponse,
   GetAvailablePhotographersParams,
   AvailabilityFormData,
   BulkAvailabilityFormData,
@@ -22,6 +20,9 @@ import {
   AvailabilityStats,
   TimeSlot,
   DAY_NAMES,
+  // NEW: Import new types
+  DayAvailabilityInfo,
+  ProcessedTimeSlot,
 } from "../types/availability";
 
 export const useAvailability = (options: UseAvailabilityOptions = {}) => {
@@ -43,20 +44,102 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
   const [availabilityStats, setAvailabilityStats] =
     useState<AvailabilityStats | null>(null);
 
+  // ===== NEW: AVAILABLE SLOTS STATES =====
+  const [dayAvailabilityInfo, setDayAvailabilityInfo] = useState<DayAvailabilityInfo | null>(null);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+
   // ===== LOADING STATES =====
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [checking, setChecking] = useState(false);
+  // REMOVED: checking state (not needed anymore)
   const [error, setError] = useState<string | null>(null);
 
   // ===== SEARCH & FILTER STATES =====
   const [availablePhotographers, setAvailablePhotographers] =
     useState<AvailablePhotographersResponse>({ photographers: [] });
-  const [checkResult, setCheckResult] =
-    useState<CheckAvailabilityResponse | null>(null);
+  // REMOVED: checkResult state (not needed anymore)
   const [searchLoading, setSearchLoading] = useState(false);
+
+  // ===== NEW: AVAILABLE SLOTS METHODS =====
+
+  const getAvailableSlotsForDate = useCallback(
+    async (photographerIdParam: number, date: string): Promise<DayAvailabilityInfo | null> => {
+      try {
+        setLoadingSlots(true);
+        setError(null);
+
+        console.log("🔍 Hook: Getting available slots for:", { photographerIdParam, date });
+
+        const result = await availabilityService.getAvailableSlots(photographerIdParam, date);
+        setDayAvailabilityInfo(result);
+
+        console.log("✅ Hook: Available slots result:", result);
+        return result;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Không thể lấy khung giờ available";
+        setError(errorMessage);
+        console.error("❌ Hook: Error in getAvailableSlotsForDate:", err);
+        return null;
+      } finally {
+        setLoadingSlots(false);
+      }
+    },
+    []
+  );
+
+  const getAvailableTimesForDate = useCallback(
+    async (photographerIdParam: number, date: string): Promise<string[]> => {
+      try {
+        console.log("🕐 Hook: Getting available times for:", { photographerIdParam, date });
+
+        const times = await availabilityService.getAvailableTimesForDate(photographerIdParam, date);
+
+        console.log("✅ Hook: Available times result:", times);
+        return times;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Không thể lấy danh sách giờ available";
+        console.error("❌ Hook: Error in getAvailableTimesForDate:", err);
+        return [];
+      }
+    },
+    []
+  );
+
+  const isTimeSlotAvailable = useCallback(
+    async (
+      photographerIdParam: number,
+      date: string,
+      startTime: string,
+      endTime: string
+    ): Promise<boolean> => {
+      try {
+        console.log("⏰ Hook: Checking if time slot is available:", {
+          photographerIdParam,
+          date,
+          startTime,
+          endTime,
+        });
+
+        const isAvailable = await availabilityService.isTimeSlotAvailable(
+          photographerIdParam,
+          date,
+          startTime,
+          endTime
+        );
+
+        console.log("✅ Hook: Time slot availability result:", isAvailable);
+        return isAvailable;
+      } catch (err) {
+        console.error("❌ Hook: Error checking time slot availability:", err);
+        return false;
+      }
+    },
+    []
+  );
 
   // ===== VALIDATION =====
   const validateAvailabilityForm = useCallback(
@@ -561,33 +644,6 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
     []
   );
 
-  const checkAvailability = useCallback(
-    async (data: CheckAvailabilityRequest) => {
-      try {
-        setChecking(true);
-        setError(null);
-
-        const response = await availabilityService.checkAvailability(data);
-        setCheckResult(response);
-        return response;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Không thể kiểm tra tình trạng";
-        setError(errorMessage);
-        console.error("❌ Hook: Error in checkAvailability:", err);
-        const fallbackResponse: CheckAvailabilityResponse = {
-          available: false,
-          message: errorMessage,
-        };
-        setCheckResult(fallbackResponse);
-        return fallbackResponse;
-      } finally {
-        setChecking(false);
-      }
-    },
-    []
-  );
-
   // ===== UTILITY METHODS =====
 
   const refreshWeeklySchedule = useCallback(async () => {
@@ -612,7 +668,8 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
     setWeeklySchedule(null);
     setAvailabilityStats(null);
     setAvailablePhotographers({ photographers: [] });
-    setCheckResult(null);
+    // NEW: Clear new states
+    setDayAvailabilityInfo(null);
     setError(null);
   }, []);
 
@@ -699,14 +756,16 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
     weeklySchedule,
     availabilityStats,
     availablePhotographers,
-    checkResult,
+    // NEW: Add new data
+    dayAvailabilityInfo,
 
     // ===== LOADING STATES =====
     loading,
     creating,
     updating,
     deleting,
-    checking,
+    // NEW: Add new loading state
+    loadingSlots,
     searchLoading,
     error,
 
@@ -728,7 +787,11 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
     // ===== SEARCH & FILTER METHODS =====
     fetchAvailabilityByDay,
     searchAvailablePhotographers,
-    checkAvailability,
+
+    // ===== NEW: AVAILABLE SLOTS METHODS =====
+    getAvailableSlotsForDate,
+    getAvailableTimesForDate,
+    isTimeSlotAvailable,
 
     // ===== UTILITY METHODS =====
     clearAvailabilityData,
@@ -743,7 +806,8 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
     setAvailabilities,
     setWeeklySchedule,
     setError,
-    setCheckResult,
+    // NEW: Add new setter
+    setDayAvailabilityInfo,
 
     // ===== REFRESH UTILITIES =====
     refreshPhotographerAvailability: () =>

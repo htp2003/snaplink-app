@@ -324,7 +324,7 @@ export default function PhotographerReviews({
             contentContainerStyle={{
               paddingHorizontal: getResponsiveSize(24),
             }}
-            snapToInterval={width - getResponsiveSize(32)} // Snap to each review card
+            snapToInterval={width - getResponsiveSize(32)} 
             decelerationRate="fast"
             pagingEnabled={false}
           />

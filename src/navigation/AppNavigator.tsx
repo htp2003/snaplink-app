@@ -15,7 +15,6 @@ import RegisterScreen from "../screens/RegisterScreen";
 import StepContainer from "../components/Step/StepContainer";
 import ViewAllPhotographers from "../screens/customer/ViewAllPhotographers";
 import ViewAllLocations from "../screens/customer/ViewAllLocations";
-import SubscriptionScreen from "../screens/photographer/SubscriptionScreen";
 import SubscriptionManagementScreen from "../screens/photographer/SubscriptionManagementScreen";
 import BookingScreen from "../screens/customer/BookingScreen";
 import OrderDetailScreen from "../screens/customer/OrderDetailScreen";
@@ -132,7 +131,6 @@ const AppNavigator = () => {
         name="ProfilePhotographerScreen"
         component={ProfilePhotographerScreen}
       />
-      <Stack.Screen name="Subscription" component={SubscriptionScreen} />
       <Stack.Screen
         name="SubscriptionManagement"
         component={SubscriptionManagementScreen}

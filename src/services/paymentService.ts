@@ -2,11 +2,13 @@ import { apiClient } from "./base";
 import type {
   PaymentResponse,
   CreatePaymentLinkRequest,
+  CreateWalletTopUpRequest,
+  WalletTopUpResponse,
   PaymentCallbackParams,
   PaymentSuccessResponse,
   PaymentStatusResponse,
 } from "../types/payment";
-import { DEEP_LINKS } from "../config/deepLinks";
+import { createDeepLink, DEEP_LINKS } from "../config/deepLinks";
 
 const PAYMENT_ENDPOINTS = {
   CREATE: (userId: number) => `/api/Payment/create?userId=${userId}`,
@@ -475,7 +477,107 @@ export class PaymentService {
       };
     }
   }
+  async createWalletTopUp(request: CreateWalletTopUpRequest): Promise<WalletTopUpResponse> {
+  try {
+    const response = await apiClient.post<any>(
+      '/api/Payment/wallet-topup',
+      request
+    );
+
+    // Handle response format similar to createPaymentLink
+    let apiResponse;
+    if (response.error === 0 && response.data) {
+      apiResponse = response.data;
+    } else if (response.data) {
+      apiResponse = response.data;
+    } else {
+      apiResponse = response;
+    }
+
+    if (!apiResponse) {
+      throw new Error('Empty response from wallet top-up API');
+    }
+
+    return {
+      error: 0,
+      message: 'Wallet top-up created successfully',
+      data: apiResponse
+    };
+  } catch (error) {
+    console.error('❌ Create wallet top-up error:', error);
+    throw error;
+  }
 }
+
+// ✅ NEW: Create wallet top-up with proper description formatting
+async createWalletTopUpPayment(
+  amount: number,
+  successUrl?: string,
+  cancelUrl?: string
+): Promise<WalletTopUpResponse> {
+  try {
+    // ✅ Format description like booking: short and simple
+    const request: CreateWalletTopUpRequest = {
+      productName: 'Nạp tiền ví SnapLink', // Shorter product name
+      description: `Nạp tiền ${amount.toLocaleString('vi-VN')}đ`, // Max 25 chars
+      amount: amount,
+      successUrl: successUrl || DEEP_LINKS.PAYMENT_SUCCESS,
+      cancelUrl: cancelUrl || DEEP_LINKS.PAYMENT_CANCEL
+    };
+
+    return await this.createWalletTopUp(request);
+  } catch (error) {
+    console.error('❌ Error creating wallet top-up payment:', error);
+    throw error;
+  }
+}
+
+// Generate callback URLs using existing DEEP_LINKS
+generateCallbackUrls(paymentId?: string) {
+  return {
+    successUrl: paymentId 
+      ? createDeepLink('payment-success', { paymentId })
+      : DEEP_LINKS.PAYMENT_SUCCESS,
+    cancelUrl: paymentId 
+      ? createDeepLink('payment-cancel', { paymentId })
+      : DEEP_LINKS.PAYMENT_CANCEL
+  };
+}
+
+// Predefined amounts for quick selection
+getQuickAmounts(): number[] {
+  return [50000, 100000, 200000, 500000, 1000000, 2000000];
+}
+
+// Format amount for display
+formatAmount(amount: number): string {
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND'
+  }).format(amount);
+}
+
+// ✅ NEW: Generate short description for wallet top-up (max 25 chars)
+generateTopUpDescription(amount: number): string {
+  // Format: "Nạp tiền 100,000đ" = ~16 chars (safe under 25)
+  return `Nạp tiền ${amount.toLocaleString('vi-VN')}đ`;
+}
+
+// Validate amount
+validateAmount(amount: number): { isValid: boolean; error?: string } {
+  if (amount < 5000) {
+    return { isValid: false, error: 'Số tiền tối thiểu là 5,000 VND' };
+  }
+  
+  if (amount > 10000000) {
+    return { isValid: false, error: 'Số tiền tối đa là 10,000,000 VND' };
+  }
+  
+  return { isValid: true };
+}
+}
+
+
 
 // Export singleton instance
 export const paymentService = new PaymentService();

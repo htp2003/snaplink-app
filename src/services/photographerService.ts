@@ -721,6 +721,7 @@ class PhotographerService {
   }
 
   // Utility methods for AsyncStorage
+  // Utility methods for AsyncStorage
   async storePhotographerId(
     userId: number,
     photographerId: number

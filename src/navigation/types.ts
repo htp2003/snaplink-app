@@ -54,7 +54,6 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   // Photographer screens
   EditProfilePhotographer: undefined;
-  Subscription: undefined;
   SubscriptionManagement: undefined;
   ViewProfilePhotographerScreen: undefined;
   PhotographerHomeScreen: undefined;

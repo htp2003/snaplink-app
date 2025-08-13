@@ -12,6 +12,9 @@ import { useTransactionHistory, useWallet, useTransactionStats } from '../../hoo
 import transactionService from '../../services/transactionService';
 import { usePhotographerAuth } from '../../hooks/usePhotographerAuth';
 
+// Import component mới
+import WalletTopUpModal from '../../components/WalletTopUpModal';
+
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PhotographerTabParamList, 'PhotographerHomeScreen'>,
   NativeStackScreenProps<RootStackParamList>
@@ -21,6 +24,10 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const { userId, photographerId, isPhotographer, hasPhotographerProfile } = usePhotographerAuth();
   const shouldFetchData = userId && photographerId && hasPhotographerProfile;
+  
+  // State for top-up modal
+  const [showTopUpModal, setShowTopUpModal] = useState(false);
+  
   const { 
     transactions, 
     loading: transactionsLoading, 
@@ -63,6 +70,17 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
     }).format(amount);
   };
 
+  // Handle top-up success
+  const handleTopUpSuccess = () => {
+    // Refresh balance after successful top-up
+    refreshBalance();
+    Alert.alert(
+      'Thành công',
+      'Nạp tiền thành công! Số dư của bạn sẽ được cập nhật trong vài phút.',
+      [{ text: 'OK' }]
+    );
+  };
+
   // Handle withdraw
   const handleWithdraw = () => {
     if (balance.availableBalance < 100000) {
@@ -84,6 +102,11 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
         }
       ]
     );
+  };
+
+  // Handle top-up
+  const handleTopUp = () => {
+    setShowTopUpModal(true);
   };
 
   // Navigate to full transaction history
@@ -269,217 +292,221 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
   }
 
   return (
-    <ScrollView 
-      style={{ flex: 1, backgroundColor: '#F7F7F7' }}
-      contentContainerStyle={{ 
-        paddingBottom: 120 + insets.bottom 
-      }}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl
-          refreshing={transactionsRefreshing}
-          onRefresh={onRefresh}
-          colors={['#FF385C']}
-          tintColor="#FF385C"
-        />
-      }
-    >
-      {/* Header */}
-      <View style={{ 
-        backgroundColor: '#F7F7F7', 
-        paddingHorizontal: 20, 
-        paddingTop: insets.top + 20, 
-        paddingBottom: 20 
-      }}>
+    <>
+      <ScrollView 
+        style={{ flex: 1, backgroundColor: '#F7F7F7' }}
+        contentContainerStyle={{ 
+          paddingBottom: 120 + insets.bottom 
+        }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={transactionsRefreshing}
+            onRefresh={onRefresh}
+            colors={['#FF385C']}
+            tintColor="#FF385C"
+          />
+        }
+      >
+        {/* Header */}
         <View style={{ 
-          flexDirection: 'row', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: 20 
+          backgroundColor: '#F7F7F7', 
+          paddingHorizontal: 20, 
+          paddingTop: insets.top + 20, 
+          paddingBottom: 20 
         }}>
-          <Text style={{ color: '#000000', fontSize: 32, fontWeight: 'bold' }}>
-            Ví của tôi
-          </Text>
-          <TouchableOpacity style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: '#FFFFFF',
-            justifyContent: 'center',
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}>
-            <Ionicons name="notifications-outline" size={24} color="#000000" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Balance Card */}
-        <View style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: 12,
-          padding: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
-          elevation: 3,
-        }}>
-          <Text style={{ color: '#666666', fontSize: 14, marginBottom: 8 }}>
-            Số dư khả dụng
-          </Text>
-          {balanceLoading ? (
-            <ActivityIndicator size="small" color="#FF385C" style={{ marginBottom: 16 }} />
-          ) : (
-            <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#000000', marginBottom: 16 }}>
-              {formatCurrency(balance.availableBalance)}
-            </Text>
-          )}
-          
           <View style={{ 
             flexDirection: 'row', 
             justifyContent: 'space-between', 
             alignItems: 'center', 
             marginBottom: 20 
           }}>
-            <View>
-              <Text style={{ color: '#666666', fontSize: 12, marginBottom: 4 }}>
-                Đang chờ xử lý
+            <Text style={{ color: '#000000', fontSize: 32, fontWeight: 'bold' }}>
+              Ví của tôi
+            </Text>
+            <TouchableOpacity style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: '#FFFFFF',
+              justifyContent: 'center',
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}>
+              <Ionicons name="notifications-outline" size={24} color="#000000" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Balance Card */}
+          <View style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 12,
+            padding: 20,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}>
+            <Text style={{ color: '#666666', fontSize: 14, marginBottom: 8 }}>
+              Số dư khả dụng
+            </Text>
+            {balanceLoading ? (
+              <ActivityIndicator size="small" color="#FF385C" style={{ marginBottom: 16 }} />
+            ) : (
+              <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#000000', marginBottom: 16 }}>
+                {formatCurrency(balance.availableBalance)}
               </Text>
-              {statsLoading ? (
-                <ActivityIndicator size="small" color="#F59E0B" />
-              ) : (
-                <Text style={{ color: '#F59E0B', fontWeight: '600', fontSize: 16 }}>
-                  {formatCurrency(stats.pendingAmount)}
+            )}
+            
+            <View style={{ 
+              flexDirection: 'row', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: 20 
+            }}>
+              <View>
+                <Text style={{ color: '#666666', fontSize: 12, marginBottom: 4 }}>
+                  Đang chờ xử lý
                 </Text>
-              )}
+                {statsLoading ? (
+                  <ActivityIndicator size="small" color="#F59E0B" />
+                ) : (
+                  <Text style={{ color: '#F59E0B', fontWeight: '600', fontSize: 16 }}>
+                    {formatCurrency(stats.pendingAmount)}
+                  </Text>
+                )}
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ color: '#666666', fontSize: 12, marginBottom: 4 }}>
+                  Tổng thu nhập tháng này
+                </Text>
+                {statsLoading ? (
+                  <ActivityIndicator size="small" color="#10B981" />
+                ) : (
+                  <Text style={{ color: '#10B981', fontWeight: '600', fontSize: 16 }}>
+                    {formatCurrency(stats.monthlyIncome)}
+                  </Text>
+                )}
+              </View>
             </View>
-            <View style={{ alignItems: 'flex-end' }}>
-              <Text style={{ color: '#666666', fontSize: 12, marginBottom: 4 }}>
-                Tổng thu nhập tháng này
-              </Text>
+
+            {/* Action Buttons Row */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: '#10B981',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  paddingHorizontal: 20,
+                  flex: 0.48,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onPress={handleTopUp}
+                disabled={balanceLoading}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>
+                  Nạp tiền
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: '#FF385C',
+                  borderRadius: 8,
+                  paddingVertical: 12,
+                  paddingHorizontal: 20,
+                  flex: 0.48,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onPress={handleWithdraw}
+                disabled={balanceLoading}
+              >
+                <Ionicons name="arrow-up-circle-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+                <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 14 }}>
+                  Rút tiền
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        {/* Quick Stats */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              padding: 16,
+              flex: 0.48,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="trending-up" size={20} color="#10B981" />
+                <Text style={{ color: '#666666', fontSize: 14, marginLeft: 8 }}>
+                  Hôm nay
+                </Text>
+              </View>
               {statsLoading ? (
                 <ActivityIndicator size="small" color="#10B981" />
               ) : (
-                <Text style={{ color: '#10B981', fontWeight: '600', fontSize: 16 }}>
-                  {formatCurrency(stats.monthlyIncome)}
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
+                  {formatCurrency(stats.todayIncome)}
+                </Text>
+              )}
+            </View>
+            
+            <View style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              padding: 16,
+              flex: 0.48,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
+            }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                <Ionicons name="camera-outline" size={20} color="#6B73FF" />
+                <Text style={{ color: '#666666', fontSize: 14, marginLeft: 8 }}>
+                  Booking hoàn thành
+                </Text>
+              </View>
+              {statsLoading ? (
+                <ActivityIndicator size="small" color="#6B73FF" />
+              ) : (
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
+                  {stats.completedBookings}
                 </Text>
               )}
             </View>
           </View>
-
-          <TouchableOpacity 
-            style={{
-              backgroundColor: '#FF385C',
-              borderRadius: 8,
-              paddingVertical: 12,
-              alignItems: 'center',
-            }}
-            onPress={handleWithdraw}
-            disabled={balanceLoading}
-          >
-            <Text style={{ color: '#FFFFFF', fontWeight: '600', fontSize: 16 }}>
-              Rút tiền
-            </Text>
-          </TouchableOpacity>
         </View>
-      </View>
 
-      {/* Quick Stats */}
-      <View style={{ paddingHorizontal: 16, marginBottom: 20 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <View style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            padding: 16,
-            flex: 0.48,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Ionicons name="trending-up" size={20} color="#10B981" />
-              <Text style={{ color: '#666666', fontSize: 14, marginLeft: 8 }}>
-                Hôm nay
-              </Text>
-            </View>
-            {statsLoading ? (
-              <ActivityIndicator size="small" color="#10B981" />
-            ) : (
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
-                {formatCurrency(stats.todayIncome)}
-              </Text>
-            )}
-          </View>
-          
-          <View style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            padding: 16,
-            flex: 0.48,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-              <Ionicons name="camera-outline" size={20} color="#6B73FF" />
-              <Text style={{ color: '#666666', fontSize: 14, marginLeft: 8 }}>
-                Booking hoàn thành
-              </Text>
-            </View>
-            {statsLoading ? (
-              <ActivityIndicator size="small" color="#6B73FF" />
-            ) : (
-              <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#000000' }}>
-                {stats.completedBookings}
-              </Text>
-            )}
-          </View>
-        </View>
-      </View>
+        {/* Recent Transactions - SỬ DỤNG HOOK ĐÃ TẠO */}
+        {renderRecentTransactions()}
 
-      {/* Recent Transactions - SỬ DỤNG HOOK ĐÃ TẠO */}
-      {renderRecentTransactions()}
-
-      {/* Quick Actions */}
-      <View style={{ paddingHorizontal: 16, paddingBottom: 20 }}>
-        <Text style={{ fontSize: 18, fontWeight: '600', color: '#000000', marginBottom: 12 }}>
-          Thao tác nhanh
-        </Text>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <TouchableOpacity style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            padding: 16,
-            flex: 0.31,
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}>
-            <Ionicons name="card-outline" size={24} color="#6B73FF" />
-            <Text style={{ 
-              color: '#000000', 
-              fontWeight: '500', 
-              marginTop: 8, 
-              textAlign: 'center',
-              fontSize: 12
-            }}>
-              Thông tin{'\n'}tài khoản
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={{
+        {/* Quick Actions */}
+        <View style={{ paddingHorizontal: 16, paddingBottom: 20 }}>
+          <Text style={{ fontSize: 18, fontWeight: '600', color: '#000000', marginBottom: 12 }}>
+            Thao tác nhanh
+          </Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <TouchableOpacity style={{
               backgroundColor: '#FFFFFF',
               borderRadius: 12,
               padding: 16,
@@ -490,46 +517,79 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
               shadowOpacity: 0.1,
               shadowRadius: 4,
               elevation: 3,
-            }}
-            // onPress={handleViewAllTransactions}
-          >
-            <Ionicons name="time-outline" size={24} color="#F59E0B" />
-            <Text style={{ 
-              color: '#000000', 
-              fontWeight: '500', 
-              marginTop: 8, 
-              textAlign: 'center',
-              fontSize: 12
             }}>
-              Lịch sử{'\n'}giao dịch
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            padding: 16,
-            flex: 0.31,
-            alignItems: 'center',
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.1,
-            shadowRadius: 4,
-            elevation: 3,
-          }}>
-            <Ionicons name="headset-outline" size={24} color="#10B981" />
-            <Text style={{ 
-              color: '#000000', 
-              fontWeight: '500', 
-              marginTop: 8, 
-              textAlign: 'center',
-              fontSize: 12
+              <Ionicons name="card-outline" size={24} color="#6B73FF" />
+              <Text style={{ 
+                color: '#000000', 
+                fontWeight: '500', 
+                marginTop: 8, 
+                textAlign: 'center',
+                fontSize: 12
+              }}>
+                Thông tin{'\n'}tài khoản
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+                padding: 16,
+                flex: 0.31,
+                alignItems: 'center',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+              // onPress={handleViewAllTransactions}
+            >
+              <Ionicons name="time-outline" size={24} color="#F59E0B" />
+              <Text style={{ 
+                color: '#000000', 
+                fontWeight: '500', 
+                marginTop: 8, 
+                textAlign: 'center',
+                fontSize: 12
+              }}>
+                Lịch sử{'\n'}giao dịch
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 12,
+              padding: 16,
+              flex: 0.31,
+              alignItems: 'center',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.1,
+              shadowRadius: 4,
+              elevation: 3,
             }}>
-              Hỗ trợ{'\n'}khách hàng
-            </Text>
-          </TouchableOpacity>
+              <Ionicons name="headset-outline" size={24} color="#10B981" />
+              <Text style={{ 
+                color: '#000000', 
+                fontWeight: '500', 
+                marginTop: 8, 
+                textAlign: 'center',
+                fontSize: 12
+              }}>
+                Hỗ trợ{'\n'}khách hàng
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Top-up Modal */}
+      <WalletTopUpModal
+        visible={showTopUpModal}
+        onClose={() => setShowTopUpModal(false)}
+        onSuccess={handleTopUpSuccess}
+      />
+    </>
   )
 }

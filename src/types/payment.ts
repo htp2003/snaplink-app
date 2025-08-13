@@ -149,6 +149,30 @@ export interface PaymentTestResult {
   };
 }
 
+export interface CreateWalletTopUpRequest {
+  productName: string;
+  description: string;
+  amount: number; // Min: 5000, Max: 10000000 VND
+  successUrl: string;
+  cancelUrl: string;
+}
+
+export interface WalletTopUpResponse {
+  error: number;
+  message: string;
+  data: {
+    paymentId: number;
+    payOSData: {
+      paymentUrl?: string;
+      checkoutUrl?: string;
+      orderCode: string;
+      qrCode?: string;
+      expiredAt: string;
+      amount: number;
+    };
+  };
+}
+
 // ✅ NEW: Type guards for payment status
 export const isPaymentSuccess = (status: string): boolean => {
   return ['Success', 'Paid', 'Completed'].includes(status);

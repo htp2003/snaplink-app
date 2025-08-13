@@ -19,11 +19,8 @@ import { useAvailability } from "../../hooks/useAvailability";
 import { useLocations } from "../../hooks/useLocations";
 import type { RootStackNavigationProp } from "../../navigation/types";
 import type { CreateBookingRequest } from "../../types/booking";
-import type { DayOfWeek, AvailabilityResponse } from "../../types/availability";
 import { useAuth } from "../../hooks/useAuth";
-import { bookingService } from "../../services/bookingService";
 import { cleanupService } from "../../services/cleanupService";
-import { availabilityService } from "../../services/availabilityService";
 
 import * as Location from "expo-location";
 import { useNearbyLocations } from "../../hooks/useNearbyLocations";
@@ -211,130 +208,30 @@ export default function BookingScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
 
-  // Availability hooks
+  // ===== NEW: Available times state =====
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+
+  // ===== UPDATED: Availability hooks =====
   const {
-    fetchPhotographerAvailability,
-    availabilities,
-    loading: availabilityLoading,
+    getAvailableTimesForDate,
+    loadingSlots,
+    error: availabilityError,
   } = useAvailability();
 
-  const [photographerSchedule, setPhotographerSchedule] = useState<
-    AvailabilityResponse[]
-  >([]);
-
-  // Booked slots state
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
-  const [loadingBookedSlots, setLoadingBookedSlots] = useState(false);
-
-  // Hooks
-  const [localAvailability, setLocalAvailability] = useState<any>(null);
   const { locations, loading: locationsLoading } = useLocations();
+  
+  // ===== UPDATED: Booking hooks (removed checkAvailability) =====
   const {
     createBooking,
     updateBooking,
-    checkAvailability,
     calculatePrice,
     priceCalculation,
     setPriceCalculation,
-    availability,
-    setAvailability,
     creating,
     updating,
-    checkingAvailability,
     calculatingPrice,
     error,
   } = useBooking();
-
-  const getCurrentAvailability = () => {
-    return localAvailability || availability;
-  };
-
-  // Load photographer availability
-  useEffect(() => {
-    const loadPhotographerSchedule = async () => {
-      if (photographerId) {
-        await fetchPhotographerAvailability(photographerId);
-      }
-    };
-
-    loadPhotographerSchedule();
-  }, [photographerId, fetchPhotographerAvailability]);
-
-  // Update photographerSchedule khi availabilities thay đổi
-  useEffect(() => {
-    setPhotographerSchedule(availabilities);
-  }, [availabilities]);
-
-  // Function để get booked slots cho ngày cụ thể
-  const getBookedSlotsForDate = async (
-    photographerIdParam: number,
-    date: Date
-  ): Promise<string[]> => {
-    try {
-      setLoadingBookedSlots(true);
-
-      const bookingsResponse = await bookingService.getPhotographerBookings(
-        photographerIdParam,
-        1,
-        100
-      );
-
-      if (!bookingsResponse || !bookingsResponse.bookings) {
-        return [];
-      }
-
-      const dateString = date.toISOString().split("T")[0];
-
-      const bookedTimes = bookingsResponse.bookings
-        .filter((booking) => {
-          const bookingDate = booking.startDatetime.split("T")[0];
-          const isValidStatus = !["cancelled", "expired"].includes(
-            booking.status.toLowerCase()
-          );
-          const isSameDate = bookingDate === dateString;
-
-          return isValidStatus && isSameDate;
-        })
-        .map((booking) => {
-          const startDateTime = new Date(booking.startDatetime);
-          const endDateTime = new Date(booking.endDatetime);
-
-          const startHour = startDateTime.getHours();
-          const endHour = endDateTime.getHours();
-
-          const blockedHours = [];
-          for (let h = startHour; h < endHour; h++) {
-            const timeSlot = h.toString().padStart(2, "0") + ":00";
-            blockedHours.push(timeSlot);
-          }
-
-          return blockedHours;
-        })
-        .flat();
-
-      return bookedTimes;
-    } catch (error) {
-      console.error("❌ Error getting booked slots:", error);
-      return [];
-    } finally {
-      setLoadingBookedSlots(false);
-    }
-  };
-
-  // Load booked slots khi ngày thay đổi
-  useEffect(() => {
-    const loadBookedSlots = async () => {
-      if (photographerId && selectedDate) {
-        const booked = await getBookedSlotsForDate(
-          photographerId,
-          selectedDate
-        );
-        setBookedSlots(booked);
-      }
-    };
-
-    loadBookedSlots();
-  }, [photographerId, selectedDate]);
 
   // Check authentication khi component mount
   useEffect(() => {
@@ -356,6 +253,52 @@ export default function BookingScreen() {
       );
     }
   }, [isAuthenticated, navigation]);
+
+  // ===== NEW: Load available times when date changes =====
+useEffect(() => {
+  const loadAvailableTimes = async () => {
+    if (!photographerId || !selectedDate) return;
+    
+    // ✅ FIX: Sử dụng local date để tránh timezone issues
+    const year = selectedDate.getFullYear();
+    const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const day = String(selectedDate.getDate()).padStart(2, '0');
+    const dateString = `${year}-${month}-${day}`; // "2025-08-14"
+    
+    // 🔍 DEBUG: Log date conversion
+    console.log("🔍 DEBUG - Date conversion:", {
+      originalDate: selectedDate,
+      localDate: selectedDate.toLocaleDateString('vi-VN'),
+      isoDate: selectedDate.toISOString(),
+      apiDateString: dateString,
+      selectedDateComponents: {
+        year,
+        month,
+        day
+      }
+    });
+    
+    try {
+      console.log("🔍 Loading available times for:", { photographerId, dateString });
+      
+      const times = await getAvailableTimesForDate(photographerId, dateString);
+      setAvailableTimes(times);
+      
+      console.log("✅ Available times loaded:", {
+        dateString,
+        timesCount: times.length,
+        times
+      });
+    } catch (error) {
+      console.error("❌ Error loading available times:", error);
+      setAvailableTimes([]);
+    }
+  };
+
+  loadAvailableTimes();
+}, [photographerId, selectedDate, getAvailableTimesForDate]);
+
+
 
   const allTimes = [
     "06:00",
@@ -414,58 +357,27 @@ export default function BookingScreen() {
     }).format(price);
   };
 
-  // Helper để convert JS date sang backend dayOfWeek
-  const getDateDayOfWeek = (date: Date): DayOfWeek => {
-    const jsDay = date.getDay();
-    return jsDay as DayOfWeek;
-  };
-
-  // getFilteredTimes với availability + booked slots
+  // ===== UPDATED: getFilteredTimes using new availableTimes =====
   const getFilteredTimes = () => {
     const today = new Date();
     const isToday = selectedDate.toDateString() === today.toDateString();
-    const selectedDayOfWeek = getDateDayOfWeek(selectedDate);
-
-    const dayAvailability = photographerSchedule.find(
-      (av) => av.dayOfWeek === selectedDayOfWeek && av.status === "Available"
-    );
-
-    if (!dayAvailability) {
-      return [];
-    }
-
-    const startHour = parseInt(dayAvailability.startTime.split(":")[0]);
-    const endHour = parseInt(dayAvailability.endTime.split(":")[0]);
-
-    const availableTimes = [];
-    for (let hour = startHour; hour < endHour; hour++) {
-      const timeStr = hour.toString().padStart(2, "0") + ":00";
-      availableTimes.push(timeStr);
-    }
-
-    const unbookedTimes = availableTimes.filter((time) => {
-      const isBooked = bookedSlots.includes(time);
-      return !isBooked;
-    });
-
+    
     if (isToday) {
       const nowHour = today.getHours();
-      const finalTimes = unbookedTimes.filter((time) => {
+      return availableTimes.filter((time) => {
         const [h] = time.split(":").map(Number);
-        const isFuture = h > nowHour;
-        return isFuture;
+        return h > nowHour;
       });
-      return finalTimes;
     }
-
-    return unbookedTimes;
+    
+    return availableTimes;
   };
 
   const getEndTimeOptions = () => {
     if (!selectedStartTime) return [];
-    const availableTimes = getFilteredTimes();
-    const startIndex = availableTimes.indexOf(selectedStartTime);
-    return availableTimes.slice(startIndex + 1);
+    const availableTimesFiltered = getFilteredTimes();
+    const startIndex = availableTimesFiltered.indexOf(selectedStartTime);
+    return availableTimesFiltered.slice(startIndex + 1);
   };
 
   // Event handlers
@@ -492,10 +404,10 @@ export default function BookingScreen() {
 
   const handleStartTimeSelect = (time: string) => {
     setSelectedStartTime(time);
-    const availableTimes = getFilteredTimes();
+    const availableTimesFiltered = getFilteredTimes();
     if (
       selectedEndTime &&
-      availableTimes.indexOf(selectedEndTime) <= availableTimes.indexOf(time)
+      availableTimesFiltered.indexOf(selectedEndTime) <= availableTimesFiltered.indexOf(time)
     ) {
       setSelectedEndTime("");
     }
@@ -505,9 +417,9 @@ export default function BookingScreen() {
     setSelectedEndTime(time);
   };
 
-  // ===== UNIFIED PRICE CALCULATION useEffect =====
+  // ===== SIMPLIFIED PRICE CALCULATION useEffect =====
   useEffect(() => {
-    console.log("🔄 useEffect TRIGGERED!");
+    console.log("🔄 useEffect TRIGGERED for price calculation!");
     console.log("📅 selectedDate:", selectedDate);
     console.log("⏰ selectedStartTime:", selectedStartTime);
     console.log("⏰ selectedEndTime:", selectedEndTime);
@@ -541,53 +453,7 @@ export default function BookingScreen() {
         const isValidLocationId =
           locationId && typeof locationId === "number" && locationId > 0;
 
-        // ===== AVAILABILITY CHECK =====
-        if (isEditMode && existingBookingData) {
-          const isSameDate =
-            existingBookingData.selectedDate === selectedDate.toISOString();
-          const isSameStartTime =
-            existingBookingData.selectedStartTime === selectedStartTime;
-          const isSameEndTime =
-            existingBookingData.selectedEndTime === selectedEndTime;
-
-          if (isSameDate && isSameStartTime && isSameEndTime) {
-            console.log("✅ Edit mode: Same time slot - auto available");
-            setLocalAvailability({
-              available: true,
-              conflictingBookings: [],
-              suggestedTimes: [],
-              message: "Thời gian hiện tại (có thể chỉnh sửa)",
-            });
-          } else {
-            console.log("🔍 Edit mode: Time changed - checking availability");
-            setLocalAvailability(null);
-
-            const availabilityResult =
-              await availabilityService.checkAvailability({
-                photographerId,
-                startTime: startDateTimeString,
-                endTime: endDateTimeString,
-              });
-
-            console.log("🔍 Availability result:", availabilityResult);
-            setAvailability(availabilityResult);
-          }
-        } else {
-          console.log("📝 Create mode: Normal availability check");
-          setLocalAvailability(null);
-
-          const availabilityResult =
-            await availabilityService.checkAvailability({
-              photographerId,
-              startTime: startDateTimeString,
-              endTime: endDateTimeString,
-            });
-
-          console.log("🔍 Availability result:", availabilityResult);
-          setAvailability(availabilityResult);
-        }
-
-        // ===== PRICE CALCULATION =====
+        // ===== PRICE CALCULATION ONLY (No availability check) =====
         let calculatePriceResult;
         if (isValidLocationId) {
           console.log("✅ Calling calculatePrice WITH location:", locationId);
@@ -643,7 +509,7 @@ export default function BookingScreen() {
           });
         }
       } catch (error) {
-        console.error("❌ Error in availability/price check:", error);
+        console.error("❌ Error in price calculation:", error);
       }
     };
 
@@ -654,13 +520,11 @@ export default function BookingScreen() {
     selectedLocation,
     selectedDate,
     photographerId,
-    isEditMode,
-    existingBookingData,
     calculatePrice,
     photographerRate,
   ]);
 
-  // ===== UNIFIED BOOKING SUBMISSION =====
+  // ===== SIMPLIFIED BOOKING SUBMISSION =====
   const handleSubmitBooking = async () => {
     // Basic validation
     if (!photographerId) {
@@ -673,14 +537,8 @@ export default function BookingScreen() {
       return;
     }
 
-    const currentAvailability = getCurrentAvailability();
-    if (!currentAvailability?.available) {
-      Alert.alert(
-        "Không khả dụng",
-        "Photographer không rảnh trong khung giờ này."
-      );
-      return;
-    }
+    // ===== REMOVED: Availability check =====
+    // No need to check availability since API already handles it
 
     if (!isAuthenticated || !user?.id) {
       Alert.alert("Lỗi", "Vui lòng đăng nhập để đặt lịch");
@@ -688,7 +546,7 @@ export default function BookingScreen() {
     }
 
     try {
-      // ✅ UNIFIED DATETIME - Sử dụng cùng method với availability check
+      // ✅ UNIFIED DATETIME - Sử dụng cùng method với price calculation
       const startDateTimeString = createUnifiedDateTime(selectedDate, selectedStartTime);
       const endDateTimeString = createUnifiedDateTime(selectedDate, selectedEndTime);
 
@@ -710,7 +568,7 @@ export default function BookingScreen() {
           ...(specialRequests && { specialRequests }),
         };
 
-        console.log("📝 UPDATE MODE: Sending data:", updateData);
+        console.log("🔄 UPDATE MODE: Sending data:", updateData);
 
         const updatedBooking = await updateBooking(
           existingBookingId,
@@ -764,7 +622,7 @@ export default function BookingScreen() {
           ...(specialRequests && { specialRequests }),
         };
 
-        console.log("📝 CREATE MODE: Sending unified data:", bookingData);
+        console.log("🔄 CREATE MODE: Sending unified data:", bookingData);
 
         // TRY MULTIPLE APPROACHES IF NEEDED
         let createdBooking = null;
@@ -964,13 +822,14 @@ export default function BookingScreen() {
 
   const headerTitle = isEditMode ? "Chỉnh sửa lịch" : "Đặt lịch chụp";
 
-  // Check if form is ready for submission
+  // ===== UPDATED: Check if form is ready for submission =====
   const isFormValid =
     photographerId &&
     selectedStartTime &&
     selectedEndTime &&
     !creating &&
-    !updating;
+    !updating &&
+    availableTimes.length > 0; // ✅ ADDED: Ensure we have available times
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
@@ -1174,7 +1033,7 @@ export default function BookingScreen() {
               >
                 Chọn thời gian
               </Text>
-              {(availabilityLoading || loadingBookedSlots) && (
+              {loadingSlots && (
                 <Text
                   style={{
                     fontSize: getResponsiveSize(12),
@@ -1188,29 +1047,27 @@ export default function BookingScreen() {
             </View>
 
             {/* No availability message */}
-            {!availabilityLoading &&
-              !loadingBookedSlots &&
-              getFilteredTimes().length === 0 && (
-                <View
+            {!loadingSlots && getFilteredTimes().length === 0 && (
+              <View
+                style={{
+                  backgroundColor: "#FFF3F3",
+                  borderRadius: getResponsiveSize(12),
+                  padding: getResponsiveSize(15),
+                  marginBottom: getResponsiveSize(15),
+                  borderWidth: 1,
+                  borderColor: "#F44336",
+                }}
+              >
+                <Text
                   style={{
-                    backgroundColor: "#FFF3F3",
-                    borderRadius: getResponsiveSize(12),
-                    padding: getResponsiveSize(15),
-                    marginBottom: getResponsiveSize(15),
-                    borderWidth: 1,
-                    borderColor: "#F44336",
+                    color: "#C62828",
+                    fontSize: getResponsiveSize(14),
                   }}
                 >
-                  <Text
-                    style={{
-                      color: "#C62828",
-                      fontSize: getResponsiveSize(14),
-                    }}
-                  >
-                    Photographer không có lịch rảnh vào ngày này
-                  </Text>
-                </View>
-              )}
+                  Photographer không có lịch rảnh vào ngày này
+                </Text>
+              </View>
+            )}
 
             {/* Start Time */}
             <Text
@@ -1300,43 +1157,6 @@ export default function BookingScreen() {
                   ))}
                 </ScrollView>
               </>
-            )}
-
-            {/* Availability Status */}
-            {(availability || localAvailability) && selectedStartTime && selectedEndTime && (
-              <View
-                style={{
-                  marginTop: getResponsiveSize(15),
-                  padding: getResponsiveSize(12),
-                  borderRadius: getResponsiveSize(8),
-                  backgroundColor: getCurrentAvailability()?.available
-                    ? "#E8F5E8"
-                    : "#FFF3F3",
-                  borderWidth: 1,
-                  borderColor: getCurrentAvailability()?.available ? "#4CAF50" : "#F44336",
-                }}
-              >
-                <Text
-                  style={{
-                    color: getCurrentAvailability()?.available ? "#2E7D32" : "#C62828",
-                    fontSize: getResponsiveSize(14),
-                    fontWeight: "bold",
-                  }}
-                >
-                  {getCurrentAvailability()?.available
-                    ? "✓ Có thể đặt lịch"
-                    : "✗ Không khả dụng"}
-                </Text>
-                
-                {/* Debug info */}
-                <Text style={{ fontSize: 10, color: "#666", marginTop: 5 }}>
-                  Debug: {JSON.stringify({
-                    available: getCurrentAvailability()?.available,
-                    message: getCurrentAvailability()?.message,
-                    source: availability ? "API" : localAvailability ? "Local" : "None"
-                  })}
-                </Text>
-              </View>
             )}
           </View>
 
@@ -1642,7 +1462,7 @@ export default function BookingScreen() {
       />
 
       {/* Error Display */}
-      {error && (
+      {(error || availabilityError) && (
         <View
           style={{
             position: "absolute",
@@ -1662,45 +1482,46 @@ export default function BookingScreen() {
               textAlign: "center",
             }}
           >
-            {error}
+            {error || availabilityError}
           </Text>
         </View>
       )}
 
-      {/* Debug Cleanup Button */}
-      <TouchableOpacity
-        onPress={async () => {
-          try {
-            const success = await cleanupService.manualCleanup();
-            if (success) {
-              Alert.alert("Success", "Cleaned up pending bookings!");
-              const booked = await getBookedSlotsForDate(
-                photographerId,
-                selectedDate
-              );
-              setBookedSlots(booked);
+      {/* Debug Cleanup Button - Remove in production */}
+      {__DEV__ && (
+        <TouchableOpacity
+          onPress={async () => {
+            try {
+              const success = await cleanupService.manualCleanup();
+              if (success) {
+                Alert.alert("Success", "Cleaned up pending bookings!");
+                // Refresh available times
+                const dateString = selectedDate.toISOString().split('T')[0];
+                const times = await getAvailableTimesForDate(photographerId, dateString);
+                setAvailableTimes(times);
+              }
+            } catch (error) {
+              Alert.alert("Error", "Cleanup failed");
             }
-          } catch (error) {
-            Alert.alert("Error", "Cleanup failed");
-          }
-        }}
-        style={{
-          backgroundColor: "#FF6B35",
-          padding: getResponsiveSize(8),
-          borderRadius: getResponsiveSize(4),
-          marginTop: getResponsiveSize(8),
-        }}
-      >
-        <Text
+          }}
           style={{
-            color: "#fff",
-            fontSize: getResponsiveSize(12),
-            textAlign: "center",
+            backgroundColor: "#FF6B35",
+            padding: getResponsiveSize(8),
+            borderRadius: getResponsiveSize(4),
+            margin: getResponsiveSize(8),
           }}
         >
-          🧹 Cleanup Pending Bookings
-        </Text>
-      </TouchableOpacity>
+          <Text
+            style={{
+              color: "#fff",
+              fontSize: getResponsiveSize(12),
+              textAlign: "center",
+            }}
+          >
+            🧹 Cleanup Pending Bookings
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }

@@ -100,42 +100,68 @@ export function useFavorites() {
       notifyListeners();
     } catch (err) {
       console.error("Error saving favorites:", err);
+      throw err; // Re-throw để caller có thể handle
     }
   };
 
   // Add an item to favorites
   const addFavorite = useCallback(async (item: FavoriteItem) => {
-    // Check if already exists to prevent duplicates
-    const uniqueKey = createUniqueKey(item.type, item.id);
-    const exists = globalFavorites.some(
-      (fav) => createUniqueKey(fav.type, fav.id) === uniqueKey
-    );
+    try {
+      // Validate input
+      if (!item || !item.id || !item.type) {
+        console.error("Invalid favorite item:", item);
+        return false;
+      }
 
-    if (!exists) {
-      const newFavorites = [...globalFavorites, item];
-      await saveFavorites(newFavorites);
-    } else {
-      console.warn(`Item already exists in favorites: ${uniqueKey}`);
+      // Check if already exists to prevent duplicates
+      const uniqueKey = createUniqueKey(item.type, item.id);
+      const exists = globalFavorites.some(
+        (fav) => createUniqueKey(fav.type, fav.id) === uniqueKey
+      );
+
+      if (!exists) {
+        const newFavorites = [...globalFavorites, item];
+        await saveFavorites(newFavorites);
+        return true;
+      } else {
+        console.warn(`Item already exists in favorites: ${uniqueKey}`);
+        return false;
+      }
+    } catch (error) {
+      console.error("Error adding favorite:", error);
+      return false;
     }
   }, []);
 
   // Remove an item from favorites
   const removeFavorite = useCallback(
     async (id: string, type?: "photographer" | "location") => {
-      let newFavorites: FavoriteItem[];
+      try {
+        // Validate input
+        if (!id) {
+          console.error("Invalid id for removeFavorite:", id);
+          return false;
+        }
 
-      if (type) {
-        // Remove specific type-id combination
-        const uniqueKey = createUniqueKey(type, id);
-        newFavorites = globalFavorites.filter(
-          (item) => createUniqueKey(item.type, item.id) !== uniqueKey
-        );
-      } else {
-        // Backward compatibility: remove by id only
-        newFavorites = globalFavorites.filter((item) => item.id !== id);
+        let newFavorites: FavoriteItem[];
+
+        if (type) {
+          // Remove specific type-id combination
+          const uniqueKey = createUniqueKey(type, id);
+          newFavorites = globalFavorites.filter(
+            (item) => createUniqueKey(item.type, item.id) !== uniqueKey
+          );
+        } else {
+          // Backward compatibility: remove by id only
+          newFavorites = globalFavorites.filter((item) => item.id !== id);
+        }
+
+        await saveFavorites(newFavorites);
+        return true;
+      } catch (error) {
+        console.error("Error removing favorite:", error);
+        return false;
       }
-
-      await saveFavorites(newFavorites);
     },
     []
   );
@@ -143,29 +169,85 @@ export function useFavorites() {
   // Check if an item is in favorites
   const isFavorite = useCallback(
     (id: string, type?: "photographer" | "location") => {
-      if (type) {
-        // Check specific type-id combination
-        const uniqueKey = createUniqueKey(type, id);
-        return globalFavorites.some(
-          (item) => createUniqueKey(item.type, item.id) === uniqueKey
-        );
-      } else {
-        // Backward compatibility: check by id only
-        return globalFavorites.some((item) => item.id === id);
+      try {
+        // Validate input
+        if (!id) {
+          return false;
+        }
+
+        if (type) {
+          // Check specific type-id combination
+          const uniqueKey = createUniqueKey(type, id);
+          return globalFavorites.some(
+            (item) => createUniqueKey(item.type, item.id) === uniqueKey
+          );
+        } else {
+          // Backward compatibility: check by id only
+          return globalFavorites.some((item) => item.id === id);
+        }
+      } catch (error) {
+        console.error("Error checking isFavorite:", error);
+        return false;
       }
     },
     []
   );
 
-  // Toggle favorite status
+  // Toggle favorite status - FIXED VERSION
   const toggleFavorite = useCallback(
-    async (item: FavoriteItem) => {
-      const isCurrentlyFavorite = isFavorite(item.id, item.type);
+    (item: FavoriteItem) => {
+      // KHÔNG return Promise để tránh Text rendering issues
+      const performToggle = async () => {
+        try {
+          // Validate input
+          if (!item || !item.id || !item.type) {
+            console.error("Invalid item for toggleFavorite:", item);
+            return;
+          }
 
-      if (isCurrentlyFavorite) {
-        await removeFavorite(item.id, item.type);
-      } else {
-        await addFavorite(item);
+          const isCurrentlyFavorite = isFavorite(item.id, item.type);
+
+          if (isCurrentlyFavorite) {
+            await removeFavorite(item.id, item.type);
+            console.log(`Removed ${item.type} ${item.id} from favorites`);
+          } else {
+            await addFavorite(item);
+            console.log(`Added ${item.type} ${item.id} to favorites`);
+          }
+        } catch (error) {
+          console.error("Error in toggleFavorite:", error);
+        }
+      };
+
+      // Execute async operation without returning Promise
+      performToggle();
+      
+      // Return void explicitly
+      return;
+    },
+    [isFavorite, removeFavorite, addFavorite]
+  );
+
+  // Alternative toggleFavorite that returns Promise if needed
+  const toggleFavoriteAsync = useCallback(
+    async (item: FavoriteItem): Promise<boolean> => {
+      try {
+        // Validate input
+        if (!item || !item.id || !item.type) {
+          console.error("Invalid item for toggleFavoriteAsync:", item);
+          return false;
+        }
+
+        const isCurrentlyFavorite = isFavorite(item.id, item.type);
+
+        if (isCurrentlyFavorite) {
+          return await removeFavorite(item.id, item.type);
+        } else {
+          return await addFavorite(item);
+        }
+      } catch (error) {
+        console.error("Error in toggleFavoriteAsync:", error);
+        return false;
       }
     },
     [isFavorite, removeFavorite, addFavorite]
@@ -199,13 +281,13 @@ export function useFavorites() {
   }, []);
 
   return {
-    favorites: globalFavorites, // Always return global state
-    loading,
+    favorites: globalFavorites, 
     error,
     addFavorite,
     removeFavorite,
     isFavorite,
-    toggleFavorite,
+    toggleFavorite, 
+    toggleFavoriteAsync, 
     getFavoritesByType,
     getFavoritePhotographers,
     getFavoriteLocations,

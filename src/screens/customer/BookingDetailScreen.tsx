@@ -43,9 +43,10 @@ const BookingDetailScreen = () => {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // State for photo delivery
+  // ✅ Improved photo delivery states
   const [photoDelivery, setPhotoDelivery] = useState<PhotoDeliveryData | null>(null);
   const [deliveryLoading, setDeliveryLoading] = useState(true);
+  const [deliveryHasError, setDeliveryHasError] = useState(false); // ✅ Phân biệt error vs empty
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
@@ -68,20 +69,22 @@ const BookingDetailScreen = () => {
     }
   };
 
-  // Fetch photo delivery details
-  const fetchPhotoDelivery = async () => {
-    try {
-      setDeliveryLoading(true);
-      setDeliveryError(null);
-      const deliveryData = await photoDeliveryService.getPhotoDeliveryByBooking(bookingId);
-      setPhotoDelivery(deliveryData);
-    } catch (error: any) {
-      console.error('Error fetching photo delivery:', error);
-      setDeliveryError('Chưa có thông tin về ảnh chụp');
-    } finally {
-      setDeliveryLoading(false);
-    }
-  };
+  // ✅ Improved photo delivery fetch with better error handling
+const fetchPhotoDelivery = async () => {
+  setDeliveryLoading(true);
+  setDeliveryError(null);
+  setDeliveryHasError(false);
+  
+  try {
+    const deliveryData = await photoDeliveryService.getPhotoDeliveryByBooking(bookingId);
+    setPhotoDelivery(deliveryData);
+  } catch {
+    // ✅ BỎ QUA MỌI LỖI - chỉ set null
+    setPhotoDelivery(null);
+  }
+  
+  setDeliveryLoading(false);
+};
 
   useEffect(() => {
     fetchBookingDetails();
@@ -140,7 +143,6 @@ const BookingDetailScreen = () => {
                   status: 'Delivered'
                 }
               );
-
 
               // Refresh both booking and photo delivery data
               await Promise.all([
@@ -278,7 +280,7 @@ const BookingDetailScreen = () => {
     );
   };
 
-    const canShowRating = () => {
+  const canShowRating = () => {
     return (
       booking &&
       booking.status === BookingStatus.COMPLETED &&
@@ -300,6 +302,206 @@ const BookingDetailScreen = () => {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
     return diffDays;
+  };
+
+  // ✅ Render Photo Delivery Section with improved states
+  const renderPhotoDeliverySection = () => {
+    if (deliveryLoading) {
+      return (
+        <View className="flex-row items-center py-5">
+          <ActivityIndicator size="small" color="#FF385C" />
+          <Text className="ml-3 text-gray-600">Đang tải thông tin ảnh...</Text>
+        </View>
+      );
+    }
+
+    // ✅ Show error state only for real errors
+    if (deliveryHasError && deliveryError) {
+      return (
+        <View className="items-center py-10">
+          <Ionicons name="alert-circle-outline" size={48} color="#F44336" />
+          <Text className="text-lg text-red-500 mt-4 text-center">{deliveryError}</Text>
+          <TouchableOpacity 
+            className="bg-red-500 px-4 py-2 rounded-lg mt-3"
+            onPress={fetchPhotoDelivery}
+          >
+            <Text className="text-white text-sm font-medium">Thử lại</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // ✅ Show empty state when no photo delivery (normal case)
+    if (!photoDelivery) {
+      return (
+        <View className="items-center py-10">
+          <Ionicons name="camera-outline" size={48} color="#C0C0C0" />
+          <Text className="text-lg text-gray-400 mt-4">Chưa có ảnh</Text>
+          <Text className="text-sm text-gray-400 mt-2 text-center">
+            Photographer sẽ upload ảnh sau khi hoàn thành chụp
+          </Text>
+        </View>
+      );
+    }
+
+    // ✅ Show photo delivery data
+    return (
+      <>
+        <View className="flex-row justify-between items-center mb-3">
+          <Text className="text-base text-black font-medium">Trạng thái:</Text>
+          <View className={`px-2 py-1 rounded-full ${getDeliveryStatusColor(photoDelivery.status)}`}>
+            <Text className="text-white text-xs font-medium">
+              {getDeliveryStatusText(photoDelivery.status)}
+            </Text>
+          </View>
+        </View>
+
+        {photoDelivery.deliveryMethod && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="cloud-outline" size={20} color="#666666" />
+            <Text className="ml-2 text-sm text-gray-600">
+              Phương thức: {photoDelivery.deliveryMethod}
+            </Text>
+          </View>
+        )}
+
+        {photoDelivery.photoCount && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="images-outline" size={20} color="#666666" />
+            <Text className="ml-2 text-sm text-gray-600">
+              Số lượng ảnh: {photoDelivery.photoCount} ảnh
+            </Text>
+          </View>
+        )}
+
+        {photoDelivery.driveFolderName && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="folder-outline" size={20} color="#666666" />
+            <Text className="ml-2 text-sm text-gray-600">
+              Thư mục: {photoDelivery.driveFolderName}
+            </Text>
+          </View>
+        )}
+
+        {photoDelivery.notes && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="document-text-outline" size={20} color="#666666" />
+            <Text className="ml-2 text-sm text-gray-600">
+              Ghi chú: {photoDelivery.notes}
+            </Text>
+          </View>
+        )}
+
+        {photoDelivery.uploadedAt && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons name="cloud-upload-outline" size={20} color="#666666" />
+            <Text className="ml-2 text-sm text-gray-600">
+              Ngày upload: {formatDate(photoDelivery.uploadedAt)}
+            </Text>
+          </View>
+        )}
+
+        {photoDelivery.expiresAt && (
+          <View className="flex-row items-center mb-2">
+            <Ionicons 
+              name="time-outline" 
+              size={20} 
+              color={isExpired() ? "#F44336" : "#666666"} 
+            />
+            <Text className={`ml-2 text-sm ${isExpired() ? 'text-red-500' : 'text-gray-600'}`}>
+              {isExpired() 
+                ? "Đã hết hạn tải ảnh"
+                : `Hết hạn sau ${getDaysUntilExpiry()} ngày`
+              }
+            </Text>
+          </View>
+        )}
+
+        {/* Google Drive Link */}
+        {photoDelivery.driveLink && (
+          <TouchableOpacity
+            className="bg-blue-500 flex-row items-center justify-center py-3 rounded-lg mt-4"
+            onPress={() => handleOpenDriveLink(photoDelivery.driveLink!)}
+          >
+            <Ionicons name="link-outline" size={24} color="#FFFFFF" />
+            <Text className="text-white text-base font-semibold ml-2">
+              Xem ảnh trên Google Drive
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Confirm Button */}
+        {canConfirmReceived() && (
+          <TouchableOpacity
+            className={`bg-green-500 flex-row items-center justify-center py-3 rounded-lg mt-3 ${updating ? 'opacity-60' : ''}`}
+            onPress={handleConfirmReceived}
+            disabled={updating}
+          >
+            {updating ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="checkmark-circle-outline" size={24} color="#FFFFFF" />
+            )}
+            <Text className="text-white text-base font-semibold ml-2">
+              {updating ? 'Đang xử lý...' : 'Xác nhận đã nhận ảnh'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Rating Button */}
+        {canShowRating() && (
+          <TouchableOpacity
+            className="bg-yellow-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
+            onPress={handleShowRating}
+          >
+            <Ionicons name="star-outline" size={getResponsiveSize(24)} color="#FFFFFF" />
+            <Text 
+              className="text-white text-base font-semibold ml-2"
+              style={{ fontSize: getResponsiveSize(14) }}
+            >
+              Đánh giá dịch vụ
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Status Messages */}
+        {booking?.status === BookingStatus.COMPLETED && (
+          <View className="flex-row items-center bg-green-50 p-3 rounded-lg mt-4">
+            <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
+            <View className="flex-1 ml-2">
+              <Text className="text-green-600 text-base font-medium">Đơn hàng đã hoàn thành</Text>
+              <Text className="text-green-600 text-xs mt-1">
+                Cảm ơn bạn đã sử dụng dịch vụ
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {isExpired() && (
+          <View className="flex-row items-center bg-red-50 p-3 rounded-lg mt-4">
+            <Ionicons name="alert-circle" size={24} color="#F44336" />
+            <View className="flex-1 ml-2">
+              <Text className="text-red-500 text-base font-medium">Link tải ảnh đã hết hạn</Text>
+              <Text className="text-red-500 text-xs mt-1">
+                Vui lòng liên hệ photographer để được hỗ trợ
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {photoDelivery.status.toLowerCase() === 'pending' && (
+          <View className="flex-row items-center bg-orange-50 p-3 rounded-lg mt-4">
+            <Ionicons name="time-outline" size={24} color="#FF9800" />
+            <View className="flex-1 ml-2">
+              <Text className="text-orange-600 text-base font-medium">Đang chuẩn bị ảnh</Text>
+              <Text className="text-orange-600 text-xs mt-1">
+                Photographer đang xử lý và sẽ upload ảnh sớm nhất có thể
+              </Text>
+            </View>
+          </View>
+        )}
+      </>
+    );
   };
 
   // Loading state
@@ -437,7 +639,7 @@ const BookingDetailScreen = () => {
             <Ionicons name="cash-outline" size={20} color="#666666" />
             <View className="flex-1 ml-3">
               <Text className="text-sm text-gray-600 mb-1">Tổng tiền</Text>
-              <Text className="text-base text-black font-medium">{formatPrice(booking.paymentAmount || 0)}</Text>
+              <Text className="text-base text-black font-medium">{formatPrice(booking.totalPrice || 0)}</Text>
             </View>
           </View>
 
@@ -455,180 +657,10 @@ const BookingDetailScreen = () => {
         {/* Photo Delivery Card */}
         <View className="bg-white rounded-xl p-4 shadow-sm">
           <Text className="text-lg font-semibold text-black mb-4">Ảnh chụp</Text>
-          
-          {deliveryLoading ? (
-            <View className="flex-row items-center py-5">
-              <ActivityIndicator size="small" color="#FF385C" />
-              <Text className="ml-3 text-gray-600">Đang tải thông tin ảnh...</Text>
-            </View>
-          ) : !photoDelivery ? (
-            <View className="items-center py-10">
-              <Ionicons name="camera-outline" size={48} color="#C0C0C0" />
-              <Text className="text-lg text-gray-300 mt-4">Chưa có ảnh</Text>
-              <Text className="text-sm text-gray-400 mt-2 text-center">
-                Photographer sẽ upload ảnh sau khi hoàn thành chụp
-              </Text>
-            </View>
-          ) : (
-            <>
-              <View className="flex-row justify-between items-center mb-3">
-                <Text className="text-base text-black font-medium">Trạng thái:</Text>
-                <View className={`px-2 py-1 rounded-full ${getDeliveryStatusColor(photoDelivery.status)}`}>
-                  <Text className="text-white text-xs font-medium">
-                    {getDeliveryStatusText(photoDelivery.status)}
-                  </Text>
-                </View>
-              </View>
-
-              {photoDelivery.deliveryMethod && (
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="cloud-outline" size={20} color="#666666" />
-                  <Text className="ml-2 text-sm text-gray-600">
-                    Phương thức: {photoDelivery.deliveryMethod}
-                  </Text>
-                </View>
-              )}
-
-              {photoDelivery.photoCount && (
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="images-outline" size={20} color="#666666" />
-                  <Text className="ml-2 text-sm text-gray-600">
-                    Số lượng ảnh: {photoDelivery.photoCount} ảnh
-                  </Text>
-                </View>
-              )}
-
-              {photoDelivery.driveFolderName && (
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="folder-outline" size={20} color="#666666" />
-                  <Text className="ml-2 text-sm text-gray-600">
-                    Thư mục: {photoDelivery.driveFolderName}
-                  </Text>
-                </View>
-              )}
-
-              {photoDelivery.notes && (
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="document-text-outline" size={20} color="#666666" />
-                  <Text className="ml-2 text-sm text-gray-600">
-                    Ghi chú: {photoDelivery.notes}
-                  </Text>
-                </View>
-              )}
-
-              {photoDelivery.uploadedAt && (
-                <View className="flex-row items-center mb-2">
-                  <Ionicons name="cloud-upload-outline" size={20} color="#666666" />
-                  <Text className="ml-2 text-sm text-gray-600">
-                    Ngày upload: {formatDate(photoDelivery.uploadedAt)}
-                  </Text>
-                </View>
-              )}
-
-              {photoDelivery.expiresAt && (
-                <View className="flex-row items-center mb-2">
-                  <Ionicons 
-                    name="time-outline" 
-                    size={20} 
-                    color={isExpired() ? "#F44336" : "#666666"} 
-                  />
-                  <Text className={`ml-2 text-sm ${isExpired() ? 'text-red-500' : 'text-gray-600'}`}>
-                    {isExpired() 
-                      ? "Đã hết hạn tải ảnh"
-                      : `Hết hạn sau ${getDaysUntilExpiry()} ngày`
-                    }
-                  </Text>
-                </View>
-              )}
-
-              {/* Google Drive Link */}
-              {photoDelivery.driveLink && (
-                <TouchableOpacity
-                  className="bg-blue-500 flex-row items-center justify-center py-3 rounded-lg mt-4"
-                  onPress={() => handleOpenDriveLink(photoDelivery.driveLink!)}
-                >
-                  <Ionicons name="link-outline" size={24} color="#FFFFFF" />
-                  <Text className="text-white text-base font-semibold ml-2">
-                    Xem ảnh trên Google Drive
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Confirm Button - Chỉ hiện khi status là Pending và có drive link */}
-              {canConfirmReceived() && (
-                <TouchableOpacity
-                  className={`bg-green-500 flex-row items-center justify-center py-3 rounded-lg mt-3 ${updating ? 'opacity-60' : ''}`}
-                  onPress={handleConfirmReceived}
-                  disabled={updating}
-                >
-                  {updating ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
-                  ) : (
-                    <Ionicons name="checkmark-circle-outline" size={24} color="#FFFFFF" />
-                  )}
-                  <Text className="text-white text-base font-semibold ml-2">
-                    {updating ? 'Đang xử lý...' : 'Xác nhận đã nhận ảnh'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-              {/* Rating Button */}
-              {canShowRating() && (
-                <TouchableOpacity
-                  className="bg-yellow-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
-                  onPress={handleShowRating}
-                >
-                  <Ionicons name="star-outline" size={getResponsiveSize(24)} color="#FFFFFF" />
-                  <Text 
-                    className="text-white text-base font-semibold ml-2"
-                    style={{ fontSize: getResponsiveSize(14) }}
-                  >
-                    Đánh giá dịch vụ
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Already Completed */}
-              {booking.status === BookingStatus.COMPLETED && (
-                <View className="flex-row items-center bg-green-50 p-3 rounded-lg mt-4">
-                  <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
-                  <View className="flex-1 ml-2">
-                    <Text className="text-green-600 text-base font-medium">Đơn hàng đã hoàn thành</Text>
-                    <Text className="text-green-600 text-xs mt-1">
-                      Cảm ơn bạn đã sử dụng dịch vụ
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Expired */}
-              {isExpired() && (
-                <View className="flex-row items-center bg-red-50 p-3 rounded-lg mt-4">
-                  <Ionicons name="alert-circle" size={24} color="#F44336" />
-                  <View className="flex-1 ml-2">
-                    <Text className="text-red-500 text-base font-medium">Link tải ảnh đã hết hạn</Text>
-                    <Text className="text-red-500 text-xs mt-1">
-                      Vui lòng liên hệ photographer để được hỗ trợ
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Pending State */}
-              {photoDelivery.status.toLowerCase() === 'pending' && (
-                <View className="flex-row items-center bg-orange-50 p-3 rounded-lg mt-4">
-                  <Ionicons name="time-outline" size={24} color="#FF9800" />
-                  <View className="flex-1 ml-2">
-                    <Text className="text-orange-600 text-base font-medium">Đang chuẩn bị ảnh</Text>
-                    <Text className="text-orange-600 text-xs mt-1">
-                      Photographer đang xử lý và sẽ upload ảnh sớm nhất có thể
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </>
-          )}
+          {renderPhotoDeliverySection()}
         </View>
       </ScrollView>
+
       {booking && userId !== undefined && (
         <RatingModal
           visible={showRatingModal}

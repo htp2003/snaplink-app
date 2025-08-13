@@ -27,6 +27,7 @@ import type {
   PriceCalculationResponse,
 } from "../../types/booking";
 import { PaymentFlowData } from "../../types/payment";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 interface LocationParam {
   id: number;
@@ -66,13 +67,26 @@ export default function OrderDetailScreen() {
   // Auth hook
   const { user, isAuthenticated } = useAuth();
 
-  const { getBookingById, loading: loadingBooking } = useBooking();
+  const {
+    getBookingById,
+    loading: loadingBooking,
+    confirmBooking,
+    confirming,
+  } = useBooking();
 
   const {
     createPaymentForBooking,
     creatingPayment,
     error: paymentError,
   } = usePayment();
+
+  const [showWalletSuccessModal, setShowWalletSuccessModal] = useState(false);
+
+  // ===== THÊM STATE CHO PAYMENT METHOD =====
+  type PaymentMethod = "bank_qr" | "snaplink_wallet";
+  // Thêm state sau các state hiện tại
+  const [selectedPaymentMethod, setSelectedPaymentMethod] =
+    useState<PaymentMethod>("bank_qr");
 
   // State để lưu booking đã tạo
   const [currentBooking, setCurrentBooking] = useState<BookingResponse | null>(
@@ -127,19 +141,48 @@ export default function OrderDetailScreen() {
   // Validate params
   if (!params || !params.photographer || !params.selectedDate) {
     return (
-      <View style={styles.errorContainer}>
+      <View
+        className="flex-1 justify-center items-center bg-gray-50"
+        style={{ paddingHorizontal: getResponsiveSize(40) }}
+      >
         <MaterialIcons
           name="error"
           size={getResponsiveSize(48)}
           color="#EF5350"
         />
-        <Text style={styles.errorTitle}>Thông tin không hợp lệ</Text>
-        <Text style={styles.errorMessage}>Vui lòng quay lại và thử lại</Text>
+        <Text
+          className="font-bold text-gray-800 text-center"
+          style={{
+            fontSize: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            marginBottom: getResponsiveSize(8),
+          }}
+        >
+          Thông tin không hợp lệ
+        </Text>
+        <Text
+          className="text-gray-600 text-center"
+          style={{
+            fontSize: getResponsiveSize(16),
+            marginBottom: getResponsiveSize(24),
+          }}
+        >
+          Vui lòng quay lại và thử lại
+        </Text>
         <TouchableOpacity
-          style={styles.errorButton}
+          className="bg-pink-600 rounded-lg"
+          style={{
+            paddingHorizontal: getResponsiveSize(24),
+            paddingVertical: getResponsiveSize(12),
+          }}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.errorButtonText}>Quay lại</Text>
+          <Text
+            className="text-white font-semibold"
+            style={{ fontSize: getResponsiveSize(16) }}
+          >
+            Quay lại
+          </Text>
         </TouchableOpacity>
       </View>
     );
@@ -147,9 +190,17 @@ export default function OrderDetailScreen() {
 
   if (!isAuthenticated || !user?.id) {
     return (
-      <View style={styles.loadingContainer}>
+      <View className="flex-1 justify-center items-center bg-gray-50">
         <ActivityIndicator size="large" color="#E91E63" />
-        <Text style={styles.loadingText}>Đang kiểm tra xác thực...</Text>
+        <Text
+          className="font-bold text-gray-800"
+          style={{
+            fontSize: getResponsiveSize(16),
+            marginTop: getResponsiveSize(16),
+          }}
+        >
+          Đang kiểm tra xác thực...
+        </Text>
       </View>
     );
   }
@@ -279,70 +330,93 @@ export default function OrderDetailScreen() {
     setIsProcessing(true);
 
     try {
-      // Create payment using service
-      const paymentResult = await createPaymentForBooking(
-        user.id,
-        params.bookingId,
-        params.photographer.fullName,
-        {
-          date: formatDate(selectedDate),
-          startTime: params.selectedStartTime,
-          endTime: params.selectedEndTime,
-          location: params.selectedLocation?.name,
+      // ===== XỬ LÝ THEO PAYMENT METHOD =====
+      if (selectedPaymentMethod === "snaplink_wallet") {
+        // ===== WALLET PAYMENT FLOW =====
+        console.log(
+          "💳 Processing wallet payment for booking:",
+          params.bookingId
+        );
+
+        // Confirm booking - Backend sẽ tự động trừ tiền từ ví
+        const confirmSuccess = await confirmBooking(params.bookingId);
+
+        if (!confirmSuccess) {
+          throw new Error("Không thể xác nhận booking và trừ tiền từ ví");
         }
-      );
 
-      if (!paymentResult) {
-        throw new Error(paymentError || "Không thể tạo thanh toán");
+        setShowWalletSuccessModal(true);
+      } else {
+        // ===== BANK QR PAYMENT FLOW (EXISTING LOGIC) =====
+        console.log(
+          "🏦 Processing bank QR payment for booking:",
+          params.bookingId
+        );
+
+        // Create payment using service
+        const paymentResult = await createPaymentForBooking(
+          user.id,
+          params.bookingId,
+          params.photographer.fullName,
+          {
+            date: formatDate(selectedDate),
+            startTime: params.selectedStartTime,
+            endTime: params.selectedEndTime,
+            location: params.selectedLocation?.name,
+          }
+        );
+
+        if (!paymentResult) {
+          throw new Error(paymentError || "Không thể tạo thanh toán");
+        }
+
+        // Get payment details
+        const paymentId = paymentResult.id;
+        const qrCode = paymentResult.qrCode;
+
+        if (!qrCode) {
+          console.warn("⚠️ No QR code in payment response");
+        }
+
+        // Prepare navigation data for payment screen
+        const navigationData: PaymentFlowData = {
+          booking: {
+            id: params.bookingId,
+            photographerName: params.photographer.fullName,
+            date: formatDate(selectedDate),
+            time: `${params.selectedStartTime}-${params.selectedEndTime}`,
+            location: params.selectedLocation?.name,
+            totalAmount: pricingDetails.totalPrice,
+          },
+          payment: {
+            paymentId: paymentId,
+            id: paymentId,
+            externalTransactionId: paymentResult.externalTransactionId || "",
+            customerId: user.id,
+            customerName: user.fullName || user.email || "Unknown",
+            totalAmount: pricingDetails.totalPrice,
+            status: paymentResult.status || "Pending",
+            bookingId: params.bookingId,
+            photographerName: params.photographer.fullName,
+            locationName: params.selectedLocation?.name || "",
+            paymentUrl: paymentResult.paymentUrl || "",
+            orderCode: paymentResult.orderCode || "",
+            amount: paymentResult.amount || pricingDetails.totalPrice,
+            qrCode: qrCode || "",
+          },
+          user: {
+            name: user.fullName || user.email || "Unknown",
+            email: user.email || "No email",
+          },
+        };
+
+        // Navigate to payment screen
+        navigation.navigate("PaymentWaitingScreen", navigationData);
       }
-
-      // ✅ FIX: Use orderCode (numeric) for tracking
-      const paymentId = paymentResult.id; // This is now orderCode (number)
-
-      // ✅ FIX: Ensure QR code is properly passed
-      const qrCode = paymentResult.qrCode;
-      if (!qrCode) {
-        console.warn("⚠️ No QR code in payment response");
-      }
-
-      // Prepare navigation data
-      const navigationData: PaymentFlowData = {
-        booking: {
-          id: params.bookingId,
-          photographerName: params.photographer.fullName,
-          date: formatDate(selectedDate),
-          time: `${params.selectedStartTime}-${params.selectedEndTime}`,
-          location: params.selectedLocation?.name,
-          totalAmount: pricingDetails.totalPrice,
-        },
-        payment: {
-          paymentId: paymentId,
-          id: paymentId,
-          externalTransactionId: paymentResult.externalTransactionId || "",
-          customerId: user.id,
-          customerName: user.fullName || user.email || "Unknown",
-          totalAmount: pricingDetails.totalPrice,
-          status: paymentResult.status || "Pending",
-          bookingId: params.bookingId,
-          photographerName: params.photographer.fullName,
-          locationName: params.selectedLocation?.name || "",
-          paymentUrl: paymentResult.paymentUrl || "",
-          orderCode: paymentResult.orderCode || "",
-          amount: paymentResult.amount || pricingDetails.totalPrice,
-          qrCode: qrCode || "",
-        },
-        user: {
-          name: user.fullName || user.email || "Unknown",
-          email: user.email || "No email",
-        },
-      };
-
-      // Navigate to payment screen
-      navigation.navigate("PaymentWaitingScreen", navigationData);
     } catch (err) {
-      console.error("❌ Payment creation error:", err);
+      console.error("❌ Payment processing error:", err);
 
-      let errorMessage = "Có lỗi xảy ra khi tạo thanh toán";
+      let errorMessage = "Có lỗi xảy ra khi xử lý thanh toán";
 
       if (err instanceof Error) {
         errorMessage = err.message;
@@ -350,7 +424,13 @@ export default function OrderDetailScreen() {
         errorMessage = err;
       }
 
-      Alert.alert("Lỗi thanh toán", errorMessage, [
+      // Show different error messages based on payment method
+      const errorTitle =
+        selectedPaymentMethod === "snaplink_wallet"
+          ? "Lỗi thanh toán ví"
+          : "Lỗi thanh toán";
+
+      Alert.alert(errorTitle, errorMessage, [
         {
           text: "Thử lại",
           onPress: () => handleBookNow(),
@@ -366,14 +446,22 @@ export default function OrderDetailScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        className="flex-row items-center justify-between bg-white border-b border-gray-100"
+        style={{
+          paddingHorizontal: getResponsiveSize(20),
+          paddingTop: getResponsiveSize(50),
+          paddingBottom: getResponsiveSize(20),
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          className="bg-gray-100 rounded-lg"
+          style={{ padding: getResponsiveSize(8) }}
           activeOpacity={0.7}
         >
           <AntDesign
@@ -382,44 +470,88 @@ export default function OrderDetailScreen() {
             color="#333"
           />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Xác nhận đặt lịch</Text>
+        <Text
+          className="font-bold text-gray-800"
+          style={{ fontSize: getResponsiveSize(18) }}
+        >
+          Xác nhận đặt lịch
+        </Text>
+        <View style={{ width: getResponsiveSize(40) }} />
       </View>
 
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: getResponsiveSize(120) }}
         showsVerticalScrollIndicator={false}
       >
         {/* Photographer Info Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconWrapper}>
+        <View
+          className="bg-white rounded-xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View
+              className="bg-pink-50 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
               <Feather
                 name="user"
                 size={getResponsiveSize(18)}
                 color="#E91E63"
               />
             </View>
-            <Text style={styles.cardTitle}>Photographer</Text>
+            <Text
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Photographer
+            </Text>
           </View>
 
-          <View style={styles.photographerContainer}>
+          <View className="flex-row items-center">
             <Image
               source={{
                 uri:
                   params.photographer.profileImage ||
                   "https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar",
               }}
-              style={styles.photographerAvatar}
+              className="bg-gray-100"
+              style={{
+                width: getResponsiveSize(60),
+                height: getResponsiveSize(60),
+                borderRadius: getResponsiveSize(30),
+                marginRight: getResponsiveSize(16),
+              }}
               defaultSource={{
                 uri: "https://via.placeholder.com/80x80/f0f0f0/999?text=Avatar",
               }}
             />
-            <View style={styles.photographerInfo}>
-              <Text style={styles.photographerName} numberOfLines={2}>
+            <View className="flex-1">
+              <Text
+                className="font-bold text-gray-800"
+                style={{
+                  fontSize: getResponsiveSize(16),
+                  marginBottom: getResponsiveSize(4),
+                }}
+                numberOfLines={2}
+              >
                 {params.photographer.fullName}
               </Text>
-              <Text style={styles.photographerRate}>
+              <Text
+                className="font-semibold text-pink-600"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
                 {formatCurrency(params.photographer.hourlyRate)}/giờ
               </Text>
             </View>
@@ -427,32 +559,89 @@ export default function OrderDetailScreen() {
         </View>
 
         {/* Date & Time Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconWrapper}>
+        <View
+          className="bg-white rounded-xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View
+              className="bg-pink-50 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
               <Feather
                 name="calendar"
                 size={getResponsiveSize(18)}
                 color="#E91E63"
               />
             </View>
-            <Text style={styles.cardTitle}>Thời gian</Text>
+            <Text
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Thời gian
+            </Text>
           </View>
 
-          <View style={styles.timeInfoContainer}>
-            <View style={styles.timeRow}>
-              <Text style={styles.timeLabel}>Ngày:</Text>
-              <Text style={styles.timeValue}>{formatDate(selectedDate)}</Text>
+          <View style={{ gap: getResponsiveSize(12) }}>
+            <View className="flex-row justify-between items-center">
+              <Text
+                className="text-gray-600 font-medium"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
+                Ngày:
+              </Text>
+              <Text
+                className="font-semibold text-gray-800 text-right flex-1"
+                style={{
+                  fontSize: getResponsiveSize(14),
+                  marginLeft: getResponsiveSize(16),
+                }}
+              >
+                {formatDate(selectedDate)}
+              </Text>
             </View>
-            <View style={styles.timeRow}>
-              <Text style={styles.timeLabel}>Giờ:</Text>
-              <Text style={styles.timeValue}>
+            <View className="flex-row justify-between items-center">
+              <Text
+                className="text-gray-600 font-medium"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
+                Giờ:
+              </Text>
+              <Text
+                className="font-semibold text-gray-800 text-right flex-1"
+                style={{
+                  fontSize: getResponsiveSize(14),
+                  marginLeft: getResponsiveSize(16),
+                }}
+              >
                 {params.selectedStartTime} - {params.selectedEndTime}
               </Text>
             </View>
-            <View style={styles.timeRow}>
-              <Text style={styles.timeLabel}>Thời lượng:</Text>
-              <Text style={styles.timeValue}>
+            <View className="flex-row justify-between items-center">
+              <Text
+                className="text-gray-600 font-medium"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
+                Thời lượng:
+              </Text>
+              <Text
+                className="font-semibold text-gray-800 text-right flex-1"
+                style={{
+                  fontSize: getResponsiveSize(14),
+                  marginLeft: getResponsiveSize(16),
+                }}
+              >
                 {pricingDetails.duration} giờ
               </Text>
             </View>
@@ -461,39 +650,76 @@ export default function OrderDetailScreen() {
 
         {/* Location Card (if selected) */}
         {params?.selectedLocation && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconWrapper}>
+          <View
+            className="bg-white rounded-xl shadow-sm"
+            style={{
+              marginHorizontal: getResponsiveSize(20),
+              marginTop: getResponsiveSize(16),
+              padding: getResponsiveSize(20),
+              elevation: 3,
+            }}
+          >
+            <View
+              className="flex-row items-center"
+              style={{ marginBottom: getResponsiveSize(16) }}
+            >
+              <View
+                className="bg-pink-50 rounded-lg"
+                style={{
+                  padding: getResponsiveSize(8),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
                 <Feather
                   name="map-pin"
                   size={getResponsiveSize(18)}
                   color="#E91E63"
                 />
               </View>
-              <Text style={styles.cardTitle}>Địa điểm</Text>
+              <Text
+                className="font-bold text-gray-800"
+                style={{ fontSize: getResponsiveSize(16) }}
+              >
+                Địa điểm
+              </Text>
             </View>
 
-            <View style={styles.locationContainer}>
+            <View className="bg-gray-50 rounded-lg overflow-hidden">
               {params.selectedLocation.imageUrl && (
                 <Image
                   source={{
                     uri: params.selectedLocation.imageUrl,
                   }}
-                  style={styles.locationImage}
+                  className="bg-gray-100"
+                  style={{
+                    width: "100%",
+                    height: getResponsiveSize(120),
+                  }}
                 />
               )}
-              <View style={styles.locationInfo}>
-                <Text style={styles.locationName} numberOfLines={2}>
+              <View style={{ padding: getResponsiveSize(12) }}>
+                <Text
+                  className="font-bold text-gray-800"
+                  style={{
+                    fontSize: getResponsiveSize(16),
+                    marginBottom: getResponsiveSize(4),
+                  }}
+                  numberOfLines={2}
+                >
                   {params.selectedLocation.name}
                 </Text>
-                {typeof params.selectedLocation.hourlyRate === 'number' && (
-  <Text style={styles.locationPrice}>
-    {params.selectedLocation.hourlyRate > 0 
-      ? `${formatCurrency(params.selectedLocation.hourlyRate)}/giờ`
-      : 'Miễn phí'
-    }
-  </Text>
-)}
+                {typeof params.selectedLocation.hourlyRate === "number" && (
+                  <Text
+                    className="font-semibold text-pink-600"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {params.selectedLocation.hourlyRate > 0
+                      ? `${formatCurrency(
+                          params.selectedLocation.hourlyRate
+                        )}/giờ`
+                      : "Miễn phí"}
+                  </Text>
+                )}
               </View>
             </View>
           </View>
@@ -501,55 +727,319 @@ export default function OrderDetailScreen() {
 
         {/* Special Requests Card */}
         {params.specialRequests && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconWrapper}>
+          <View
+            className="bg-white rounded-xl shadow-sm"
+            style={{
+              marginHorizontal: getResponsiveSize(20),
+              marginTop: getResponsiveSize(16),
+              padding: getResponsiveSize(20),
+              elevation: 3,
+            }}
+          >
+            <View
+              className="flex-row items-center"
+              style={{ marginBottom: getResponsiveSize(16) }}
+            >
+              <View
+                className="bg-pink-50 rounded-lg"
+                style={{
+                  padding: getResponsiveSize(8),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
                 <Feather
                   name="edit-3"
                   size={getResponsiveSize(18)}
                   color="#E91E63"
                 />
               </View>
-              <Text style={styles.cardTitle}>Yêu cầu đặc biệt</Text>
+              <Text
+                className="font-bold text-gray-800"
+                style={{ fontSize: getResponsiveSize(16) }}
+              >
+                Yêu cầu đặc biệt
+              </Text>
             </View>
 
-            <View style={styles.requestsContainer}>
-              <Text style={styles.requestsText}>{params.specialRequests}</Text>
+            <View
+              className="bg-gray-50 rounded-lg"
+              style={{ padding: getResponsiveSize(16) }}
+            >
+              <Text
+                className="text-gray-800"
+                style={{
+                  fontSize: getResponsiveSize(14),
+                  lineHeight: getResponsiveSize(20),
+                }}
+              >
+                {params.specialRequests}
+              </Text>
             </View>
           </View>
         )}
 
+        {/* Payment Method Card */}
+        <View
+          className="bg-white rounded-xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View
+              className="bg-pink-50 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
+              <MaterialIcons
+                name="payment"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
+            </View>
+            <Text
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Chọn phương thức thanh toán
+            </Text>
+          </View>
+
+          {/* Payment Method Options */}
+          <View style={{ gap: getResponsiveSize(12) }}>
+            {/* Bank QR Payment */}
+            <TouchableOpacity
+              onPress={() => setSelectedPaymentMethod("bank_qr")}
+              className={`flex-row items-center rounded-xl border-2 ${
+                selectedPaymentMethod === "bank_qr"
+                  ? "bg-pink-50 border-pink-600"
+                  : "bg-gray-50 border-gray-200"
+              }`}
+              style={{ padding: getResponsiveSize(16) }}
+            >
+              {/* Icon */}
+              <View
+                className={`rounded-full items-center justify-center ${
+                  selectedPaymentMethod === "bank_qr"
+                    ? "bg-pink-600"
+                    : "bg-gray-100"
+                }`}
+                style={{
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="qrcode-scan"
+                  size={getResponsiveSize(20)}
+                  color={selectedPaymentMethod === "bank_qr" ? "#fff" : "#666"}
+                />
+              </View>
+
+              {/* Content */}
+              <View className="flex-1">
+                <Text
+                  className={`font-bold ${
+                    selectedPaymentMethod === "bank_qr"
+                      ? "text-pink-600"
+                      : "text-gray-800"
+                  }`}
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Quét mã ngân hàng
+                </Text>
+                <Text
+                  className="text-gray-600"
+                  style={{
+                    fontSize: getResponsiveSize(13),
+                    marginTop: getResponsiveSize(2),
+                  }}
+                >
+                  Thanh toán qua QR code ngân hàng
+                </Text>
+              </View>
+
+              {/* Radio Button */}
+              <View
+                className={`rounded-full border-2 items-center justify-center ${
+                  selectedPaymentMethod === "bank_qr"
+                    ? "border-pink-600"
+                    : "border-gray-300"
+                }`}
+                style={{
+                  width: getResponsiveSize(20),
+                  height: getResponsiveSize(20),
+                }}
+              >
+                {selectedPaymentMethod === "bank_qr" && (
+                  <View
+                    className="bg-pink-600 rounded-full"
+                    style={{
+                      width: getResponsiveSize(10),
+                      height: getResponsiveSize(10),
+                    }}
+                  />
+                )}
+              </View>
+            </TouchableOpacity>
+
+            {/* SnapLink Wallet Payment */}
+            <TouchableOpacity
+              onPress={() => setSelectedPaymentMethod("snaplink_wallet")}
+              className={`flex-row items-center rounded-xl border-2 ${
+                selectedPaymentMethod === "snaplink_wallet"
+                  ? "bg-pink-50 border-pink-600"
+                  : "bg-gray-50 border-gray-200"
+              }`}
+              style={{ padding: getResponsiveSize(16) }}
+            >
+              {/* Icon */}
+              <View
+                className={`rounded-full items-center justify-center ${
+                  selectedPaymentMethod === "snaplink_wallet"
+                    ? "bg-pink-600"
+                    : "bg-gray-100"
+                }`}
+                style={{
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
+                <MaterialCommunityIcons
+                  name="wallet"
+                  size={getResponsiveSize(20)}
+                  color={
+                    selectedPaymentMethod === "snaplink_wallet"
+                      ? "#fff"
+                      : "#666"
+                  }
+                />
+              </View>
+
+              {/* Content */}
+              <View className="flex-1">
+                <Text
+                  className={`font-bold ${
+                    selectedPaymentMethod === "snaplink_wallet"
+                      ? "text-pink-600"
+                      : "text-gray-800"
+                  }`}
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Ví SnapLink
+                </Text>
+                <Text
+                  className="text-gray-600"
+                  style={{
+                    fontSize: getResponsiveSize(13),
+                    marginTop: getResponsiveSize(2),
+                  }}
+                >
+                  Thanh toán từ ví SnapLink của bạn
+                </Text>
+              </View>
+
+              {/* Radio Button */}
+              <View
+                className={`rounded-full border-2 items-center justify-center ${
+                  selectedPaymentMethod === "snaplink_wallet"
+                    ? "border-pink-600"
+                    : "border-gray-300"
+                }`}
+                style={{
+                  width: getResponsiveSize(20),
+                  height: getResponsiveSize(20),
+                }}
+              >
+                {selectedPaymentMethod === "snaplink_wallet" && (
+                  <View
+                    className="bg-pink-600 rounded-full"
+                    style={{
+                      width: getResponsiveSize(10),
+                      height: getResponsiveSize(10),
+                    }}
+                  />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Price Breakdown Card */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.iconWrapper}>
+        <View
+          className="bg-white rounded-xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View
+              className="bg-pink-50 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
               <MaterialIcons
                 name="receipt"
                 size={getResponsiveSize(18)}
                 color="#E91E63"
               />
             </View>
-            <Text style={styles.cardTitle}>Chi phí dự kiến</Text>
+            <Text
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Chi phí dự kiến
+            </Text>
           </View>
 
-          <View style={styles.priceContainer}>
+          <View style={{ gap: getResponsiveSize(12) }}>
             {/* Photographer Fee */}
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>
+            <View className="flex-row justify-between items-center">
+              <Text
+                className="text-gray-600 flex-1"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
                 Phí Photographer ({pricingDetails.duration}h)
               </Text>
-              <Text style={styles.priceValue}>
+              <Text
+                className="font-semibold text-gray-800"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
                 {formatCurrency(pricingDetails.photographerFee)}
               </Text>
             </View>
 
             {/* Location Fee */}
             {pricingDetails.locationFee > 0 && (
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>
+              <View className="flex-row justify-between items-center">
+                <Text
+                  className="text-gray-600 flex-1"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
                   Phí địa điểm ({pricingDetails.duration}h)
                 </Text>
-                <Text style={styles.priceValue}>
+                <Text
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
                   {formatCurrency(pricingDetails.locationFee)}
                 </Text>
               </View>
@@ -557,87 +1047,97 @@ export default function OrderDetailScreen() {
 
             {/* Service Fee */}
             {pricingDetails.serviceFee > 0 && (
-              <View style={styles.priceRow}>
-                <Text style={styles.priceLabel}>Phí dịch vụ</Text>
-                <Text style={styles.priceValue}>
+              <View className="flex-row justify-between items-center">
+                <Text
+                  className="text-gray-600 flex-1"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Phí dịch vụ
+                </Text>
+                <Text
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
                   {formatCurrency(pricingDetails.serviceFee)}
                 </Text>
               </View>
             )}
 
             {/* Divider */}
-            <View style={styles.priceDivider} />
+            <View
+              className="bg-gray-200"
+              style={{
+                height: 1,
+                marginVertical: getResponsiveSize(8),
+              }}
+            />
 
             {/* Total */}
-            <View style={styles.priceRow}>
-              <Text style={styles.totalLabel}>Tổng cộng</Text>
-              <Text style={styles.totalValue}>
+            <View className="flex-row justify-between items-center">
+              <Text
+                className="font-bold text-gray-800"
+                style={{ fontSize: getResponsiveSize(16) }}
+              >
+                Tổng cộng
+              </Text>
+              <Text
+                className="font-bold text-pink-600"
+                style={{ fontSize: getResponsiveSize(18) }}
+              >
                 {formatCurrency(pricingDetails.totalPrice)}
               </Text>
             </View>
           </View>
-
-          {/* Note about payment */}
-          <View style={styles.paymentNote}>
-            <MaterialIcons
-              name="info"
-              size={getResponsiveSize(16)}
-              color="#FF9800"
-            />
-            <Text style={styles.paymentNoteText}>
-              Bạn sẽ thanh toán ngay sau khi xác nhận booking
-            </Text>
-          </View>
         </View>
-
-        {/* ✅ THÊM: Hiển thị thông tin booking đã load */}
-        {currentBooking && (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconWrapper}>
-                <MaterialIcons
-                  name="info"
-                  size={getResponsiveSize(18)}
-                  color="#4CAF50"
-                />
-              </View>
-              <Text style={styles.cardTitle}>Trạng thái Booking</Text>
-            </View>
-            <View style={styles.bookingStatusContainer}>
-              <Text style={styles.bookingStatusText}>
-                Booking #{currentBooking.id} - {currentBooking.status}
-              </Text>
-              <Text style={styles.bookingAmountText}>
-                Tổng tiền: {formatCurrency(currentBooking.totalPrice)}
-              </Text>
-            </View>
-          </View>
-        )}
       </ScrollView>
 
       {/* Bottom Action Buttons */}
-      <View style={styles.bottomActions}>
+      <View
+        className="flex-row items-center justify-between bg-white border-t border-gray-100"
+        style={{
+          paddingHorizontal: getResponsiveSize(20),
+          paddingVertical: getResponsiveSize(16),
+          paddingBottom: getResponsiveSize(8),
+        }}
+      >
         {/* Edit Button */}
         <TouchableOpacity
           onPress={handleEditBooking}
           activeOpacity={0.7}
-          style={styles.editButton}
+          className="flex-row items-center bg-gray-50 rounded-lg flex-1"
+          style={{
+            paddingHorizontal: getResponsiveSize(16),
+            paddingVertical: getResponsiveSize(12),
+            marginRight: getResponsiveSize(12),
+          }}
         >
           <Feather name="edit-3" size={getResponsiveSize(18)} color="#666" />
-          <Text style={styles.editButtonText}>Chỉnh sửa</Text>
+          <Text
+            className="text-gray-600 font-medium"
+            style={{
+              marginLeft: getResponsiveSize(8),
+              fontSize: getResponsiveSize(16),
+            }}
+          >
+            Chỉnh sửa
+          </Text>
         </TouchableOpacity>
 
         {/* Confirm Button */}
         <TouchableOpacity
           onPress={handleBookNow}
           activeOpacity={0.8}
-          style={styles.confirmButton}
+          className="flex-2 rounded-xl overflow-hidden"
         >
           <LinearGradient
             colors={["#E91E63", "#F06292"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.confirmButtonGradient}
+            className="flex-row items-center justify-center"
+            style={{
+              paddingVertical: getResponsiveSize(15),
+              paddingHorizontal: getResponsiveSize(20),
+            }}
           >
             {isProcessing ? (
               <>
@@ -646,7 +1146,12 @@ export default function OrderDetailScreen() {
                   color="#fff"
                   style={{ marginRight: getResponsiveSize(8) }}
                 />
-                <Text style={styles.confirmButtonText}>Đang xử lý...</Text>
+                <Text
+                  className="text-white font-bold"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Đang xử lý...
+                </Text>
               </>
             ) : (
               <>
@@ -656,329 +1161,195 @@ export default function OrderDetailScreen() {
                   color="#fff"
                   style={{ marginRight: getResponsiveSize(8) }}
                 />
-                <Text style={styles.confirmButtonText}>
-                  Đặt lịch & Thanh toán
+                <Text
+                  className="text-white font-bold"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  {selectedPaymentMethod === "snaplink_wallet"
+                    ? "Đặt lịch & Thanh toán"
+                    : "Đặt lịch & Thanh toán"}
                 </Text>
               </>
             )}
           </LinearGradient>
         </TouchableOpacity>
       </View>
+      {/* Wallet Success Modal */}
+      {showWalletSuccessModal && (
+        <View style={StyleSheet.absoluteFill}>
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+              paddingHorizontal: getResponsiveSize(20),
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: getResponsiveSize(20),
+                padding: getResponsiveSize(24),
+                alignItems: "center",
+                width: "100%",
+                maxWidth: getResponsiveSize(360),
+              }}
+            >
+              {/* Success Icon */}
+              <View style={{ marginBottom: getResponsiveSize(20) }}>
+                <MaterialIcons
+                  name="check-circle"
+                  size={getResponsiveSize(80)}
+                  color="#4CAF50"
+                />
+              </View>
+
+              {/* Title */}
+              <Text
+                style={{
+                  fontSize: getResponsiveSize(24),
+                  fontWeight: "bold",
+                  color: "#333",
+                  marginBottom: getResponsiveSize(12),
+                  textAlign: "center",
+                }}
+              >
+                Đặt lịch thành công! 🎉
+              </Text>
+
+              {/* Message */}
+              <Text
+                style={{
+                  fontSize: getResponsiveSize(16),
+                  color: "#666",
+                  textAlign: "center",
+                  lineHeight: getResponsiveSize(24),
+                  marginBottom: getResponsiveSize(24),
+                }}
+              >
+                Đã thanh toán thành công{" "}
+                {formatCurrency(pricingDetails.totalPrice)} từ ví SnapLink.
+                Booking của bạn đã được xác nhận.
+              </Text>
+
+              {/* Booking Details */}
+              <View
+                style={{
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: getResponsiveSize(12),
+                  padding: getResponsiveSize(16),
+                  width: "100%",
+                  marginBottom: getResponsiveSize(24),
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(16),
+                    fontWeight: "bold",
+                    color: "#333",
+                    marginBottom: getResponsiveSize(12),
+                  }}
+                >
+                  Chi tiết booking:
+                </Text>
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    marginBottom: getResponsiveSize(6),
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  📸 {params.photographer.fullName}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    marginBottom: getResponsiveSize(6),
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  📅 {formatDate(selectedDate)}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    marginBottom: getResponsiveSize(6),
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  ⏰ {params.selectedStartTime} - {params.selectedEndTime}
+                </Text>
+                {params.selectedLocation && (
+                  <Text
+                    style={{
+                      fontSize: getResponsiveSize(14),
+                      color: "#666",
+                      marginBottom: getResponsiveSize(6),
+                      lineHeight: getResponsiveSize(20),
+                    }}
+                  >
+                    📍 {params.selectedLocation.name}
+                  </Text>
+                )}
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  💰 {formatCurrency(pricingDetails.totalPrice)}
+                </Text>
+              </View>
+
+              {/* Complete Button */}
+              <TouchableOpacity
+                onPress={() => {
+                  setShowWalletSuccessModal(false);
+                  // Navigate to CustomerMain stack with CustomerHomeScreen tab
+                  navigation.reset({
+                    index: 0,
+                    routes: [
+                      {
+                        name: "CustomerMain",
+                        params: { screen: "CustomerHomeScreen" },
+                      },
+                    ],
+                  });
+                }}
+                style={{
+                  width: "100%",
+                  borderRadius: getResponsiveSize(12),
+                  overflow: "hidden",
+                }}
+              >
+                <LinearGradient
+                  colors={["#4CAF50", "#66BB6A"]}
+                  style={{
+                    paddingVertical: getResponsiveSize(16),
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: getResponsiveSize(16),
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Hoàn tất
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-
-  // Loading state
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-  },
-  loadingText: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: getResponsiveSize(16),
-  },
-
-  // Error state
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-    paddingHorizontal: getResponsiveSize(40),
-  },
-  errorTitle: {
-    fontSize: getResponsiveSize(20),
-    fontWeight: "bold",
-    color: "#333",
-    marginTop: getResponsiveSize(16),
-    marginBottom: getResponsiveSize(8),
-  },
-  errorMessage: {
-    fontSize: getResponsiveSize(16),
-    color: "#666",
-    textAlign: "center",
-    marginBottom: getResponsiveSize(24),
-  },
-  errorButton: {
-    backgroundColor: "#E91E63",
-    paddingHorizontal: getResponsiveSize(24),
-    paddingVertical: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(8),
-  },
-  errorButtonText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(16),
-    fontWeight: "600",
-  },
-
-  // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: getResponsiveSize(20),
-    paddingTop: getResponsiveSize(50),
-    paddingBottom: getResponsiveSize(20),
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#f0f0f0",
-  },
-  backButton: {
-    backgroundColor: "#f5f5f5",
-    borderRadius: getResponsiveSize(10),
-    padding: getResponsiveSize(8),
-  },
-  headerTitle: {
-    fontSize: getResponsiveSize(18),
-    fontWeight: "bold",
-    color: "#333",
-  },
-
-  // Content
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: getResponsiveSize(120),
-  },
-
-  // Card styles
-  card: {
-    backgroundColor: "#fff",
-    marginHorizontal: getResponsiveSize(20),
-    marginTop: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(20),
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: getResponsiveSize(16),
-  },
-  iconWrapper: {
-    backgroundColor: "rgba(233, 30, 99, 0.1)",
-    padding: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(8),
-    marginRight: getResponsiveSize(12),
-  },
-  cardTitle: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-  },
-
-  // Photographer section
-  photographerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  photographerAvatar: {
-    width: getResponsiveSize(60),
-    height: getResponsiveSize(60),
-    borderRadius: getResponsiveSize(30),
-    marginRight: getResponsiveSize(16),
-    backgroundColor: "#f0f0f0",
-  },
-  photographerInfo: {
-    flex: 1,
-  },
-  photographerName: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: getResponsiveSize(4),
-  },
-  photographerRate: {
-    fontSize: getResponsiveSize(14),
-    color: "#E91E63",
-    fontWeight: "600",
-  },
-
-  // Time section
-  timeInfoContainer: {
-    gap: getResponsiveSize(12),
-  },
-  timeRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  timeLabel: {
-    fontSize: getResponsiveSize(14),
-    color: "#666",
-    fontWeight: "500",
-  },
-  timeValue: {
-    fontSize: getResponsiveSize(14),
-    fontWeight: "600",
-    color: "#333",
-    textAlign: "right",
-    flex: 1,
-    marginLeft: getResponsiveSize(16),
-  },
-
-  // Location section
-  locationContainer: {
-    borderRadius: getResponsiveSize(8),
-    overflow: "hidden",
-    backgroundColor: "#f8f9fa",
-  },
-  locationImage: {
-    width: "100%",
-    height: getResponsiveSize(120),
-    backgroundColor: "#f0f0f0",
-  },
-  locationInfo: {
-    padding: getResponsiveSize(12),
-  },
-  locationName: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: getResponsiveSize(4),
-  },
-  locationPrice: {
-    fontSize: getResponsiveSize(14),
-    color: "#E91E63",
-    fontWeight: "600",
-  },
-
-  // Special requests section
-  requestsContainer: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: getResponsiveSize(8),
-    padding: getResponsiveSize(16),
-  },
-  requestsText: {
-    fontSize: getResponsiveSize(14),
-    color: "#333",
-    lineHeight: getResponsiveSize(20),
-  },
-
-  // Price section
-  priceContainer: {
-    gap: getResponsiveSize(12),
-  },
-  priceRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  priceLabel: {
-    fontSize: getResponsiveSize(14),
-    color: "#666",
-    flex: 1,
-  },
-  priceValue: {
-    fontSize: getResponsiveSize(14),
-    fontWeight: "600",
-    color: "#333",
-  },
-  priceDivider: {
-    height: 1,
-    backgroundColor: "#e0e0e0",
-    marginVertical: getResponsiveSize(8),
-  },
-  totalLabel: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-  },
-  totalValue: {
-    fontSize: getResponsiveSize(18),
-    fontWeight: "bold",
-    color: "#E91E63",
-  },
-
-  // Payment note
-  paymentNote: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF8E1",
-    borderRadius: getResponsiveSize(8),
-    padding: getResponsiveSize(12),
-    marginTop: getResponsiveSize(16),
-  },
-  paymentNoteText: {
-    fontSize: getResponsiveSize(13),
-    color: "#F57C00",
-    marginLeft: getResponsiveSize(8),
-    flex: 1,
-  },
-
-  // Booking status section
-  bookingStatusContainer: {
-    gap: getResponsiveSize(8),
-  },
-  bookingStatusText: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "600",
-    color: "#333",
-  },
-  bookingAmountText: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#4CAF50",
-  },
-
-  // Bottom actions
-  bottomActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: getResponsiveSize(20),
-    paddingVertical: getResponsiveSize(16),
-    paddingBottom: getResponsiveSize(8),
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#f0f0f0",
-  },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(12),
-    backgroundColor: "#f8f9fa",
-    borderRadius: getResponsiveSize(8),
-    flex: 1,
-    marginRight: getResponsiveSize(12),
-  },
-  editButtonText: {
-    color: "#666",
-    fontWeight: "500",
-    marginLeft: getResponsiveSize(8),
-    fontSize: getResponsiveSize(16),
-  },
-  confirmButton: {
-    flex: 2,
-    borderRadius: getResponsiveSize(12),
-    overflow: "hidden",
-  },
-  confirmButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: getResponsiveSize(15),
-    paddingHorizontal: getResponsiveSize(20),
-  },
-  confirmButtonText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-  },
-});

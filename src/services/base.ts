@@ -62,16 +62,11 @@ export class ApiClient {
         console.warn("Response is not JSON, Content-Type:", contentType);
         console.warn("Response text:", text);
 
-        // If it's a successful response but not JSON, return empty object
-        // This handles cases where server returns success but with wrong content-type
         return {} as T;
       }
     } catch (error) {
       console.error("JSON Parse Error:", error);
 
-      // If JSON parsing fails but response was successful,
-      // it might be a server that returns success but with invalid JSON
-      // In this case, treat it as a successful operation
       if (response.ok) {
         return {} as T;
       }

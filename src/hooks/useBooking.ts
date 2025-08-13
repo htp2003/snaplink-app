@@ -378,61 +378,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
 
   // ===== AVAILABILITY & PRICING METHODS =====
 
-const checkAvailability = useCallback(
-  async (
-    photographerIdParam: number,
-    startTime: string,
-    endTime: string,
-    locationId?: number
-  ) => {
-    try {
-      setCheckingAvailability(true);
-      setError(null);
 
-      // ✅ SỬA: Dùng availabilityService thay vì bookingService
-      const photographerResponse = await availabilityService.checkAvailability({
-        photographerId: photographerIdParam,
-        startTime,
-        endTime,
-      });
-
-      // Location vẫn dùng bookingService (nếu cần)
-      const locationResponse = locationId
-        ? await bookingService.checkLocationAvailability(locationId, startTime, endTime)
-        : { available: true, conflictingBookings: [], suggestedTimes: [] };
-
-      const combinedAvailability: CheckAvailabilityResponse = {
-        available: photographerResponse.available && locationResponse.available,
-        conflictingBookings: [
-          ...(photographerResponse.conflictingBookings || []),
-          ...(locationResponse.conflictingBookings || []),
-        ],
-        suggestedTimes: photographerResponse.suggestedTimes || [],
-        message: !photographerResponse.available
-          ? photographerResponse.message || "Photographer không rảnh"
-          : !locationResponse.available
-          ? locationResponse.message || "Địa điểm không khả dụng"
-          : "Có thể đặt lịch",
-      };
-
-      setAvailability(combinedAvailability);
-      return combinedAvailability;
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Không thể kiểm tra tình trạng";
-      setError(errorMessage);
-      return {
-        available: false,
-        conflictingBookings: [],
-        suggestedTimes: [],
-        message: errorMessage,
-      };
-    } finally {
-      setCheckingAvailability(false);
-    }
-  },
-  []
-);
 
   const calculatePrice = useCallback(
     async (
@@ -593,7 +539,6 @@ const checkAvailability = useCallback(
     validateBookingForm,
 
     // ===== AVAILABILITY & PRICING METHODS =====
-    checkAvailability,
     calculatePrice,
 
     // ===== UTILITY METHODS =====

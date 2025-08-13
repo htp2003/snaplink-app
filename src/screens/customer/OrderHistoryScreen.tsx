@@ -273,7 +273,7 @@ const OrderHistoryScreen = () => {
         <View className="flex-row items-center mb-3">
           <Ionicons name="cash-outline" size={18} color="#6B7280" />
           <Text className="ml-3 text-base font-semibold text-gray-800">
-            {formatPrice(item.paymentAmount || 0)}
+            {formatPrice(item.totalPrice || 0)}
           </Text>
         </View>
 

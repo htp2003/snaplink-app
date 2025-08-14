@@ -27,6 +27,11 @@ import { SearchBar } from "../../components/SearchBar";
 import { useCurrentUserId } from "../../hooks/useAuth";
 import { photographerStyleRecommendations } from "../../hooks/useStyleRecommendations";
 
+// Event
+import { HotEventBanner, EventSection } from "../../components/Event";
+import { useCustomerEventDiscovery, useHotEvents } from "../../hooks/useEvent";
+
+
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 // 🔧 Define proper types for API responses
@@ -184,6 +189,17 @@ export default function CustomerHomeScreen() {
     }
   }, [allLoading]);
 
+  // Event Section
+  const { hotEvents, loading: hotLoading } = useHotEvents();
+  const {
+    allEvents,      
+    featuredEvents, 
+    upcomingEvents, 
+    loading: eventsLoading,
+    error: eventsError,
+    refetch: refetchEvents
+  } = useCustomerEventDiscovery();
+
   // Categories - memoized để tránh re-create
   const categories = useMemo(
     (): CategoryItem[] => [
@@ -204,6 +220,19 @@ export default function CustomerHomeScreen() {
     },
     [locations.length, refreshLocations]
   );
+
+   // ✅ FIXED: Event navigation handlers
+  const handleEventPress = useCallback((event: any) => {
+    navigation.navigate("EventDetailScreen", { 
+      eventId: event.eventId.toString() 
+    });
+  }, [navigation]);
+
+  const handleEventSeeAll = useCallback(() => {
+    // Navigate to events list screen if you have one
+    // navigation.navigate("EventListScreen");
+    console.log("Navigate to events list");
+  }, []);
 
   // Render functions - memoized để tránh re-render
   const renderPhotographerCard = useCallback(
@@ -512,15 +541,54 @@ export default function CustomerHomeScreen() {
         )}
 
         {/* SERVICES SECTION */}
-        {selectedCategory === "services" && (
-          <View className="px-6 py-4">
-            <Text className="text-xl font-semibold text-stone-900 mb-4">
-              Dịch vụ khác
-            </Text>
-            <View className="h-48 bg-stone-100 rounded-2xl flex items-center justify-center">
-              <Text className="text-stone-500">Đang phát triển...</Text>
-            </View>
-          </View>
+        {selectedCategory === "events" && (
+          <>
+    {/* Hot Event Banner */}
+<HotEventBanner 
+              event={hotEvents[0] || null}
+              loading={hotLoading}
+              onPress={hotEvents[0] ? () => handleEventPress(hotEvents[0]) : undefined}
+            />
+    
+    {/* Featured Events */}
+    <EventSection
+              title="Sự kiện nổi bật"
+              subtitle="Những workshop được yêu thích nhất"
+              events={featuredEvents || []}
+              loading={eventsLoading}
+              error={eventsError}
+              onEventPress={handleEventPress}
+              onSeeAllPress={handleEventSeeAll}
+              onRetry={refetchEvents}
+              emptyMessage="Hiện tại chưa có sự kiện nổi bật nào"
+            />
+    
+    {/* Upcoming Events */}
+   <EventSection
+              title="Sự kiện sắp diễn ra"
+              subtitle="Đăng ký ngay để không bỏ lỡ"
+              events={upcomingEvents || []}
+              loading={eventsLoading}
+              error={eventsError}
+              onEventPress={handleEventPress}
+              onSeeAllPress={handleEventSeeAll}
+              onRetry={refetchEvents}
+              emptyMessage="Hiện tại chưa có sự kiện sắp diễn ra"
+            />
+
+            <EventSection
+              title="Tất cả sự kiện"
+              subtitle="Khám phá thêm nhiều workshop thú vị"
+              events={allEvents || []}
+              loading={eventsLoading}
+              error={eventsError}
+              onEventPress={handleEventPress}
+              onSeeAllPress={handleEventSeeAll}
+              onRetry={refetchEvents}
+              emptyMessage="Hiện tại chưa có sự kiện nào"
+            />
+  </>
+
         )}
       </ScrollView>
     </View>

@@ -165,6 +165,60 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
         }
         // For other errors during polling, don't set error state to avoid UI disruption
 
+
+  const createEventPayment = useCallback(async (
+    userIdParam: number,
+    bookingId: number, 
+    eventName: string,
+    eventDetails: {
+      date: string;
+      startTime: string;
+      endTime: string;
+      location?: string;
+      photographerName: string;
+    }
+  ): Promise<PaymentResponse | null> => {
+    try {
+      setCreatingPayment(true);
+      setError(null);
+  
+      console.log('🎉 Hook: Creating payment for event booking with regular booking ID:', { userIdParam, bookingId, eventName, eventDetails });
+      
+      // ✅ Đảm bảo eventName (mô tả) không vượt quá 25 ký tự
+      const safeEventName = eventName ? eventName.substring(0, 25) : "";
+  
+      const response = await paymentService.createEventPayment(
+        userIdParam,
+        bookingId, 
+        safeEventName,  // dùng biến đã cắt
+        eventDetails
+      );
+      
+      setPayment(response);
+      setError(null);
+      console.log('✅ Hook: Event payment created successfully');
+      return response;
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Không thể tạo thanh toán cho event booking';
+      setError(errorMessage);
+      console.error('❌ Hook: Error in createEventPayment:', err);
+      return null;
+    } finally {
+      setCreatingPayment(false);
+    }
+  }, []);
+  
+
+  const createPaymentForExistingBooking = useCallback(async (
+    userIdParam: number,
+    bookingId: number,
+    productName: string,
+    description: string
+  ): Promise<PaymentResponse | null> => {
+    try {
+      setCreatingPayment(true);
+      setError(null);
+
         return null;
       } finally {
         setLoadingPayment(false);
@@ -172,6 +226,7 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
     },
     []
   );
+
 
   // ===== UTILITY METHODS =====
 
@@ -765,6 +820,7 @@ const clearWalletTopUpData = useCallback(() => {
 
     // ===== UTILITY METHODS =====
     createPaymentForBooking,
+    createEventPayment,
     createPaymentForExistingBooking,
     clearPaymentData,
     refreshPayment,

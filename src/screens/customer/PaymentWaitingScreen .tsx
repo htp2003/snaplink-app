@@ -17,7 +17,7 @@ import {
   Animated,
   Linking,
   Modal,
-  AppState, // ✅ NEW: Add AppState for background detection
+  AppState, 
 } from "react-native";
 import { getResponsiveSize } from "../../utils/responsive";
 import { useNavigation, useRoute } from "@react-navigation/native";
@@ -26,10 +26,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackNavigationProp } from "../../navigation/types";
 import { usePayment } from "../../hooks/usePayment";
-import { useBooking } from "../../hooks/useBooking"; // ✅ NEW: Import useBooking
+import { useBooking } from "../../hooks/useBooking"; 
 import type { PaymentFlowData } from "../../types/payment";
 import { EnhancedQRDisplay } from "../../components/EnhancedQRDisplay";
 import { handleDeepLink } from "../../config/deepLinks";
+
 
 type PaymentWaitingRouteParams = PaymentFlowData;
 type PaymentWaitingScreenRouteProp = RouteProp<
@@ -119,6 +120,29 @@ export default function PaymentWaitingScreen() {
       pollingIntervalRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
+      e.preventDefault(); // Chặn hành động back mặc định
+      Alert.alert(
+        "Xác nhận hủy thanh toán",
+        "Bạn có chắc muốn hủy thanh toán này?",
+        [
+          { text: "Không", style: "cancel" },
+          {
+            text: "Có",
+            style: "destructive",
+            onPress: async () => {
+              await handleCancelPayment();
+              navigation.dispatch(e.data.action); // Quay lại
+            }
+          }
+        ]
+      );
+    });
+  
+    return unsubscribe;
+  }, [navigation]);
 
   // ✅ NEW: Auto confirm booking when payment is successful
   const handlePaymentSuccess = useCallback(async () => {
@@ -967,25 +991,6 @@ export default function PaymentWaitingScreen() {
             <Text style={styles.orderCode}>
               Mã đơn hàng: {payment.orderCode}
             </Text>
-
-            {/* Time left display */}
-            {paymentStatus === "Pending" && timeLeft > 0 && (
-              <Text style={styles.timeLeft}>
-                Thời gian còn lại: {formatTime(timeLeft)}
-              </Text>
-            )}
-
-            {/* ✅ OPTIMIZED: Enhanced polling indicator */}
-            {isPolling && paymentStatus === "Pending" && (
-              <View style={styles.pollingIndicator}>
-                <ActivityIndicator size="small" color="#E91E63" />
-                <Text style={styles.pollingText}>
-                  Đang kiểm tra ({statusCheckCount}/{maxPollingAttempts})
-                  {Date.now() - pollingStartTimeRef.current < fastPollingDuration && " - Tốc độ cao"}
-                </Text>
-              </View>
-            )}
-
             {/* ✅ NEW: Booking confirmation indicator */}
             {isConfirmingBooking && (
               <View style={styles.confirmingIndicator}>
@@ -1048,7 +1053,6 @@ export default function PaymentWaitingScreen() {
             </View>
           </View>
         )}
-
         {/* Booking Info */}
         <View style={styles.bookingCard}>
           <Text style={styles.bookingCardTitle}>Thông tin booking</Text>

@@ -197,7 +197,6 @@ export class PaymentService {
       throw error;
     }
   }
-
   // ✅ ENHANCED: Get payment - Handle new API response format
   async getPayment(paymentId: number): Promise<PaymentResponse> {
     try {
@@ -288,12 +287,7 @@ export class PaymentService {
     userId: number,
     bookingId: number,
     photographerName: string,
-    bookingDetails: {
-      date: string;
-      startTime: string;
-      endTime: string;
-      location?: string;
-    }
+    bookingDetails: any
   ): Promise<PaymentResponse> {
     try {
       const productName = `Dịch vụ chụp ảnh - ${photographerName}`;
@@ -477,6 +471,42 @@ export class PaymentService {
       };
     }
   }
+
+
+  // ===== EVENT PAYMENT METHODS =====
+  
+/**
+ * Create payment for event booking
+ */
+async createEventPayment(
+  userId: number,
+  bookingId: number,
+  eventName: string,
+  eventDetails: {
+    date: string;
+    startTime: string;
+    endTime: string;
+    location?: string;
+    photographerName: string;
+  }
+): Promise<PaymentResponse> {
+  try {
+    const productName = `Tham gia sự kiện - ${eventName}`;
+    const description = `Thanh toán event booking ${bookingId} - ${eventDetails.photographerName}`
+      .substring(0, 25);
+
+    const paymentData: CreatePaymentLinkRequest = {
+      productName,
+      description,
+      bookingId,
+      successUrl: DEEP_LINKS.PAYMENT_SUCCESS,
+      cancelUrl: DEEP_LINKS.PAYMENT_CANCEL,
+    };
+
+    return await this.createPaymentLink(userId, paymentData);
+  } catch (error) {
+    console.error("❌ Error creating event payment:", error);
+=======
   async createWalletTopUp(request: CreateWalletTopUpRequest): Promise<WalletTopUpResponse> {
   try {
     const response = await apiClient.post<any>(
@@ -505,6 +535,21 @@ export class PaymentService {
     };
   } catch (error) {
     console.error('❌ Create wallet top-up error:', error);
+
+    throw error;
+  }
+}
+
+
+/**
+ * Cancel event payment
+ */
+async cancelEventPayment(bookingId: number): Promise<void> {
+  try {
+    // Sử dụng same endpoint, API sẽ hiểu context từ bookingId
+    await this.cancelPayment(bookingId);
+  } catch (error) {
+    console.error("❌ Error cancelling event payment:", error);
     throw error;
   }
 }

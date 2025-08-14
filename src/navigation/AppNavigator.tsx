@@ -57,6 +57,9 @@ import VenueOwnerEventApplicationsScreen from "../screens/venueOwner/VenueOwnerE
 import VenueOwnerEventBookingsScreen from "../screens/venueOwner/VenueOwnerEventBookingsScreen";
 import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 import ChangePasswordScreen from "../screens/customer/ChangePasswordScreen";
+import EventDetailScreen from "../screens/customer/EventDetailScreen";
+import BookingEventScreen from "../screens/customer/BookingEventScreen";
+import OrderEventDetailScreen from "../screens/customer/OrderEventDetailScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -124,6 +127,9 @@ const AppNavigator = () => {
       />
       <Stack.Screen name="ChatScreen" component={ChatScreen} />
       <Stack.Screen name="NewChatScreen" component={MessagesScreen} />
+      <Stack.Screen name="EventDetailScreen" component={EventDetailScreen} />
+      <Stack.Screen name="BookingEvent" component={BookingEventScreen}/>
+      <Stack.Screen name="OrderEventDetail" component={OrderEventDetailScreen}/>
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen

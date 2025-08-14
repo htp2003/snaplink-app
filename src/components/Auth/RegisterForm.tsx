@@ -1,7 +1,13 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TouchableOpacity, Text, Alert, TextInput } from "react-native";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  Alert,
+  TextInput,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { LinearGradient } from 'expo-linear-gradient';
 import { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -25,7 +31,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   });
 
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] =
+    useState(false);
   const [focusedField, setFocusedField] = useState<string>("");
 
   const navigation = useNavigation<RootStackNavigationProp>();
@@ -36,7 +43,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   };
 
   const validateForm = () => {
-    const { fullName, email, phoneNumber, password, confirmPassword } = formData;
+    const { fullName, email, phoneNumber, password, confirmPassword } =
+      formData;
 
     if (!fullName.trim()) {
       Alert.alert("Lỗi", "Vui lòng nhập họ tên");
@@ -113,9 +121,11 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
       let userFriendlyMessage = error.message || "Có lỗi xảy ra khi đăng ký";
 
       if (userFriendlyMessage.toLowerCase().includes("email already exists")) {
-        userFriendlyMessage = "Email này đã được sử dụng. Vui lòng sử dụng email khác hoặc đăng nhập.";
+        userFriendlyMessage =
+          "Email này đã được sử dụng. Vui lòng sử dụng email khác hoặc đăng nhập.";
       } else if (userFriendlyMessage.toLowerCase().includes("phone")) {
-        userFriendlyMessage = "Số điện thoại không hợp lệ hoặc đã được sử dụng.";
+        userFriendlyMessage =
+          "Số điện thoại không hợp lệ hoặc đã được sử dụng.";
       } else if (userFriendlyMessage.toLowerCase().includes("password")) {
         userFriendlyMessage = "Mật khẩu không đáp ứng yêu cầu bảo mật.";
       }
@@ -126,54 +136,59 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
 
   const renderInputField = (
     field: string,
+    label: string,
     placeholder: string,
     keyboardType?: any,
-    secureTextEntry?: boolean,
-    showToggle?: boolean
+    secureTextEntry?: boolean
   ) => {
     const isFocused = focusedField === field;
-    const isPassword = field === 'password';
-    const isConfirmPassword = field === 'confirmPassword';
+    const isPassword = field === "password";
+    const isConfirmPassword = field === "confirmPassword";
     const isPasswordField = secureTextEntry;
 
     return (
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>{placeholder}</Text>
-        <View style={[
-          styles.inputContainer,
-          isFocused && styles.inputContainerFocused
-        ]}>
-          <View style={styles.inputIcon}>
-            <Text style={styles.iconText}>{
-              field === 'fullName' ? '👤' :
-              field === 'email' ? '📧' :
-              field === 'phoneNumber' ? '📱' :
-              field === 'password' ? '🔐' :
-              field === 'confirmPassword' ? '🔒' : '📄'
-            }</Text>
-          </View>
+        <Text style={styles.inputLabel}>{label}</Text>
+        <View
+          style={[
+            styles.inputContainer,
+            isFocused && styles.inputContainerFocused,
+          ]}
+        >
           <TextInput
-            style={[
-              styles.textInput,
-              isPasswordField && styles.passwordInput
-            ]}
+            style={[styles.textInput, isPasswordField && styles.passwordInput]}
             placeholder={placeholder}
-            placeholderTextColor="#6B7280"
+            placeholderTextColor="#9CA3AF"
             value={formData[field as keyof typeof formData]}
-            onChangeText={(value) => updateFormData(field, field === 'email' ? value.toLowerCase() : value)}
+            onChangeText={(value) =>
+              updateFormData(
+                field,
+                field === "email" ? value.toLowerCase() : value
+              )
+            }
             onFocus={() => setFocusedField(field)}
             onBlur={() => setFocusedField("")}
             keyboardType={keyboardType}
-            autoCapitalize={field === 'fullName' ? 'words' : field === 'email' ? 'none' : 'sentences'}
+            autoCapitalize={
+              field === "fullName"
+                ? "words"
+                : field === "email"
+                ? "none"
+                : "sentences"
+            }
             secureTextEntry={
-              isPassword ? !isPasswordVisible :
-              isConfirmPassword ? !isConfirmPasswordVisible :
-              secureTextEntry
+              isPassword
+                ? !isPasswordVisible
+                : isConfirmPassword
+                ? !isConfirmPasswordVisible
+                : secureTextEntry
             }
             editable={!isLoading}
             autoCorrect={false}
+            multiline={false}
+            numberOfLines={1}
           />
-          {showToggle && (
+          {isPasswordField && (
             <TouchableOpacity
               style={styles.passwordToggle}
               onPress={() => {
@@ -186,11 +201,11 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
               activeOpacity={0.7}
               disabled={isLoading}
             >
-              <View style={styles.toggleButton}>
-                <Text style={styles.toggleIcon}>
-                  {(isPassword ? isPasswordVisible : isConfirmPasswordVisible) ? '🙈' : '👁️'}
-                </Text>
-              </View>
+              <Text style={styles.toggleText}>
+                {(isPassword ? isPasswordVisible : isConfirmPasswordVisible)
+                  ? "Ẩn"
+                  : "Hiện"}
+              </Text>
             </TouchableOpacity>
           )}
         </View>
@@ -198,77 +213,135 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
     );
   };
 
+  const getPasswordStrength = () => {
+    const { password } = formData;
+    let strength = 0;
+    if (password.length >= 6) strength++;
+    if (password.length >= 8 && /[A-Z]/.test(password)) strength++;
+    if (
+      password.length >= 8 &&
+      /[A-Z]/.test(password) &&
+      /[0-9]/.test(password)
+    )
+      strength++;
+    return strength;
+  };
+
+  const getPasswordStrengthText = () => {
+    const strength = getPasswordStrength();
+    if (strength === 0) return "Quá yếu";
+    if (strength === 1) return "Yếu";
+    if (strength === 2) return "Trung bình";
+    return "Mạnh";
+  };
+
+  const getPasswordStrengthColor = () => {
+    const strength = getPasswordStrength();
+    if (strength === 0) return "#EF4444";
+    if (strength === 1) return "#F59E0B";
+    if (strength === 2) return "#10B981";
+    return "#059669";
+  };
+
   return (
     <View style={styles.container}>
-      {/* Form Header */}
-      <View style={styles.formHeader}>
-        <Text style={styles.formTitle}>Tạo tài khoản</Text>
-        <Text style={styles.formSubtitle}>
-          Điền thông tin để bắt đầu hành trình nhiếp ảnh ✨
-        </Text>
-      </View>
-
       {/* Form Fields */}
-      {renderInputField('fullName', 'Họ và tên',  'default')}
-      {renderInputField('email', 'Email',  'email-address')}
-      {renderInputField('phoneNumber', 'Số điện thoại', 'phone-pad')}
-      {renderInputField('password', 'Mật khẩu', 'default', true, true)}
-      {renderInputField('confirmPassword', 'Xác nhận mật khẩu',  'default', true, true)}
+      {renderInputField(
+        "fullName",
+        "Họ và tên",
+        "Nhập họ và tên của bạn",
+        "default"
+      )}
+      {renderInputField(
+        "email",
+        "Email",
+        "your.email@example.com",
+        "email-address"
+      )}
+      {renderInputField(
+        "phoneNumber",
+        "Số điện thoại",
+        "0912 345 678",
+        "phone-pad"
+      )}
+      {renderInputField("password", "Mật khẩu", "••••••••", "default", true)}
+      {renderInputField(
+        "confirmPassword",
+        "Xác nhận mật khẩu",
+        "••••••••",
+        "default",
+        true
+      )}
 
       {/* Password Strength Indicator */}
-      <View style={styles.passwordStrengthContainer}>
-        <Text style={styles.passwordStrengthTitle}>Độ mạnh mật khẩu:</Text>
-        <View style={styles.passwordStrengthBar}>
-          <View style={[
-            styles.strengthSegment,
-            formData.password.length >= 6 && styles.strengthActive
-          ]} />
-          <View style={[
-            styles.strengthSegment,
-            formData.password.length >= 8 && /[A-Z]/.test(formData.password) && styles.strengthActive
-          ]} />
-          <View style={[
-            styles.strengthSegment,
-            formData.password.length >= 8 && /[A-Z]/.test(formData.password) && /[0-9]/.test(formData.password) && styles.strengthActive
-          ]} />
+      {formData.password.length > 0 && (
+        <View style={styles.passwordStrengthContainer}>
+          <View style={styles.passwordStrengthHeader}>
+            <Text style={styles.passwordStrengthTitle}>Độ mạnh mật khẩu:</Text>
+            <Text
+              style={[
+                styles.passwordStrengthValue,
+                { color: getPasswordStrengthColor() },
+              ]}
+            >
+              {getPasswordStrengthText()}
+            </Text>
+          </View>
+          <View style={styles.passwordStrengthBar}>
+            {[0, 1, 2].map((index) => (
+              <View
+                key={index}
+                style={[
+                  styles.strengthSegment,
+                  {
+                    backgroundColor:
+                      index < getPasswordStrength()
+                        ? getPasswordStrengthColor()
+                        : "#E5E7EB",
+                  },
+                ]}
+              />
+            ))}
+          </View>
+          <Text style={styles.passwordHint}>
+            Nên có ít nhất 8 ký tự, bao gồm chữ hoa và số
+          </Text>
         </View>
-        <Text style={styles.passwordHint}>
-          Tối thiểu 6 ký tự, nên có chữ hoa và số
-        </Text>
-      </View>
+      )}
 
       {/* Register Button */}
       <TouchableOpacity
-        style={[styles.registerButton, isLoading && styles.registerButtonDisabled]}
+        style={[
+          styles.registerButton,
+          isLoading && styles.registerButtonDisabled,
+        ]}
         onPress={handleSubmit}
         disabled={isLoading}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
-        <LinearGradient
-          colors={['#10B981', '#059669', '#047857']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.registerButtonGradient}
-        >
-          <Text style={styles.registerButtonText}>
-            {isLoading ? ' Đang tạo tài khoản...' : ' Tạo tài khoản'}
-          </Text>
-        </LinearGradient>
+        <Text style={styles.registerButtonText}>
+          {isLoading ? "Đang tạo tài khoản..." : "Tạo tài khoản"}
+        </Text>
       </TouchableOpacity>
 
-      {/* Login Link */}
-      <View style={styles.loginContainer}>
-        <Text style={styles.loginText}>Đã có tài khoản? </Text>
-        <TouchableOpacity 
-          onPress={onLogin} 
-          disabled={isLoading}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.loginLink, isLoading && styles.disabled]}>
-            Đăng nhập ngay 
-          </Text>
-        </TouchableOpacity>
+      {/* Divider */}
+      <View style={styles.dividerContainer}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>hoặc</Text>
+        <View style={styles.dividerLine} />
       </View>
+
+      {/* Login Link */}
+      <TouchableOpacity
+        style={styles.loginButton}
+        onPress={onLogin}
+        disabled={isLoading}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.loginButtonText, isLoading && styles.disabled]}>
+          Đã có tài khoản? Đăng nhập ngay
+        </Text>
+      </TouchableOpacity>
 
       {/* Terms */}
       <View style={styles.termsContainer}>
@@ -278,256 +351,221 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
           <Text style={styles.linkText}>Chính sách bảo mật</Text> của SnapLink
         </Text>
       </View>
+
+      {/* Professional Tip */}
+      <View style={styles.tipContainer}>
+        <View style={styles.tipHeader}>
+          <Text style={styles.tipTitle}>Pro Tip</Text>
+        </View>
+        <Text style={styles.tipText}>
+          Hoàn thiện <Text style={styles.tipHighlight}>profile</Text> sau khi
+          đăng ký để tăng cơ hội kết nối với photographer phù hợp
+        </Text>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
-  },
-  formHeader: {
-    marginBottom: 24,
-    alignItems: 'center',
-  },
-  formTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#059669',
-    marginBottom: 4,
-  },
-  formSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
+    width: "100%",
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   inputLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#059669',
-    marginBottom: 6,
-    marginLeft: 4,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 8,
+    letterSpacing: 0.2,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#BBF7D0',
-    paddingHorizontal: 4,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 16,
+    height: 56,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  inputContainerFocused: {
+    borderColor: "#111827",
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
-  inputContainerFocused: {
-    borderColor: '#10B981',
-    backgroundColor: '#ECFDF5',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  inputIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: '#D1FAE5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 6,
-    marginLeft: 6,
-  },
-  iconText: {
-    fontSize: 16,
-  },
   textInput: {
     flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    fontSize: 15,
-    color: '#374151',
-    fontWeight: '500',
+    fontSize: 16,
+    color: "#111827",
+    fontWeight: "400",
+    paddingVertical: 0,
+    textAlignVertical: "center",
   },
   passwordInput: {
-    paddingRight: 55,
+    paddingRight: 60,
   },
   passwordToggle: {
-    position: 'absolute',
-    right: 8,
-    top: '50%',
-    transform: [{ translateY: -18 }],
+    position: "absolute",
+    right: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
   },
-  toggleButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#D1FAE5',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  toggleIcon: {
+  toggleText: {
     fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "600",
   },
   passwordStrengthContainer: {
-    backgroundColor: '#F0FDF4',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 20,
-    borderLeftWidth: 3,
-    borderLeftColor: '#10B981',
+    backgroundColor: "#F9FAFB",
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 24,
+    borderLeftWidth: 4,
+    borderLeftColor: "#E5E7EB",
+  },
+  passwordStrengthHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
   },
   passwordStrengthTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#059669',
-    marginBottom: 6,
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  passwordStrengthValue: {
+    fontSize: 14,
+    fontWeight: "700",
   },
   passwordStrengthBar: {
-    flexDirection: 'row',
-    marginBottom: 4,
+    flexDirection: "row",
+    marginBottom: 8,
     gap: 4,
   },
   strengthSegment: {
     flex: 1,
     height: 4,
-    backgroundColor: '#D1D5DB',
     borderRadius: 2,
   },
-  strengthActive: {
-    backgroundColor: '#10B981',
-  },
   passwordHint: {
-    fontSize: 11,
-    color: '#6B7280',
-    fontStyle: 'italic',
+    fontSize: 12,
+    color: "#6B7280",
+    fontStyle: "italic",
   },
   registerButton: {
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: '#059669',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+    backgroundColor: "#111827",
+    borderRadius: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 56,
   },
   registerButtonDisabled: {
-    opacity: 0.7,
-  },
-  registerButtonGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#9CA3AF",
   },
   registerButtonText: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    textAlign: 'center',
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    letterSpacing: 0.3,
   },
   dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#D1D5DB',
+    backgroundColor: "#E5E7EB",
   },
   dividerText: {
-    marginHorizontal: 14,
-    color: '#9CA3AF',
-    fontSize: 13,
-    fontWeight: '500',
+    marginHorizontal: 16,
+    color: "#9CA3AF",
+    fontSize: 14,
+    fontWeight: "500",
   },
-  socialButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    gap: 10,
-  },
-  socialButton: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#D1D5DB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  socialButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
+  loginButton: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginBottom: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 56,
   },
-  socialButtonIcon: {
+  loginButtonText: {
+    color: "#374151",
     fontSize: 16,
-    marginRight: 6,
-  },
-  socialButtonText: {
-    color: '#374151',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  loginContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 16,
-  },
-  loginText: {
-    color: '#6B7280',
-    fontSize: 14,
-  },
-  loginLink: {
-    color: '#047857',
-    fontSize: 14,
-    fontWeight: '700',
+    fontWeight: "600",
+    textAlign: "center",
+    letterSpacing: 0.3,
   },
   termsContainer: {
-    marginBottom: 12,
+    marginBottom: 24,
   },
   termsText: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    textAlign: 'center',
-    lineHeight: 16,
+    fontSize: 12,
+    color: "#9CA3AF",
+    textAlign: "center",
+    lineHeight: 18,
   },
   linkText: {
-    color: '#10B981',
-    fontWeight: '600',
+    color: "#111827",
+    fontWeight: "600",
   },
-  securityNote: {
-    backgroundColor: '#ECFDF5',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#BBF7D0',
+  tipContainer: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: "#E5E7EB",
   },
-  securityText: {
-    fontSize: 11,
-    color: '#059669',
-    textAlign: 'center',
-    fontWeight: '500',
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  tipTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: 0.2,
+  },
+  tipText: {
+    color: "#6B7280",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400",
+  },
+  tipHighlight: {
+    fontWeight: "700",
+    color: "#111827",
   },
   disabled: {
     opacity: 0.5,
   },
 });
+
 export default RegisterForm;

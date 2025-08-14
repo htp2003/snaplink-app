@@ -47,6 +47,7 @@ import MessagesScreen from "../screens/customer/MessagesScreen";
 import WalletScreen from "../screens/customer/WalletScreen";
 
 // VenueOwner Event Screens
+import VenueOwnerHomeScreen from "../screens/venueOwner/VenueOwnerHomeScreen";
 import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDetailScreen";
 import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
 import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
@@ -176,6 +177,10 @@ const AppNavigator = () => {
       <Stack.Screen name="WalletScreen" component={WalletScreen} />
 
       {/* Các màn hình dành riêng cho VenueOwner */}
+      <Stack.Screen
+        name="VenueOwnerHomeScreen"
+        component={VenueOwnerHomeScreen}
+      />
       <Stack.Screen
         name="VenueOwnerProfile"
         component={VenueOwnerProfileScreen}

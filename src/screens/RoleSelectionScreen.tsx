@@ -1,4 +1,3 @@
-// screens/RoleSelectionScreen.tsx
 import React, { useState } from "react";
 import {
   View,
@@ -8,7 +7,8 @@ import {
   Dimensions,
   StatusBar,
   Alert,
-  ImageBackground,
+  Image,
+  ScrollView,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,8 +24,7 @@ interface RoleOption {
   title: string;
   description: string;
   icon: keyof typeof Ionicons.glyphMap;
-  backgroundImage: any; // Image source
-  overlay: [string, string, ...string[]]; // Gradient overlay
+  color: string;
   navigationTarget: "CustomerMain" | "PhotographerMain" | "VenueOwnerMain";
   benefits: string[];
 }
@@ -37,8 +36,7 @@ const ROLE_OPTIONS: Record<string, RoleOption> = {
     description:
       "Khám phá và đặt lịch chụp ảnh với các nhiếp ảnh gia chuyên nghiệp",
     icon: "person-circle",
-    backgroundImage: require("../../assets/photographer.png"), // Thay bằng đường dẫn ảnh thực
-    overlay: ["rgba(106, 90, 205, 0.8)", "rgba(147, 51, 234, 0.9)"],
+    color: "#6366F1",
     navigationTarget: "CustomerMain",
     benefits: ["Tìm nhiếp ảnh gia", "Đặt lịch dễ dàng", "Đánh giá chất lượng"],
   },
@@ -47,8 +45,7 @@ const ROLE_OPTIONS: Record<string, RoleOption> = {
     title: "Nhiếp ảnh gia",
     description: "Quản lý portfolio và nhận booking từ khách hàng yêu thích",
     icon: "camera",
-    backgroundImage: require("../../assets/photographer.png"), // Thay bằng đường dẫn ảnh thực
-    overlay: ["rgba(249, 115, 22, 0.8)", "rgba(239, 68, 68, 0.9)"],
+    color: "#F59E0B",
     navigationTarget: "PhotographerMain",
     benefits: ["Hiển thị portfolio", "Quản lý booking", "Thu nhập ổn định"],
   },
@@ -57,8 +54,7 @@ const ROLE_OPTIONS: Record<string, RoleOption> = {
     title: "Chủ địa điểm",
     description: "Quản lý và cho thuê không gian chụp ảnh độc đáo",
     icon: "business",
-    backgroundImage: require("../../assets/photographer.png"), // Thay bằng đường dẫn ảnh thực
-    overlay: ["rgba(16, 185, 129, 0.8)", "rgba(6, 182, 212, 0.9)"],
+    color: "#10B981",
     navigationTarget: "VenueOwnerMain",
     benefits: ["Cho thuê địa điểm", "Tăng doanh thu", "Quản lý đặt chỗ"],
   },
@@ -109,59 +105,67 @@ const RoleSelectionScreen = () => {
 
     return (
       <TouchableOpacity
-        style={[styles.cardContainer, isSelected && styles.selectedCard]}
+        style={[
+          styles.cardContainer,
+          isSelected && styles.selectedCard,
+          { borderColor: isSelected ? role.color : "#E5E7EB" },
+        ]}
         onPress={() => handleRoleSelect(role.key)}
-        activeOpacity={0.9}
+        activeOpacity={0.85}
       >
-        <ImageBackground
-          source={role.backgroundImage}
-          style={styles.cardBackground}
-          imageStyle={styles.cardImage}
-        >
-          <View style={styles.cardOverlay}>
-            <View style={styles.cardContent}>
-              {/* Selection Indicator */}
-              {isSelected && (
-                <View style={styles.selectedBadge}>
-                  <Ionicons name="checkmark-circle" size={24} color="#FFFFFF" />
-                </View>
-              )}
+        <View style={styles.cardContent}>
+          {/* Selection Indicator */}
+          {isSelected && (
+            <View
+              style={[styles.selectedBadge, { backgroundColor: role.color }]}
+            >
+              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            </View>
+          )}
 
-              {/* Icon */}
-              <View style={styles.iconContainer}>
-                <View style={styles.iconWrapper}>
-                  <Ionicons name={role.icon} size={32} color="#FFFFFF" />
-                </View>
-              </View>
+          {/* Icon */}
+          <View
+            style={[
+              styles.iconContainer,
+              { backgroundColor: `${role.color}15` },
+            ]}
+          >
+            <Ionicons name={role.icon} size={32} color={role.color} />
+          </View>
 
-              {/* Content */}
-              <View style={styles.textContent}>
-                <Text style={styles.roleTitle}>{role.title}</Text>
-                <Text style={styles.roleDescription}>{role.description}</Text>
+          {/* Content */}
+          <View style={styles.textContent}>
+            <Text style={styles.roleTitle}>{role.title}</Text>
+            <Text style={styles.roleDescription}>{role.description}</Text>
 
-                {/* Benefits */}
-                <View style={styles.benefitsContainer}>
-                  {role.benefits.map((benefit, index) => (
-                    <View key={index} style={styles.benefitItem}>
-                      <Ionicons name="checkmark" size={14} color="#FFFFFF" />
-                      <Text style={styles.benefitText}>{benefit}</Text>
-                    </View>
-                  ))}
+            {/* Benefits */}
+            <View style={styles.benefitsContainer}>
+              {role.benefits.map((benefit, index) => (
+                <View key={index} style={styles.benefitItem}>
+                  <View
+                    style={[
+                      styles.benefitIcon,
+                      { backgroundColor: role.color },
+                    ]}
+                  >
+                    <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                  </View>
+                  <Text style={styles.benefitText}>{benefit}</Text>
                 </View>
-              </View>
+              ))}
             </View>
           </View>
-        </ImageBackground>
-
-        {/* Selection Border */}
-        {isSelected && <View style={styles.selectionBorder} />}
+        </View>
       </TouchableOpacity>
     );
   };
 
   if (!availableRoles.length) {
     return (
-      <LinearGradient colors={["#F8FAFC", "#E2E8F0"]} style={styles.container}>
+      <LinearGradient
+        colors={["#FFFFFF", "#F9FAFB", "#F3F4F6"]}
+        style={styles.container}
+      >
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={64} color="#EF4444" />
           <Text style={styles.errorTitle}>Không tìm thấy vai trò</Text>
@@ -174,83 +178,78 @@ const RoleSelectionScreen = () => {
   }
 
   return (
-    <LinearGradient
-      colors={["#F1F5F9", "#E2E8F0", "#CBD5E1"]}
-      style={styles.container}
-    >
-      <StatusBar
-        backgroundColor="transparent"
-        barStyle="dark-content"
-        translucent
-      />
-
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <Text style={styles.title}>Chọn vai trò của bạn</Text>
-          <Text style={styles.subtitle}>
-            Tài khoản của bạn có nhiều vai trò. Hãy chọn vai trò phù hợp để bắt
-            đầu trải nghiệm SnapLink.
-          </Text>
-        </View>
-      </View>
-
-      {/* User Welcome Card */}
-      <View style={styles.welcomeCard}>
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <Ionicons name="person" size={24} color="#6366F1" />
-          </View>
-        </View>
-        <View style={styles.welcomeContent}>
-          <Text style={styles.welcomeTitle}>Chào mừng trở lại!</Text>
-          <Text style={styles.welcomeName}>
-            {user?.fullName || user?.email}
-          </Text>
-          <Text style={styles.rolesText}>
-            {availableRoles.length} vai trò khả dụng
-          </Text>
-        </View>
-      </View>
-
-      {/* Role Cards */}
-      <View style={styles.cardsContainer}>
-        {availableRoles.map((roleKey) => {
-          const roleOption = ROLE_OPTIONS[roleKey];
-          if (!roleOption) return null;
-
-          return <RoleCard key={roleKey} role={roleOption} />;
-        })}
-      </View>
-
-      {/* Continue Button */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity
-          style={[
-            styles.continueButton,
-            !selectedRole && styles.disabledButton,
-            loading && styles.loadingButton,
-          ]}
-          onPress={handleContinue}
-          disabled={!selectedRole || loading}
+    <>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <LinearGradient
+        colors={["#FFFFFF", "#F9FAFB", "#F3F4F6"]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.container}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
         >
-          <LinearGradient
-            colors={
-              selectedRole ? ["#6366F1", "#8B5CF6"] : ["#9CA3AF", "#6B7280"]
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.buttonGradient}
-          >
-            <View style={styles.buttonContent}>
-              {loading && (
-                <Ionicons
-                  name="refresh"
-                  size={20}
-                  color="#FFFFFF"
-                  style={styles.loadingIcon}
+          {/* Header */}
+          <View style={styles.headerSection}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoBackground}>
+                <Image
+                  source={require("../../assets/logo.png")}
+                  style={styles.logo}
+                  resizeMode="contain"
                 />
-              )}
+              </View>
+            </View>
+
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Chọn vai trò của bạn</Text>
+              <Text style={styles.subtitle}>
+                Tài khoản của bạn có nhiều vai trò. Hãy chọn vai trò phù hợp để
+                bắt đầu trải nghiệm SnapLink.
+              </Text>
+            </View>
+          </View>
+
+          {/* User Welcome Card */}
+          <View style={styles.welcomeCard}>
+            <View style={styles.avatarContainer}>
+              <View style={styles.avatar}>
+                <Ionicons name="person" size={24} color="#111827" />
+              </View>
+            </View>
+            <View style={styles.welcomeContent}>
+              <Text style={styles.welcomeTitle}>Chào mừng trở lại!</Text>
+              <Text style={styles.welcomeName}>
+                {user?.fullName || user?.email}
+              </Text>
+              <Text style={styles.rolesText}>
+                {availableRoles.length} vai trò khả dụng
+              </Text>
+            </View>
+          </View>
+
+          {/* Role Cards */}
+          <View style={styles.cardsContainer}>
+            {availableRoles.map((roleKey) => {
+              const roleOption = ROLE_OPTIONS[roleKey];
+              if (!roleOption) return null;
+
+              return <RoleCard key={roleKey} role={roleOption} />;
+            })}
+          </View>
+
+          {/* Continue Button */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              style={[
+                styles.continueButton,
+                (!selectedRole || loading) && styles.disabledButton,
+              ]}
+              onPress={handleContinue}
+              disabled={!selectedRole || loading}
+              activeOpacity={0.85}
+            >
               <Text style={styles.buttonText}>
                 {loading
                   ? "Đang chuyển hướng..."
@@ -258,17 +257,36 @@ const RoleSelectionScreen = () => {
                   ? `Tiếp tục với ${ROLE_OPTIONS[selectedRole]?.title}`
                   : "Chọn vai trò để tiếp tục"}
               </Text>
-            </View>
-          </LinearGradient>
-        </TouchableOpacity>
+            </TouchableOpacity>
 
-        {selectedRole && (
-          <Text style={styles.buttonHint}>
-            Bạn có thể thay đổi vai trò bất cứ lúc nào trong phần cài đặt
-          </Text>
-        )}
-      </View>
-    </LinearGradient>
+            {selectedRole && (
+              <Text style={styles.buttonHint}>
+                Bạn có thể thay đổi vai trò bất cứ lúc nào trong phần cài đặt
+              </Text>
+            )}
+          </View>
+
+          {/* Professional Tip */}
+          <View style={styles.tipContainer}>
+            <View style={styles.tipHeader}>
+              <Text style={styles.tipTitle}>Pro Tip</Text>
+            </View>
+            <Text style={styles.tipText}>
+              Mỗi vai trò có{" "}
+              <Text style={styles.tipHighlight}>giao diện riêng</Text> được tối
+              ưu cho trải nghiệm tốt nhất
+            </Text>
+          </View>
+
+          {/* Minimal Decorative Elements */}
+          <View style={styles.decorativeContainer}>
+            <View style={[styles.decorativeElement, styles.element1]} />
+            <View style={[styles.decorativeElement, styles.element2]} />
+            <View style={[styles.decorativeElement, styles.element3]} />
+          </View>
+        </ScrollView>
+      </LinearGradient>
+    </>
   );
 };
 
@@ -276,41 +294,70 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingTop: StatusBar.currentHeight ? StatusBar.currentHeight + 20 : 60,
+  scrollContainer: {
+    flexGrow: 1,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingTop: 60,
+    paddingBottom: 30,
   },
-  headerContent: {
+  headerSection: {
+    alignItems: "center",
+    marginBottom: 32,
+  },
+  logoContainer: {
+    marginBottom: 24,
+  },
+  logoBackground: {
+    width: 80,
+    height: 80,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  logo: {
+    width: 70,
+    height: 70,
+  },
+  titleContainer: {
     alignItems: "center",
   },
   title: {
     fontSize: 28,
-    fontWeight: "700",
-    color: "#1E293B",
+    fontWeight: "800",
+    color: "#111827",
     marginBottom: 12,
     textAlign: "center",
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: "#64748B",
+    color: "#6B7280",
     textAlign: "center",
     lineHeight: 24,
     paddingHorizontal: 16,
+    fontWeight: "400",
   },
   welcomeCard: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
-    marginHorizontal: 24,
     marginBottom: 32,
     padding: 20,
-    borderRadius: 20,
-    shadowColor: "#000",
+    borderRadius: 16,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 8,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
   avatarContainer: {
     marginRight: 16,
@@ -319,7 +366,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#F9FAFB",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -330,166 +377,162 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1E293B",
+    color: "#111827",
     marginBottom: 4,
   },
   welcomeName: {
     fontSize: 16,
-    color: "#6366F1",
+    color: "#111827",
     fontWeight: "500",
     marginBottom: 4,
   },
   rolesText: {
     fontSize: 14,
-    color: "#64748B",
+    color: "#6B7280",
   },
   cardsContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
+    marginBottom: 32,
   },
   cardContainer: {
-    marginBottom: 20,
-    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 10,
-    position: "relative",
   },
   selectedCard: {
+    shadowOpacity: 0.15,
+    elevation: 12,
     transform: [{ scale: 1.02 }],
-    shadowOpacity: 0.25,
-    elevation: 16,
-  },
-  cardBackground: {
-    height: 180,
-    justifyContent: "center",
-  },
-  cardImage: {
-    borderRadius: 24,
-  },
-  cardOverlay: {
-    flex: 1,
-    padding: 24,
-    backgroundColor: "rgba(0, 0, 0, 0.3)", // Chỉ có overlay đen nhẹ để text rõ ràng
   },
   cardContent: {
-    flex: 1,
+    padding: 24,
     position: "relative",
   },
   selectedBadge: {
     position: "absolute",
-    top: -8,
-    right: -8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    top: 16,
+    right: 16,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
   },
   iconContainer: {
-    marginBottom: 16,
-  },
-  iconWrapper: {
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.3)",
+    marginBottom: 16,
   },
   textContent: {
     flex: 1,
   },
   roleTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#111827",
     marginBottom: 8,
-    letterSpacing: -0.5,
+    letterSpacing: -0.3,
   },
   roleDescription: {
     fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
+    color: "#6B7280",
     lineHeight: 20,
     marginBottom: 16,
+    fontWeight: "400",
   },
   benefitsContainer: {
-    gap: 6,
+    gap: 8,
   },
   benefitItem: {
     flexDirection: "row",
     alignItems: "center",
   },
+  benefitIcon: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
   benefitText: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.8)",
-    marginLeft: 8,
+    fontSize: 14,
+    color: "#374151",
     fontWeight: "500",
   },
-  selectionBorder: {
-    position: "absolute",
-    top: -2,
-    left: -2,
-    right: -2,
-    bottom: -2,
-    borderRadius: 26,
-    borderWidth: 3,
-    borderColor: "#6366F1",
-  },
   buttonContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
-    paddingTop: 16,
+    marginBottom: 24,
   },
   continueButton: {
-    borderRadius: 16,
-    overflow: "hidden",
-    marginBottom: 12,
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  disabledButton: {
-    shadowOpacity: 0.1,
-    elevation: 2,
-  },
-  loadingButton: {
-    shadowOpacity: 0.2,
-  },
-  buttonGradient: {
+    backgroundColor: "#111827",
+    borderRadius: 8,
     paddingVertical: 18,
     paddingHorizontal: 24,
-  },
-  buttonContent: {
-    flexDirection: "row",
-    alignItems: "center",
+    marginBottom: 12,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
     justifyContent: "center",
+    alignItems: "center",
+    minHeight: 56,
   },
-  loadingIcon: {
-    marginRight: 8,
+  disabledButton: {
+    backgroundColor: "#9CA3AF",
+    shadowOpacity: 0.05,
+    elevation: 1,
   },
   buttonText: {
     fontSize: 16,
     fontWeight: "600",
     color: "#FFFFFF",
     textAlign: "center",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   buttonHint: {
     fontSize: 12,
-    color: "#64748B",
+    color: "#9CA3AF",
     textAlign: "center",
     fontStyle: "italic",
+  },
+  tipContainer: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: "#E5E7EB",
+    marginBottom: 20,
+  },
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  tipTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: 0.2,
+  },
+  tipText: {
+    color: "#6B7280",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400",
+  },
+  tipHighlight: {
+    fontWeight: "700",
+    color: "#111827",
   },
   errorContainer: {
     flex: 1,
@@ -500,15 +543,59 @@ const styles = StyleSheet.create({
   errorTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#1E293B",
+    color: "#111827",
     marginTop: 16,
     marginBottom: 8,
   },
   errorText: {
     fontSize: 16,
-    color: "#64748B",
+    color: "#6B7280",
     textAlign: "center",
     lineHeight: 24,
+    fontWeight: "400",
+  },
+  decorativeContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: -1,
+  },
+  decorativeElement: {
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+  },
+  element1: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    top: 120,
+    right: 30,
+    transform: [{ rotate: "15deg" }],
+  },
+  element2: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    bottom: 180,
+    left: 20,
+    transform: [{ rotate: "-12deg" }],
+  },
+  element3: {
+    width: 80,
+    height: 20,
+    borderRadius: 10,
+    top: 300,
+    left: 40,
+    transform: [{ rotate: "25deg" }],
   },
 });
 

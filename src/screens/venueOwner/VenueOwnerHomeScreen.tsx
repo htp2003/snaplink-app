@@ -1,4 +1,4 @@
-// screens/venueOwner/VenueOwnerHomeScreen.tsx - INTEGRATED WALLET & TOP-UP
+// screens/venueOwner/VenueOwnerHomeScreen.tsx - INTEGRATED WALLET & TRANSACTION HISTORY
 import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
@@ -105,6 +105,11 @@ export default function VenueOwnerHomeScreen() {
 
   const handleTopUp = () => {
     setShowTopUpModal(true);
+  };
+
+  // 🔥 NEW: Navigate to transaction history
+  const handleViewTransactionHistory = () => {
+    navigation.navigate("VenueOwnerTransaction");
   };
 
   // Filter locations by actual locationOwnerId
@@ -264,7 +269,7 @@ export default function VenueOwnerHomeScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Transaction History Button */}
+              {/* 🔥 UPDATED: Transaction History Button */}
               <TouchableOpacity
                 style={{
                   backgroundColor: "rgba(255, 255, 255, 0.2)",
@@ -276,9 +281,7 @@ export default function VenueOwnerHomeScreen() {
                   alignItems: "center",
                   justifyContent: "center",
                 }}
-                onPress={() =>
-                  Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
-                }
+                onPress={handleViewTransactionHistory}
               >
                 <Ionicons name="receipt-outline" size={20} color="#FFFFFF" />
                 <Text
@@ -432,18 +435,17 @@ export default function VenueOwnerHomeScreen() {
               <Ionicons name="chevron-forward" size={20} color="#6B7280" />
             </TouchableOpacity>
 
+            {/* 🔥 NEW: Transaction History Quick Action */}
             <TouchableOpacity
               className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
-              onPress={() =>
-                Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
-              }
+              onPress={handleViewTransactionHistory}
             >
               <View className="flex-row items-center">
                 <View className="bg-green-100 p-3 rounded-full mr-4">
-                  <Ionicons name="card-outline" size={20} color="#10B981" />
+                  <Ionicons name="receipt-outline" size={20} color="#10B981" />
                 </View>
                 <Text className="text-gray-900 font-medium">
-                  Quản lý gói đăng ký
+                  Lịch sử giao dịch
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#6B7280" />

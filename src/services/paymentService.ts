@@ -506,7 +506,10 @@ async createEventPayment(
     return await this.createPaymentLink(userId, paymentData);
   } catch (error) {
     console.error("❌ Error creating event payment:", error);
-=======
+    throw error;
+  }
+}
+
   async createWalletTopUp(request: CreateWalletTopUpRequest): Promise<WalletTopUpResponse> {
   try {
     const response = await apiClient.post<any>(

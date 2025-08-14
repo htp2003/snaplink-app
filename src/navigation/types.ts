@@ -55,7 +55,6 @@ export type RootStackParamList = {
   ForgotPassword: undefined;
   // Photographer screens
   EditProfilePhotographer: undefined;
-  Subscription: undefined;
   SubscriptionManagement: undefined;
   ViewProfilePhotographerScreen: undefined;
   PhotographerHomeScreen: undefined;
@@ -229,6 +228,7 @@ BookingEvent: {
   VenueOwnerEvents: undefined;
   EditVenueScreen: { venueId?: number };
   VenueDetailScreen: { venueId: number };
+  VenueOwnerSubscription: undefined;
 
   // VenueOwner Event Management screens
   VenueOwnerEventDetail: {
@@ -270,7 +270,7 @@ export type PhotographerTabParamList = {
   OrderManagementScreen: undefined;
   PhotographerEventScreen: {
     photographerId: number;
-  };  
+  };
   Messages: undefined;
 };
 

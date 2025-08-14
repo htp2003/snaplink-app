@@ -21,6 +21,9 @@ import { useBookings } from "../../hooks/useBookingPhotographer";
 import { usePhotoDelivery } from "../../hooks/usePhotoDelivery";
 import { BookingCardData } from "../../types/booking";
 import { usePhotographerAuth } from "../../hooks/usePhotographerAuth";
+import { useSubscriptionStatus } from "../../hooks/useSubscriptionStatus";
+import SubscriptionRequiredOverlay from "../../components/SubscriptionRequiredOverlay";
+import WalletTopUpModal from "../../components/WalletTopUpModal";  
 // ✅ ADD THESE IMPORTS:
 import { useChat } from "../../hooks/useChat";
 import { useAuth } from "../../hooks/useAuth";
@@ -35,10 +38,12 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   const [activeTab, setActiveTab] = useState<"confirmed" | "completed">(
     "confirmed"
   );
+ 
 
   // ✅ ADD AUTH CONTEXT:
   const { getCurrentUserId, user } = useAuth();
   const currentUserId = getCurrentUserId();
+  
 
   // ✅ GET REAL PHOTOGRAPHER ID:
   const {
@@ -91,6 +96,8 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
       currency: "VND",
     }).format(amount);
   };
+   const { hasActiveSubscription, isLoading: subscriptionLoading } =
+      useSubscriptionStatus(photographerId);
 
   const formatDateTime = (date: string, time: string) => {
     const dateObj = new Date(date);
@@ -1095,6 +1102,12 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
           </>
         )}
       </ScrollView>
+      <SubscriptionRequiredOverlay
+        isVisible={!hasActiveSubscription && !subscriptionLoading}
+        onNavigateToSubscription={() =>
+          navigation.navigate("SubscriptionManagement")
+        }
+      />
     </View>
   );
 }

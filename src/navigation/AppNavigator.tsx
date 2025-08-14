@@ -15,7 +15,6 @@ import RegisterScreen from "../screens/RegisterScreen";
 import StepContainer from "../components/Step/StepContainer";
 import ViewAllPhotographers from "../screens/customer/ViewAllPhotographers";
 import ViewAllLocations from "../screens/customer/ViewAllLocations";
-import SubscriptionScreen from "../screens/photographer/SubscriptionScreen";
 import SubscriptionManagementScreen from "../screens/photographer/SubscriptionManagementScreen";
 import BookingScreen from "../screens/customer/BookingScreen";
 import OrderDetailScreen from "../screens/customer/OrderDetailScreen";
@@ -51,6 +50,7 @@ import WalletScreen from "../screens/customer/WalletScreen";
 import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDetailScreen";
 import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
 import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
+import VenueOwnerSubscriptionScreen from "../screens/venueOwner/VenueOwnerSubscriptionScreen";
 
 import VenueOwnerEditEventScreen from "../screens/venueOwner/VenueOwnerEditEventScreen";
 import VenueOwnerEventApplicationsScreen from "../screens/venueOwner/VenueOwnerEventApplicationsScreen";
@@ -60,7 +60,6 @@ import ChangePasswordScreen from "../screens/customer/ChangePasswordScreen";
 import EventDetailScreen from "../screens/customer/EventDetailScreen";
 import BookingEventScreen from "../screens/customer/BookingEventScreen";
 import OrderEventDetailScreen from "../screens/customer/OrderEventDetailScreen";
-
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -89,8 +88,11 @@ const AppNavigator = () => {
         name="EmailVerification"
         component={EmailVerificationScreen}
       />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen}/>
-      <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen
+        name="ChangePasswordScreen"
+        component={ChangePasswordScreen}
+      />
 
       {/* Các màn hình dành riêng cho Customer */}
       <Stack.Screen
@@ -138,7 +140,6 @@ const AppNavigator = () => {
         name="ProfilePhotographerScreen"
         component={ProfilePhotographerScreen}
       />
-      <Stack.Screen name="Subscription" component={SubscriptionScreen} />
       <Stack.Screen
         name="SubscriptionManagement"
         component={SubscriptionManagementScreen}
@@ -180,6 +181,14 @@ const AppNavigator = () => {
         component={VenueOwnerProfileScreen}
       />
       <Stack.Screen name="VenueManagement" component={VenueManagementScreen} />
+      <Stack.Screen
+        name="VenueOwnerSubscription"
+        component={VenueOwnerSubscriptionScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
 
       {/* VenueOwner Event Management Screens */}
       <Stack.Screen

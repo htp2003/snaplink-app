@@ -160,50 +160,71 @@ const ProfilePhotographerScreen = () => {
     };
 
   const menuItems = [
-    {
-      icon: "settings-outline",
-      title: "Cài đặt tài khoản",
-      hasNotification: true,
-      // onPress: () => navigation.navigate('Settings')
+  {
+    icon: "card-outline",
+    title: "Quản lý gói đăng ký",
+    hasNotification: false,
+    onPress: () => {
+      if (photographerData) {
+        navigation.navigate("SubscriptionManagement");
+      } else {
+        Alert.alert(
+          "Thông báo",
+          "Bạn cần trở thành nhiếp ảnh gia trước khi quản lý gói đăng ký.",
+          [
+            { text: "Hủy", style: "cancel" },
+            {
+              text: "Đăng ký",
+              onPress: () => navigation.navigate("EditProfilePhotographer"),
+            },
+          ]
+        );
+      }
     },
-    {
-      icon: "help-circle-outline",
-      title: "Nhận trợ giúp",
-      // onPress: () => navigation.navigate('Help')
-    },
-    {
-      icon: "person-outline",
-      title: "Xem hồ sơ",
-      // onPress: () => navigation.navigate('ViewProfile')
-    },
-    {
-      icon: "hand-left-outline",
-      title: "Quyền riêng tư",
-      // onPress: () => navigation.navigate('Privacy')
-    },
-    {
-      icon: "people-outline",
-      title: "Giới thiệu host",
-      // onPress: () => navigation.navigate('BecomeHost')
-    },
-    {
-      icon: "business-outline",
-      title: "Tìm đồng chủ nhà",
-      // onPress: () => navigation.navigate('FindCoHost')
-    },
-    {
-      icon: "document-text-outline",
-      title: "Pháp lý",
-      // onPress: () => navigation.navigate('Legal')
-    },
-    {
-      icon: "log-out-outline",
-      title: "Đăng xuất",
-      onPress: handleLogout,
-      isLoading: isLoggingOut,
-    },
-  ];
-
+  },
+  {
+    icon: "settings-outline",
+    title: "Cài đặt tài khoản",
+    hasNotification: true,
+    // onPress: () => navigation.navigate('Settings')
+  },
+  {
+    icon: "help-circle-outline",
+    title: "Nhận trợ giúp",
+    // onPress: () => navigation.navigate('Help')
+  },
+  {
+    icon: "person-outline",
+    title: "Xem hồ sơ",
+    // onPress: () => navigation.navigate('ViewProfile')
+  },
+  {
+    icon: "hand-left-outline",
+    title: "Quyền riêng tư",
+    // onPress: () => navigation.navigate('Privacy')
+  },
+  {
+    icon: "people-outline",
+    title: "Giới thiệu host",
+    // onPress: () => navigation.navigate('BecomeHost')
+  },
+  {
+    icon: "business-outline",
+    title: "Tìm đồng chủ nhà",
+    // onPress: () => navigation.navigate('FindCoHost')
+  },
+  {
+    icon: "document-text-outline",
+    title: "Pháp lý",
+    // onPress: () => navigation.navigate('Legal')
+  },
+  {
+    icon: "log-out-outline",
+    title: "Đăng xuất",
+    onPress: handleLogout,
+    isLoading: isLoggingOut,
+  },
+];
   const handleFavoritedPress = () => {
     setIsModalVisible(true);
   };

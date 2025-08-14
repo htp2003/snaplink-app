@@ -359,6 +359,20 @@ export default function VenueOwnerProfileScreen() {
 
           <View className="space-y-3">
             <TouchableOpacity
+              className="bg-white p-4 rounded-lg..."
+              onPress={() => navigation.navigate("VenueOwnerSubscription")} // ← Navigate to subscription
+            >
+              <View className="flex-row items-center">
+                <View className="bg-green-100 p-3 rounded-full mr-4">
+                  <Ionicons name="card-outline" size={20} color="#10B981" />
+                </View>
+                <Text className="text-gray-900 font-medium">
+                  Quản lý gói đăng ký
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+            </TouchableOpacity>
+            <TouchableOpacity
               className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
               onPress={() =>
                 Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")

@@ -50,13 +50,13 @@ import WalletScreen from "../screens/customer/WalletScreen";
 import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDetailScreen";
 import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
 import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
+import VenueOwnerSubscriptionScreen from "../screens/venueOwner/VenueOwnerSubscriptionScreen";
 
 import VenueOwnerEditEventScreen from "../screens/venueOwner/VenueOwnerEditEventScreen";
 import VenueOwnerEventApplicationsScreen from "../screens/venueOwner/VenueOwnerEventApplicationsScreen";
 import VenueOwnerEventBookingsScreen from "../screens/venueOwner/VenueOwnerEventBookingsScreen";
 import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 import ChangePasswordScreen from "../screens/customer/ChangePasswordScreen";
-
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -85,8 +85,11 @@ const AppNavigator = () => {
         name="EmailVerification"
         component={EmailVerificationScreen}
       />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen}/>
-      <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen
+        name="ChangePasswordScreen"
+        component={ChangePasswordScreen}
+      />
 
       {/* Các màn hình dành riêng cho Customer */}
       <Stack.Screen
@@ -172,6 +175,14 @@ const AppNavigator = () => {
         component={VenueOwnerProfileScreen}
       />
       <Stack.Screen name="VenueManagement" component={VenueManagementScreen} />
+      <Stack.Screen
+        name="VenueOwnerSubscription"
+        component={VenueOwnerSubscriptionScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
 
       {/* VenueOwner Event Management Screens */}
       <Stack.Screen

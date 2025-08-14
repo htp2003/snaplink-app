@@ -323,64 +323,38 @@ const ChatScreen = () => {
   // ===== ENHANCED SEND MESSAGE HANDLER =====
 
   const handleSendMessage = useCallback(async () => {
-    if (!messageText.trim() || sendingMessage) return;
+  if (!messageText.trim() || sendingMessage) return;
 
-    const textToSend = messageText.trim();
-    setMessageText("");
+  const textToSend = messageText.trim();
+  setMessageText("");
 
-    try {
-      // ✅ Gửi message qua API
-      const sentMessage = await sendMessage(textToSend, MessageType.TEXT);
+  try {
+    // ✅ Chỉ gọi API, để backend tự động broadcast
+    const sentMessage = await sendMessage(textToSend, MessageType.TEXT);
 
-      if (sentMessage) {
-        // ✅ MANUAL SIGNALR BROADCAST - FIX CHO BACKEND THIẾU
-        try {
-          // Convert Message to MessageResponse format
-          const messageForSignalR: MessageResponse = {
-            messageId: sentMessage.messageId,
-            senderId: sentMessage.senderId,
-            recipientId: sentMessage.recipientId,
-            conversationId: sentMessage.conversationId!,
-            content: sentMessage.content,
-            createdAt: sentMessage.createdAt,
-            messageType: sentMessage.messageType as any,
-            status: sentMessage.status as any,
-            readAt: sentMessage.readAt,
-            senderName: sentMessage.senderName,
-            senderProfileImage: sentMessage.senderProfileImage,
-          };
-
-          // Broadcast to conversation group
-          if (isSignalRConnected) {
-            await signalRManager.sendMessageToConversation(
-              conversationId,
-              messageForSignalR
-            );
-          } else {
-            console.warn("⚠️ SignalR not connected, cannot broadcast");
-          }
-        } catch (broadcastError) {
-          console.warn("⚠️ Manual SignalR broadcast failed:", broadcastError);
-          // Don't fail the whole operation, message is already sent to API
-        }
-      } else {
-        console.error("❌ Failed to send message via API");
-        setMessageText(textToSend);
-        Alert.alert("Error", "Failed to send message. Please try again.");
-      }
-    } catch (err) {
-      console.error("❌ Error sending message:", err);
+    if (sentMessage) {
+      console.log("✅ Message sent successfully:", sentMessage.messageId);
+      
+      // ❌ REMOVE MANUAL SIGNALR BROADCAST
+      // Backend should automatically broadcast the message
+      // No need for manual broadcast here
+      
+    } else {
+      console.error("❌ Failed to send message via API");
       setMessageText(textToSend);
       Alert.alert("Error", "Failed to send message. Please try again.");
     }
-  }, [
-    messageText,
-    sendingMessage,
-    sendMessage,
-    conversationId,
-    currentUserId,
-    isSignalRConnected,
-  ]);
+  } catch (err) {
+    console.error("❌ Error sending message:", err);
+    setMessageText(textToSend);
+    Alert.alert("Error", "Failed to send message. Please try again.");
+  }
+}, [
+  messageText,
+  sendingMessage,
+  sendMessage,
+  // ❌ Remove SignalR dependencies
+]);
 
   // ===== REST OF HANDLERS (unchanged) =====
 

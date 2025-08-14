@@ -245,7 +245,7 @@ export interface BookingCardData {
   date: string;
   time: string;
   duration: number;
-  price: number;
+  totalPrice: number;
   status: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'in-progress';
   description: string;
   createdAt: string;

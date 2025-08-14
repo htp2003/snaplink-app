@@ -46,7 +46,7 @@ export interface EventApplication {
   eventPhotographerId?: number; // Từ API response
   eventId: number;
   photographerId: number;
-  specialRate?: number;
+  specialRate: number;
   status: ApplicationStatus;
   appliedAt: string;
   respondedAt?: string;

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import React, { useState, useEffect } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { BottomTabScreenProps } from "@react-navigation/bottom-tabs";
 import {
@@ -43,7 +44,6 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   // ✅ ADD AUTH CONTEXT:
   const { getCurrentUserId, user } = useAuth();
   const currentUserId = getCurrentUserId();
-  
 
   // ✅ GET REAL PHOTOGRAPHER ID:
   const {
@@ -96,8 +96,14 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
       currency: "VND",
     }).format(amount);
   };
-   const { hasActiveSubscription, isLoading: subscriptionLoading } =
+  const { hasActiveSubscription, isLoading: subscriptionLoading, refreshSubscriptionStatus } =
       useSubscriptionStatus(photographerId);
+      useFocusEffect(
+      React.useCallback(() => {
+        console.log('🔍 Screen focused, refreshing subscription status...');
+        refreshSubscriptionStatus();
+      }, [refreshSubscriptionStatus])
+    );
 
   const formatDateTime = (date: string, time: string) => {
     const dateObj = new Date(date);
@@ -322,7 +328,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
         order.date,
         order.time
       )}\nThời lượng: ${order.duration} giờ\n\nGiá: ${formatCurrency(
-        order.price
+        order.totalPrice
       )}\nGiá/giờ: ${formatCurrency(order.pricePerHour)}\n\nMô tả: ${
         order.description
       }${
@@ -846,7 +852,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                             letterSpacing: 0.3,
                           }}
                         >
-                          {formatCurrency(order.price)}
+                          {formatCurrency(order.totalPrice)}
                         </Text>
                         <Text
                           style={{

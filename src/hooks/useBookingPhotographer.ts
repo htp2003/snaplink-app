@@ -310,7 +310,7 @@ export const useBookings = (photographerId: number) => {
         date: startDate.toISOString().split("T")[0],
         time: startDate.toTimeString().slice(0, 5),
         duration: durationHours,
-        price: booking.paymentAmount,
+        totalPrice: booking.totalPrice,
         status: getUIStatus(booking.status),
         description: booking.specialRequests || "Không có yêu cầu đặc biệt",
         createdAt: booking.createdAt,

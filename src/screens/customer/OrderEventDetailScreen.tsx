@@ -30,12 +30,12 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 type OrderEventDetailRouteParams = {
 
   eventBookingResponse?: {
-    eventBookingId: number;   
-    bookingId: number; 
+    eventBookingId: number;
+    bookingId: number;
     eventPrice: number;
-    booking: {                
-      bookingId: number;         
-      userId: number;          
+    booking: {
+      bookingId: number;
+      userId: number;
       photographerId: number;
       totalPrice: number;
       status: string;
@@ -46,10 +46,10 @@ type OrderEventDetailRouteParams = {
   };
 
 
-  eventBookingId?: number;      
-  bookingId?: number;            
-  eventPrice?: number;       
-  bookingResponse?: any; 
+  eventBookingId?: number;
+  bookingId?: number;
+  eventPrice?: number;
+  bookingResponse?: any;
 
 
   event: {
@@ -102,10 +102,10 @@ export default function OrderEventDetailScreen() {
 
   // ✅ Use existing hooks for consistency
   const { getBookingById, confirmBooking } = useBooking();
-  const { 
+  const {
     createEventPayment,
-    creatingPayment, 
-    error: paymentError 
+    creatingPayment,
+    error: paymentError
   } = usePayment();
 
   // ✅ Payment method state
@@ -128,7 +128,7 @@ export default function OrderEventDetailScreen() {
           console.log('🔐 ===== TOKEN DEBUG =====');
           console.log('🔐 Token exists:', !!token);
           console.log('🔐 Token length:', token.length);
-          
+
           // Try to decode JWT token
           try {
             const parts = token.split('.');
@@ -137,13 +137,13 @@ export default function OrderEventDetailScreen() {
               const now = Math.floor(Date.now() / 1000);
               const exp = payload.exp;
               const iat = payload.iat;
-              
+
               console.log('🔐 Token issued at:', new Date(iat * 1000));
               console.log('🔐 Token expires at:', new Date(exp * 1000));
               console.log('🔐 Current time:', new Date());
               console.log('🔐 Time until expiry:', (exp - now), 'seconds');
               console.log('🔐 Is expired:', exp < now);
-              
+
               // Check if token will expire soon (within 5 minutes)
               const expiresIn = exp - now;
               if (expiresIn < 300) { // 5 minutes
@@ -159,21 +159,21 @@ export default function OrderEventDetailScreen() {
         console.error('❌ Error debugging token:', error);
       }
     };
-    
+
     debugToken();
   }, []);
 
   useEffect(() => {
     const loadRegularBooking = async () => {
       const bookingId = params.eventBookingResponse?.bookingId;
-      
+
       if (bookingId) {
         try {
           setLoadingBooking(true);
           console.log("🔄 Loading regular booking for event booking ID:", bookingId);
-          
+
           const bookingData = await getBookingById(bookingId);
-          
+
           if (bookingData) {
             setRegularBooking(bookingData);
             console.log("✅ Regular booking loaded for event:", bookingData);
@@ -304,25 +304,25 @@ export default function OrderEventDetailScreen() {
   const calculateFallbackPrice = (): number => {
     const eventBaseFee = params.event.discountedPrice || params.event.originalPrice || 0;
     const photographerRate = params.photographer.specialRate || 0;
-    const duration = params.bookingTimes ? 
+    const duration = params.bookingTimes ?
       calculateDurationFromTimes(params.bookingTimes.startTime, params.bookingTimes.endTime) : 1;
-    
+
     return eventBaseFee + (photographerRate * duration);
   };
 
   // ✅ Calculate pricing - use regular booking data if available, otherwise fallback
-  const totalPrice = params.eventPrice || 
+  const totalPrice = params.eventPrice ||
     params.eventBookingResponse?.eventPrice ||
-    regularBooking?.totalPrice || 
+    regularBooking?.totalPrice ||
     calculateFallbackPrice();
 
-  const durationHours = regularBooking?.durationHours || 
+  const durationHours = regularBooking?.durationHours ||
     (params.bookingTimes ? calculateDurationFromTimes(params.bookingTimes.startTime, params.bookingTimes.endTime) : 1);
 
   // ✅ Get the booking ID for payment (critical for API)
   const getBookingIdForPayment = (): number => {
     console.log('🎯 Getting booking ID for payment...');
-    
+
     // Collect all possible sources
     const sources = [
       { name: 'eventBookingResponse.booking.bookingId', value: params.eventBookingResponse?.booking?.bookingId },
@@ -332,9 +332,9 @@ export default function OrderEventDetailScreen() {
       { name: 'params.bookingId', value: params.bookingId },
       { name: 'regularBooking.bookingId', value: regularBooking?.bookingId },
     ];
-    
+
     console.log('📋 All booking ID sources:', sources);
-    
+
     // Try each source in priority order
     for (const source of sources) {
       if (source.value && typeof source.value === 'number' && source.value > 0) {
@@ -344,7 +344,7 @@ export default function OrderEventDetailScreen() {
         console.log(`❌ ${source.name}:`, source.value, '(invalid)');
       }
     }
-    
+
     // ⚠️ FALLBACK: Nếu không tìm thấy regular booking ID nào, temporarily dùng eventBookingId
     const fallbackId = params.eventBookingId;
     if (fallbackId && typeof fallbackId === 'number' && fallbackId > 0) {
@@ -352,14 +352,14 @@ export default function OrderEventDetailScreen() {
       console.warn('⚠️ This might cause issues - eventBookingId is not regular booking ID');
       return fallbackId;
     }
-    
+
     console.error('❌ NO BOOKING ID FOUND AT ALL!');
     console.error('💡 Debug info:', {
       hasParams: !!params,
       paramsKeys: params ? Object.keys(params) : [],
       hasRegularBooking: !!regularBooking,
     });
-    
+
     return 0; // ✅ FIXED: Always return a number
   };
 
@@ -382,11 +382,11 @@ export default function OrderEventDetailScreen() {
     try {
       // Import AsyncStorage nếu chưa có
 
-      
+
       const token = await AsyncStorage.getItem('token');
       console.log('🔐 Auth token exists:', !!token);
       console.log('🔐 Auth token length:', token?.length || 0);
-      
+
       if (!token) {
         console.error('❌ No auth token found');
         Alert.alert("Phiên đăng nhập hết hạn", "Vui lòng đăng nhập lại", [
@@ -397,11 +397,11 @@ export default function OrderEventDetailScreen() {
     } catch (error) {
       console.error('❌ Error checking auth token:', error);
     }
-  
+
     console.log('🔐 ===== AUTH CHECK END =====');
 
     const bookingId = getBookingIdForPayment();
-    
+
     if (!bookingId) {
       Alert.alert("Lỗi", "Không tìm thấy thông tin booking để thanh toán");
       return;
@@ -541,7 +541,7 @@ export default function OrderEventDetailScreen() {
               <Text style={styles.eventHeroTitle}>{params.event.name}</Text>
 
               <View style={styles.eventHeroDetails}>
-                <View style={styles.eventHeroDetailItem}>
+                <View key="hero-date" style={styles.eventHeroDetailItem}>
                   <Feather name="calendar" size={getResponsiveSize(16)} color="#fff" />
                   <Text style={styles.eventHeroDetailText}>
                     {formatDate(params.event.startDate)}
@@ -623,12 +623,12 @@ export default function OrderEventDetailScreen() {
               )}
 
               <View style={styles.photographerStats}>
-                <View style={styles.statItem}>
+                <View key="stat-duration" style={styles.statItem}>
                   <MaterialIcons name="timer" size={getResponsiveSize(14)} color="#666" />
                   <Text style={styles.statText}>{durationHours} giờ</Text>
                 </View>
-                <View style={styles.statDivider} />
-                <View style={styles.statItem}>
+                <View key="stat-divider" style={styles.statDivider} />
+                <View key="stat-approved" style={styles.statItem}>
                   <MaterialIcons name="event-available" size={getResponsiveSize(14)} color="#666" />
                   <Text style={styles.statText}>Đã phê duyệt</Text>
                 </View>
@@ -649,6 +649,7 @@ export default function OrderEventDetailScreen() {
           <View style={styles.paymentMethods}>
             {/* Bank QR Payment */}
             <TouchableOpacity
+             key="payment-bank-qr"
               onPress={() => setSelectedPaymentMethod("bank_qr")}
               style={[
                 styles.paymentMethod,
@@ -690,6 +691,7 @@ export default function OrderEventDetailScreen() {
 
             {/* SnapLink Wallet Payment */}
             <TouchableOpacity
+              key="payment-snaplink-wallet"
               onPress={() => setSelectedPaymentMethod("snaplink_wallet")}
               style={[
                 styles.paymentMethod,
@@ -741,14 +743,14 @@ export default function OrderEventDetailScreen() {
           </View>
 
           <View style={styles.priceBreakdown}>
-            <View style={styles.priceItem}>
+            <View key="price-item" style={styles.priceItem}>
               <Text style={styles.priceItemLabel}>Phí tham gia sự kiện ({durationHours}h)</Text>
               <Text style={styles.priceItemValue}>{formatCurrency(totalPrice)}</Text>
             </View>
 
             {params.event.originalPrice && params.event.discountedPrice &&
               params.event.originalPrice > params.event.discountedPrice && (
-                <View style={styles.priceItem}>
+                <View key="price-discount" style={styles.priceItem}>
                   <Text style={styles.discountLabel}>Giảm giá sự kiện</Text>
                   <Text style={styles.discountValue}>
                     -{formatCurrency(params.event.originalPrice - params.event.discountedPrice)}
@@ -756,9 +758,9 @@ export default function OrderEventDetailScreen() {
                 </View>
               )}
 
-            <View style={styles.priceDivider} />
+            <View key="price-divider" style={styles.priceDivider} />
 
-            <View style={styles.totalPriceItem}>
+            <View key="price-total" style={styles.totalPriceItem}>
               <Text style={styles.totalPriceLabel}>Tổng cộng</Text>
               <Text style={styles.totalPriceValue}>{formatCurrency(totalPrice)}</Text>
             </View>
@@ -768,14 +770,14 @@ export default function OrderEventDetailScreen() {
         {/* ✅ Booking Info Card */}
         {regularBooking && (
           <View style={styles.bookingInfoCard}>
-            <View style={styles.cardHeader}>
+            <View key="booking-info-header" style={styles.cardHeader}>
               <View style={styles.cardIcon}>
                 <MaterialIcons name="info" size={getResponsiveSize(20)} color="#E91E63" />
               </View>
               <Text style={styles.cardTitle}>Thông tin booking</Text>
             </View>
 
-            <View style={styles.bookingInfoContent}>
+            <View key="booking-info-content" style={styles.bookingInfoContent}>
               <View style={styles.bookingInfoItem}>
                 <Text style={styles.bookingInfoLabel}>Booking ID:</Text>
                 <Text style={styles.bookingInfoValue}>{regularBooking.bookingId}</Text>
@@ -797,12 +799,13 @@ export default function OrderEventDetailScreen() {
 
       {/* ✅ ENHANCED: Bottom Payment Button */}
       <View style={styles.bottomContainer}>
-        <View style={styles.pricePreview}>
+        <View key="price-preview" style={styles.pricePreview}>
           <Text style={styles.pricePreviewLabel}>Tổng thanh toán</Text>
           <Text style={styles.pricePreviewValue}>{formatCurrency(totalPrice)}</Text>
         </View>
 
         <TouchableOpacity
+          key="payment-button"
           onPress={handlePayment}
           activeOpacity={0.8}
           style={[styles.paymentButton, isProcessing && styles.paymentButtonDisabled]}

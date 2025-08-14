@@ -62,15 +62,31 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
     setRefreshing(false);
   };
 
-  // Format functions
-  const formatPrice = (price: number | undefined): string => {
-    if (price === undefined || isNaN(price)) return "Liên hệ";
-    return new Intl.NumberFormat("vi-VN", {
-      style: "currency",
-      currency: "VND",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
+  // ✅ FIXED: Format price function with better handling
+  const formatPrice = (price: number | undefined | null): string => {
+    // Handle undefined, null, or NaN
+    if (price === undefined || price === null || isNaN(price)) {
+      return "Liên hệ";
+    }
+    
+    // ✅ Handle free events FIRST before trying to format
+    if (price === 0) {
+      return "Miễn phí";
+    }
+    
+    // Format normal prices only for non-zero values
+    try {
+      return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }).format(price);
+    } catch (error) {
+      console.error("Error formatting price:", error, "Price value:", price);
+      // Fallback formatting without currency formatting
+      return `${price.toLocaleString('vi-VN')}₫`;
+    }
   };
 
   const formatDate = (dateString: string): string => {
@@ -109,10 +125,16 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
 
   const calculateDiscount = (): number => {
     if (!event?.originalPrice || !event?.discountedPrice) return 0;
-    return Math.round(
-      ((event.originalPrice - event.discountedPrice) / event.originalPrice) *
-        100
-    );
+    
+    const original = event.originalPrice;
+    const discounted = event.discountedPrice;
+    
+    // ✅ Handle edge cases
+    if (typeof original !== 'number' || typeof discounted !== 'number') return 0;
+    if (original <= 0 || discounted < 0) return 0; // Avoid division by zero
+    if (discounted >= original) return 0; // No discount if discounted >= original
+    
+    return Math.round(((original - discounted) / original) * 100);
   };
 
   const getTimeUntilEvent = (): string => {
@@ -138,53 +160,96 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
     );
   };
 
-  // Handle booking
-const handleJoinEvent = async () => {
-
-  console.log("🚀 Button clicked!"); // Debug
-  console.log("User:", user);
-  console.log("Selected photographer:", selectedPhotographer);
-  console.log("Event:", event);
-  if (!user) {
-    Alert.alert(
-      'Yêu cầu đăng nhập',
-      'Vui lòng đăng nhập để tham gia sự kiện',
-      [
-        { text: 'Đăng nhập', onPress: () => navigation.navigate('Login') },
-        { text: 'Hủy', style: 'cancel' }
-      ]
-    );
-    return;
-  }
-
-  if (!selectedPhotographer) {
-    Alert.alert('Chọn photographer', 'Vui lòng chọn photographer để tiếp tục');
-    return;
-  }
-
-  if (!event) return;
-
-  // ✅ Navigate to BookingEvent screen (đã có trong navigator)
-  navigation.navigate('BookingEvent', {
-    event: {
-      eventId: event.eventId,
-      name: event.name,
-      startDate: event.startDate,
-      endDate: event.endDate,
-      locationName: event.location?.name,
-      discountedPrice: event.discountedPrice,
-      originalPrice: event.originalPrice,
-      description: event.description,
-    },
-    preSelectedPhotographer: {
-      eventPhotographerId: selectedPhotographer.eventPhotographerId,
-      photographerId: selectedPhotographer.photographerId,
-      photographerName: selectedPhotographer.photographer?.fullName || 'Event Photographer',
-      profileImage: selectedPhotographer.photographer?.profileImage,
-      specialRate: selectedPhotographer.specialRate,
+  // ✅ FIXED: Better price display helper
+  const getCurrentPrice = (): number | null => {
+    if (!event) return null;
+    
+    // ✅ Ensure we return valid numbers or null
+    const discounted = event.discountedPrice;
+    const original = event.originalPrice;
+    
+    if (typeof discounted === 'number' && !isNaN(discounted)) {
+      return discounted;
     }
-  });
-};
+    
+    if (typeof original === 'number' && !isNaN(original)) {
+      return original;
+    }
+    
+    return null;
+  };
+
+  const getOriginalPrice = (): number | null => {
+    if (!event) return null;
+    
+    const original = event.originalPrice;
+    if (typeof original === 'number' && !isNaN(original)) {
+      return original;
+    }
+    
+    return null;
+  };
+
+  const hasDiscount = (): boolean => {
+    const current = getCurrentPrice();
+    const original = getOriginalPrice();
+    
+    // ✅ Check for valid numbers and meaningful discount
+    return (
+      typeof current === 'number' && 
+      typeof original === 'number' && 
+      original > current && 
+      original > 0
+    );
+  };
+
+  // Handle booking
+  const handleJoinEvent = async () => {
+    console.log("🚀 Button clicked!"); // Debug
+    console.log("User:", user);
+    console.log("Selected photographer:", selectedPhotographer);
+    console.log("Event:", event);
+    
+    if (!user) {
+      Alert.alert(
+        'Yêu cầu đăng nhập',
+        'Vui lòng đăng nhập để tham gia sự kiện',
+        [
+          { text: 'Đăng nhập', onPress: () => navigation.navigate('Login') },
+          { text: 'Hủy', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    if (!selectedPhotographer) {
+      Alert.alert('Chọn photographer', 'Vui lòng chọn photographer để tiếp tục');
+      return;
+    }
+
+    if (!event) return;
+
+    // ✅ Navigate to BookingEvent screen (đã có trong navigator)
+    navigation.navigate('BookingEvent', {
+      event: {
+        eventId: event.eventId,
+        name: event.name,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        locationName: event.location?.name,
+        discountedPrice: event.discountedPrice,
+        originalPrice: event.originalPrice,
+        description: event.description,
+      },
+      preSelectedPhotographer: {
+        eventPhotographerId: selectedPhotographer.eventPhotographerId,
+        photographerId: selectedPhotographer.photographerId,
+        photographerName: selectedPhotographer.photographer?.fullName || 'Event Photographer',
+        profileImage: selectedPhotographer.photographer?.profileImage,
+        specialRate: selectedPhotographer.specialRate,
+      }
+    });
+  };
 
   const openMap = () => {
     if (!event?.location?.address) return;
@@ -225,6 +290,9 @@ const handleJoinEvent = async () => {
   const slotsRemaining = getSlotsRemaining();
   const discount = calculateDiscount();
   const timeUntil = getTimeUntilEvent();
+  const currentPrice = getCurrentPrice();
+  const originalPrice = getOriginalPrice();
+  const showDiscount = hasDiscount();
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -272,32 +340,7 @@ const handleJoinEvent = async () => {
             style={{ width: "100%", height: "100%" }}
             className="justify-center items-center"
           >
-            <Text className="text-white text-5xl">📸</Text>
           </LinearGradient>
-
-          {/* Event Badges */}
-          <View className="absolute top-4 left-4 flex-row gap-2">
-            {timeUntil.includes("giờ") && (
-              <View className="bg-red-500/90 px-3 py-1.5 rounded-full">
-                <Text className="text-white text-xs font-bold">🔥 HOT</Text>
-              </View>
-            )}
-            {discount > 0 && (
-              <View className="bg-green-500/90 px-3 py-1.5 rounded-full">
-                <Text className="text-white text-xs font-bold">
-                  💰 -{discount}%
-                </Text>
-              </View>
-            )}
-          </View>
-
-          {/* Slots Indicator */}
-          <View className="absolute bottom-4 left-4 bg-white/90 px-3 py-2 rounded-full flex-row items-center gap-1">
-            <Text className="text-red-500">👥</Text>
-            <Text className="text-gray-800 font-semibold text-xs">
-              Còn {slotsRemaining} chỗ
-            </Text>
-          </View>
         </View>
 
         {/* Content */}
@@ -321,22 +364,20 @@ const handleJoinEvent = async () => {
             </TouchableOpacity>
           </View>
 
-          {/* Price Section */}
+          {/* ✅ FIXED: Price Section */}
           <View className="bg-gray-50 rounded-2xl p-5 mb-6">
             <View className="flex-row items-center justify-between mb-3">
               <View className="flex-row items-center gap-3">
                 <Text className="text-gray-900 text-2xl font-bold">
-                  {formatPrice(event.discountedPrice || event.originalPrice)}
+                  {formatPrice(currentPrice)}
                 </Text>
-                {event.originalPrice &&
-                  event.discountedPrice &&
-                  event.originalPrice > event.discountedPrice && (
-                    <Text className="text-gray-400 text-lg line-through">
-                      {formatPrice(event.originalPrice)}
-                    </Text>
-                  )}
+                {showDiscount && (
+                  <Text className="text-gray-400 text-lg line-through">
+                    {formatPrice(originalPrice)}
+                  </Text>
+                )}
               </View>
-              {discount > 0 && (
+              {showDiscount && (
                 <View className="bg-green-100 px-2 py-1 rounded-lg">
                   <Text className="text-green-600 text-xs font-semibold">
                     Tiết kiệm {discount}%
@@ -345,7 +386,7 @@ const handleJoinEvent = async () => {
               )}
             </View>
             <Text className="text-gray-500 text-sm">
-              Giá đã bao gồm tài liệu và chứng chỉ
+              {currentPrice === 0 ? "Sự kiện miễn phí" : "Giá đã bao gồm tài liệu và chứng chỉ"}
             </Text>
           </View>
 
@@ -585,11 +626,11 @@ const handleJoinEvent = async () => {
         </View>
       </ScrollView>
 
-      {/* CTA Section */}
+      {/* ✅ FIXED: CTA Section */}
       <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-5">
         <View className="flex-row items-center justify-between mb-4">
           <Text className="text-gray-900 text-xl font-bold">
-            {formatPrice(event.discountedPrice || event.originalPrice)}
+            {formatPrice(currentPrice)}
           </Text>
           <Text className="text-red-500 text-sm font-semibold">
             Chỉ còn {slotsRemaining} chỗ!

@@ -1,5 +1,4 @@
-// screens/venueOwner/VenueManagementScreen.tsx - With Image Upload
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -15,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { useFocusEffect } from "@react-navigation/native";
 import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
 import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
 import { useAuth } from "../../hooks/useAuth";
@@ -49,6 +49,7 @@ export default function VenueManagementScreen() {
   const [editingLocation, setEditingLocation] = useState<VenueLocation | null>(
     null
   );
+  const [forceRefreshKey, setForceRefreshKey] = useState(0); // Key để force refresh
 
   // Image hook for selected location
   const {
@@ -82,41 +83,57 @@ export default function VenueManagementScreen() {
       )
     : [];
 
-  const onRefresh = async () => {
-    await refreshLocations();
-  };
-
   // Get venue owner profile to extract locationOwnerId
-  useEffect(() => {
-    const fetchVenueOwnerProfile = async () => {
-      if (!user?.id) return;
+  const fetchVenueOwnerProfile = useCallback(async () => {
+    if (!user?.id) return;
 
-      setProfileLoading(true);
-      try {
-        const profile = await getProfileByUserId(user.id);
+    setProfileLoading(true);
+    try {
+      const profile = await getProfileByUserId(user.id);
 
-        if (profile) {
-          setLocationOwnerId(profile.locationOwnerId);
-        } else {
-          setLocationOwnerId(null);
-        }
-      } catch (error) {
-        console.error("❌ Error getting venue owner profile:", error);
+      if (profile) {
+        setLocationOwnerId(profile.locationOwnerId);
+      } else {
         setLocationOwnerId(null);
-      } finally {
-        setProfileLoading(false);
       }
-    };
-
-    fetchVenueOwnerProfile();
+    } catch (error) {
+      console.error("❌ Error getting venue owner profile:", error);
+      setLocationOwnerId(null);
+    } finally {
+      setProfileLoading(false);
+    }
   }, [user?.id, getProfileByUserId]);
 
-  // Load all locations after we have the profile
+  // Sử dụng useFocusEffect để refresh khi màn hình được focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log("🔄 Screen focused, checking venue owner profile...");
+      fetchVenueOwnerProfile();
+    }, [fetchVenueOwnerProfile])
+  );
+
+  // Load locations sau khi có profile
   useEffect(() => {
-    if (!profileLoading) {
+    if (!profileLoading && locationOwnerId) {
+      console.log("📍 Loading locations for owner ID:", locationOwnerId);
       getAllLocations();
     }
-  }, [profileLoading]);
+  }, [profileLoading, locationOwnerId, forceRefreshKey]);
+
+  const onRefresh = async () => {
+    console.log("🔄 Manual refresh triggered");
+    await Promise.all([
+      fetchVenueOwnerProfile(), // Refresh profile
+      refreshLocations(), // Refresh locations
+    ]);
+  };
+
+  // Function để force refresh toàn bộ
+  const forceRefresh = useCallback(async () => {
+    console.log("🔄 Force refresh triggered");
+    setForceRefreshKey((prev) => prev + 1);
+    await fetchVenueOwnerProfile();
+  }, [fetchVenueOwnerProfile]);
 
   const resetForm = () => {
     setFormData({
@@ -157,7 +174,7 @@ export default function VenueManagementScreen() {
     setShowImageModal(true);
     clearImageError();
   };
-
+  // Part 2: Functions & Handlers
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.address.trim()) {
       Alert.alert("Lỗi", "Vui lòng nhập tên và địa chỉ địa điểm");
@@ -365,6 +382,15 @@ export default function VenueManagementScreen() {
           <Text className="text-gray-600 mt-2 text-center">
             Bạn cần tạo hồ sơ venue owner trước khi quản lý địa điểm
           </Text>
+
+          {/* Nút refresh để check lại sau khi tạo profile */}
+          <TouchableOpacity
+            onPress={forceRefresh}
+            className="bg-blue-500 px-6 py-3 rounded-lg mt-4 flex-row items-center"
+          >
+            <Ionicons name="refresh" size={20} color="white" />
+            <Text className="text-white font-semibold ml-2">Kiểm tra lại</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -389,7 +415,7 @@ export default function VenueManagementScreen() {
       </SafeAreaView>
     );
   }
-
+  // Part 3: Main UI & Modals
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <ScrollView

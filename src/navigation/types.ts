@@ -165,6 +165,7 @@ export type RootStackParamList = {
   VenueOwnerEvents: undefined;
   EditVenueScreen: { venueId?: number };
   VenueDetailScreen: { venueId: number };
+  VenueOwnerSubscription: undefined;
 
   // VenueOwner Event Management screens
   VenueOwnerEventDetail: {
@@ -206,7 +207,7 @@ export type PhotographerTabParamList = {
   OrderManagementScreen: undefined;
   PhotographerEventScreen: {
     photographerId: number;
-  };  
+  };
   Messages: undefined;
 };
 

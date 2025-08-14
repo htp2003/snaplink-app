@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-// THAY ĐỔI: Sử dụng thư viện mới
 import DateTimePickerModal from "react-native-modal-datetime-picker";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -24,6 +23,34 @@ import { venueOwnerImageService } from "../../services/venueOwnerImageService.ts
 import { venueOwnerProfileService } from "../../services/venueOwnerProfileService";
 import { CreateEventRequest } from "../../types/VenueOwnerEvent";
 import { VenueLocation } from "../../types/venueLocation";
+
+// Subscription related interfaces
+interface PremiumSubscription {
+  premiumSubscriptionId: number;
+  userId: number;
+  packageId: number;
+  startDate: string;
+  endDate: string;
+  status: string;
+  paymentId?: number;
+  photographerId?: number;
+  locationId: number;
+  package: {
+    packageId: number;
+    name: string;
+    description: string;
+    price: number;
+    durationDays: number;
+    features: string;
+    applicableTo: string;
+  };
+}
+
+interface LocationWithSubscription extends VenueLocation {
+  premiumSubscriptions?: PremiumSubscription[];
+  hasActiveSubscription?: boolean;
+  canCreateEvent?: boolean;
+}
 
 interface FormData {
   locationId: number | null;
@@ -42,6 +69,221 @@ interface ImageItem {
   id: string;
   isPrimary: boolean;
 }
+
+// Subscription utility functions
+const hasActiveSubscription = (
+  subscriptions?: PremiumSubscription[]
+): boolean => {
+  console.log(
+    "🔍 [SUBSCRIPTION CHECK] Checking hasActiveSubscription with data:",
+    {
+      subscriptionsCount: subscriptions?.length || 0,
+      subscriptions:
+        subscriptions?.map((sub) => ({
+          id: sub.premiumSubscriptionId,
+          status: sub.status,
+          endDate: sub.endDate,
+          applicableTo: sub.package?.applicableTo,
+          packageName: sub.package?.name,
+          isExpired: new Date(sub.endDate) <= new Date(),
+        })) || [],
+    }
+  );
+
+  if (!subscriptions || subscriptions.length === 0) {
+    console.log("❌ [SUBSCRIPTION CHECK] No subscriptions found");
+    return false;
+  }
+
+  const activeSubscriptions = subscriptions.filter((subscription) => {
+    const isActive = subscription.status === "Active";
+    const isLocationSubscription =
+      subscription.package?.applicableTo === "location";
+    const isNotExpired = new Date(subscription.endDate) > new Date();
+
+    console.log(
+      `🔍 [SUBSCRIPTION CHECK] Subscription ${subscription.premiumSubscriptionId} analysis:`,
+      {
+        status: subscription.status,
+        isActive,
+        applicableTo: subscription.package?.applicableTo,
+        isLocationSubscription,
+        endDate: subscription.endDate,
+        isNotExpired,
+        currentTime: new Date().toISOString(),
+        passesAllChecks: isActive && isLocationSubscription && isNotExpired,
+      }
+    );
+
+    return isActive && isLocationSubscription && isNotExpired;
+  });
+
+  const hasActive = activeSubscriptions.length > 0;
+  console.log(
+    `📊 [SUBSCRIPTION CHECK] Final result: ${hasActive} (${activeSubscriptions.length}/${subscriptions.length} subscriptions are valid)`
+  );
+
+  return hasActive;
+};
+
+const getActiveSubscription = (
+  subscriptions?: PremiumSubscription[]
+): PremiumSubscription | null => {
+  console.log("🔍 [GET ACTIVE SUB] Getting active subscription from:", {
+    subscriptionsCount: subscriptions?.length || 0,
+  });
+
+  if (!subscriptions || subscriptions.length === 0) {
+    console.log("❌ [GET ACTIVE SUB] No subscriptions provided");
+    return null;
+  }
+
+  const activeSubscriptions = subscriptions.filter((subscription) => {
+    const isActive = subscription.status === "Active";
+    const isLocationSubscription =
+      subscription.package?.applicableTo === "location";
+    const isNotExpired = new Date(subscription.endDate) > new Date();
+
+    return isActive && isLocationSubscription && isNotExpired;
+  });
+
+  if (activeSubscriptions.length === 0) {
+    console.log("❌ [GET ACTIVE SUB] No active subscriptions found");
+    return null;
+  }
+
+  // Return the subscription with the latest end date
+  const selectedSubscription = activeSubscriptions.sort(
+    (a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime()
+  )[0];
+
+  console.log("✅ [GET ACTIVE SUB] Selected subscription:", {
+    id: selectedSubscription.premiumSubscriptionId,
+    packageName: selectedSubscription.package?.name,
+    endDate: selectedSubscription.endDate,
+    remainingDays: getSubscriptionRemainingDays(selectedSubscription.endDate),
+  });
+
+  return selectedSubscription;
+};
+
+const getSubscriptionRemainingDays = (endDate: string): number => {
+  const end = new Date(endDate);
+  const now = new Date();
+  const diffTime = end.getTime() - now.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : 0;
+};
+
+// Enhanced location service to get location with subscription details
+const getLocationWithSubscriptionDetails = async (
+  locationId: number
+): Promise<LocationWithSubscription | null> => {
+  try {
+    console.log(
+      `🔍 [LOCATION API] Getting location details for ID: ${locationId}`
+    );
+
+    const token = await AsyncStorage.getItem("token");
+    if (!token) {
+      console.log("❌ [LOCATION API] No token found");
+      return null;
+    }
+
+    const apiUrl = `https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net/api/Location/GetLocationById?id=${locationId}`;
+    console.log(`🌐 [LOCATION API] Making request to: ${apiUrl}`);
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log(
+      `📡 [LOCATION API] Response status: ${response.status} ${response.statusText}`
+    );
+
+    if (!response.ok) {
+      console.error(`❌ [LOCATION API] HTTP error: ${response.status}`);
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log(
+      `📦 [LOCATION API] Raw response for location ${locationId}:`,
+      JSON.stringify(result, null, 2)
+    );
+
+    // FIXED: Check if response is direct data or wrapped in {error, data} format
+    let location: LocationWithSubscription;
+
+    if (result.error !== undefined && result.data) {
+      // Wrapped format: {error: 0, data: {...}}
+      console.log(
+        `📋 [LOCATION API] Response format: WRAPPED (error: ${result.error})`
+      );
+      if (result.error === 0) {
+        location = result.data as LocationWithSubscription;
+      } else {
+        console.log(
+          `❌ [LOCATION API] API returned error: ${result.error}, message: ${result.message}`
+        );
+        return null;
+      }
+    } else if (result.locationId) {
+      // Direct format: {...location data...}
+      console.log(`📋 [LOCATION API] Response format: DIRECT`);
+      location = result as LocationWithSubscription;
+    } else {
+      console.log(
+        `⚠️ [LOCATION API] Invalid response format for location ${locationId}:`,
+        {
+          hasError: result.error !== undefined,
+          hasData: !!result.data,
+          hasLocationId: !!result.locationId,
+          keys: Object.keys(result),
+        }
+      );
+      return null;
+    }
+
+    console.log(`📋 [LOCATION API] Parsed location ${locationId} data:`, {
+      locationId: location.locationId,
+      name: location.name,
+      premiumSubscriptionsCount: location.premiumSubscriptions?.length || 0,
+      premiumSubscriptionsDetail:
+        location.premiumSubscriptions?.map((sub) => ({
+          id: sub.premiumSubscriptionId,
+          status: sub.status,
+          startDate: sub.startDate,
+          endDate: sub.endDate,
+          packageId: sub.packageId,
+          packageName: sub.package?.name,
+          applicableTo: sub.package?.applicableTo,
+        })) || [],
+    });
+
+    // Check subscription status with detailed logging
+    location.hasActiveSubscription = hasActiveSubscription(
+      location.premiumSubscriptions
+    );
+    location.canCreateEvent = location.hasActiveSubscription;
+
+    console.log(`✅ [LOCATION API] Location ${locationId} processed:`, {
+      hasActiveSubscription: location.hasActiveSubscription,
+      canCreateEvent: location.canCreateEvent,
+    });
+
+    return location;
+  } catch (error) {
+    console.error(
+      `❌ [LOCATION API] Error getting location ${locationId} with subscription details:`,
+      error
+    );
+    return null;
+  }
+};
 
 const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
   // Get locationId from navigation params if available
@@ -65,7 +307,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     maxBookingsPerSlot: "3",
   });
 
-  // UI state - THAY ĐỔI: Sử dụng state cho modal picker
+  // UI state
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [isStartDatePickerVisible, setStartDatePickerVisibility] =
     useState(false);
@@ -76,8 +318,11 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
   );
   const [uploading, setUploading] = useState(false);
 
-  // Location state
-  const [userLocations, setUserLocations] = useState<VenueLocation[]>([]);
+  // Location state with subscription info
+  const [userLocations, setUserLocations] = useState<
+    LocationWithSubscription[]
+  >([]);
+  const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Helper function to get current user ID from JWT
@@ -114,72 +359,313 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     }
   };
 
-  // Load user locations
-  const loadUserLocations = async () => {
+  // Load user locations with subscription details
+  const loadUserLocationsWithSubscriptions = async () => {
     try {
-      console.log("🏗️ Loading user locations for create event...");
+      console.log(
+        "🗃️ [CREATE EVENT] Starting to load user locations with subscription details..."
+      );
+      setLoadingSubscriptions(true);
 
       const currentUserId = await getCurrentUserId();
       if (!currentUserId) {
-        console.error("❌ Could not get current user ID from JWT");
+        console.error(
+          "❌ [CREATE EVENT] Could not get current user ID from JWT"
+        );
         Alert.alert("Lỗi", "Không thể xác thực người dùng");
         return;
       }
 
-      console.log("👤 Current user ID:", currentUserId);
+      console.log("👤 [CREATE EVENT] Current user ID:", currentUserId);
 
       const locationOwner =
         await venueOwnerProfileService.getLocationOwnerByUserId(currentUserId);
 
       if (!locationOwner) {
         console.log(
-          "ℹ️ No LocationOwner record found for userId:",
+          "ℹ️ [CREATE EVENT] No LocationOwner record found for userId:",
           currentUserId
         );
         Alert.alert("Thông báo", "Bạn chưa đăng ký làm chủ địa điểm");
         return;
       }
 
-      console.log("✅ LocationOwner found:", {
+      console.log("✅ [CREATE EVENT] LocationOwner found:", {
         locationOwnerId: locationOwner.locationOwnerId,
         userId: locationOwner.userId,
         businessName: locationOwner.businessName,
       });
 
-      const locations = await getLocationsByOwnerId(
+      // Get basic locations first
+      const basicLocations = await getLocationsByOwnerId(
         locationOwner.locationOwnerId
       );
-      console.log("✅ Locations loaded:", locations.length);
-      setUserLocations(locations);
+      console.log(
+        "📍 [CREATE EVENT] Basic locations loaded:",
+        basicLocations.length
+      );
+      console.log(
+        "📍 [CREATE EVENT] Basic locations detail:",
+        basicLocations.map((loc) => ({
+          id: loc.locationId,
+          name: loc.name,
+          address: loc.address?.substring(0, 30) + "...",
+        }))
+      );
 
-      if (preselectedLocationId && locations.length > 0) {
-        const location = locations.find(
+      if (basicLocations.length === 0) {
+        console.log(
+          "⚠️ [CREATE EVENT] No basic locations found, showing alert"
+        );
+        Alert.alert(
+          "Chưa có địa điểm",
+          "Bạn chưa tạo địa điểm nào. Vui lòng tạo địa điểm trước khi tạo sự kiện.",
+          [
+            { text: "Huỷ", onPress: () => navigation.goBack() },
+            {
+              text: "Tạo địa điểm",
+              onPress: () => {
+                navigation.goBack();
+                navigation.navigate("VenueOwnerCreateLocation");
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Enhanced with subscription details
+      const locationsWithSubscriptions: LocationWithSubscription[] = [];
+      let totalActiveSubscriptions = 0;
+
+      console.log(
+        "🔍 [CREATE EVENT] Starting to check subscriptions for each location..."
+      );
+
+      for (const location of basicLocations) {
+        try {
+          console.log(
+            `🔍 [CREATE EVENT] Checking subscription for location ${location.locationId}: "${location.name}"`
+          );
+
+          const locationWithSub = await getLocationWithSubscriptionDetails(
+            location.locationId
+          );
+
+          if (locationWithSub) {
+            console.log(
+              `📋 [CREATE EVENT] Location ${location.locationId} subscription data:`,
+              {
+                premiumSubscriptionsCount:
+                  locationWithSub.premiumSubscriptions?.length || 0,
+                premiumSubscriptions:
+                  locationWithSub.premiumSubscriptions?.map((sub) => ({
+                    id: sub.premiumSubscriptionId,
+                    status: sub.status,
+                    endDate: sub.endDate,
+                    packageName: sub.package.name,
+                    applicableTo: sub.package.applicableTo,
+                    isExpired: new Date(sub.endDate) <= new Date(),
+                    daysRemaining: getSubscriptionRemainingDays(sub.endDate),
+                  })) || [],
+              }
+            );
+
+            const activeSubscription = getActiveSubscription(
+              locationWithSub.premiumSubscriptions
+            );
+            const hasActive = hasActiveSubscription(
+              locationWithSub.premiumSubscriptions
+            );
+
+            console.log(
+              `📊 [CREATE EVENT] Location ${location.locationId} analysis:`,
+              {
+                hasActiveSubscription: hasActive,
+                activeSubscription: activeSubscription
+                  ? {
+                      id: activeSubscription.premiumSubscriptionId,
+                      packageName: activeSubscription.package.name,
+                      status: activeSubscription.status,
+                      endDate: activeSubscription.endDate,
+                      remainingDays: getSubscriptionRemainingDays(
+                        activeSubscription.endDate
+                      ),
+                      isLocationPackage:
+                        activeSubscription.package.applicableTo === "location",
+                    }
+                  : null,
+              }
+            );
+
+            if (hasActive) {
+              totalActiveSubscriptions++;
+              console.log(
+                `✅ [CREATE EVENT] Location ${location.locationId} CAN create events!`
+              );
+            } else {
+              console.log(
+                `❌ [CREATE EVENT] Location ${location.locationId} CANNOT create events`
+              );
+            }
+
+            const enhancedLocation: LocationWithSubscription = {
+              ...locationWithSub,
+              hasActiveSubscription: hasActive,
+              canCreateEvent: hasActive,
+            };
+
+            locationsWithSubscriptions.push(enhancedLocation);
+          } else {
+            console.log(
+              `⚠️ [CREATE EVENT] Could not get subscription details for location ${location.locationId}, treating as no subscription`
+            );
+            // Fallback to basic location without subscription
+            const basicLocationWithSub: LocationWithSubscription = {
+              ...location,
+              hasActiveSubscription: false,
+              canCreateEvent: false,
+            };
+            locationsWithSubscriptions.push(basicLocationWithSub);
+          }
+        } catch (error) {
+          console.error(
+            `❌ [CREATE EVENT] Error checking subscription for location ${location.locationId}:`,
+            error
+          );
+          // Fallback to basic location without subscription
+          const basicLocationWithSub: LocationWithSubscription = {
+            ...location,
+            hasActiveSubscription: false,
+            canCreateEvent: false,
+          };
+          locationsWithSubscriptions.push(basicLocationWithSub);
+        }
+      }
+
+      console.log(
+        `📊 [CREATE EVENT] FINAL SUMMARY: ${totalActiveSubscriptions}/${locationsWithSubscriptions.length} locations can create events`
+      );
+      console.log(
+        "📊 [CREATE EVENT] Locations with subscription status:",
+        locationsWithSubscriptions.map((loc) => ({
+          id: loc.locationId,
+          name: loc.name,
+          canCreateEvent: loc.canCreateEvent,
+          hasActiveSubscription: loc.hasActiveSubscription,
+        }))
+      );
+
+      setUserLocations(locationsWithSubscriptions);
+
+      // Auto-select preselected location if it has subscription
+      if (preselectedLocationId && locationsWithSubscriptions.length > 0) {
+        console.log(
+          `🎯 [CREATE EVENT] Processing preselected location ID: ${preselectedLocationId}`
+        );
+        const location = locationsWithSubscriptions.find(
           (l) => l.locationId === preselectedLocationId
         );
         if (location) {
-          setFormData((prev) => ({
-            ...prev,
-            locationId: preselectedLocationId,
-          }));
-          console.log("✅ Pre-selected location:", location.name);
+          console.log(`🎯 [CREATE EVENT] Found preselected location:`, {
+            id: location.locationId,
+            name: location.name,
+            canCreateEvent: location.canCreateEvent,
+          });
+
+          if (location.canCreateEvent) {
+            setFormData((prev) => ({
+              ...prev,
+              locationId: preselectedLocationId,
+            }));
+            console.log(
+              "✅ [CREATE EVENT] Pre-selected location with subscription:",
+              location.name
+            );
+          } else {
+            console.log(
+              "⚠️ [CREATE EVENT] Pre-selected location has no active subscription:",
+              location.name
+            );
+            Alert.alert(
+              "Thông báo",
+              `Địa điểm "${location.name}" không có gói đăng ký active. Vui lòng chọn địa điểm khác hoặc đăng ký gói subscription.`
+            );
+          }
+        } else {
+          console.log(
+            "⚠️ [CREATE EVENT] Preselected location not found in loaded locations"
+          );
         }
       }
+
+      // DELAY the alert check to ensure state is updated
+      setTimeout(() => {
+        const locationsWithSubscription = locationsWithSubscriptions.filter(
+          (loc) => loc.canCreateEvent
+        );
+        console.log(
+          `⏰ [CREATE EVENT] DELAYED CHECK: ${locationsWithSubscription.length}/${locationsWithSubscriptions.length} locations can create events`
+        );
+
+        if (
+          locationsWithSubscription.length === 0 &&
+          locationsWithSubscriptions.length > 0
+        ) {
+          console.log(
+            "🚨 [CREATE EVENT] No locations with subscription found, showing alert"
+          );
+          Alert.alert(
+            "Cần đăng ký gói",
+            "Không có địa điểm nào có gói đăng ký active để tạo sự kiện. Vui lòng đăng ký gói subscription trước.",
+            [
+              { text: "Huỷ", onPress: () => navigation.goBack() },
+              {
+                text: "Đăng ký gói",
+                onPress: () => {
+                  navigation.goBack();
+                  // Navigate to subscription screen
+                  navigation.navigate("VenueOwnerSubscription");
+                },
+              },
+            ]
+          );
+        } else if (locationsWithSubscription.length > 0) {
+          console.log(
+            "✅ [CREATE EVENT] Found locations with subscription, user can proceed"
+          );
+        }
+      }, 500);
     } catch (error) {
-      console.error("❌ Error loading user locations:", error);
+      console.error(
+        "❌ [CREATE EVENT] Error loading user locations with subscriptions:",
+        error
+      );
       Alert.alert("Lỗi", "Không thể tải danh sách địa điểm");
+    } finally {
+      setLoadingSubscriptions(false);
     }
   };
 
   useEffect(() => {
-    loadUserLocations();
+    loadUserLocationsWithSubscriptions();
   }, []);
 
-  // Form validation
+  // Form validation with subscription check
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!formData.locationId) {
       newErrors.locationId = "Vui lòng chọn địa điểm";
+    } else {
+      // Check if selected location has active subscription
+      const selectedLocation = userLocations.find(
+        (loc) => loc.locationId === formData.locationId
+      );
+      if (selectedLocation && !selectedLocation.canCreateEvent) {
+        newErrors.locationId =
+          "Địa điểm này không có gói đăng ký active để tạo sự kiện";
+      }
     }
 
     if (!formData.name.trim()) {
@@ -249,7 +735,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Image picker functions
+  // Image picker functions (unchanged)
   const requestPermission = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
@@ -324,7 +810,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
 
   const showImageOptions = () => {
     Alert.alert("Thêm ảnh", "Chọn cách thêm ảnh cho sự kiện", [
-      { text: "Hủy", style: "cancel" },
+      { text: "Huỷ", style: "cancel" },
       { text: "Chọn từ thư viện", onPress: pickImages },
       { text: "Chụp ảnh", onPress: takePhoto },
     ]);
@@ -352,12 +838,30 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     }
   };
 
-  const handleLocationSelect = (location: VenueLocation) => {
+  const handleLocationSelect = (location: LocationWithSubscription) => {
+    if (!location.canCreateEvent) {
+      Alert.alert(
+        "Không thể chọn địa điểm",
+        `Địa điểm "${location.name}" không có gói đăng ký active. Vui lòng đăng ký gói subscription trước.`,
+        [
+          { text: "OK", style: "cancel" },
+          {
+            text: "Đăng ký gói",
+            onPress: () => {
+              setShowLocationPicker(false);
+              navigation.navigate("VenueOwnerSubscription");
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     updateFormData("locationId", location.locationId);
     setShowLocationPicker(false);
   };
 
-  // THAY ĐỔI: Sử dụng Modal DateTimePicker handlers
+  // Date picker handlers (unchanged)
   const showStartDatePicker = () => {
     setStartDatePickerVisibility(true);
   };
@@ -369,7 +873,6 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
   const handleStartDateConfirm = (date: Date) => {
     updateFormData("startDate", date);
 
-    // Automatically adjust end date if it's before start date
     if (date >= formData.endDate) {
       const newEndDate = new Date(date.getTime() + 24 * 60 * 60 * 1000);
       updateFormData("endDate", newEndDate);
@@ -391,7 +894,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     hideEndDatePicker();
   };
 
-  // Submit handlers
+  // Submit handlers (unchanged except for additional validation)
   const handleCreateEvent = async () => {
     try {
       if (!validateForm()) {
@@ -417,7 +920,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         maxBookingsPerSlot: parseInt(formData.maxBookingsPerSlot),
       };
 
-      console.log("🏗️ Creating event with data:", eventData);
+      console.log("🗃️ Creating event with data:", eventData);
 
       const createdEvent = await createEvent(eventData);
       if (!createdEvent) {
@@ -480,12 +983,12 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
 
   const handleCancel = () => {
     Alert.alert(
-      "Hủy tạo sự kiện",
-      "Bạn có chắc chắn muốn hủy? Tất cả thông tin đã nhập sẽ bị mất.",
+      "Huỷ tạo sự kiện",
+      "Bạn có chắc chắn muốn huỷ? Tất cả thông tin đã nhập sẽ bị mất.",
       [
         { text: "Tiếp tục chỉnh sửa", style: "cancel" },
         {
-          text: "Hủy",
+          text: "Huỷ",
           style: "destructive",
           onPress: () => navigation.goBack(),
         },
@@ -493,13 +996,21 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     );
   };
 
-  // Get selected location name
+  // Get selected location name with subscription info
   const getSelectedLocationName = () => {
     if (!formData.locationId) return "Chọn địa điểm";
     const location = userLocations.find(
       (l) => l.locationId === formData.locationId
     );
     return location?.name || "Địa điểm không xác định";
+  };
+
+  const getSelectedLocationInfo = () => {
+    if (!formData.locationId) return null;
+    const location = userLocations.find(
+      (l) => l.locationId === formData.locationId
+    );
+    return location;
   };
 
   // Format date for display
@@ -513,7 +1024,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     });
   };
 
-  const isLoading = eventLoading || uploading || locationsLoading;
+  const isLoading =
+    eventLoading || uploading || locationsLoading || loadingSubscriptions;
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -553,20 +1065,20 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             Thông tin cơ bản
           </Text>
 
-          {/* Location Selection */}
+          {/* Location Selection with Subscription Info */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
               Địa điểm *
             </Text>
             <TouchableOpacity
               onPress={() => setShowLocationPicker(true)}
-              disabled={locationsLoading}
+              disabled={isLoading}
               className={`border rounded-lg p-3 flex-row items-center justify-between ${
                 errors.locationId ? "border-red-300" : "border-gray-300"
-              } ${locationsLoading ? "opacity-50" : ""}`}
+              } ${isLoading ? "opacity-50" : ""}`}
             >
               <View className="flex-row items-center flex-1">
-                {locationsLoading ? (
+                {isLoading ? (
                   <ActivityIndicator size="small" color="#6B7280" />
                 ) : (
                   <Ionicons
@@ -581,7 +1093,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                   }`}
                   numberOfLines={1}
                 >
-                  {locationsLoading ? "Đang tải..." : getSelectedLocationName()}
+                  {isLoading ? "Đang tải..." : getSelectedLocationName()}
                 </Text>
               </View>
               <Ionicons name="chevron-down" size={20} color="#6B7280" />
@@ -591,6 +1103,52 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                 {errors.locationId}
               </Text>
             )}
+
+            {/* Show subscription info for selected location */}
+            {formData.locationId &&
+              (() => {
+                const selectedLocation = getSelectedLocationInfo();
+                if (!selectedLocation) return null;
+
+                const activeSubscription = getActiveSubscription(
+                  selectedLocation.premiumSubscriptions
+                );
+
+                return (
+                  <View className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <View className="flex-row items-center mb-2">
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={16}
+                        color="#3B82F6"
+                      />
+                      <Text className="ml-2 text-sm font-medium text-blue-800">
+                        Địa điểm có gói đăng ký active
+                      </Text>
+                    </View>
+                    {activeSubscription && (
+                      <View className="space-y-1">
+                        <Text className="text-xs text-blue-600">
+                          Gói: {activeSubscription.package.name}
+                        </Text>
+                        <Text className="text-xs text-blue-600">
+                          Còn lại:{" "}
+                          {getSubscriptionRemainingDays(
+                            activeSubscription.endDate
+                          )}{" "}
+                          ngày
+                        </Text>
+                        <Text className="text-xs text-blue-600">
+                          Hết hạn:{" "}
+                          {new Date(
+                            activeSubscription.endDate
+                          ).toLocaleDateString("vi-VN")}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              })()}
           </View>
 
           {/* Event Name */}
@@ -894,7 +1452,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         </View>
       </ScrollView>
 
-      {/* Location Picker Modal */}
+      {/* Location Picker Modal with Subscription Status */}
       <Modal
         visible={showLocationPicker}
         transparent={true}
@@ -915,59 +1473,152 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               </TouchableOpacity>
             </View>
 
-            {locationsLoading ? (
+            {isLoading ? (
               <View className="items-center py-8">
                 <ActivityIndicator size="large" color="#3B82F6" />
                 <Text className="text-gray-500 mt-2">Đang tải địa điểm...</Text>
               </View>
             ) : userLocations && userLocations.length > 0 ? (
               <ScrollView showsVerticalScrollIndicator={false}>
-                {userLocations.map((location) => (
-                  <TouchableOpacity
-                    key={location.locationId}
-                    className={`p-4 rounded-lg mb-2 ${
-                      formData.locationId === location.locationId
-                        ? "bg-blue-50 border border-blue-200"
-                        : "bg-gray-50"
-                    }`}
-                    onPress={() => handleLocationSelect(location)}
-                  >
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center flex-1">
-                        <Ionicons
-                          name="location-outline"
-                          size={20}
-                          color={
-                            formData.locationId === location.locationId
-                              ? "#3B82F6"
-                              : "#6B7280"
-                          }
-                        />
-                        <View className="ml-3 flex-1">
-                          <Text
-                            className={`font-medium ${
-                              formData.locationId === location.locationId
-                                ? "text-blue-600"
-                                : "text-gray-700"
-                            }`}
-                            numberOfLines={1}
-                          >
-                            {location.name}
-                          </Text>
-                          <Text
-                            className="text-sm text-gray-500"
-                            numberOfLines={1}
-                          >
-                            {location.address}
-                          </Text>
+                {userLocations.map((location) => {
+                  const isSelected =
+                    formData.locationId === location.locationId;
+                  const canCreateEvent = location.canCreateEvent;
+                  const activeSubscription = getActiveSubscription(
+                    location.premiumSubscriptions
+                  );
+
+                  return (
+                    <TouchableOpacity
+                      key={location.locationId}
+                      className={`p-4 rounded-lg mb-2 ${
+                        isSelected
+                          ? "bg-blue-50 border border-blue-200"
+                          : canCreateEvent
+                          ? "bg-gray-50 border border-gray-200"
+                          : "bg-red-50 border border-red-200"
+                      } ${!canCreateEvent ? "opacity-70" : ""}`}
+                      onPress={() => handleLocationSelect(location)}
+                    >
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center flex-1">
+                          <Ionicons
+                            name="location-outline"
+                            size={20}
+                            color={
+                              isSelected
+                                ? "#3B82F6"
+                                : canCreateEvent
+                                ? "#6B7280"
+                                : "#EF4444"
+                            }
+                          />
+                          <View className="ml-3 flex-1">
+                            <View className="flex-row items-center">
+                              <Text
+                                className={`font-medium ${
+                                  isSelected
+                                    ? "text-blue-600"
+                                    : canCreateEvent
+                                    ? "text-gray-700"
+                                    : "text-red-600"
+                                }`}
+                                numberOfLines={1}
+                              >
+                                {location.name}
+                              </Text>
+                              {canCreateEvent && (
+                                <View className="ml-2 bg-green-100 px-2 py-1 rounded-full">
+                                  <Text className="text-green-800 text-xs font-bold">
+                                    ACTIVE
+                                  </Text>
+                                </View>
+                              )}
+                              {!canCreateEvent && (
+                                <View className="ml-2 bg-red-100 px-2 py-1 rounded-full">
+                                  <Text className="text-red-800 text-xs font-bold">
+                                    NO SUB
+                                  </Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text
+                              className="text-sm text-gray-500"
+                              numberOfLines={1}
+                            >
+                              {location.address}
+                            </Text>
+
+                            {/* Subscription status */}
+                            {canCreateEvent && activeSubscription && (
+                              <View className="mt-1">
+                                <Text className="text-xs text-green-600">
+                                  Gói: {activeSubscription.package.name} • Còn{" "}
+                                  {getSubscriptionRemainingDays(
+                                    activeSubscription.endDate
+                                  )}{" "}
+                                  ngày
+                                </Text>
+                              </View>
+                            )}
+
+                            {!canCreateEvent && (
+                              <View className="mt-1">
+                                <Text className="text-xs text-red-600">
+                                  Cần đăng ký gói để tạo sự kiện
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <View className="flex-row items-center ml-2">
+                          {isSelected && (
+                            <Ionicons
+                              name="checkmark"
+                              size={20}
+                              color="#3B82F6"
+                            />
+                          )}
+                          {!canCreateEvent && (
+                            <Ionicons
+                              name="lock-closed"
+                              size={16}
+                              color="#EF4444"
+                            />
+                          )}
                         </View>
                       </View>
-                      {formData.locationId === location.locationId && (
-                        <Ionicons name="checkmark" size={20} color="#3B82F6" />
-                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Add subscription call-to-action */}
+                {userLocations.filter((loc) => loc.canCreateEvent).length ===
+                  0 && (
+                  <View className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <View className="flex-row items-center mb-2">
+                      <Ionicons name="warning" size={20} color="#F59E0B" />
+                      <Text className="ml-2 text-yellow-800 font-medium">
+                        Cần đăng ký gói subscription
+                      </Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
+                    <Text className="text-yellow-700 text-sm mb-3">
+                      Không có địa điểm nào có gói active để tạo sự kiện. Vui
+                      lòng đăng ký gói subscription trước.
+                    </Text>
+                    <TouchableOpacity
+                      className="bg-yellow-500 px-4 py-2 rounded-lg"
+                      onPress={() => {
+                        setShowLocationPicker(false);
+                        navigation.navigate("VenueOwnerSubscription");
+                      }}
+                    >
+                      <Text className="text-white font-semibold text-center">
+                        Đăng ký gói ngay
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </ScrollView>
             ) : (
               <View className="items-center py-8">
@@ -986,7 +1637,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         </Pressable>
       </Modal>
 
-      {/* THAY ĐỔI: Sử dụng Modal DateTimePicker thay vì thư viện cũ */}
+      {/* Date Time Pickers */}
       <DateTimePickerModal
         isVisible={isStartDatePickerVisible}
         mode="datetime"
@@ -996,7 +1647,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         date={formData.startDate}
         locale="vi_VN"
         confirmTextIOS="Xác nhận"
-        cancelTextIOS="Hủy"
+        cancelTextIOS="Huỷ"
       />
 
       <DateTimePickerModal
@@ -1008,7 +1659,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         date={formData.endDate}
         locale="vi_VN"
         confirmTextIOS="Xác nhận"
-        cancelTextIOS="Hủy"
+        cancelTextIOS="Huỷ"
       />
     </SafeAreaView>
   );

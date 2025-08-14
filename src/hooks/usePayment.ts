@@ -165,6 +165,14 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
         }
         // For other errors during polling, don't set error state to avoid UI disruption
 
+        return null;
+      } finally {
+        setLoadingPayment(false);
+      }
+    },
+    []
+  );
+
 
   const createEventPayment = useCallback(async (
     userIdParam: number,
@@ -208,25 +216,6 @@ export const usePayment = (options: UsePaymentOptions = {}) => {
     }
   }, []);
   
-
-  const createPaymentForExistingBooking = useCallback(async (
-    userIdParam: number,
-    bookingId: number,
-    productName: string,
-    description: string
-  ): Promise<PaymentResponse | null> => {
-    try {
-      setCreatingPayment(true);
-      setError(null);
-
-        return null;
-      } finally {
-        setLoadingPayment(false);
-      }
-    },
-    []
-  );
-
 
   // ===== UTILITY METHODS =====
 
@@ -874,3 +863,4 @@ const clearWalletTopUpData = useCallback(() => {
     setError,
   };
 };
+

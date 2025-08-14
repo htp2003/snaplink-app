@@ -14,8 +14,8 @@ type EventSectionProps = {
   showSeeAll?: boolean;
   onSeeAllPress?: () => void;
   onEventPress?: (event: LocationEvent) => void;
-  onFavoriteToggle?: (event: LocationEvent) => void; // Optional
-  isFavorite?: (eventId: number) => boolean; // Optional
+  onFavoriteToggle?: (event: LocationEvent) => void; 
+  isFavorite?: (eventId: number) => boolean; 
   onRetry?: () => void;
   showPrice?: boolean;
   showPhotographerCount?: boolean;
@@ -66,26 +66,6 @@ const EventSection: React.FC<EventSectionProps> = ({
           </Text>
         )}
       </View>
-      
-      {showSeeAll && onSeeAllPress && (
-        <TouchableOpacity
-          className="flex-row items-center"
-          onPress={onSeeAllPress}
-          activeOpacity={0.7}
-        >
-          <Text
-            className="text-amber-600 font-semibold mr-1"
-            style={{ fontSize: getResponsiveSize(14) }}
-          >
-            Xem tất cả
-          </Text>
-          <Ionicons 
-            name="chevron-forward" 
-            size={getResponsiveSize(16)} 
-            color="#d97706" 
-          />
-        </TouchableOpacity>
-      )}
     </View>
   );
 

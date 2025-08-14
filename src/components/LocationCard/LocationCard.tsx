@@ -67,6 +67,23 @@ const LocationCard: React.FC<LocationCardProps> = ({
     const displayName = name || 'Location';
     const locationInfo = address || 'Địa điểm chụp ảnh';
 
+// Thay đổi function handleBookLocation
+const handleBookLocation = () => {
+    const locationData: any = {
+        locationId,
+        name,
+        address,
+        hourlyRate,
+        imageUrl: images?.[0]?.uri || images?.[0], 
+        capacity,
+        styles: styles || [],
+        indoor: true,
+        outdoor: true,
+    };
+    (navigation as any).navigate('Booking', {
+        location: locationData,
+    });
+};
     return (
         <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100">
             {/* Header với Main Image */}
@@ -228,7 +245,7 @@ const LocationCard: React.FC<LocationCardProps> = ({
                                 ? 'bg-stone-200' 
                                 : 'bg-emerald-500'
                         }`}
-                        onPress={onBooking}
+                        onPress={handleBookLocation}
                         disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
                     >
                         <Text 

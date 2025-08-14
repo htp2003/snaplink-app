@@ -3,8 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
-
-
+import { useAvailability } from "../../hooks/useAvailability"; // ✅ Add this import
 import { getResponsiveSize } from "../../utils/responsive";
 import { AntDesign, Feather } from "@expo/vector-icons";
 import { useApprovedPhotographers, useEventBooking } from "../../hooks/useEvent";
@@ -38,6 +37,13 @@ export default function BookingEventScreen() {
   // Auth hook
   const { user, isAuthenticated } = useAuth();
 
+  // ✅ ADD: Availability hook for API calls
+  const {
+    getAvailableTimesForDate,
+    loadingSlots,
+    error: availabilityError,
+  } = useAvailability();
+
   // Event hooks
   const { bookEvent, loading: bookingLoading } = useEventBooking();
   const { photographers, loading: photographersLoading } = useApprovedPhotographers(event.eventId);
@@ -47,6 +53,9 @@ export default function BookingEventScreen() {
   const [selectedEndTime, setSelectedEndTime] = useState<string>("");
   const [selectedPhotographer, setSelectedPhotographer] = useState<any>(preSelectedPhotographer || null);
   const [specialRequests, setSpecialRequests] = useState<string>("");
+
+  // ✅ UPDATED: Available times from API instead of generated
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
 
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
@@ -72,39 +81,68 @@ export default function BookingEventScreen() {
     }
   }, [isAuthenticated, navigation]);
 
-
-  // Generate time slots based on event duration
-  const generateTimeSlots = () => {
-    const eventStart = new Date(event.startDate);
-    const eventEnd = new Date(event.endDate);
-
-    const slots = [];
-    const current = new Date(eventStart);
-
-    // ✅ Generate hourly slots bao gồm cả end time
-    while (current <= eventEnd) {
-      const timeString = current.toLocaleTimeString('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-      slots.push(timeString);
-
-      // Thoát vòng lặp nếu đã đến end time
-      if (current.getTime() === eventEnd.getTime()) break;
-
-      current.setHours(current.getHours() + 1);
-
-      // Đảm bảo không vượt quá end time
-      if (current > eventEnd) {
-        current.setTime(eventEnd.getTime());
+  // ✅ NEW: Load available times from API when photographer is selected
+  useEffect(() => {
+    const loadAvailableTimesForEvent = async () => {
+      if (!selectedPhotographer?.photographerId || !event) {
+        setAvailableTimes([]);
+        return;
       }
-    }
 
-    return slots;
-  };
+      try {
+        console.log("🎪 Loading available times for EVENT photographer:", {
+          photographerId: selectedPhotographer.photographerId,
+          eventName: event.name,
+          eventTimeRange: `${formatTime(event.startDate)} - ${formatTime(event.endDate)}`
+        });
 
-  const availableTimeSlots = generateTimeSlots();
+        // Get event date (events have fixed date)
+        const eventDate = new Date(event.startDate);
+        const year = eventDate.getFullYear();
+        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const day = String(eventDate.getDate()).padStart(2, '0');
+        const dateString = `${year}-${month}-${day}`;
+
+        // ✅ Call API to get available times for photographer
+        const allAvailableTimes = await getAvailableTimesForDate(
+          selectedPhotographer.photographerId, 
+          dateString
+        );
+
+        // 🎯 FILTER: Only get times within event time range
+        const eventStartTime = formatTime(event.startDate); // "10:00"
+        const eventEndTime = formatTime(event.endDate);     // "16:00"
+        
+        const eventAvailableTimes = allAvailableTimes.filter(time => {
+          return time >= eventStartTime && time < eventEndTime;
+        });
+
+        console.log("✅ Filtered available times for event:", {
+          allTimes: allAvailableTimes,
+          eventTimeRange: `${eventStartTime} - ${eventEndTime}`,
+          filteredTimes: eventAvailableTimes,
+          isEmpty: eventAvailableTimes.length === 0
+        });
+
+        setAvailableTimes(eventAvailableTimes);
+
+        // Reset selected times if they're no longer available
+        if (selectedStartTime && !eventAvailableTimes.includes(selectedStartTime)) {
+          setSelectedStartTime("");
+          setSelectedEndTime("");
+        }
+
+      } catch (error) {
+        console.error("❌ Error loading event available times:", error);
+        setAvailableTimes([]);
+      }
+    };
+
+    loadAvailableTimesForEvent();
+  }, [selectedPhotographer?.photographerId, event, getAvailableTimesForDate]);
+
+  // ✅ REMOVED: generateTimeSlots function (no longer needed)
+  // Now using availableTimes from API directly
 
   // Helper functions
   const formatDate = (dateString: string) => {
@@ -136,10 +174,11 @@ export default function BookingEventScreen() {
     }).format(amount);
   };
 
+  // ✅ UPDATED: Use API times instead of generated times
   const getEndTimeOptions = () => {
     if (!selectedStartTime) return [];
-    const startIndex = availableTimeSlots.indexOf(selectedStartTime);
-    return availableTimeSlots.slice(startIndex + 1);
+    const startIndex = availableTimes.indexOf(selectedStartTime);
+    return availableTimes.slice(startIndex + 1);
   };
 
   const calculateDuration = () => {
@@ -210,8 +249,8 @@ export default function BookingEventScreen() {
     if (!selectedEndTime) errors.push("End time is required");
 
     // Validate time logic
-    const startIdx = availableTimeSlots.indexOf(selectedStartTime);
-    const endIdx = availableTimeSlots.indexOf(selectedEndTime);
+    const startIdx = availableTimes.indexOf(selectedStartTime);
+    const endIdx = availableTimes.indexOf(selectedEndTime);
     if (endIdx <= startIdx) errors.push("End time must be after start time");
 
     return errors;
@@ -220,7 +259,7 @@ export default function BookingEventScreen() {
   // Event handlers
   const handleStartTimeSelect = (time: string) => {
     setSelectedStartTime(time);
-    if (selectedEndTime && availableTimeSlots.indexOf(selectedEndTime) <= availableTimeSlots.indexOf(time)) {
+    if (selectedEndTime && availableTimes.indexOf(selectedEndTime) <= availableTimes.indexOf(time)) {
       setSelectedEndTime("");
     }
   };
@@ -231,6 +270,9 @@ export default function BookingEventScreen() {
 
   const handlePhotographerSelect = (photographer: any) => {
     setSelectedPhotographer(photographer);
+    // Reset times when photographer changes (will reload via useEffect)
+    setSelectedStartTime("");
+    setSelectedEndTime("");
   };
 
   // Handle booking submission  
@@ -284,55 +326,52 @@ export default function BookingEventScreen() {
       console.log("📋 Created event booking ID:", actualBookingId);
 
       // Show success message
-// ✅ THÊM LOGGING TRONG handleSubmitBooking - BookingEventScreen.tsx
-
-Alert.alert(
-  "Đặt lịch thành công!", 
-  "Bạn đã đăng ký tham gia sự kiện thành công. Tiếp tục để chọn phương thức thanh toán.",
-  [
-    {
-      text: "Tiếp tục",
-      onPress: () => {
-
-        const finalCalculatedPrice = calculatePrice();
-    
-        const navigationParams = {
-          bookingId: regularBookingId, 
-          eventBookingId: actualBookingId,
-          eventPrice: finalCalculatedPrice,  
-          eventBookingResponse: {  
-            bookingId: regularBookingId,          
-          },
-          photographer: {
-            eventPhotographerId: selectedPhotographer.eventPhotographerId,
-            fullName: selectedPhotographer.photographer?.fullName || 
-                     selectedPhotographer.photographerName || 
-                     "Event Photographer",
-            profileImage: selectedPhotographer.photographer?.profileImage,
-            specialRate: selectedPhotographer.specialRate || 0,
-          },
-          event: {
-            eventId: event.eventId,
-            name: event.name,
-            startDate: event.startDate,
-            endDate: event.endDate,
-            locationName: event.locationName,
-            discountedPrice: event.discountedPrice,
-            originalPrice: event.originalPrice,
-            description: event.description,
-          },
-          bookingTimes: {
-            startTime: selectedStartTime,    
-            endTime: selectedEndTime,        
-            startDatetime: createEventDateTime(selectedStartTime),
-            endDatetime: createEventDateTime(selectedEndTime),
-          },
-        };
-        navigation.navigate("OrderEventDetail", navigationParams);
-      }
-    }
-  ]
-);
+      Alert.alert(
+        "Đặt lịch thành công!", 
+        "Bạn đã đăng ký tham gia sự kiện thành công. Tiếp tục để chọn phương thức thanh toán.",
+        [
+          {
+            text: "Tiếp tục",
+            onPress: () => {
+              const finalCalculatedPrice = calculatePrice();
+          
+              const navigationParams = {
+                bookingId: regularBookingId, 
+                eventBookingId: actualBookingId,
+                eventPrice: finalCalculatedPrice,  
+                eventBookingResponse: {  
+                  bookingId: regularBookingId,          
+                },
+                photographer: {
+                  eventPhotographerId: selectedPhotographer.eventPhotographerId,
+                  fullName: selectedPhotographer.photographer?.fullName || 
+                           selectedPhotographer.photographerName || 
+                           "Event Photographer",
+                  profileImage: selectedPhotographer.photographer?.profileImage,
+                  specialRate: selectedPhotographer.specialRate || 0,
+                },
+                event: {
+                  eventId: event.eventId,
+                  name: event.name,
+                  startDate: event.startDate,
+                  endDate: event.endDate,
+                  locationName: event.locationName,
+                  discountedPrice: event.discountedPrice,
+                  originalPrice: event.originalPrice,
+                  description: event.description,
+                },
+                bookingTimes: {
+                  startTime: selectedStartTime,    
+                  endTime: selectedEndTime,        
+                  startDatetime: createEventDateTime(selectedStartTime),
+                  endDatetime: createEventDateTime(selectedEndTime),
+                },
+              };
+              navigation.navigate("OrderEventDetail", navigationParams);
+            }
+          }
+        ]
+      );
 
     } catch (error: any) {
       console.error("❌ Error in event booking:", error);
@@ -366,7 +405,8 @@ Alert.alert(
     selectedEndTime &&
     selectedPhotographer &&
     !isProcessing &&
-    !bookingLoading;
+    !bookingLoading &&
+    availableTimes.length > 0; 
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
@@ -435,7 +475,10 @@ Alert.alert(
           >
             {event.name}
           </Text>
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}>
+          <View 
+            key="event-date-info"
+            style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}
+          >
             <Feather name="calendar" size={getResponsiveSize(14)} color="#666" />
             <Text
               style={{
@@ -447,7 +490,10 @@ Alert.alert(
               {formatDate(event.startDate)}
             </Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}>
+          <View 
+            key="event-time-info"
+            style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}
+          >
             <Feather name="clock" size={getResponsiveSize(14)} color="#666" />
             <Text
               style={{
@@ -460,7 +506,10 @@ Alert.alert(
             </Text>
           </View>
           {event.locationName && (
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <View 
+              key="event-location-info"
+              style={{ flexDirection: "row", alignItems: "center" }}
+            >
               <Feather name="map-pin" size={getResponsiveSize(14)} color="#666" />
               <Text
                 style={{
@@ -474,7 +523,10 @@ Alert.alert(
             </View>
           )}
           {(event.discountedPrice || event.originalPrice) && (
-            <View style={{ flexDirection: "row", alignItems: "center", marginTop: getResponsiveSize(8) }}>
+            <View 
+              key="event-price-info"
+              style={{ flexDirection: "row", alignItems: "center", marginTop: getResponsiveSize(8) }}
+            >
               <Text
                 style={{
                   fontSize: getResponsiveSize(16),
@@ -510,6 +562,7 @@ Alert.alert(
 
           {/* Step 1: Photographer Selection */}
           <View
+            key="photographer-selection-section"
             style={{
               backgroundColor: "#fff",
               borderRadius: getResponsiveSize(16),
@@ -569,17 +622,20 @@ Alert.alert(
             </View>
 
             {photographersLoading ? (
-              <View style={{ alignItems: "center", paddingVertical: getResponsiveSize(20) }}>
+              <View 
+                key="photographers-loading"
+                style={{ alignItems: "center", paddingVertical: getResponsiveSize(20) }}
+              >
                 <ActivityIndicator size="large" color="#E91E63" />
                 <Text style={{ color: "#666", marginTop: getResponsiveSize(8) }}>
                   Đang tải danh sách photographer...
                 </Text>
               </View>
             ) : photographers.length > 0 ? (
-              <View style={{ gap: getResponsiveSize(12) }}>
+              <View key="photographers-list" style={{ gap: getResponsiveSize(12) }}>
                 {photographers.map((photographer) => (
                   <TouchableOpacity
-                    key={photographer.eventPhotographerId}
+                    key={`photographer-${photographer.eventPhotographerId}-${photographer.photographerId}`}
                     onPress={() => handlePhotographerSelect(photographer)}
                     style={{
                       backgroundColor:
@@ -656,6 +712,7 @@ Alert.alert(
               </View>
             ) : (
               <View
+                key="no-photographers"
                 style={{
                   backgroundColor: "#FFF3F3",
                   borderRadius: getResponsiveSize(12),
@@ -673,6 +730,7 @@ Alert.alert(
           {/* Step 2: Time Selection - Only show if photographer is selected */}
           {selectedPhotographer && (
             <View
+              key="time-selection-section"
               style={{
                 backgroundColor: "#fff",
                 borderRadius: getResponsiveSize(16),
@@ -722,10 +780,19 @@ Alert.alert(
                 >
                   Chọn thời gian làm việc
                 </Text>
+                {loadingSlots && (
+                  <ActivityIndicator
+                    size="small"
+                    color="#E91E63"
+                    style={{ marginLeft: getResponsiveSize(10) }}
+                  />
+                )}
+                
               </View>
 
               {/* Photographer available time info */}
               <View
+                key="photographer-available-time-info"
                 style={{
                   backgroundColor: "#E8F5E8",
                   borderRadius: getResponsiveSize(8),
@@ -743,6 +810,39 @@ Alert.alert(
                   📅 {selectedPhotographer.photographer?.fullName} có lịch làm: {formatTime(event.startDate)} - {formatTime(event.endDate)}
                 </Text>
               </View>
+              {!loadingSlots && availableTimes.length === 0 && (
+                <View
+                  key="no-availability-warning"
+                  style={{
+                    backgroundColor: "#FFF3F3",
+                    borderRadius: getResponsiveSize(12),
+                    padding: getResponsiveSize(15),
+                    marginBottom: getResponsiveSize(15),
+                    borderWidth: 1,
+                    borderColor: "#F44336",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#C62828",
+                      fontSize: getResponsiveSize(14),
+                      textAlign: "center",
+                    }}
+                  >
+                    Photographer không có lịch rảnh trong khung giờ sự kiện này
+                  </Text>
+                  <Text
+                    style={{
+                      color: "#999",
+                      fontSize: getResponsiveSize(12),
+                      textAlign: "center",
+                      marginTop: getResponsiveSize(4),
+                    }}
+                  >
+                    Các khung giờ có thể đã được đặt bởi người khác
+                  </Text>
+                </View>
+              )}
 
               {/* Start Time */}
               <Text
@@ -755,13 +855,14 @@ Alert.alert(
                 Giờ bắt đầu
               </Text>
               <ScrollView
+                key="start-time-scroll"
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={{ marginBottom: getResponsiveSize(15) }}
               >
-                {availableTimeSlots.map((time) => (
+                {availableTimes.map((time, index) => (
                   <TouchableOpacity
-                    key={time}
+                    key={`start-time-${time}-${index}`}
                     onPress={() => handleStartTimeSelect(time)}
                     style={{
                       backgroundColor:
@@ -801,10 +902,14 @@ Alert.alert(
                   >
                     Giờ kết thúc
                   </Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {getEndTimeOptions().map((time) => (
+                  <ScrollView 
+                    key="end-time-scroll"
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                  >
+                    {getEndTimeOptions().map((time, index) => (
                       <TouchableOpacity
-                        key={time}
+                        key={`end-time-${time}-${index}`}
                         onPress={() => handleEndTimeSelect(time)}
                         style={{
                           backgroundColor:
@@ -836,6 +941,7 @@ Alert.alert(
 
               {selectedStartTime && selectedEndTime && (
                 <View
+                  key="duration-info"
                   style={{
                     backgroundColor: "#E8F5E8",
                     borderRadius: getResponsiveSize(8),
@@ -860,6 +966,7 @@ Alert.alert(
           {/* Step 3: Special Requests - Only show if time is selected */}
           {selectedPhotographer && selectedStartTime && selectedEndTime && (
             <View
+              key="special-requests-section"
               style={{
                 backgroundColor: "#fff",
                 borderRadius: getResponsiveSize(16),
@@ -921,6 +1028,7 @@ Alert.alert(
               </View>
 
               <TextInput
+                key="special-requests-input"
                 value={specialRequests}
                 onChangeText={setSpecialRequests}
                 placeholder="Nhập yêu cầu đặc biệt cho photographer trong sự kiện này..."
@@ -942,6 +1050,7 @@ Alert.alert(
               />
 
               <Text
+                key="special-requests-hint"
                 style={{
                   fontSize: getResponsiveSize(12),
                   color: "#666",
@@ -953,10 +1062,10 @@ Alert.alert(
             </View>
           )}
 
-
           {/* Price Summary */}
           {selectedPhotographer && selectedStartTime && selectedEndTime && (
             <View
+              key="price-summary-section"
               style={{
                 backgroundColor: "#fff",
                 borderRadius: getResponsiveSize(16),
@@ -1000,7 +1109,10 @@ Alert.alert(
 
               <View style={{ gap: getResponsiveSize(12) }}>
                 {/* Photographer Info */}
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <View 
+                  key="summary-photographer"
+                  style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                >
                   <Text style={{ fontSize: getResponsiveSize(14), color: "#666" }}>
                     Photographer:
                   </Text>
@@ -1010,7 +1122,10 @@ Alert.alert(
                 </View>
 
                 {/* Duration */}
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <View 
+                  key="summary-duration"
+                  style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                >
                   <Text style={{ fontSize: getResponsiveSize(14), color: "#666" }}>
                     Thời gian:
                   </Text>
@@ -1021,7 +1136,10 @@ Alert.alert(
 
                 {/* Event Price */}
                 {(event.discountedPrice || event.originalPrice) && (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <View 
+                    key="summary-event-price"
+                    style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                  >
                     <Text style={{ fontSize: getResponsiveSize(14), color: "#666" }}>
                       Giá tham gia sự kiện:
                     </Text>
@@ -1032,7 +1150,10 @@ Alert.alert(
                 )}
 
                 {/* Photographer Rate */}
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <View 
+                  key="summary-photographer-rate"
+                  style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                >
                   <Text style={{ fontSize: getResponsiveSize(14), color: "#666" }}>
                     Photographer ({calculateDuration() % 1 === 0 ? calculateDuration() : calculateDuration().toFixed(1)}h):
                   </Text>
@@ -1042,7 +1163,10 @@ Alert.alert(
                 </View>
 
                 {/* Rate per hour info */}
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <View 
+                  key="summary-hourly-rate"
+                  style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                >
                   <Text style={{ fontSize: getResponsiveSize(12), color: "#999", fontStyle: "italic" }}>
                     Giá đặc biệt photographer:
                   </Text>
@@ -1053,7 +1177,10 @@ Alert.alert(
 
                 {/* Discount info - nếu có giảm giá */}
                 {event.originalPrice && event.discountedPrice && event.originalPrice > event.discountedPrice && (
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <View 
+                    key="summary-discount"
+                    style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                  >
                     <Text style={{ fontSize: getResponsiveSize(14), color: "#4CAF50" }}>
                       Giảm giá sự kiện:
                     </Text>
@@ -1065,6 +1192,7 @@ Alert.alert(
 
                 {/* Divider */}
                 <View
+                  key="summary-divider"
                   style={{
                     height: 1,
                     backgroundColor: "#e0e0e0",
@@ -1073,7 +1201,10 @@ Alert.alert(
                 />
 
                 {/* Total */}
-                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                <View 
+                  key="summary-total"
+                  style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                >
                   <Text
                     style={{
                       fontSize: getResponsiveSize(16),
@@ -1102,6 +1233,7 @@ Alert.alert(
       {/* CTA Section - Fixed Bottom Button */}
       {selectedPhotographer && selectedStartTime && selectedEndTime && (
         <View
+          key="bottom-cta-section"
           style={{
             position: "absolute",
             bottom: 0,
@@ -1120,6 +1252,7 @@ Alert.alert(
           }}
         >
           <View
+            key="bottom-price-preview"
             style={{
               flexDirection: "row",
               alignItems: "center",
@@ -1147,6 +1280,7 @@ Alert.alert(
           </View>
 
           <TouchableOpacity
+            key="submit-booking-button"
             onPress={handleSubmitBooking}
             disabled={!isFormValid || isProcessing}
             style={{
@@ -1177,6 +1311,7 @@ Alert.alert(
 
           {!isFormValid && (
             <Text
+              key="form-validation-text"
               style={{
                 fontSize: getResponsiveSize(12),
                 color: "#999",

@@ -1,4 +1,4 @@
-import { Booking } from './../types/booking';
+
 // navigation/types.ts
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -123,6 +123,17 @@ export type RootStackParamList = {
       bio?: string;
       styles?: string[];
     };
+    location?: {
+      locationId: number;
+      name: string;
+      address?: string;
+      hourlyRate?: number;
+      imageUrl?: string;
+      capacity?: number;
+      styles?: string[];
+      indoor?: boolean;
+      outdoor?: boolean;
+  };
     editMode?: boolean;
     existingBookingId?: number;
     existingBookingData?: {

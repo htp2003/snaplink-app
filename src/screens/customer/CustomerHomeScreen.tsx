@@ -30,9 +30,44 @@ import { photographerStyleRecommendations } from "../../hooks/useStyleRecommenda
 // Event
 import { HotEventBanner, EventSection } from "../../components/Event";
 import { useCustomerEventDiscovery, useHotEvents } from "../../hooks/useEvent";
-
+import { LocationEvent } from "../../types/event";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+// ✅ Event utility functions
+const isEventExpired = (endDate: string): boolean => {
+  const now = new Date();
+  const eventEnd = new Date(endDate);
+  return eventEnd < now;
+};
+
+const isEventUpcoming = (startDate: string): boolean => {
+  const now = new Date();
+  const eventStart = new Date(startDate);
+  const hoursUntilEvent = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+  
+  // Sự kiện sắp diễn ra trong vòng 7 ngày và chưa bắt đầu
+  return hoursUntilEvent > 0 && hoursUntilEvent <= (7 * 24);
+};
+
+const isEventFeatured = (event: LocationEvent): boolean => {
+  const bookingRate = event.totalBookingsCount / event.maxBookingsPerSlot;
+  const hasDiscount = event.discountedPrice && event.originalPrice && event.discountedPrice < event.originalPrice;
+  
+  // Sự kiện nổi bật: có tỷ lệ đặt cao hoặc có giảm giá
+  return bookingRate > 0.5 || hasDiscount || false;
+};
+
+const removeDuplicateEvents = (events: LocationEvent[]): LocationEvent[] => {
+  const seen = new Set();
+  return events.filter(event => {
+    if (seen.has(event.eventId)) {
+      return false;
+    }
+    seen.add(event.eventId);
+    return true;
+  });
+};
 
 // 🔧 Define proper types for API responses
 interface ApiPhotographerResponse {
@@ -189,7 +224,7 @@ export default function CustomerHomeScreen() {
     }
   }, [allLoading]);
 
-  // Event Section
+  // ✅ Event Section - FIXED LOGIC
   const { hotEvents, loading: hotLoading } = useHotEvents();
   const {
     allEvents,      
@@ -199,6 +234,49 @@ export default function CustomerHomeScreen() {
     error: eventsError,
     refetch: refetchEvents
   } = useCustomerEventDiscovery();
+
+  // ✅ Processed events with proper filtering
+  const processedEvents = useMemo(() => {
+    if (!allEvents || allEvents.length === 0) {
+      return {
+        validEvents: [],
+        hotEventsFiltered: [],
+        featuredEventsFiltered: [],
+        upcomingEventsFiltered: []
+      };
+    }
+
+    // 1. Lọc bỏ các sự kiện đã hết hạn
+    const validEvents = allEvents.filter(event => !isEventExpired(event.endDate));
+    
+    // 2. Lọc hot events
+    const hotEventsFiltered = hotEvents.filter(event => !isEventExpired(event.endDate));
+    
+    // 3. Lọc featured events (loại trừ hot events)
+    const hotEventIds = new Set(hotEventsFiltered.map(e => e.eventId));
+    const featuredEventsFiltered = removeDuplicateEvents(
+      validEvents.filter(event => 
+        isEventFeatured(event) && !hotEventIds.has(event.eventId)
+      )
+    );
+    
+    // 4. Lọc upcoming events (loại trừ hot events và featured events)
+    const featuredEventIds = new Set(featuredEventsFiltered.map(e => e.eventId));
+    const upcomingEventsFiltered = removeDuplicateEvents(
+      validEvents.filter(event => 
+        isEventUpcoming(event.startDate) && 
+        !hotEventIds.has(event.eventId) && 
+        !featuredEventIds.has(event.eventId)
+      )
+    );
+
+    return {
+      validEvents: removeDuplicateEvents(validEvents),
+      hotEventsFiltered,
+      featuredEventsFiltered,
+      upcomingEventsFiltered
+    };
+  }, [allEvents, hotEvents]);
 
   // Categories - memoized để tránh re-create
   const categories = useMemo(
@@ -297,7 +375,7 @@ export default function CustomerHomeScreen() {
   const renderErrorState = useCallback(
     (error: string, retryFunction: () => void) => (
       <View className="flex-1 items-center justify-center py-8">
-        <Text className="text-red-500 text-center">❌ {error}</Text>
+        <Text className="text-red-500 text-center">⌧ {error}</Text>
         <TouchableOpacity
           onPress={retryFunction}
           className="mt-2 bg-red-500 px-4 py-2 rounded"
@@ -448,7 +526,7 @@ export default function CustomerHomeScreen() {
                 ) : recommendationsError ? (
                   <View className="flex-1 items-center justify-center py-8">
                     <Text className="text-red-500 text-center">
-                      ❌ Không thể tải gợi ý theo style
+                      ⌧ Không thể tải gợi ý theo style
                     </Text>
                     {currentUserId && (
                       <TouchableOpacity
@@ -540,21 +618,21 @@ export default function CustomerHomeScreen() {
           </View>
         )}
 
-        {/* SERVICES SECTION */}
+        {/* ✅ FIXED EVENTS SECTION */}
         {selectedCategory === "events" && (
           <>
-    {/* Hot Event Banner */}
-<HotEventBanner 
-              event={hotEvents[0] || null}
+            {/* Hot Event Banner - chỉ hiển thị sự kiện chưa hết hạn */}
+            <HotEventBanner 
+              event={processedEvents.hotEventsFiltered[0] || null}
               loading={hotLoading}
-              onPress={hotEvents[0] ? () => handleEventPress(hotEvents[0]) : undefined}
+              onPress={processedEvents.hotEventsFiltered[0] ? () => handleEventPress(processedEvents.hotEventsFiltered[0]) : undefined}
             />
     
-    {/* Featured Events */}
-    <EventSection
+            {/* Featured Events - đã loại trừ hot events */}
+            <EventSection
               title="Sự kiện nổi bật"
               subtitle="Những workshop được yêu thích nhất"
-              events={featuredEvents || []}
+              events={processedEvents.featuredEventsFiltered}
               loading={eventsLoading}
               error={eventsError}
               onEventPress={handleEventPress}
@@ -563,11 +641,11 @@ export default function CustomerHomeScreen() {
               emptyMessage="Hiện tại chưa có sự kiện nổi bật nào"
             />
     
-    {/* Upcoming Events */}
-   <EventSection
+            {/* Upcoming Events - đã loại trừ hot events và featured events */}
+            <EventSection
               title="Sự kiện sắp diễn ra"
               subtitle="Đăng ký ngay để không bỏ lỡ"
-              events={upcomingEvents || []}
+              events={processedEvents.upcomingEventsFiltered}
               loading={eventsLoading}
               error={eventsError}
               onEventPress={handleEventPress}
@@ -576,10 +654,11 @@ export default function CustomerHomeScreen() {
               emptyMessage="Hiện tại chưa có sự kiện sắp diễn ra"
             />
 
+            {/* All Events - tất cả sự kiện còn hiệu lực */}
             <EventSection
               title="Tất cả sự kiện"
               subtitle="Khám phá thêm nhiều workshop thú vị"
-              events={allEvents || []}
+              events={processedEvents.validEvents}
               loading={eventsLoading}
               error={eventsError}
               onEventPress={handleEventPress}
@@ -587,8 +666,7 @@ export default function CustomerHomeScreen() {
               onRetry={refetchEvents}
               emptyMessage="Hiện tại chưa có sự kiện nào"
             />
-  </>
-
+          </>
         )}
       </ScrollView>
     </View>

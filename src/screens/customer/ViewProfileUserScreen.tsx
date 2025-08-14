@@ -439,7 +439,7 @@ const ViewProfileUserScreen = () => {
     <SafeAreaView style={{ flex: 1, backgroundColor: "#F7F7F7" }}>
       <StatusBar barStyle="dark-content" backgroundColor="#F7F7F7" />
 
-      {/* Header - Same style as photographer */}
+      {/* ✅ FIXED: Header with edit button */}
       <View
         style={{
           flexDirection: "row",
@@ -478,9 +478,34 @@ const ViewProfileUserScreen = () => {
           Hồ sơ
         </Text>
 
-        <View style={{ width: getResponsiveSize(40) }} />
+        {/* ✅ Edit button - only show for own profile */}
+        {isOwnProfile ? (
+          <TouchableOpacity
+            onPress={handleEditPress}
+            style={{
+              paddingHorizontal: getResponsiveSize(12),
+              paddingVertical: getResponsiveSize(8),
+              borderRadius: getResponsiveSize(15),
+              backgroundColor: "#E5E5E5",
+              justifyContent: "center",
+              alignItems: "center",
+              minWidth: getResponsiveSize(70),
 
-        {!isOwnProfile && <View style={{ width: getResponsiveSize(40) }} />}
+            }}
+          >
+            <Text 
+              style={{ 
+                fontSize: getResponsiveSize(14), 
+                color: "#000000", 
+                fontWeight: "500"
+              }}
+            >
+              Chỉnh sửa
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: getResponsiveSize(70) }} />
+        )}
       </View>
 
       {/* Content */}
@@ -700,6 +725,7 @@ const ViewProfileUserScreen = () => {
                   </Text>
                 </View>
               </View>
+
               {/* User Styles */}
               <View
                 style={{
@@ -737,8 +763,6 @@ const ViewProfileUserScreen = () => {
                   >
                     Styles của bạn:
                   </Text>
-
-                  
 
                   {loadingStyles ? (
                     <View
@@ -812,52 +836,54 @@ const ViewProfileUserScreen = () => {
                 </View>
               </View>
             </View>
-                    {isOwnProfile && (
-          <TouchableOpacity
-            onPress={handleChangePasswordPress}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              paddingVertical: getResponsiveSize(20),
-              borderTopWidth: 1,
-              borderTopColor: "#F0F0F0",
-            }}
-          >
-            <View
-              style={{
-                width: getResponsiveSize(40),
-                height: getResponsiveSize(40),
-                borderRadius: getResponsiveSize(20),
-                backgroundColor: "#F5F5F5",
-                justifyContent: "center",
-                alignItems: "center",
-                marginRight: getResponsiveSize(16),
-              }}
-            >
-              <Ionicons
-                name="lock-closed-outline"
-                size={getResponsiveSize(20)}
-                color="#666666"
-              />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
+
+            {/* Change Password Button - Only for own profile */}
+            {isOwnProfile && (
+              <TouchableOpacity
+                onPress={handleChangePasswordPress}
                 style={{
-                  fontSize: getResponsiveSize(16),
-                  color: "#000000",
-                  fontWeight: "500",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingVertical: getResponsiveSize(20),
+                  borderTopWidth: 1,
+                  borderTopColor: "#F0F0F0",
                 }}
               >
-                Mật khẩu
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={getResponsiveSize(20)}
-              color="#C0C0C0"
-            />
-          </TouchableOpacity>
-        )}
+                <View
+                  style={{
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    borderRadius: getResponsiveSize(20),
+                    backgroundColor: "#F5F5F5",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    marginRight: getResponsiveSize(16),
+                  }}
+                >
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={getResponsiveSize(20)}
+                    color="#666666"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      fontSize: getResponsiveSize(16),
+                      color: "#000000",
+                      fontWeight: "500",
+                    }}
+                  >
+                    Mật khẩu
+                  </Text>
+                </View>
+                <Ionicons
+                  name="chevron-forward"
+                  size={getResponsiveSize(20)}
+                  color="#C0C0C0"
+                />
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
       </View>

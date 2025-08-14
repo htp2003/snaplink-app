@@ -715,8 +715,8 @@ export default function OrderDetailScreen() {
                   >
                     {params.selectedLocation.hourlyRate > 0
                       ? `${formatCurrency(
-                          params.selectedLocation.hourlyRate
-                        )}/giờ`
+                        params.selectedLocation.hourlyRate
+                      )}/giờ`
                       : "Miễn phí"}
                   </Text>
                 )}
@@ -818,20 +818,18 @@ export default function OrderDetailScreen() {
             {/* Bank QR Payment */}
             <TouchableOpacity
               onPress={() => setSelectedPaymentMethod("bank_qr")}
-              className={`flex-row items-center rounded-xl border-2 ${
-                selectedPaymentMethod === "bank_qr"
-                  ? "bg-pink-50 border-pink-600"
-                  : "bg-gray-50 border-gray-200"
-              }`}
+              className={`flex-row items-center rounded-xl border-2 ${selectedPaymentMethod === "bank_qr"
+                ? "bg-pink-50 border-pink-600"
+                : "bg-gray-50 border-gray-200"
+                }`}
               style={{ padding: getResponsiveSize(16) }}
             >
               {/* Icon */}
               <View
-                className={`rounded-full items-center justify-center ${
-                  selectedPaymentMethod === "bank_qr"
-                    ? "bg-pink-600"
-                    : "bg-gray-100"
-                }`}
+                className={`rounded-full items-center justify-center ${selectedPaymentMethod === "bank_qr"
+                  ? "bg-pink-600"
+                  : "bg-gray-100"
+                  }`}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -848,11 +846,10 @@ export default function OrderDetailScreen() {
               {/* Content */}
               <View className="flex-1">
                 <Text
-                  className={`font-bold ${
-                    selectedPaymentMethod === "bank_qr"
-                      ? "text-pink-600"
-                      : "text-gray-800"
-                  }`}
+                  className={`font-bold ${selectedPaymentMethod === "bank_qr"
+                    ? "text-pink-600"
+                    : "text-gray-800"
+                    }`}
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Quét mã ngân hàng
@@ -870,11 +867,10 @@ export default function OrderDetailScreen() {
 
               {/* Radio Button */}
               <View
-                className={`rounded-full border-2 items-center justify-center ${
-                  selectedPaymentMethod === "bank_qr"
-                    ? "border-pink-600"
-                    : "border-gray-300"
-                }`}
+                className={`rounded-full border-2 items-center justify-center ${selectedPaymentMethod === "bank_qr"
+                  ? "border-pink-600"
+                  : "border-gray-300"
+                  }`}
                 style={{
                   width: getResponsiveSize(20),
                   height: getResponsiveSize(20),
@@ -895,20 +891,18 @@ export default function OrderDetailScreen() {
             {/* SnapLink Wallet Payment */}
             <TouchableOpacity
               onPress={() => setSelectedPaymentMethod("snaplink_wallet")}
-              className={`flex-row items-center rounded-xl border-2 ${
-                selectedPaymentMethod === "snaplink_wallet"
-                  ? "bg-pink-50 border-pink-600"
-                  : "bg-gray-50 border-gray-200"
-              }`}
+              className={`flex-row items-center rounded-xl border-2 ${selectedPaymentMethod === "snaplink_wallet"
+                ? "bg-pink-50 border-pink-600"
+                : "bg-gray-50 border-gray-200"
+                }`}
               style={{ padding: getResponsiveSize(16) }}
             >
               {/* Icon */}
               <View
-                className={`rounded-full items-center justify-center ${
-                  selectedPaymentMethod === "snaplink_wallet"
-                    ? "bg-pink-600"
-                    : "bg-gray-100"
-                }`}
+                className={`rounded-full items-center justify-center ${selectedPaymentMethod === "snaplink_wallet"
+                  ? "bg-pink-600"
+                  : "bg-gray-100"
+                  }`}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -929,11 +923,10 @@ export default function OrderDetailScreen() {
               {/* Content */}
               <View className="flex-1">
                 <Text
-                  className={`font-bold ${
-                    selectedPaymentMethod === "snaplink_wallet"
-                      ? "text-pink-600"
-                      : "text-gray-800"
-                  }`}
+                  className={`font-bold ${selectedPaymentMethod === "snaplink_wallet"
+                    ? "text-pink-600"
+                    : "text-gray-800"
+                    }`}
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Ví SnapLink
@@ -951,11 +944,10 @@ export default function OrderDetailScreen() {
 
               {/* Radio Button */}
               <View
-                className={`rounded-full border-2 items-center justify-center ${
-                  selectedPaymentMethod === "snaplink_wallet"
-                    ? "border-pink-600"
-                    : "border-gray-300"
-                }`}
+                className={`rounded-full border-2 items-center justify-center ${selectedPaymentMethod === "snaplink_wallet"
+                  ? "border-pink-600"
+                  : "border-gray-300"
+                  }`}
                 style={{
                   width: getResponsiveSize(20),
                   height: getResponsiveSize(20),
@@ -1091,89 +1083,109 @@ export default function OrderDetailScreen() {
         </View>
       </ScrollView>
 
+
       {/* Bottom Action Buttons */}
       <View
-        className="flex-row items-center justify-between bg-white border-t border-gray-100"
+        className="bg-white border-t border-gray-100"
         style={{
           paddingHorizontal: getResponsiveSize(20),
           paddingVertical: getResponsiveSize(16),
-          paddingBottom: getResponsiveSize(8),
+          paddingBottom: getResponsiveSize(30),
         }}
       >
-        {/* Edit Button */}
-        <TouchableOpacity
-          onPress={handleEditBooking}
-          activeOpacity={0.7}
-          className="flex-row items-center bg-gray-50 rounded-lg flex-1"
+        <View
           style={{
-            paddingHorizontal: getResponsiveSize(16),
-            paddingVertical: getResponsiveSize(12),
-            marginRight: getResponsiveSize(12),
+            flexDirection: "row",
+            alignItems: "center",
+            gap: getResponsiveSize(10),
           }}
         >
-          <Feather name="edit-3" size={getResponsiveSize(18)} color="#666" />
-          <Text
-            className="text-gray-600 font-medium"
+          {/* Edit Button */}
+          <TouchableOpacity
+            onPress={handleEditBooking}
+            activeOpacity={0.7}
+            className="bg-gray-50 rounded-lg"
             style={{
-              marginLeft: getResponsiveSize(8),
-              fontSize: getResponsiveSize(16),
-            }}
-          >
-            Chỉnh sửa
-          </Text>
-        </TouchableOpacity>
-
-        {/* Confirm Button */}
-        <TouchableOpacity
-          onPress={handleBookNow}
-          activeOpacity={0.8}
-          className="flex-2 rounded-xl overflow-hidden"
-        >
-          <LinearGradient
-            colors={["#E91E63", "#F06292"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            className="flex-row items-center justify-center"
-            style={{
-              paddingVertical: getResponsiveSize(15),
               paddingHorizontal: getResponsiveSize(20),
+              paddingVertical: getResponsiveSize(15),
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              width: getResponsiveSize(120), 
             }}
           >
-            {isProcessing ? (
-              <>
-                <ActivityIndicator
-                  size="small"
-                  color="#fff"
-                  style={{ marginRight: getResponsiveSize(8) }}
-                />
-                <Text
-                  className="text-white font-bold"
-                  style={{ fontSize: getResponsiveSize(16) }}
-                >
-                  Đang xử lý...
-                </Text>
-              </>
-            ) : (
-              <>
-                <MaterialIcons
-                  name="payment"
-                  size={getResponsiveSize(20)}
-                  color="#fff"
-                  style={{ marginRight: getResponsiveSize(8) }}
-                />
-                <Text
-                  className="text-white font-bold"
-                  style={{ fontSize: getResponsiveSize(16) }}
-                >
-                  {selectedPaymentMethod === "snaplink_wallet"
-                    ? "Đặt lịch & Thanh toán"
-                    : "Đặt lịch & Thanh toán"}
-                </Text>
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
+            <Feather name="edit-3" size={getResponsiveSize(18)} color="#666" />
+            <Text
+              className="text-gray-600 font-medium"
+              style={{
+                marginLeft: getResponsiveSize(6),
+                fontSize: getResponsiveSize(15),
+              }}
+            >
+              Chỉnh sửa
+            </Text>
+          </TouchableOpacity>
+
+          {/* Confirm Button - Takes remaining space */}
+          <TouchableOpacity
+            onPress={handleBookNow}
+            activeOpacity={0.8}
+            className="rounded-xl overflow-hidden"
+            style={{
+              flex: 1, 
+            }}
+          >
+            <LinearGradient
+              colors={["#E91E63", "#F06292"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{
+                paddingVertical: getResponsiveSize(15),
+                paddingHorizontal: getResponsiveSize(16),
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {isProcessing ? (
+                <>
+                  <ActivityIndicator
+                    size="small"
+                    color="#fff"
+                    style={{ marginRight: getResponsiveSize(8) }}
+                  />
+                  <Text
+                    className="text-white font-bold"
+                    style={{ fontSize: getResponsiveSize(15) }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                  >
+                    Đang xử lý...
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <MaterialIcons
+                    name="payment"
+                    size={getResponsiveSize(18)}
+                    color="#fff"
+                    style={{ marginRight: getResponsiveSize(6) }}
+                  />
+                  <Text
+                    className="text-white font-bold"
+                    style={{ fontSize: getResponsiveSize(15) }}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit={true}
+                  >
+                    Đặt lịch & Thanh toán
+                  </Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
       </View>
+
       {/* Wallet Success Modal */}
       {showWalletSuccessModal && (
         <View style={StyleSheet.absoluteFill}>

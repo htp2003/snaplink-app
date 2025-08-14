@@ -216,21 +216,29 @@ export default function VenueOwnerProfileScreen() {
 
   // Avatar component
   const ProfileAvatar = () => {
-    if (user?.profileImage) {
-      return (
-        <Image
-          source={{ uri: user.profileImage }}
-          className="w-20 h-20 rounded-full"
-          resizeMode="cover"
-        />
-      );
-    }
+    // Debug log to check user object structure
+    console.log("🔍 User object for avatar:", user);
+    console.log("🔍 Profile image:", user?.profileImage);
+
+    // Temporary test with fixed image URL
+    const testImageUrl = "https://picsum.photos/200/300";
+    const imageUrl = user?.profileImage || testImageUrl;
 
     return (
-      <View className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full items-center justify-center">
-        <Text className="text-white text-2xl font-bold">
-          {user?.fullName?.charAt(0).toUpperCase() || "V"}
-        </Text>
+      <View className="w-20 h-20 bg-gray-200 rounded-full border-2 border-gray-300 overflow-hidden">
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            className="w-full h-full"
+            resizeMode="cover"
+            onError={(error) => console.log("❌ Image load error:", error)}
+            onLoad={() => console.log("✅ Image loaded successfully")}
+          />
+        ) : (
+          <View className="w-full h-full bg-gray-100 items-center justify-center">
+            <Text className="text-gray-400 text-xs">No Image</Text>
+          </View>
+        )}
       </View>
     );
   };

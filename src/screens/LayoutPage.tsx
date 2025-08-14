@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,10 @@ import {
   ScrollView,
   Platform,
   StatusBar,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-const { width, height } = Dimensions.get('window');
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+const { width, height } = Dimensions.get("window");
 
 // Calculate responsive dimensions
 const getResponsiveSize = (size: number) => {
@@ -21,10 +21,10 @@ const getResponsiveSize = (size: number) => {
 };
 
 const images = [
-  require('../../assets/slider1.png'),
-  require('../../assets/slider2.png'),
-  require('../../assets/slider3.png'),
-  require('../../assets/slider4.png'),
+  require("../../assets/slider5.jpg"),
+  require("../../assets/slider6.jpg"),
+  require("../../assets/slider7.jpg"),
+  require("../../assets/slider8.jpg"),
 ];
 
 const LayoutPage = () => {
@@ -62,7 +62,9 @@ const LayoutPage = () => {
             key={index}
             style={[
               styles.dot,
-              { backgroundColor: index === activeSlide ? '#FFFFFF' : '#D9D9D9' },
+              {
+                backgroundColor: index === activeSlide ? "#FFFFFF" : "#D9D9D9",
+              },
             ]}
           />
         ))}
@@ -71,11 +73,17 @@ const LayoutPage = () => {
       <Text style={styles.title}>SnapLink</Text>
 
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.darkButton} onPress={() => navigation.navigate('Login' as never)}>
+        <TouchableOpacity
+          style={styles.darkButton}
+          onPress={() => navigation.navigate("Login" as never)}
+        >
           <Text style={styles.darkButtonText}>Login</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.lightButton} onPress={() => navigation.navigate('Register' as never)}>
+        <TouchableOpacity
+          style={styles.lightButton}
+          onPress={() => navigation.navigate("Register" as never)}
+        >
           <Text style={styles.lightButtonText}>Sign Up</Text>
         </TouchableOpacity>
       </View>
@@ -86,19 +94,19 @@ const LayoutPage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   sliderImage: {
     width: width,
     height: height,
   },
   dotsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'absolute',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "absolute",
     bottom: getResponsiveSize(231),
-    width: '100%',
+    width: "100%",
     zIndex: 1,
   },
   dot: {
@@ -108,30 +116,36 @@ const styles = StyleSheet.create({
     marginHorizontal: getResponsiveSize(5),
   },
   title: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? getResponsiveSize(60) : getResponsiveSize(60) + StatusBar.currentHeight!,
+    position: "absolute",
+    top:
+      Platform.OS === "ios"
+        ? getResponsiveSize(60)
+        : getResponsiveSize(60) + StatusBar.currentHeight!,
     left: getResponsiveSize(140),
     fontSize: getResponsiveSize(32),
-    fontWeight: 'bold',
-    color: '#000000',
+    fontWeight: "bold",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 4,
     zIndex: 1,
   },
   buttonContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: getResponsiveSize(52),
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
     paddingHorizontal: getResponsiveSize(27),
     zIndex: 1,
   },
   darkButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     borderWidth: 1,
-    borderColor: '#2C2C2C',
+    borderColor: "#2C2C2C",
     borderRadius: getResponsiveSize(8),
     paddingVertical: getResponsiveSize(12),
     paddingHorizontal: getResponsiveSize(12),
@@ -139,10 +153,10 @@ const styles = StyleSheet.create({
     minHeight: getResponsiveSize(49),
   },
   lightButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#FFFFFF",
     borderRadius: getResponsiveSize(8),
     paddingVertical: getResponsiveSize(12),
     paddingHorizontal: getResponsiveSize(12),
@@ -150,14 +164,14 @@ const styles = StyleSheet.create({
     minHeight: getResponsiveSize(49),
   },
   darkButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: getResponsiveSize(14),
-    textAlign: 'center',
+    textAlign: "center",
   },
   lightButtonText: {
-    color: '#2C2C2C',
+    color: "#2C2C2C",
     fontSize: getResponsiveSize(14),
-    textAlign: 'center',
+    textAlign: "center",
   },
 });
 

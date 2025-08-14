@@ -1,3 +1,4 @@
+
 // navigation/types.ts
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -66,6 +67,7 @@ export type RootStackParamList = {
   PaymentWaitingScreen: PaymentFlowData;
   WalletScreen: undefined;
 
+
   PhotoDeliveryScreen: {
     bookingId: number;
     customerName: string;
@@ -74,6 +76,7 @@ export type RootStackParamList = {
   PhotographerEventScreen: {
     photographerId: number;
   };
+  EventDetailScreen: { eventId: string;}
 
   // Customer screens
   PhotographerCardDetail: { photographerId: string };
@@ -120,6 +123,17 @@ export type RootStackParamList = {
       bio?: string;
       styles?: string[];
     };
+    location?: {
+      locationId: number;
+      name: string;
+      address?: string;
+      hourlyRate?: number;
+      imageUrl?: string;
+      capacity?: number;
+      styles?: string[];
+      indoor?: boolean;
+      outdoor?: boolean;
+  };
     editMode?: boolean;
     existingBookingId?: number;
     existingBookingData?: {
@@ -134,7 +148,7 @@ export type RootStackParamList = {
       specialRequests?: string;
     };
   };
-  OrderDetail: {
+    OrderDetail: {
     bookingId: number;
     photographer: {
       photographerId: number;
@@ -156,6 +170,66 @@ export type RootStackParamList = {
     specialRequests?: string;
     priceCalculation: PriceCalculationResponse;
   };
+BookingEvent: {
+    event: {
+      eventId: number;
+      name: string;
+      startDate: string;
+      endDate: string;
+      locationName?: string;
+      discountedPrice?: number;
+      originalPrice?: number;
+      description?: string;
+    };
+    preSelectedPhotographer?: {
+      eventPhotographerId: number;
+      photographerId: number;
+      photographerName?: string;
+      profileImage?: string;
+      specialRate?: number;
+    };
+  };
+  OrderEventDetail: {
+    eventBookingId: number;
+    photographer: {
+      eventPhotographerId: number;
+      fullName: string;
+      profileImage?: string;
+      specialRate?: number; 
+    };
+    event: {
+      eventId: number;
+      name: string;
+      startDate: string;
+      endDate: string;
+      locationName?: string;
+      discountedPrice?: number;
+      originalPrice?: number;
+      description?: string;
+    };
+    selectedDate?: string;
+    selectedStartTime?: string;
+    selectedEndTime?: string;
+    specialRequests?: string;
+    priceCalculation?: {
+      totalPrice: number;
+      photographerFee: number;
+      locationFee: number;
+      duration: number;
+      breakdown: {
+        baseRate: number;
+        locationRate: number;
+        additionalFees: any[];
+      };
+    };
+    bookingTimes?: {
+      startTime: string;      
+      endTime: string;       
+      startDatetime?: string; 
+      endDatetime?: string;   
+    };
+  };
+
   ViewProfileUserScreen: { userId: number };
 
   // Venue Owner screens
@@ -165,6 +239,8 @@ export type RootStackParamList = {
   VenueOwnerEvents: undefined;
   EditVenueScreen: { venueId?: number };
   VenueDetailScreen: { venueId: number };
+  VenueOwnerSubscription: undefined;
+  VenueOwnerTransaction: undefined;
 
   // VenueOwner Event Management screens
   VenueOwnerEventDetail: {
@@ -206,7 +282,7 @@ export type PhotographerTabParamList = {
   OrderManagementScreen: undefined;
   PhotographerEventScreen: {
     photographerId: number;
-  };  
+  };
   Messages: undefined;
 };
 

@@ -1,8 +1,15 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TouchableOpacity, Text, Alert, TextInput } from "react-native";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Text,
+  Alert,
+  TextInput,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { LinearGradient } from 'expo-linear-gradient';
+import { LinearGradient } from "expo-linear-gradient";
 import Button from "../Button";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -19,7 +26,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
   onForgotPassword,
   onRegister,
   onSuccess,
-  onNavigateToForgotPassword
+  onNavigateToForgotPassword,
 }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -42,23 +49,17 @@ const LoginForm: React.FC<LoginFormProps> = ({
     }
 
     try {
-      // ✅ Lấy user data trực tiếp từ login function
       const loggedInUser = await login(email, password);
 
       if (loggedInUser && loggedInUser.roles) {
-        // Filter roles (không phân biệt hoa thường)
         const validRoles = loggedInUser.roles.filter((role) =>
           ["user", "photographer", "owner"].includes(role.toLowerCase())
         );
 
         if (validRoles.length === 1) {
-          // Single role - navigate directly
           const role = validRoles[0].toLowerCase();
-
-          // Save selected role
           await AsyncStorage.setItem("selectedRole", role);
 
-          // Navigate based on role
           switch (role) {
             case "user":
               navigation.reset({
@@ -99,7 +100,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
 
       onSubmit?.(email, password);
     } catch (error: any) {
-      console.error("🔍 LOGIN ERROR:", error);
+      console.error("🔥 LOGIN ERROR:", error);
       Alert.alert("Đăng nhập thất bại", error.message || "Có lỗi xảy ra");
     }
   };
@@ -108,7 +109,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
   };
-  
+
   const handleForgotPassword = () => {
     if (onNavigateToForgotPassword) {
       onNavigateToForgotPassword();
@@ -126,24 +127,28 @@ const LoginForm: React.FC<LoginFormProps> = ({
       {/* Email Input */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Email</Text>
-        <View style={[
-          styles.inputContainer,
-          emailFocused && styles.inputContainerFocused
-        ]}>
-          <View style={styles.inputIcon}>
-            <Text style={styles.iconText}>✉️</Text>
-          </View>
+        <View
+          style={[
+            styles.inputContainer,
+            emailFocused && styles.inputContainerFocused,
+          ]}
+        >
           <TextInput
             style={styles.textInput}
-            placeholder="example@gmail.com"
-            placeholderTextColor="#A16207"
+            placeholder="your.email@example.com"
+            placeholderTextColor="#9CA3AF"
             value={email}
             onChangeText={setEmail}
             onFocus={() => setEmailFocused(true)}
             onBlur={() => setEmailFocused(false)}
             keyboardType="email-address"
             autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
             editable={!isLoading}
+            returnKeyType="next"
+            multiline={false}
+            numberOfLines={1}
           />
         </View>
       </View>
@@ -151,23 +156,27 @@ const LoginForm: React.FC<LoginFormProps> = ({
       {/* Password Input */}
       <View style={styles.inputGroup}>
         <Text style={styles.inputLabel}>Mật khẩu</Text>
-        <View style={[
-          styles.inputContainer,
-          passwordFocused && styles.inputContainerFocused
-        ]}>
-          <View style={styles.inputIcon}>
-            <Text style={styles.iconText}>🗝️</Text>
-          </View>
+        <View
+          style={[
+            styles.inputContainer,
+            passwordFocused && styles.inputContainerFocused,
+          ]}
+        >
           <TextInput
             style={[styles.textInput, styles.passwordInput]}
-            placeholder="Nhập mật khẩu"
-            placeholderTextColor="#A16207"
+            placeholder="••••••••"
+            placeholderTextColor="#9CA3AF"
             value={password}
             onChangeText={setPassword}
             onFocus={() => setPasswordFocused(true)}
             onBlur={() => setPasswordFocused(false)}
             secureTextEntry={!isPasswordVisible}
+            autoComplete="password"
             editable={!isLoading}
+            returnKeyType="done"
+            onSubmitEditing={handleSubmit}
+            multiline={false}
+            numberOfLines={1}
           />
           <TouchableOpacity
             style={styles.passwordToggle}
@@ -175,11 +184,9 @@ const LoginForm: React.FC<LoginFormProps> = ({
             activeOpacity={0.7}
             disabled={isLoading}
           >
-            <View style={styles.toggleButton}>
-              <Text style={styles.toggleIcon}>
-                {isPasswordVisible ? '🙈' : '👁️'}
-              </Text>
-            </View>
+            <Text style={styles.toggleText}>
+              {isPasswordVisible ? "Ẩn" : "Hiện"}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -192,7 +199,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
         activeOpacity={0.7}
       >
         <Text style={[styles.forgotPasswordText, isLoading && styles.disabled]}>
-          Quên mật khẩu? 
+          Quên mật khẩu?
         </Text>
       </TouchableOpacity>
 
@@ -201,38 +208,40 @@ const LoginForm: React.FC<LoginFormProps> = ({
         style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
         onPress={handleSubmit}
         disabled={isLoading}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
-        <LinearGradient
-          colors={['#F97316', '#EA580C', '#DC2626']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={styles.loginButtonGradient}
-        >
-          <Text style={styles.loginButtonText}>
-            {isLoading ? '⏳ Đang đăng nhập...' : '🚀 Đăng nhập'}
-          </Text>
-        </LinearGradient>
+        <Text style={styles.loginButtonText}>
+          {isLoading ? "Đang đăng nhập..." : "Đăng nhập"}
+        </Text>
       </TouchableOpacity>
 
-      {/* Register Link */}
-      <View style={styles.registerContainer}>
-        <Text style={styles.registerText}>Chưa có tài khoản? </Text>
-        <TouchableOpacity 
-          onPress={onRegister} 
-          disabled={isLoading}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.registerLink, isLoading && styles.disabled]}>
-            Đăng ký ngay 
-          </Text>
-        </TouchableOpacity>
+      {/* Divider */}
+      <View style={styles.dividerContainer}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>hoặc</Text>
+        <View style={styles.dividerLine} />
       </View>
 
-      {/* Photography Tip */}
+      {/* Register Link */}
+      <TouchableOpacity
+        style={styles.registerButton}
+        onPress={onRegister}
+        disabled={isLoading}
+        activeOpacity={0.7}
+      >
+        <Text style={[styles.registerButtonText, isLoading && styles.disabled]}>
+          Tạo tài khoản mới
+        </Text>
+      </TouchableOpacity>
+
+      {/* Professional Tip */}
       <View style={styles.tipContainer}>
+        <View style={styles.tipHeader}>
+          <Text style={styles.tipTitle}>Pro Tip</Text>
+        </View>
         <Text style={styles.tipText}>
-          💡 <Text style={styles.tipHighlight}>Mẹo:</Text> Chụp ảnh đẹp nhất vào golden hour (6-7h sáng, 5-6h chiều)
+          Chụp ảnh trong <Text style={styles.tipHighlight}>Golden Hour</Text>{" "}
+          (6-7h sáng, 5-6h chiều) để có ánh sáng tự nhiên đẹp nhất
         </Text>
       </View>
     </View>
@@ -241,201 +250,177 @@ const LoginForm: React.FC<LoginFormProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    width: "100%",
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#EA580C',
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 8,
-    marginLeft: 4,
+    letterSpacing: 0.2,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF3C7',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#FDE68A',
-    paddingHorizontal: 4,
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    paddingHorizontal: 16,
+    height: 56,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   inputContainerFocused: {
-    borderColor: '#F97316',
-    backgroundColor: '#FFFBEB',
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  inputIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#FED7AA',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 6,
-    marginLeft: 6,
-  },
-  iconText: {
-    fontSize: 18,
+    borderColor: "#111827",
+    shadowColor: "#000000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   textInput: {
     flex: 1,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
     fontSize: 16,
-    color: '#92400E',
-    fontWeight: '500',
+    color: "#111827",
+    fontWeight: "400",
+    paddingVertical: 0,
+    textAlignVertical: "center",
   },
   passwordInput: {
     paddingRight: 60,
   },
   passwordToggle: {
-    position: 'absolute',
-    right: 8,
-    top: '50%',
-    transform: [{ translateY: -20 }],
-  },
-  toggleButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FED7AA',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  toggleIcon: {
-    fontSize: 16,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: 24,
-    paddingVertical: 4,
+    position: "absolute",
+    right: 16,
+    paddingVertical: 8,
     paddingHorizontal: 8,
   },
-  forgotPasswordText: {
-    color: '#DC2626',
+  toggleText: {
     fontSize: 14,
-    fontWeight: '600',
+    color: "#6B7280",
+    fontWeight: "600",
+  },
+  forgotPassword: {
+    alignSelf: "flex-end",
+    marginBottom: 32,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  forgotPasswordText: {
+    color: "#6B7280",
+    fontSize: 14,
+    fontWeight: "500",
   },
   loginButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 20,
-    shadowColor: '#EA580C',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    backgroundColor: "#111827",
+    borderRadius: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    marginBottom: 24,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 56,
   },
   loginButtonDisabled: {
-    opacity: 0.7,
-  },
-  loginButtonGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#9CA3AF",
   },
   loginButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    letterSpacing: 0.3,
   },
   dividerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#FDE68A',
+    backgroundColor: "#E5E7EB",
   },
   dividerText: {
     marginHorizontal: 16,
-    color: '#A16207',
+    color: "#9CA3AF",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
-  socialButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    gap: 12,
-  },
-  socialButton: {
-    flex: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#D1D5DB',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  socialButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  registerButton: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    marginBottom: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 56,
   },
-  socialButtonIcon: {
-    fontSize: 18,
-    marginRight: 8,
-  },
-  socialButtonText: {
-    color: '#374151',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  registerText: {
-    color: '#A16207',
-    fontSize: 14,
-  },
-  registerLink: {
-    color: '#DC2626',
-    fontSize: 14,
-    fontWeight: '700',
+  registerButtonText: {
+    color: "#374151",
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    letterSpacing: 0.3,
   },
   tipContainer: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
-    padding: 16,
+    padding: 20,
     borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
+    borderLeftColor: "#E5E7EB",
+  },
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  tipIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  tipIconText: {
+    fontSize: 12,
+  },
+  tipTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: 0.2,
   },
   tipText: {
-    color: '#92400E',
-    fontSize: 12,
-    lineHeight: 18,
-    textAlign: 'center',
+    color: "#6B7280",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400",
   },
   tipHighlight: {
-    fontWeight: '700',
-    color: '#EA580C',
+    fontWeight: "700",
+    color: "#111827",
   },
   disabled: {
     opacity: 0.5,

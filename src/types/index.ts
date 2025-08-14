@@ -1,6 +1,5 @@
 export * from './photographer';
 export * from './location';
-export { Review as GeneralReview } from './review';
 export * from './user';
 export {
     UserProfile,
@@ -28,4 +27,5 @@ export {
   // Xuất tất cả từ booking, trừ AvailabilityResponse để tránh xung đột
   export * from './booking';
   export * from './userStyle';
-  export * from './availability';
+  export { CheckAvailabilityResponse } from './availability'; 
+export {EventStatistics, EventStatus, ApplicationStatus, BookingStatus as PhotographerEventBookingStatus } from './photographerEvent';

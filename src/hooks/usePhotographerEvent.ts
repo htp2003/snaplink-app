@@ -1,13 +1,13 @@
-// hooks/usePhotographerEvent.ts
-
 import { useState, useEffect, useCallback } from 'react';
 import { 
   LocationEvent, 
   EventApplication, 
   EventApplicationRequest,
-  ApiResponse,
-  EventPhotographer
-} from '../types/photographerEvent';
+  EventPhotographer,
+  EventStatistics,
+  EventBooking,
+  EventBookingRequest
+} from '../types/event';
 import { photographerEventService } from '../services/photographerEventService';
 
 // Hook for discovering events (active, upcoming, featured)
@@ -323,5 +323,250 @@ export const useApprovedPhotographers = (eventId: number | null) => {
     loading,
     error,
     refetch: fetchApprovedPhotographers
+  };
+};
+
+// ========== CUSTOMER BOOKING HOOKS ==========
+export const useEventBooking = () => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const bookEvent = async (request: EventBookingRequest): Promise<any | null> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.bookEvent(request);
+      
+      if (response.error === 0) {
+        console.log("✅ Event booking successful:", response.data);
+        return response.data; // ✅ Return the actual booking data
+      } else {
+        setError(response.message);
+        console.error("❌ Event booking failed:", response.message);
+        return null;
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Booking failed';
+      setError(errorMessage);
+      console.error("❌ Event booking error:", err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelBooking = async (eventBookingId: number): Promise<boolean> => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.cancelEventBooking(eventBookingId);
+      
+      if (response.error === 0) {
+        return true;
+      } else {
+        setError(response.message);
+        return false;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Cancellation failed');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    bookEvent,
+    cancelBooking,
+    loading,
+    error
+  };
+};
+
+// ========== USER BOOKINGS HOOK ==========
+
+export const useUserEventBookings = (userId: number | null) => {
+  const [bookings, setBookings] = useState<EventBooking[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchUserBookings = useCallback(async () => {
+    if (!userId) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.getUserEventBookings(userId);
+      
+      if (response.error === 0) {
+        setBookings(response.data || []);
+      } else {
+        setError(response.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load bookings');
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchUserBookings();
+  }, [fetchUserBookings]);
+
+  return {
+    bookings,
+    loading,
+    error,
+    refetch: fetchUserBookings
+  };
+};
+
+// ========== HOT EVENTS HOOK ==========
+
+export const useHotEvents = () => {
+  const [hotEvents, setHotEvents] = useState<LocationEvent[]>([]);
+  const [trendingEvents, setTrendingEvents] = useState<LocationEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchHotEvents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const [hotResponse, trendingResponse] = await Promise.all([
+        photographerEventService.getHotEvents(),
+        photographerEventService.getTrendingEvents()
+      ]);
+      
+      if (hotResponse.error === 0) {
+        setHotEvents(hotResponse.data || []);
+      }
+      
+      if (trendingResponse.error === 0) {
+        setTrendingEvents(trendingResponse.data || []);
+      }
+      
+      if (hotResponse.error !== 0 && trendingResponse.error !== 0) {
+        setError('Failed to load hot events');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load events');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchHotEvents();
+  }, [fetchHotEvents]);
+
+  return {
+    hotEvents,
+    trendingEvents,
+    loading,
+    error,
+    refetch: fetchHotEvents
+  };
+};
+
+// ========== EVENT STATISTICS HOOK ==========
+
+export const useEventStatistics = (eventId: number | null) => {
+  const [statistics, setStatistics] = useState<EventStatistics | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStatistics = useCallback(async () => {
+    if (!eventId) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await photographerEventService.getEventStatistics(eventId);
+      
+      if (response.error === 0) {
+        setStatistics(response.data);
+      } else {
+        setError(response.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load statistics');
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    fetchStatistics();
+  }, [fetchStatistics]);
+
+  return {
+    statistics,
+    loading,
+    error,
+    refetch: fetchStatistics
+  };
+};
+
+// ========== ENHANCED EVENT DISCOVERY ==========
+
+export const useCustomerEventDiscovery = () => {
+  const [allEvents, setAllEvents] = useState<LocationEvent[]>([]);
+  const [hotEvents, setHotEvents] = useState<LocationEvent[]>([]);
+  const [featuredEvents, setFeaturedEvents] = useState<LocationEvent[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<LocationEvent[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchAllCustomerEvents = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const [allResponse, hotResponse, featuredResponse, upcomingResponse] = await Promise.all([
+        photographerEventService.getAllEvents(),
+        photographerEventService.getHotEvents(),
+        photographerEventService.getFeaturedEvents(),
+        photographerEventService.getUpcomingEvents()
+      ]);
+      
+      if (allResponse.error === 0) {
+        setAllEvents(allResponse.data || []);
+      }
+      if (hotResponse.error === 0) {
+        setHotEvents(hotResponse.data || []);
+      }
+      if (featuredResponse.error === 0) {
+        setFeaturedEvents(featuredResponse.data || []);
+      }
+      if (upcomingResponse.error === 0) {
+        setUpcomingEvents(upcomingResponse.data || []);
+      }
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load events');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAllCustomerEvents();
+  }, [fetchAllCustomerEvents]);
+
+  return {
+    allEvents,
+    hotEvents,
+    featuredEvents,
+    upcomingEvents,
+    loading,
+    error,
+    refetch: fetchAllCustomerEvents
   };
 };

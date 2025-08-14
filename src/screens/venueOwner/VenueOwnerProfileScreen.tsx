@@ -1,4 +1,4 @@
-// screens/venueOwner/VenueOwnerProfileScreen.tsx - COMPLETED with new API
+// screens/venueOwner/VenueOwnerProfileScreen.tsx - UPDATED
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Modal,
   TextInput,
+  Image,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
@@ -177,7 +178,7 @@ export default function VenueOwnerProfileScreen() {
               routes: [{ name: "Login" }], // nhớ đổi nếu Login có tên route khác
             });
           } catch (error) {
-            console.error("❌ Logout error:", error);
+            console.error("⚠ Logout error:", error);
 
             Alert.alert(
               "Lỗi đăng xuất",
@@ -211,6 +212,35 @@ export default function VenueOwnerProfileScreen() {
       businessAddress: "",
       businessRegistrationNumber: "",
     });
+  };
+
+  // Avatar component
+  const ProfileAvatar = () => {
+    // Debug log to check user object structure
+    console.log("🔍 User object for avatar:", user);
+    console.log("🔍 Profile image:", user?.profileImage);
+
+    // Temporary test with fixed image URL
+    const testImageUrl = "https://picsum.photos/200/300";
+    const imageUrl = user?.profileImage || testImageUrl;
+
+    return (
+      <View className="w-20 h-20 bg-gray-200 rounded-full border-2 border-gray-300 overflow-hidden">
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            className="w-full h-full"
+            resizeMode="cover"
+            onError={(error) => console.log("❌ Image load error:", error)}
+            onLoad={() => console.log("✅ Image loaded successfully")}
+          />
+        ) : (
+          <View className="w-full h-full bg-gray-100 items-center justify-center">
+            <Text className="text-gray-400 text-xs">No Image</Text>
+          </View>
+        )}
+      </View>
+    );
   };
 
   useEffect(() => {
@@ -250,10 +280,8 @@ export default function VenueOwnerProfileScreen() {
         <View className="mx-4 mt-4">
           <View className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
             <View className="items-center mb-6">
-              <View className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full items-center justify-center mb-4">
-                <Text className="text-white text-2xl font-bold">
-                  {user?.fullName?.charAt(0).toUpperCase() || "V"}
-                </Text>
+              <View className="mb-4">
+                <ProfileAvatar />
               </View>
               <Text className="text-xl font-semibold text-gray-900">
                 {user?.fullName || "Venue Owner"}
@@ -360,20 +388,14 @@ export default function VenueOwnerProfileScreen() {
           <View className="space-y-3">
             <TouchableOpacity
               className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
-              onPress={() =>
-                Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
-              }
+              onPress={() => navigation.navigate("VenueOwnerSubscription")}
             >
               <View className="flex-row items-center">
                 <View className="bg-green-100 p-3 rounded-full mr-4">
-                  <Ionicons
-                    name="storefront-outline"
-                    size={20}
-                    color="#10B981"
-                  />
+                  <Ionicons name="card-outline" size={20} color="#10B981" />
                 </View>
                 <Text className="text-gray-900 font-medium">
-                  Quản lý venues
+                  Quản lý gói đăng ký
                 </Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#6B7280" />

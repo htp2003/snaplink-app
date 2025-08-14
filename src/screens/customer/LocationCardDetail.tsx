@@ -1,18 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  Image, 
-  TouchableOpacity, 
-  ScrollView, 
-  StatusBar, 
-  Dimensions, 
-  Alert, 
-  ActivityIndicator, 
-  FlatList, 
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  ScrollView,
+  StatusBar,
+  Dimensions,
+  Alert,
+  ActivityIndicator,
+  FlatList,
   Animated,
   Linking,
-  Platform 
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,25 +33,25 @@ export default function LocationCardDetail() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<LocationCardDetailRouteProp>();
   const { locationId } = route.params;
-  
+
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [addressValidation, setAddressValidation] = useState<{
     isValid: boolean;
     coordinates?: { lat: number; lng: number };
     displayName?: string;
   } | null>(null);
-  
+
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
-  
+
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { trackView } = useRecentlyViewed();
-  
+
   // Use updated hook with Image API integration
-  const { 
-    locationDetail, 
-    loading, 
-    error, 
+  const {
+    locationDetail,
+    loading,
+    error,
     fetchLocationById,
     // Gallery images from Image API
     galleryImages, // This is now string[] from imageUrls
@@ -88,7 +88,7 @@ export default function LocationCardDetail() {
   // Helper function to open maps
   const openMapsApp = async (lat: number, lng: number, address: string) => {
     const encodedAddress = encodeURIComponent(address);
-    
+
     const urls = {
       googleMaps: `https://maps.google.com/maps?q=${lat},${lng}`,
       appleMaps: `http://maps.apple.com/?ll=${lat},${lng}&q=${encodedAddress}`,
@@ -97,14 +97,14 @@ export default function LocationCardDetail() {
 
     try {
       let urlToOpen = urls.googleMaps;
-      
+
       if (Platform.OS === 'ios') {
         const canOpenAppleMaps = await Linking.canOpenURL(urls.appleMaps);
         if (canOpenAppleMaps) {
           urlToOpen = urls.appleMaps;
         }
       }
-      
+
       const canOpen = await Linking.canOpenURL(urlToOpen);
       if (canOpen) {
         await Linking.openURL(urlToOpen);
@@ -125,10 +125,10 @@ export default function LocationCardDetail() {
   useEffect(() => {
     const validateAddress = async () => {
       if (!locationDetail?.address) return;
-      
+
       try {
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         const response = await fetch(
           `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationDetail.address)}&limit=1&countrycodes=vn&addressdetails=1`,
           {
@@ -137,26 +137,26 @@ export default function LocationCardDetail() {
             }
           }
         );
-        
+
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
-        
+
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
           setAddressValidation({ isValid: false });
           return;
         }
-        
+
         const data = await response.json();
-        
+
         if (data && Array.isArray(data) && data.length > 0) {
           const result = data[0];
           setAddressValidation({
             isValid: true,
-            coordinates: { 
-              lat: parseFloat(result.lat), 
-              lng: parseFloat(result.lon) 
+            coordinates: {
+              lat: parseFloat(result.lat),
+              lng: parseFloat(result.lon)
             },
             displayName: result.display_name
           });
@@ -182,7 +182,7 @@ export default function LocationCardDetail() {
 
   // Track recently viewed - only once when locationDetail is loaded
   const [hasTrackedView, setHasTrackedView] = useState(false);
-  
+
   useEffect(() => {
     if (locationDetail && !hasTrackedView) {
       const trackData = {
@@ -192,8 +192,8 @@ export default function LocationCardDetail() {
           id: locationDetail.locationId.toString(),
           locationId: locationDetail.locationId,
           name: locationDetail.name || 'Unknown Location',
-          avatar: locationDetail.ownerAvatar || '', 
-          images: galleryImages || [], 
+          avatar: locationDetail.ownerAvatar || '',
+          images: galleryImages || [],
           styles: getAmenities(),
           address: locationDetail.address,
           hourlyRate: locationDetail.hourlyRate,
@@ -201,7 +201,7 @@ export default function LocationCardDetail() {
           availabilityStatus: locationDetail.availabilityStatus
         }
       };
-      
+
       console.log('Tracked view:', trackData.type, trackData.id);
       trackView(trackData);
       setHasTrackedView(true);
@@ -223,7 +223,7 @@ export default function LocationCardDetail() {
 
   const handleToggleFavorite = useCallback(() => {
     if (!locationDetail) return;
-    
+
     const favoriteItem: FavoriteItem = {
       id: locationDetail.locationId.toString(),
       type: 'location',
@@ -231,15 +231,15 @@ export default function LocationCardDetail() {
         id: locationDetail.locationId.toString(),
         locationId: locationDetail.locationId,
         name: locationDetail.name || 'Unknown Location',
-        avatar: locationDetail.ownerAvatar || '', 
-        images: galleryImages || [], 
+        avatar: locationDetail.ownerAvatar || '',
+        images: galleryImages || [],
         styles: getAmenities(),
         address: locationDetail.address,
         hourlyRate: locationDetail.hourlyRate,
         availabilityStatus: locationDetail.availabilityStatus
       }
     };
-    
+
     if (isFavorite(locationDetail.locationId.toString(), 'location')) {
       removeFavorite(locationDetail.locationId.toString(), 'location');
     } else {
@@ -286,8 +286,8 @@ export default function LocationCardDetail() {
     <View style={{ width }}>
       <Image
         source={{ uri: item }}
-        style={{ 
-          width, 
+        style={{
+          width,
           height: height * 0.6 + 50,
           marginTop: -50
         }}
@@ -309,6 +309,31 @@ export default function LocationCardDetail() {
     });
     return () => scrollY.removeListener(listener);
   }, [scrollY]);
+// Sửa function handleBookLocation
+const handleBookLocation = () => {
+  if (!locationDetail?.locationId) {
+    Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
+    return;
+  }
+
+  // ✅ Cast as any to bypass type check
+  const locationData: any = {
+    locationId: locationDetail.locationId,
+    name: locationDetail.name || 'Unknown Location',
+    address: locationDetail.address || '',
+    hourlyRate: locationDetail.hourlyRate || 0,
+    imageUrl: galleryImages?.[0] || '', 
+    capacity: locationDetail.capacity || 0,
+    styles: getAmenities(),
+    indoor: locationDetail.indoor || false,
+    outdoor: locationDetail.outdoor || false,
+  };
+
+  // ✅ Cast navigation as any
+  (navigation as any).navigate('Booking', {
+    location: locationData,
+  });
+};
 
   if (loading) {
     return (
@@ -339,7 +364,7 @@ export default function LocationCardDetail() {
   return (
     <View className="flex-1 bg-white">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
+
       <View className="flex-1">
         {/* Fixed Header Controls */}
         <Animated.View
@@ -580,7 +605,7 @@ export default function LocationCardDetail() {
             }}
           >
             <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(24) }}>
-              
+
               {/* Header Info */}
               <View className="items-center mb-4">
                 <View className="flex-row items-center mb-2">
@@ -592,7 +617,7 @@ export default function LocationCardDetail() {
                     {locationDetail?.name || 'Studio Location'}
                   </Text>
                 </View>
-                
+
                 <Text
                   className="text-stone-600 text-center mb-2"
                   style={{ fontSize: getResponsiveSize(16) }}
@@ -682,15 +707,15 @@ export default function LocationCardDetail() {
                     <Ionicons name="business-outline" size={getResponsiveSize(28)} color="#10b981" />
                   </View>
                 )}
-                
+
                 <View className="flex-1">
                   <Text
                     className="text-stone-900 font-semibold"
                     style={{ fontSize: getResponsiveSize(18) }}
                   >
-                    {locationDetail?.locationOwner?.businessName || 
-                     locationDetail?.ownerProfile?.fullName || 
-                     'Professional Studio'}
+                    {locationDetail?.locationOwner?.businessName ||
+                      locationDetail?.ownerProfile?.fullName ||
+                      'Professional Studio'}
                   </Text>
                   <Text
                     className="text-stone-600"
@@ -699,13 +724,13 @@ export default function LocationCardDetail() {
                     {locationDetail?.availabilityStatus || 'Available'} • {locationDetail?.locationOwner?.verificationStatus || 'Verified'}
                   </Text>
                 </View>
-                
-                {(locationDetail?.verificationStatus === 'Verified' || 
+
+                {(locationDetail?.verificationStatus === 'Verified' ||
                   locationDetail?.locationOwner?.verificationStatus === 'Verified') && (
-                  <View className="ml-2">
-                    <Ionicons name="checkmark-circle" size={getResponsiveSize(20)} color="#10b981" />
-                  </View>
-                )}
+                    <View className="ml-2">
+                      <Ionicons name="checkmark-circle" size={getResponsiveSize(20)} color="#10b981" />
+                    </View>
+                  )}
               </View>
 
               {/* Location Features Section */}
@@ -767,13 +792,13 @@ export default function LocationCardDetail() {
                       className="text-stone-600 leading-6"
                       style={{ fontSize: getResponsiveSize(14) }}
                     >
-                      {locationDetail?.indoor && locationDetail?.outdoor 
+                      {locationDetail?.indoor && locationDetail?.outdoor
                         ? 'Cả trong nhà và ngoài trời'
-                        : locationDetail?.indoor 
-                        ? 'Trong nhà' 
-                        : locationDetail?.outdoor 
-                        ? 'Ngoài trời'
-                        : 'Studio chuyên nghiệp'}
+                        : locationDetail?.indoor
+                          ? 'Trong nhà'
+                          : locationDetail?.outdoor
+                            ? 'Ngoài trời'
+                            : 'Studio chuyên nghiệp'}
                     </Text>
                   </View>
                 </View>
@@ -811,7 +836,7 @@ export default function LocationCardDetail() {
                       className="text-stone-600 leading-6"
                       style={{ fontSize: getResponsiveSize(14) }}
                     >
-                      {galleryImages && galleryImages.length > 0 
+                      {galleryImages && galleryImages.length > 0
                         ? `${galleryImages.length} ảnh được upload cho địa điểm này.`
                         : 'Đang cập nhật ảnh mới nhất từ Image API.'
                       }
@@ -834,8 +859,8 @@ export default function LocationCardDetail() {
                     Nơi bạn sẽ đến
                   </Text>
                 </View>
-                
-                <View 
+
+                <View
                   className="bg-stone-100 rounded-2xl overflow-hidden"
                   style={{ height: getResponsiveSize(220) }}
                 >
@@ -848,8 +873,8 @@ export default function LocationCardDetail() {
                           'Bạn muốn mở vị trí này trong ứng dụng bản đồ?',
                           [
                             { text: 'Hủy', style: 'cancel' },
-                            { 
-                              text: 'Mở', 
+                            {
+                              text: 'Mở',
                               onPress: () => {
                                 const { lat, lng } = addressValidation.coordinates!;
                                 const address = locationDetail?.address || 'Location';
@@ -863,7 +888,7 @@ export default function LocationCardDetail() {
                       <Image
                         source={{
                           uri: getStaticMapUrl(
-                            addressValidation.coordinates.lat, 
+                            addressValidation.coordinates.lat,
                             addressValidation.coordinates.lng,
                             15
                           )
@@ -871,19 +896,19 @@ export default function LocationCardDetail() {
                         style={{ width: '100%', height: '100%' }}
                         resizeMode="cover"
                       />
-                      
-                      <View 
+
+                      <View
                         className="absolute"
-                        style={{ 
+                        style={{
                           top: '45%',
                           left: '47%',
                           transform: [{ translateX: -16 }, { translateY: -16 }]
                         }}
                       >
-                        <View 
+                        <View
                           className="bg-emerald-500 rounded-full items-center justify-center shadow-lg"
-                          style={{ 
-                            width: getResponsiveSize(32), 
+                          style={{
+                            width: getResponsiveSize(32),
                             height: getResponsiveSize(32),
                             shadowColor: '#000',
                             shadowOffset: { width: 0, height: 2 },
@@ -896,7 +921,7 @@ export default function LocationCardDetail() {
                         </View>
                       </View>
 
-                      <View 
+                      <View
                         className="absolute top-3 left-3 bg-white/95 backdrop-blur-sm rounded-xl px-3 py-2 shadow-sm"
                         style={{
                           shadowColor: '#000',
@@ -908,7 +933,7 @@ export default function LocationCardDetail() {
                       >
                         <View className="flex-row items-center">
                           <Ionicons name="map" size={getResponsiveSize(14)} color="#10b981" />
-                          <Text 
+                          <Text
                             className="text-stone-800 font-semibold ml-1"
                             style={{ fontSize: getResponsiveSize(11) }}
                           >
@@ -917,10 +942,10 @@ export default function LocationCardDetail() {
                         </View>
                       </View>
 
-                      <View 
+                      <View
                         className="absolute bottom-2 right-2 bg-black/70 rounded px-2 py-1"
                       >
-                        <Text 
+                        <Text
                           className="text-white"
                           style={{ fontSize: getResponsiveSize(9) }}
                         >
@@ -930,21 +955,21 @@ export default function LocationCardDetail() {
                     </TouchableOpacity>
                   ) : (
                     <View className="flex-1 items-center justify-center">
-                      <Ionicons 
-                        name={addressValidation === null ? "map-outline" : "location-outline"} 
-                        size={getResponsiveSize(40)} 
-                        color="#9ca3af" 
+                      <Ionicons
+                        name={addressValidation === null ? "map-outline" : "location-outline"}
+                        size={getResponsiveSize(40)}
+                        color="#9ca3af"
                       />
                       <Text className="text-stone-500 mt-2 text-center">
-                        {addressValidation === null 
-                          ? 'Đang kiểm tra địa chỉ...' 
+                        {addressValidation === null
+                          ? 'Đang kiểm tra địa chỉ...'
                           : 'Không thể xác thực địa chỉ'
                         }
                       </Text>
                       {addressValidation === null && (
                         <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 8 }} />
                       )}
-                      
+
                       {locationDetail?.address && (
                         <Text className="text-stone-400 mt-2 text-center text-xs">
                           {locationDetail.address}
@@ -953,19 +978,19 @@ export default function LocationCardDetail() {
                     </View>
                   )}
                 </View>
-                
+
                 {/* Address Info */}
                 <View className="mt-4 p-4 bg-stone-50 rounded-xl">
                   <View className="flex-row items-center justify-between">
                     <View className="flex-1">
-                      <Text 
+                      <Text
                         className="text-stone-900 font-medium"
                         style={{ fontSize: getResponsiveSize(14) }}
                       >
                         📍 {locationDetail?.address || 'Chưa có địa chỉ cụ thể'}
                       </Text>
                       {addressValidation?.displayName && (
-                        <Text 
+                        <Text
                           className="text-stone-600 mt-1"
                           style={{ fontSize: getResponsiveSize(12) }}
                         >
@@ -973,7 +998,7 @@ export default function LocationCardDetail() {
                         </Text>
                       )}
                       {addressValidation?.coordinates && (
-                        <Text 
+                        <Text
                           className="text-stone-500 mt-1"
                           style={{ fontSize: getResponsiveSize(11) }}
                         >
@@ -981,12 +1006,12 @@ export default function LocationCardDetail() {
                         </Text>
                       )}
                     </View>
-                    
+
                     <View className="ml-2">
                       {addressValidation === null ? (
                         <View className="flex-row items-center bg-blue-100 px-3 py-1 rounded-full">
                           <ActivityIndicator size="small" color="#3b82f6" />
-                          <Text 
+                          <Text
                             className="text-blue-700 font-medium ml-2"
                             style={{ fontSize: getResponsiveSize(11) }}
                           >
@@ -996,7 +1021,7 @@ export default function LocationCardDetail() {
                       ) : addressValidation.isValid ? (
                         <View className="flex-row items-center bg-emerald-100 px-3 py-1 rounded-full">
                           <Ionicons name="checkmark-circle" size={getResponsiveSize(14)} color="#10b981" />
-                          <Text 
+                          <Text
                             className="text-emerald-700 font-medium ml-1"
                             style={{ fontSize: getResponsiveSize(11) }}
                           >
@@ -1006,7 +1031,7 @@ export default function LocationCardDetail() {
                       ) : (
                         <View className="flex-row items-center bg-amber-100 px-3 py-1 rounded-full">
                           <Ionicons name="warning" size={getResponsiveSize(14)} color="#f59e0b" />
-                          <Text 
+                          <Text
                             className="text-amber-700 font-medium ml-1"
                             style={{ fontSize: getResponsiveSize(11) }}
                           >
@@ -1016,10 +1041,10 @@ export default function LocationCardDetail() {
                       )}
                     </View>
                   </View>
-                  
+
                   {addressValidation?.isValid && (
                     <View className="mt-3 pt-3 border-t border-stone-200">
-                      <Text 
+                      <Text
                         className="text-stone-500"
                         style={{ fontSize: getResponsiveSize(11) }}
                       >
@@ -1031,7 +1056,7 @@ export default function LocationCardDetail() {
               </View>
             </View>
           </View>
-          
+
           <View style={{ height: getResponsiveSize(32) }} />
         </Animated.ScrollView>
 
@@ -1049,7 +1074,7 @@ export default function LocationCardDetail() {
                 onPress={() => {
                   const businessInfo = locationDetail?.locationOwner;
                   const ownerInfo = locationDetail?.ownerProfile;
-                  
+
                   const contactInfo = [
                     businessInfo?.businessName && `Tên doanh nghiệp: ${businessInfo.businessName}`,
                     ownerInfo?.fullName && `Chủ sở hữu: ${ownerInfo.fullName}`,
@@ -1071,6 +1096,19 @@ export default function LocationCardDetail() {
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Liên hệ
+                </Text>
+              </TouchableOpacity>
+              {/* Book Location Button */}
+              <TouchableOpacity
+                className="flex-1 bg-emerald-500 rounded-2xl items-center"
+                style={{ paddingVertical: getResponsiveSize(16) }}
+                onPress={handleBookLocation}
+              >
+                <Text
+                  className="text-white font-bold"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Đặt lịch tại đây
                 </Text>
               </TouchableOpacity>
             </View>

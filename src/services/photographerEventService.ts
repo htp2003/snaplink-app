@@ -5,12 +5,31 @@ import {
   EventApplication, 
   EventApplicationRequest,
   ApiResponse,
-  EventPhotographer
+  EventPhotographer,
+  EventBookingRequest,
+  EventStatistics
 } from '../types/photographerEvent';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
 
 class PhotographerEventService {
+  private async getHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    try {
+      const token = await AsyncStorage.getItem("token");
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    } catch (error) {
+      console.error("Error getting token from AsyncStorage:", error);
+    }
+
+    return headers;
+  }
+  
    private async getAuthToken(): Promise<string | null> {
     try {
       const token = await AsyncStorage.getItem("token");
@@ -170,6 +189,269 @@ class PhotographerEventService {
       return null;
     }
   }
+
+  // ========== CUSTOMER BOOKING METHODS ==========
+  async bookEvent(request: EventBookingRequest): Promise<ApiResponse<any>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent/booking`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(request)
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error booking event:', error);
+    throw error;
+  }
+}
+
+async getEventBookings(eventId: number): Promise<ApiResponse<any[]>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent/${eventId}/bookings`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching event bookings:', error);
+    throw error;
+  }
+}
+
+async getUserEventBookings(userId: number): Promise<ApiResponse<any[]>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent/user/${userId}/bookings`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching user event bookings:', error);
+    throw error;
+  }
+}
+
+async cancelEventBooking(eventBookingId: number): Promise<ApiResponse<any>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent/booking/${eventBookingId}`, {
+      method: 'DELETE',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error canceling event booking:', error);
+    throw error;
+  }
+}
+
+// ========== GENERAL EVENT METHODS ==========
+
+async getAllEvents(): Promise<ApiResponse<LocationEvent[]>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching all events:', error);
+    throw error;
+  }
+}
+
+async getEventsByLocation(locationId: number): Promise<ApiResponse<LocationEvent[]>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent/location/${locationId}`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching events by location:', error);
+    throw error;
+  }
+}
+
+async getEventsByStatus(status: string): Promise<ApiResponse<LocationEvent[]>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent/status/${encodeURIComponent(status)}`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching events by status:', error);
+    throw error;
+  }
+}
+
+async getEventsByDateRange(startDate: string, endDate: string): Promise<ApiResponse<LocationEvent[]>> {
+  try {
+    const headers = await this.getHeaders();
+    const url = `${API_BASE_URL}/api/LocationEvent/date-range?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching events by date range:', error);
+    throw error;
+  }
+}
+
+// ========== EVENT STATISTICS ==========
+async getEventStatistics(eventId: number): Promise<ApiResponse<EventStatistics>> {
+  try {
+    const headers = await this.getHeaders();
+    const response = await fetch(`${API_BASE_URL}/api/LocationEvent/${eventId}/statistics`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Error fetching event statistics:', error);
+    throw error;
+  }
+}
+
+// ========== HOT EVENTS LOGIC ==========
+
+async getHotEvents(): Promise<ApiResponse<LocationEvent[]>> {
+  try {
+    // Get all upcoming events
+    const upcomingResponse = await this.getUpcomingEvents();
+    
+    if (upcomingResponse.error !== 0) {
+      return upcomingResponse;
+    }
+
+    const upcomingEvents = upcomingResponse.data || [];
+    
+    // Filter for "hot" events based on booking activity
+    const hotEvents = upcomingEvents.filter(event => {
+      // Calculate booking rate
+      const bookingRate = event.totalBookingsCount / (event.maxBookingsPerSlot || 1);
+      
+      // Check if discounted
+      const hasDiscount = event.discountedPrice && 
+        event.originalPrice && 
+        event.discountedPrice < event.originalPrice;
+      
+      // Check if starting soon (within 7 days)
+      const eventDate = new Date(event.startDate);
+      const now = new Date();
+      const daysUntilEvent = (eventDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+      const isStartingSoon = daysUntilEvent <= 7;
+      
+      // Hot criteria: high booking rate OR discounted OR starting soon
+      return bookingRate > 0.7 || hasDiscount || isStartingSoon;
+    });
+
+    return {
+      error: 0,
+      message: 'Success',
+      data: hotEvents
+    };
+  } catch (error) {
+    console.error('Error getting hot events:', error);
+    return {
+      error: 1,
+      message: error instanceof Error ? error.message : 'Failed to get hot events',
+      data: []
+    };
+  }
+}
+
+async getTrendingEvents(): Promise<ApiResponse<LocationEvent[]>> {
+  try {
+    // Get all active events and sort by activity
+    const activeResponse = await this.getActiveEvents();
+    
+    if (activeResponse.error !== 0) {
+      return activeResponse;
+    }
+
+    const activeEvents = activeResponse.data || [];
+    
+    // Sort by combination of bookings and photographer applications
+    const trendingEvents = activeEvents
+      .sort((a, b) => {
+        const aActivity = a.totalBookingsCount + a.approvedPhotographersCount;
+        const bActivity = b.totalBookingsCount + b.approvedPhotographersCount;
+        return bActivity - aActivity; // Descending order
+      })
+      .slice(0, 10); // Top 10 trending
+
+    return {
+      error: 0,
+      message: 'Success',
+      data: trendingEvents
+    };
+  } catch (error) {
+    console.error('Error getting trending events:', error);
+    return {
+      error: 1,
+      message: error instanceof Error ? error.message : 'Failed to get trending events',
+      data: []
+    };
+  }
+}
+
+
+
 }
 
 export const photographerEventService = new PhotographerEventService();

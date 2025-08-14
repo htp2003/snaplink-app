@@ -47,16 +47,21 @@ import MessagesScreen from "../screens/customer/MessagesScreen";
 import WalletScreen from "../screens/customer/WalletScreen";
 
 // VenueOwner Event Screens
+import VenueOwnerHomeScreen from "../screens/venueOwner/VenueOwnerHomeScreen";
 import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDetailScreen";
 import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
 import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
+import VenueOwnerSubscriptionScreen from "../screens/venueOwner/VenueOwnerSubscriptionScreen";
+import VenueOwnerTransactionScreen from "../screens/venueOwner/VenueOwnerTransactionScreen";
 
 import VenueOwnerEditEventScreen from "../screens/venueOwner/VenueOwnerEditEventScreen";
 import VenueOwnerEventApplicationsScreen from "../screens/venueOwner/VenueOwnerEventApplicationsScreen";
 import VenueOwnerEventBookingsScreen from "../screens/venueOwner/VenueOwnerEventBookingsScreen";
 import ForgotPasswordScreen from "../screens/ForgotPasswordScreen";
 import ChangePasswordScreen from "../screens/customer/ChangePasswordScreen";
-
+import EventDetailScreen from "../screens/customer/EventDetailScreen";
+import BookingEventScreen from "../screens/customer/BookingEventScreen";
+import OrderEventDetailScreen from "../screens/customer/OrderEventDetailScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -85,8 +90,11 @@ const AppNavigator = () => {
         name="EmailVerification"
         component={EmailVerificationScreen}
       />
-      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen}/>
-      <Stack.Screen name="ChangePasswordScreen" component={ChangePasswordScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen
+        name="ChangePasswordScreen"
+        component={ChangePasswordScreen}
+      />
 
       {/* Các màn hình dành riêng cho Customer */}
       <Stack.Screen
@@ -121,6 +129,9 @@ const AppNavigator = () => {
       />
       <Stack.Screen name="ChatScreen" component={ChatScreen} />
       <Stack.Screen name="NewChatScreen" component={MessagesScreen} />
+      <Stack.Screen name="EventDetailScreen" component={EventDetailScreen} />
+      <Stack.Screen name="BookingEvent" component={BookingEventScreen}/>
+      <Stack.Screen name="OrderEventDetail" component={OrderEventDetailScreen}/>
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen
@@ -168,10 +179,26 @@ const AppNavigator = () => {
 
       {/* Các màn hình dành riêng cho VenueOwner */}
       <Stack.Screen
+        name="VenueOwnerHomeScreen"
+        component={VenueOwnerHomeScreen}
+      />
+      <Stack.Screen
+        name="VenueOwnerTransaction"
+        component={VenueOwnerTransactionScreen}
+      />
+      <Stack.Screen
         name="VenueOwnerProfile"
         component={VenueOwnerProfileScreen}
       />
       <Stack.Screen name="VenueManagement" component={VenueManagementScreen} />
+      <Stack.Screen
+        name="VenueOwnerSubscription"
+        component={VenueOwnerSubscriptionScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
 
       {/* VenueOwner Event Management Screens */}
       <Stack.Screen

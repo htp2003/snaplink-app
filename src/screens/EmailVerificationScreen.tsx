@@ -1,5 +1,4 @@
-// screens/EmailVerificationScreen.tsx - Fixed để handle plain text response
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -12,30 +11,39 @@ import {
   StatusBar,
   Alert,
   ActivityIndicator,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/types';
+  Image,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { RootStackParamList } from "../navigation/types";
 
-const BASE_URL = 'https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net';
+const BASE_URL =
+  "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 
-type Props = NativeStackScreenProps<RootStackParamList, 'EmailVerification'>;
+type Props = NativeStackScreenProps<RootStackParamList, "EmailVerification">;
 
 const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
   const { email } = route.params;
-  
+
   useEffect(() => {
-    console.log('📧 EmailVerificationScreen mounted với email:', email);
+    console.log("📧 EmailVerificationScreen mounted với email:", email);
   }, []);
-  
-  const [verificationCode, setVerificationCode] = useState(['', '', '', '', '', '']);
+
+  const [verificationCode, setVerificationCode] = useState([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+  ]);
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [timeLeft, setTimeLeft] = useState(300); // 5 phút
   const [canResend, setCanResend] = useState(false);
-  const [error, setError] = useState('');
-  
+  const [error, setError] = useState("");
+
   const inputRefs = useRef<TextInput[]>([]);
 
   // Countdown timer
@@ -52,7 +60,7 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Handle code input
@@ -63,7 +71,7 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
     const newCode = [...verificationCode];
     newCode[index] = value;
     setVerificationCode(newCode);
-    setError('');
+    setError("");
 
     // Auto focus next input
     if (value && index < 5) {
@@ -72,7 +80,7 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
 
     // Auto verify when complete
     if (value && index === 5) {
-      const fullCode = newCode.join('');
+      const fullCode = newCode.join("");
       if (fullCode.length === 6) {
         handleVerify(fullCode);
       }
@@ -81,16 +89,16 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Handle backspace
   const handleKeyPress = (index: number, key: string) => {
-    if (key === 'Backspace' && !verificationCode[index] && index > 0) {
+    if (key === "Backspace" && !verificationCode[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
   // Handle paste
   const handlePaste = (pastedText: string) => {
-    const numbers = pastedText.replace(/\D/g, '');
+    const numbers = pastedText.replace(/\D/g, "");
     if (numbers.length === 6) {
-      const newCode = numbers.split('');
+      const newCode = numbers.split("");
       setVerificationCode(newCode);
       inputRefs.current[5]?.focus();
       handleVerify(numbers);
@@ -99,108 +107,116 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // API call to verify email
   const handleVerify = async (code?: string) => {
-    const codeToVerify = code || verificationCode.join('');
-    
-    console.log('🔐 Bắt đầu verify với code:', codeToVerify, 'email:', email);
-    
+    const codeToVerify = code || verificationCode.join("");
+
+    console.log("🔍 Bắt đầu verify với code:", codeToVerify, "email:", email);
+
     if (codeToVerify.length !== 6) {
-      setError('Vui lòng nhập đủ 6 chữ số');
+      setError("Vui lòng nhập đủ 6 chữ số");
       return;
     }
 
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
-      console.log('📡 Gọi API verify-email...');
+      console.log("📡 Gọi API verify-email...");
 
       const requestBody = {
         email: email,
         code: codeToVerify,
       };
 
-      console.log('📤 Request Body:', JSON.stringify(requestBody, null, 2));
+      console.log("📤 Request Body:", JSON.stringify(requestBody, null, 2));
 
       const response = await fetch(`${BASE_URL}/api/User/verify-email`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(requestBody),
       });
 
-      console.log('📡 API Response Status:', response.status);
-      console.log('📡 API Response OK:', response.ok);
-      console.log('📡 Content-Type:', response.headers.get('content-type'));
+      console.log("📡 API Response Status:", response.status);
+      console.log("📡 API Response OK:", response.ok);
+      console.log("📡 Content-Type:", response.headers.get("content-type"));
 
       // Get raw response text
       const responseText = await response.text();
-      console.log('📋 Raw Response Text:', responseText);
+      console.log("📋 Raw Response Text:", responseText);
 
       let data;
-      let errorMessage = '';
+      let errorMessage = "";
 
       // ✨ Smart response parsing - Handle both JSON and plain text
-      const contentType = response.headers.get('content-type');
-      
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
         try {
           data = JSON.parse(responseText);
-          console.log('✅ Parsed JSON:', data);
-          errorMessage = data.message || data.error || 'Có lỗi xảy ra';
+          console.log("✅ Parsed JSON:", data);
+          errorMessage = data.message || data.error || "Có lỗi xảy ra";
         } catch (parseError) {
-          console.error('💥 JSON Parse Error:', parseError);
-          errorMessage = 'Lỗi phản hồi từ server';
+          console.error("💥 JSON Parse Error:", parseError);
+          errorMessage = "Lỗi phản hồi từ server";
         }
       } else {
         // Server trả về plain text
-        console.log('📝 Plain text response detected:', responseText);
+        console.log("📄 Plain text response detected:", responseText);
         errorMessage = responseText.trim();
         data = { message: errorMessage };
       }
 
       if (response.ok) {
-        console.log('✅ Verify thành công! Chuẩn bị navigate tới StepContainer');
-        
+        console.log(
+          "✅ Verify thành công! Chuẩn bị navigate tới StepContainer"
+        );
+
         // Success - show success message then navigate
         Alert.alert(
-          'Xác nhận thành công! 🎉',
-          'Tài khoản của bạn đã được kích hoạt. Hãy hoàn tất thiết lập tài khoản.',
+          "Xác nhận thành công! 🎉",
+          "Tài khoản của bạn đã được kích hoạt. Hãy hoàn tất thiết lập tài khoản.",
           [
             {
-              text: 'Tiếp tục',
+              text: "Tiếp tục",
               onPress: () => {
-                console.log('🧭 Navigate tới StepContainer để bắt đầu onboarding');
-                navigation.replace('StepContainer');
+                console.log(
+                  "🧭 Navigate tới StepContainer để bắt đầu onboarding"
+                );
+                navigation.replace("StepContainer");
               },
             },
           ]
         );
       } else {
-        console.log('❌ Verify thất bại:', errorMessage);
-        
+        console.log("❌ Verify thất bại:", errorMessage);
+
         // ✨ Handle specific error messages
         let userFriendlyMessage = errorMessage;
-        
-        if (errorMessage.toLowerCase().includes('invalid') || 
-            errorMessage.toLowerCase().includes('incorrect')) {
-          userFriendlyMessage = 'Mã xác nhận không đúng. Vui lòng kiểm tra lại.';
-        } else if (errorMessage.toLowerCase().includes('expired')) {
-          userFriendlyMessage = 'Mã xác nhận đã hết hạn. Vui lòng yêu cầu gửi lại mã mới.';
-        } else if (errorMessage.toLowerCase().includes('already verified')) {
-          userFriendlyMessage = 'Email đã được xác nhận trước đó.';
+
+        if (
+          errorMessage.toLowerCase().includes("invalid") ||
+          errorMessage.toLowerCase().includes("incorrect")
+        ) {
+          userFriendlyMessage =
+            "Mã xác nhận không đúng. Vui lòng kiểm tra lại.";
+        } else if (errorMessage.toLowerCase().includes("expired")) {
+          userFriendlyMessage =
+            "Mã xác nhận đã hết hạn. Vui lòng yêu cầu gửi lại mã mới.";
+        } else if (errorMessage.toLowerCase().includes("already verified")) {
+          userFriendlyMessage = "Email đã được xác nhận trước đó.";
         }
-        
+
         setError(userFriendlyMessage);
-        
+
         // Clear incorrect code
-        setVerificationCode(['', '', '', '', '', '']);
+        setVerificationCode(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
       }
     } catch (error) {
-      console.error('💥 Verification error:', error);
-      
-      setError('Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.');
+      console.error("💥 Verification error:", error);
+
+      setError("Lỗi kết nối. Vui lòng kiểm tra mạng và thử lại.");
     } finally {
       setIsLoading(false);
     }
@@ -208,68 +224,76 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
 
   // Resend verification code
   const handleResendCode = async () => {
-    console.log('🔄 Resend verification code cho email:', email);
-    
+    console.log("🔄 Resend verification code cho email:", email);
+
     setIsResending(true);
-    setError('');
+    setError("");
 
     try {
       // Tạm thời để test - có thể cần API endpoint khác cho resend
-      console.log('🔄 Attempting to resend code...');
-      
+      console.log("🔄 Attempting to resend code...");
+
       // Reset timer và code
       setTimeLeft(300);
       setCanResend(false);
-      setVerificationCode(['', '', '', '', '', '']);
+      setVerificationCode(["", "", "", "", "", ""]);
       inputRefs.current[0]?.focus();
-      
+
       Alert.alert(
-        'Gửi lại thành công',
-        'Mã xác nhận mới đã được gửi đến email của bạn.'
+        "Gửi lại thành công",
+        "Mã xác nhận mới đã được gửi đến email của bạn."
       );
     } catch (error) {
-      console.error('Resend error:', error);
-      setError('Không thể gửi lại mã. Vui lòng thử lại sau.');
+      console.error("Resend error:", error);
+      setError("Không thể gửi lại mã. Vui lòng thử lại sau.");
     } finally {
       setIsResending(false);
     }
   };
 
+  const handleBack = () => {
+    console.log("⬅️ Back button pressed - quay về Register");
+    navigation.goBack();
+  };
+
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <LinearGradient
-        colors={['#6366F1', '#8B5CF6', '#EC4899']}
+        colors={["#FFFFFF", "#F9FAFB", "#F3F4F6"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradientContainer}
       >
         <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.container}
         >
-          <ScrollView 
+          <ScrollView
             contentContainerStyle={styles.scrollContainer}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Header Section */}
             <View style={styles.headerSection}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.backButton}
-                onPress={() => {
-                  console.log('⬅️ Back button pressed - quay về Register');
-                  navigation.goBack();
-                }}
+                onPress={handleBack}
+                activeOpacity={0.7}
               >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                <Ionicons name="arrow-back" size={24} color="#111827" />
               </TouchableOpacity>
 
               <View style={styles.logoContainer}>
-                <View style={styles.logoCircle}>
-                  <Ionicons name="mail" size={32} color="#FFFFFF" />
+                <View style={styles.logoBackground}>
+                  <Image
+                    source={require("../../assets/logo.png")}
+                    style={styles.logo}
+                    resizeMode="contain"
+                  />
                 </View>
               </View>
-              
+
               <View style={styles.titleContainer}>
                 <Text style={styles.title}>Xác nhận email</Text>
                 <Text style={styles.subtitle}>
@@ -307,12 +331,14 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
                         ]}
                         value={digit}
                         onChangeText={(value) => handleCodeChange(index, value)}
-                        onKeyPress={({ nativeEvent }) => handleKeyPress(index, nativeEvent.key)}
+                        onKeyPress={({ nativeEvent }) =>
+                          handleKeyPress(index, nativeEvent.key)
+                        }
                         keyboardType="numeric"
                         maxLength={1}
                         selectTextOnFocus
                         editable={!isLoading}
-                        
+                        textAlign="center"
                       />
                     ))}
                   </View>
@@ -322,10 +348,15 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
                 <View style={styles.timerContainer}>
                   {timeLeft > 0 ? (
                     <Text style={styles.timerText}>
-                      Mã sẽ hết hạn sau: <Text style={styles.timerValue}>{formatTime(timeLeft)}</Text>
+                      Mã sẽ hết hạn sau:{" "}
+                      <Text style={styles.timerValue}>
+                        {formatTime(timeLeft)}
+                      </Text>
                     </Text>
                   ) : (
-                    <Text style={styles.expiredText}>Mã xác nhận đã hết hạn</Text>
+                    <Text style={styles.expiredText}>
+                      Mã xác nhận đã hết hạn
+                    </Text>
                   )}
                 </View>
 
@@ -333,43 +364,37 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
                 <TouchableOpacity
                   style={[
                     styles.verifyButton,
-                    (verificationCode.join('').length !== 6 || isLoading) && styles.disabledButton,
+                    (verificationCode.join("").length !== 6 || isLoading) &&
+                      styles.disabledButton,
                   ]}
                   onPress={() => handleVerify()}
-                  disabled={verificationCode.join('').length !== 6 || isLoading}
+                  disabled={verificationCode.join("").length !== 6 || isLoading}
+                  activeOpacity={0.85}
                 >
-                  <LinearGradient
-                    colors={
-                      verificationCode.join('').length === 6 && !isLoading
-                        ? ['#10B981', '#059669']
-                        : ['#9CA3AF', '#6B7280']
-                    }
-                    style={styles.buttonGradient}
-                  >
-                    {isLoading ? (
-                      <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                        <Text style={styles.loadingText}>Đang xác nhận...</Text>
-                      </View>
-                    ) : (
-                      <Text style={styles.buttonText}>Xác nhận</Text>
-                    )}
-                  </LinearGradient>
+                  {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={styles.loadingText}>Đang xác nhận...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.buttonText}>Xác nhận</Text>
+                  )}
                 </TouchableOpacity>
 
                 {/* Resend Section */}
                 <View style={styles.resendSection}>
                   <Text style={styles.resendLabel}>Không nhận được mã?</Text>
-                  
+
                   {canResend ? (
                     <TouchableOpacity
                       onPress={handleResendCode}
                       disabled={isResending}
                       style={styles.resendButton}
+                      activeOpacity={0.7}
                     >
                       {isResending ? (
                         <View style={styles.resendingContainer}>
-                          <ActivityIndicator size="small" color="#6366F1" />
+                          <ActivityIndicator size="small" color="#111827" />
                           <Text style={styles.resendingText}>Đang gửi...</Text>
                         </View>
                       ) : (
@@ -383,20 +408,25 @@ const EmailVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
                   )}
                 </View>
 
-                {/* Help Section */}
-                <View style={styles.helpSection}>
-                  <Text style={styles.helpText}>
-                    💡 Mẹo: Kiểm tra thư mục spam nếu không thấy email
+                {/* Professional Tip */}
+                <View style={styles.tipContainer}>
+                  <View style={styles.tipHeader}>
+                    <Text style={styles.tipTitle}>Pro Tip</Text>
+                  </View>
+                  <Text style={styles.tipText}>
+                    Kiểm tra thư mục{" "}
+                    <Text style={styles.tipHighlight}>spam</Text> nếu không thấy
+                    email trong hộp thư chính
                   </Text>
                 </View>
               </View>
             </View>
 
-            {/* Decorative Elements */}
+            {/* Minimal Decorative Elements */}
             <View style={styles.decorativeContainer}>
-              <View style={[styles.decorativeCircle, styles.circle1]} />
-              <View style={[styles.decorativeCircle, styles.circle2]} />
-              <View style={[styles.decorativeCircle, styles.circle3]} />
+              <View style={[styles.decorativeElement, styles.element1]} />
+              <View style={[styles.decorativeElement, styles.element2]} />
+              <View style={[styles.decorativeElement, styles.element3]} />
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
@@ -415,194 +445,220 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingBottom: 30,
   },
   headerSection: {
-    alignItems: 'center',
-    marginBottom: 40,
-    position: 'relative',
+    alignItems: "center",
+    marginBottom: 48,
+    paddingTop: 20,
+    position: "relative",
   },
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
-    top: 0,
+    top: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   logoContainer: {
     marginBottom: 32,
   },
-  logoCircle: {
+  logoBackground: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  logo: {
+    width: 70,
+    height: 70,
   },
   titleContainer: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   title: {
     fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "800",
+    color: "#111827",
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
     letterSpacing: -0.5,
   },
   subtitle: {
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textAlign: 'center',
+    color: "#6B7280",
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: 8,
+    fontWeight: "400",
   },
   emailText: {
     fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    textAlign: 'center',
+    color: "#111827",
+    fontWeight: "600",
+    textAlign: "center",
   },
   formSection: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   formContainer: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     padding: 32,
-    marginHorizontal: 8,
-    shadowColor: '#000',
+    marginHorizontal: 4,
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    shadowOpacity: 0.1,
+    shadowRadius: 24,
     elevation: 12,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
   errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FEF2F2',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
     padding: 12,
-    borderRadius: 12,
+    borderRadius: 8,
     marginBottom: 24,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: "#FECACA",
   },
   errorText: {
-    color: '#EF4444',
+    color: "#EF4444",
     fontSize: 14,
     marginLeft: 8,
     flex: 1,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   codeContainer: {
     marginBottom: 24,
   },
   codeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#374151',
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
+    letterSpacing: 0.2,
   },
   codeInputContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 8,
   },
   codeInput: {
     width: 45,
     height: 56,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
-    textAlign: 'center',
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 8,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   codeInputFilled: {
-    borderColor: '#6366F1',
-    backgroundColor: '#EEF2FF',
+    borderColor: "#111827",
+    backgroundColor: "#F9FAFB",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   codeInputError: {
-    borderColor: '#EF4444',
-    backgroundColor: '#FEF2F2',
+    borderColor: "#EF4444",
+    backgroundColor: "#FEF2F2",
   },
   timerContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   timerText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
+    fontWeight: "400",
   },
   timerValue: {
-    fontWeight: '600',
-    color: '#EF4444',
+    fontWeight: "600",
+    color: "#EF4444",
   },
   expiredText: {
     fontSize: 14,
-    color: '#EF4444',
-    fontWeight: '600',
+    color: "#EF4444",
+    fontWeight: "600",
   },
   verifyButton: {
-    borderRadius: 16,
-    overflow: 'hidden',
+    backgroundColor: "#111827",
+    borderRadius: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 24,
     marginBottom: 24,
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 56,
   },
   disabledButton: {
-    shadowOpacity: 0.1,
-    elevation: 2,
-  },
-  buttonGradient: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    alignItems: 'center',
+    backgroundColor: "#9CA3AF",
+    shadowOpacity: 0.05,
+    elevation: 1,
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    letterSpacing: 0.5,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    letterSpacing: 0.3,
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   loadingText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginLeft: 8,
   },
   resendSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   resendLabel: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#6B7280",
     marginBottom: 8,
+    fontWeight: "400",
   },
   resendButton: {
     paddingVertical: 8,
@@ -610,64 +666,92 @@ const styles = StyleSheet.create({
   },
   resendText: {
     fontSize: 14,
-    color: '#6366F1',
-    fontWeight: '600',
+    color: "#111827",
+    fontWeight: "600",
   },
   resendingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   resendingText: {
     fontSize: 14,
-    color: '#6366F1',
+    color: "#111827",
     marginLeft: 8,
   },
   resendDisabledText: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: "#9CA3AF",
   },
-  helpSection: {
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+  tipContainer: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: "#E5E7EB",
   },
-  helpText: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
-    fontStyle: 'italic',
+  tipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  tipTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: 0.2,
+  },
+  tipText: {
+    color: "#6B7280",
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "400",
+  },
+  tipHighlight: {
+    fontWeight: "700",
+    color: "#111827",
   },
   decorativeContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     zIndex: -1,
   },
-  decorativeCircle: {
-    position: 'absolute',
-    borderRadius: 100,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  decorativeElement: {
+    position: "absolute",
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
-  circle1: {
-    width: 120,
-    height: 120,
-    top: 100,
-    right: -30,
-  },
-  circle2: {
-    width: 80,
-    height: 80,
-    bottom: 200,
-    left: -20,
-  },
-  circle3: {
+  element1: {
     width: 60,
     height: 60,
+    borderRadius: 30,
+    top: 120,
+    right: 30,
+    transform: [{ rotate: "15deg" }],
+  },
+  element2: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    bottom: 180,
+    left: 20,
+    transform: [{ rotate: "-12deg" }],
+  },
+  element3: {
+    width: 80,
+    height: 20,
+    borderRadius: 10,
     top: 300,
-    left: 50,
+    left: 40,
+    transform: [{ rotate: "25deg" }],
   },
 });
 

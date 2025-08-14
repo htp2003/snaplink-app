@@ -66,6 +66,7 @@ export default function BookingScreen() {
   const { photographer, editMode, existingBookingId, existingBookingData } =
     route.params as RouteParams;
 
+
   // Extract photographerId ngay đầu
   const photographerId = photographer?.photographerId;
 
@@ -297,28 +298,6 @@ useEffect(() => {
 
   loadAvailableTimes();
 }, [photographerId, selectedDate, getAvailableTimesForDate]);
-
-
-
-  const allTimes = [
-    "06:00",
-    "07:00",
-    "08:00",
-    "09:00",
-    "10:00",
-    "11:00",
-    "12:00",
-    "13:00",
-    "14:00",
-    "15:00",
-    "16:00",
-    "17:00",
-    "18:00",
-    "19:00",
-    "20:00",
-    "21:00",
-    "22:00",
-  ];
 
   // Safe data extraction từ photographer object
   const photographerName =
@@ -829,7 +808,7 @@ useEffect(() => {
     selectedEndTime &&
     !creating &&
     !updating &&
-    availableTimes.length > 0; // ✅ ADDED: Ensure we have available times
+    availableTimes.length > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f8f9fa" }}>

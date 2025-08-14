@@ -291,11 +291,7 @@ const VenueOwnerSubscriptionScreen = () => {
     // Check wallet balance
     if (walletBalance.balance < packageItem.price) {
       Alert.alert("Số dư không đủ", "Hãy vui lòng nạp tiền vào ví", [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Nạp tiền",
-          onPress: () => navigation.navigate("VenueOwnerHomeScreen"),
-        },
+        { text: "OK", style: "cancel" },
       ]);
       return;
     }

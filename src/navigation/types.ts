@@ -166,6 +166,7 @@ export type RootStackParamList = {
   EditVenueScreen: { venueId?: number };
   VenueDetailScreen: { venueId: number };
   VenueOwnerSubscription: undefined;
+  VenueOwnerTransaction: undefined;
 
   // VenueOwner Event Management screens
   VenueOwnerEventDetail: {

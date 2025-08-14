@@ -52,6 +52,7 @@ import VenueOwnerEventDetailScreen from "../screens/venueOwner/VenueOwnerEventDe
 import VenueOwnerCreateEventScreen from "../screens/venueOwner/VenueOwnerCreateEventScreen";
 import VenueOwnerEventImagesScreen from "../screens/venueOwner/VenueOwnerEventImagesScreen";
 import VenueOwnerSubscriptionScreen from "../screens/venueOwner/VenueOwnerSubscriptionScreen";
+import VenueOwnerTransactionScreen from "../screens/venueOwner/VenueOwnerTransactionScreen";
 
 import VenueOwnerEditEventScreen from "../screens/venueOwner/VenueOwnerEditEventScreen";
 import VenueOwnerEventApplicationsScreen from "../screens/venueOwner/VenueOwnerEventApplicationsScreen";
@@ -174,6 +175,10 @@ const AppNavigator = () => {
       <Stack.Screen
         name="VenueOwnerHomeScreen"
         component={VenueOwnerHomeScreen}
+      />
+      <Stack.Screen
+        name="VenueOwnerTransaction"
+        component={VenueOwnerTransactionScreen}
       />
       <Stack.Screen
         name="VenueOwnerProfile"

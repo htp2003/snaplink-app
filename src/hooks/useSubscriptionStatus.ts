@@ -25,6 +25,7 @@ interface SubscriptionStatusData {
   isLoading: boolean;
   error: string | null;
   checkSubscriptionStatus: () => Promise<void>;
+  refreshSubscriptionStatus: () => Promise<void>; // 🆕 Thêm method refresh
 }
 
 export const useSubscriptionStatus = (photographerId: number | null): SubscriptionStatusData => {
@@ -126,6 +127,12 @@ export const useSubscriptionStatus = (photographerId: number | null): Subscripti
     }
   }, [photographerId]);
 
+  // 🆕 Refresh method that can be called manually
+  const refreshSubscriptionStatus = useCallback(async () => {
+    console.log('🔄 Manually refreshing subscription status...');
+    await checkSubscriptionStatus();
+  }, [checkSubscriptionStatus]);
+
   useEffect(() => {
     checkSubscriptionStatus();
   }, [checkSubscriptionStatus]);
@@ -136,5 +143,6 @@ export const useSubscriptionStatus = (photographerId: number | null): Subscripti
     isLoading,
     error,
     checkSubscriptionStatus,
+    refreshSubscriptionStatus, // 🆕 Export refresh method
   };
 };

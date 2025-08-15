@@ -143,7 +143,7 @@ export interface EventApplication {
   eventPhotographerId?: number; // From API response
   eventId: number;
   photographerId: number;
-  specialRate?: number;
+  specialRate: number;
   status: ApplicationStatus;
   appliedAt: string;
   respondedAt?: string;

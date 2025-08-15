@@ -951,33 +951,33 @@ export class ChatService {
     }
   }
 
-  async testSendMessage(
-    recipientId: number,
-    testMessage: string = "Test message"
-  ): Promise<{ success: boolean; message: string; data?: any }> {
-    try {
-      const response = await this.sendMessage({
-        recipientId,
-        content: testMessage,
-        messageType: MessageType.TEXT,
-      });
+  // async testSendMessage(
+  //   recipientId: number,
+  //   testMessage: string = "Test message"
+  // ): Promise<{ success: boolean; message: string; data?: any }> {
+  //   try {
+  //     const response = await this.sendMessage({
+  //       recipientId,
+  //       content: testMessage,
+  //       messageType: MessageType.TEXT,
+  //     });
 
-      return {
-        success: response.success,
-        message: response.message || "Message sent successfully",
-        data: response,
-      };
-    } catch (error) {
-      console.error("🧪 Send message test failed:", error);
+  //     return {
+  //       success: response.success,
+  //       message: response.message || "Message sent successfully",
+  //       data: response,
+  //     };
+  //   } catch (error) {
+  //     console.error("🧪 Send message test failed:", error);
 
-      return {
-        success: false,
-        message: `Send message failed: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      };
-    }
-  }
+  //     return {
+  //       success: false,
+  //       message: `Send message failed: ${
+  //         error instanceof Error ? error.message : "Unknown error"
+  //       }`,
+  //     };
+  //   }
+  // }
 }
 
 // Export singleton instance

@@ -1,6 +1,7 @@
 // screens/PhotographerEventScreen.tsx
 
 import React, { useState, useEffect } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -67,9 +68,17 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
   );
   const [showApplicationModal, setShowApplicationModal] = useState(false);
   const [applicationRate, setApplicationRate] = useState("");
-  const { hasActiveSubscription, isLoading: subscriptionLoading } =
-    useSubscriptionStatus(photographerId);
-
+  const {
+    hasActiveSubscription,
+    isLoading: subscriptionLoading,
+    refreshSubscriptionStatus,
+  } = useSubscriptionStatus(photographerId);
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("🔍 Screen focused, refreshing subscription status...");
+      refreshSubscriptionStatus();
+    }, [refreshSubscriptionStatus])
+  );
   // Hooks
   const {
     activeEvents,
@@ -218,6 +227,13 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
     );
   };
 
+  const getApplicationStatusForEvent = (
+    eventId: number
+  ): ApplicationStatus | null => {
+    const application = applications.find((app) => app.eventId === eventId);
+    return application ? application.status : null;
+  };
+
   const getApplicationForEvent = (
     eventId: number
   ): EventApplication | undefined => {
@@ -226,19 +242,26 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    try {
+      return new Date(dateString).toLocaleDateString("vi-VN", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch (error) {
+      return "N/A";
+    }
   };
 
   const formatPrice = (price?: number) => {
-    return price ? `$${price.toFixed(2)}` : "Free";
+    if (!price || price === 0) return "Miễn phí";
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(price);
   };
-
   const getEventStatusColor = (status: string) => {
     switch (status) {
       case "Open":
@@ -342,8 +365,9 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
               {event.originalPrice &&
                 event.discountedPrice !== event.originalPrice && (
                   <Text style={styles.originalPrice}>
-                    {" "}
-                    (was {formatPrice(event.originalPrice)})
+                    {" (trước đây "}
+                    {formatPrice(event.originalPrice)}
+                    {")"}
                   </Text>
                 )}
             </Text>
@@ -395,15 +419,43 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
             </View>
           )}
 
-          {!showApplicationStatus && event.status === "Open" && (
-            <TouchableOpacity
-              style={styles.applyButton}
-              onPress={() => handleApplyPress(event)}
-            >
-              <Send size={14} color="#FFFFFF" />
-              <Text style={styles.applyButtonText}>Apply</Text>
-            </TouchableOpacity>
-          )}
+          {!showApplicationStatus &&
+            event.status === "Open" &&
+            (() => {
+              const applicationStatus = getApplicationStatusForEvent(
+                event.eventId
+              );
+
+              if (applicationStatus) {
+                // Đã apply rồi - hiển thị button disabled
+                return (
+                  <View style={[styles.applyButton, styles.appliedButton]}>
+                    {getStatusIcon(applicationStatus)}
+                    <Text
+                      style={[styles.applyButtonText, styles.appliedButtonText]}
+                    >
+                      {applicationStatus === ApplicationStatus.APPLIED &&
+                        "Applied"}
+                      {applicationStatus === ApplicationStatus.APPROVED &&
+                        "Approved"}
+                      {applicationStatus === ApplicationStatus.REJECTED &&
+                        "Rejected"}
+                    </Text>
+                  </View>
+                );
+              } else {
+                // Chưa apply - hiển thị button bình thường
+                return (
+                  <TouchableOpacity
+                    style={styles.applyButton}
+                    onPress={() => handleApplyPress(event)}
+                  >
+                    <Send size={14} color="#FFFFFF" />
+                    <Text style={styles.applyButtonText}>Apply</Text>
+                  </TouchableOpacity>
+                );
+              }
+            })()}
         </View>
       </TouchableOpacity>
     );
@@ -470,7 +522,7 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
                 </View>
               )}
 
-              {activeEvents.length > 0 && (
+              {/* {activeEvents.length > 0 && (
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>
                     Active Events ({activeEvents.length})
@@ -490,7 +542,7 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
                     <EventCard key={event.eventId} event={event} />
                   ))}
                 </View>
-              )}
+              )} */}
 
               {!discoveryLoading &&
                 featuredEvents.length === 0 &&
@@ -506,11 +558,14 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
   };
 
   const renderApplicationsTab = () => {
-    console.log("Rendering applications tab:");
-    console.log("Applications:", applications);
-    console.log("Applications loading:", applicationsLoading);
-    console.log("Applications error:", applicationsError);
-    console.log("PhotographerId:", photographerId);
+    console.log("Applications data:", applications);
+    applications.forEach((app, index) => {
+      console.log(`App ${index}:`, {
+        eventName: app.eventName,
+        eventStatus: app.eventStatus,
+        specialRate: app.specialRate,
+      });
+    });
 
     return (
       <ScrollView
@@ -531,18 +586,21 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
           applications.map((application) => {
             const eventFromApplication: LocationEvent = {
               eventId: application.eventId,
-              locationId: 0, // Default value since not provided
-              name: application.eventName ?? "",
+              locationId: 0,
+              name: application.eventName || "Tên sự kiện không có", // Safe fallback
               description: undefined,
-              startDate: application.eventStartDate ?? "",
-              endDate: application.eventEndDate ?? "",
-              discountedPrice: application.specialRate,
+              startDate: application.eventStartDate || "",
+              endDate: application.eventEndDate || "",
+              discountedPrice:
+                application.specialRate > 0
+                  ? application.specialRate
+                  : undefined,
               originalPrice: undefined,
               status: application.eventStatus as EventStatus,
               approvedPhotographersCount: 0,
               totalBookingsCount: 0,
-              createdAt: application.appliedAt,
-              updatedAt: application.appliedAt,
+              createdAt: application.appliedAt || new Date().toISOString(),
+              updatedAt: application.appliedAt || new Date().toISOString(),
             };
 
             return (
@@ -584,11 +642,13 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
                     </Text>
                   )}
 
-                  {application.specialRate && application.specialRate > 0 && (
-                    <Text style={styles.specialRate}>
-                      Special Rate: {formatPrice(application.specialRate)}
-                    </Text>
-                  )}
+                  {application.specialRate !== null &&
+                    application.specialRate !== undefined &&
+                    application.specialRate > 0 && (
+                      <Text style={styles.specialRate}>
+                        Giá đặc biệt: {formatPrice(application.specialRate)}
+                      </Text>
+                    )}
                 </View>
 
                 {application.status === ApplicationStatus.APPLIED && (
@@ -694,11 +754,11 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
 
                         <View style={styles.inputContainer}>
                           <Text style={styles.inputLabel}>
-                            Special Rate (Optional)
+                            Giá đặc biệt (Tùy chọn)
                           </Text>
                           <TextInput
                             style={styles.input}
-                            placeholder="Enter your special rate for this event"
+                            placeholder="Nhập giá đặc biệt cho sự kiện này"
                             value={applicationRate}
                             onChangeText={setApplicationRate}
                             keyboardType="numeric"
@@ -707,7 +767,7 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
                             blurOnSubmit={true}
                           />
                           <Text style={styles.inputHint}>
-                            Leave empty to use event's default rate:{" "}
+                            Để trống để sử dụng giá mặc định của sự kiện:{" "}
                             {formatPrice(selectedEvent.discountedPrice)}
                           </Text>
                         </View>
@@ -1080,6 +1140,13 @@ const styles = StyleSheet.create({
     color: "#EF4444",
     textAlign: "center",
   },
+  appliedButton: {
+  backgroundColor: "#6B7280", // Màu xám để thể hiện disabled
+  opacity: 0.7,
+},
+appliedButtonText: {
+  color: "#FFFFFF",
+},
 });
 
 export default PhotographerEventScreen;

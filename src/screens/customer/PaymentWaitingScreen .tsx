@@ -31,7 +31,6 @@ import type { PaymentFlowData } from "../../types/payment";
 import { EnhancedQRDisplay } from "../../components/EnhancedQRDisplay";
 import { handleDeepLink } from "../../config/deepLinks";
 
-
 type PaymentWaitingRouteParams = PaymentFlowData;
 type PaymentWaitingScreenRouteProp = RouteProp<
   { PaymentWaiting: PaymentWaitingRouteParams },
@@ -43,12 +42,14 @@ export default function PaymentWaitingScreen() {
   const route = useRoute<PaymentWaitingScreenRouteProp>();
   const { booking, payment, user } = route.params;
 
-  // ✅ FIX: Add booking hook for confirm functionality with explicit typing
+  // ✅ FIXED: Safe type checking for booking hook
   const bookingHook = useBooking();
-  const confirmBooking = (bookingHook as any).confirmBooking;
-  const confirming = (bookingHook as any).confirming;
+  const confirmBooking = bookingHook?.confirmBooking;
+  const confirming = bookingHook?.confirming || false;
 
-  // State management
+  // ✅ NEW: Protection states to prevent duplicate actions
+  const [isHandlingSuccess, setIsHandlingSuccess] = useState(false);
+  const [hasNavigated, setHasNavigated] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [timeLeft, setTimeLeft] = useState(15 * 60); // 15 minutes
 
@@ -59,22 +60,20 @@ export default function PaymentWaitingScreen() {
   const [isPaymentComplete, setIsPaymentComplete] = useState(false);
   
   // ✅ OPTIMIZED: More aggressive polling for faster detection
-  const maxPollingAttempts = 60; // Increase to 5 minutes
-  const pollingInterval = 3000; // Reduce to 3 seconds
-  const earlyPollingInterval = 1000; // Reduce to 1 second for first minute
-  const fastPollingDuration = 60000; // Extend fast polling to 60 seconds
+  const maxPollingAttempts = 60; // 5 minutes
+  const pollingInterval = 3000; // 3 seconds
+  const earlyPollingInterval = 1000; // 1 second for first minute
+  const fastPollingDuration = 60000; // 60 seconds
 
   // Cancel states
   const [isCancelling, setIsCancelling] = useState(false);
-
-  // ✅ NEW: Booking confirmation state
   const [isConfirmingBooking, setIsConfirmingBooking] = useState(false);
 
   // Refs
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
-  const pollingStartTimeRef = useRef<number>(Date.now()); // ✅ NEW: Track polling start time
+  const pollingStartTimeRef = useRef<number>(Date.now());
 
   const {
     getPayment,
@@ -121,9 +120,102 @@ export default function PaymentWaitingScreen() {
     }
   }, []);
 
+  // ✅ FIXED: Safe navigation with duplicate protection
+  const navigateToHome = useCallback(() => {
+    if (hasNavigated) {
+      console.log("🛡️ Navigation already triggered, skipping...");
+      return;
+    }
+    
+    setHasNavigated(true);
+    stopCountdown();
+    stopPolling();
+    
+    console.log("🏠 Navigating to home...");
+    navigation.reset({
+      index: 0,
+      routes: [
+        {
+          name: "CustomerMain",
+          params: { screen: "CustomerHomeScreen" },
+        },
+      ],
+    });
+  }, [hasNavigated, navigation, stopCountdown, stopPolling]);
+
+  // ✅ FIXED: Enhanced handlePaymentSuccess with protection
+  const handlePaymentSuccess = useCallback(async () => {
+    if (isHandlingSuccess) {
+      console.log("🛡️ Already handling success, skipping duplicate call...");
+      return;
+    }
+
+    if (hasNavigated) {
+      console.log("🛡️ Already navigated, skipping success handling...");
+      return;
+    }
+
+    console.log("🎉 Payment successful! Starting success handling...");
+    setIsHandlingSuccess(true);
+
+    try {
+      // ✅ SAFE: Check if confirmBooking is available
+      if (!confirmBooking) {
+        console.warn("⚠️ confirmBooking method not available, showing success directly");
+        setTimeout(() => {
+          if (isMountedRef.current && !hasNavigated) {
+            setShowSuccessModal(true);
+          }
+        }, 1000);
+        return;
+      }
+
+      setIsConfirmingBooking(true);
+      
+      // ✅ SAFE: Confirm the booking with proper error handling
+      try {
+        const confirmSuccess = await confirmBooking(booking.id);
+        
+        if (confirmSuccess) {
+          console.log("✅ Booking confirmed successfully");
+        } else {
+          console.warn("⚠️ Booking confirmation failed, but payment succeeded");
+        }
+      } catch (confirmError) {
+        console.error("❌ Error confirming booking:", confirmError);
+        // Continue to show success since payment worked
+      }
+      
+      // Show success modal after confirmation attempt
+      setTimeout(() => {
+        if (isMountedRef.current && !hasNavigated) {
+          setShowSuccessModal(true);
+        }
+      }, 1000);
+      
+    } catch (error) {
+      console.error("❌ Error in handlePaymentSuccess:", error);
+      // Still show success since payment worked
+      setTimeout(() => {
+        if (isMountedRef.current && !hasNavigated) {
+          setShowSuccessModal(true);
+        }
+      }, 1000);
+    } finally {
+      setIsConfirmingBooking(false);
+      setIsHandlingSuccess(false);
+    }
+  }, [isHandlingSuccess, hasNavigated, confirmBooking, booking.id]);
+
+  // ✅ FIXED: Enhanced back button protection
   useEffect(() => {
     const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-      e.preventDefault(); // Chặn hành động back mặc định
+      if (isPaymentComplete && (paymentStatus === "Success" || paymentStatus === "Paid" || paymentStatus === "Completed")) {
+        // Allow navigation if payment is successful
+        return;
+      }
+
+      e.preventDefault(); // Block default back action
       Alert.alert(
         "Xác nhận hủy thanh toán",
         "Bạn có chắc muốn hủy thanh toán này?",
@@ -134,7 +226,7 @@ export default function PaymentWaitingScreen() {
             style: "destructive",
             onPress: async () => {
               await handleCancelPayment();
-              navigation.dispatch(e.data.action); // Quay lại
+              navigation.dispatch(e.data.action);
             }
           }
         ]
@@ -142,53 +234,12 @@ export default function PaymentWaitingScreen() {
     });
   
     return unsubscribe;
-  }, [navigation]);
-
-  // ✅ NEW: Auto confirm booking when payment is successful
-  const handlePaymentSuccess = useCallback(async () => {
-    console.log("🎉 Payment successful! Confirming booking...");
-    
-    try {
-      setIsConfirmingBooking(true);
-      
-      // Confirm the booking
-      const confirmSuccess = await confirmBooking(booking.id);
-      
-      if (confirmSuccess) {
-        console.log("✅ Booking confirmed successfully");
-        
-        // Show success modal after a short delay
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            setShowSuccessModal(true);
-          }
-        }, 1000);
-      } else {
-        console.warn("⚠️ Booking confirmation failed, but payment succeeded");
-        // Still show success since payment worked
-        setTimeout(() => {
-          if (isMountedRef.current) {
-            setShowSuccessModal(true);
-          }
-        }, 1000);
-      }
-    } catch (error) {
-      console.error("❌ Error confirming booking:", error);
-      // Still show success since payment worked
-      setTimeout(() => {
-        if (isMountedRef.current) {
-          setShowSuccessModal(true);
-        }
-      }, 1000);
-    } finally {
-      setIsConfirmingBooking(false);
-    }
-  }, [booking.id, confirmBooking]);
+  }, [navigation, isPaymentComplete, paymentStatus]);
 
   // Handle cancel payment
   const handleCancelPayment = useCallback(
     async (isAutoCancel: boolean = false) => {
-      if (isCancelling) return;
+      if (isCancelling || hasNavigated) return;
 
       try {
         setIsCancelling(true);
@@ -289,18 +340,23 @@ export default function PaymentWaitingScreen() {
       getPayment,
       cancelPayment,
       isCancelling,
+      hasNavigated,
       stopPolling,
       stopCountdown,
       navigation,
     ]
   );
 
-  // ✅ ENHANCED: Check payment status with better debugging
+  // ✅ ENHANCED: Check payment status with better error handling
   const checkPaymentStatus = useCallback(async () => {
     const apiPaymentId = payment?.paymentId || payment?.id;
 
-    if (!apiPaymentId || isPaymentComplete) {
-      console.log("🛑 Skipping status check:", { apiPaymentId, isPaymentComplete });
+    if (!apiPaymentId || isPaymentComplete || isHandlingSuccess) {
+      console.log("🛑 Skipping status check:", { 
+        apiPaymentId: !!apiPaymentId, 
+        isPaymentComplete, 
+        isHandlingSuccess 
+      });
       return;
     }
 
@@ -350,8 +406,10 @@ export default function PaymentWaitingScreen() {
           stopPolling();
           stopCountdown();
           
-          // ✅ NEW: Auto-confirm booking on payment success
-          await handlePaymentSuccess();
+          // ✅ SAFE: Only call handlePaymentSuccess if not already handling
+          if (!isHandlingSuccess) {
+            await handlePaymentSuccess();
+          }
           return;
         }
 
@@ -364,7 +422,7 @@ export default function PaymentWaitingScreen() {
           stopCountdown();
 
           setTimeout(() => {
-            if (isMountedRef.current) {
+            if (isMountedRef.current && !hasNavigated) {
               Alert.alert(
                 "Thanh toán thất bại",
                 `Thanh toán của bạn đã thất bại (${newStatus}). Vui lòng thử lại.`,
@@ -405,7 +463,7 @@ export default function PaymentWaitingScreen() {
         stopCountdown();
 
         setTimeout(() => {
-          if (isMountedRef.current) {
+          if (isMountedRef.current && !hasNavigated) {
             Alert.alert(
               "Payment đã hết hạn",
               "Payment không còn tồn tại trên hệ thống. Có thể đã hết hạn hoặc bị xóa.",
@@ -426,23 +484,25 @@ export default function PaymentWaitingScreen() {
         console.log("🚫 Max polling attempts reached, stopping...");
         stopPolling();
 
-        Alert.alert(
-          "Lỗi kết nối",
-          "Không thể kiểm tra trạng thái thanh toán. Vui lòng thử lại.",
-          [
-            {
-              text: "Thử lại",
-              onPress: () => {
-                console.log("🔄 Restarting polling...");
-                setStatusCheckCount(0);
-                setIsPaymentComplete(false);
-                pollingStartTimeRef.current = Date.now();
-                startPolling();
+        if (!hasNavigated) {
+          Alert.alert(
+            "Lỗi kết nối",
+            "Không thể kiểm tra trạng thái thanh toán. Vui lòng thử lại.",
+            [
+              {
+                text: "Thử lại",
+                onPress: () => {
+                  console.log("🔄 Restarting polling...");
+                  setStatusCheckCount(0);
+                  setIsPaymentComplete(false);
+                  pollingStartTimeRef.current = Date.now();
+                  startPolling();
+                },
               },
-            },
-            { text: "Đóng", style: "cancel" },
-          ]
-        );
+              { text: "Đóng", style: "cancel" },
+            ]
+          );
+        }
       }
     }
   }, [
@@ -451,6 +511,8 @@ export default function PaymentWaitingScreen() {
     paymentStatus,
     statusCheckCount,
     isPaymentComplete,
+    isHandlingSuccess,
+    hasNavigated,
     getPayment,
     stopPolling,
     stopCountdown,
@@ -462,11 +524,12 @@ export default function PaymentWaitingScreen() {
   const startPolling = useCallback(() => {
     const apiPaymentId = payment?.paymentId || payment?.id;
 
-    if (isPolling || !apiPaymentId || isPaymentComplete) {
+    if (isPolling || !apiPaymentId || isPaymentComplete || isHandlingSuccess) {
       console.log("🛑 Polling conditions not met:", {
         isPolling,
         hasPaymentId: !!apiPaymentId,
         isComplete: isPaymentComplete,
+        isHandlingSuccess,
       });
       return;
     }
@@ -494,7 +557,7 @@ export default function PaymentWaitingScreen() {
 
     // ✅ OPTIMIZED: Adaptive polling intervals
     const scheduleNextCheck = () => {
-      if (!isMountedRef.current || isPaymentComplete) {
+      if (!isMountedRef.current || isPaymentComplete || isHandlingSuccess) {
         stopPolling();
         return;
       }
@@ -502,7 +565,7 @@ export default function PaymentWaitingScreen() {
       if (statusCheckCount >= maxPollingAttempts) {
         stopPolling();
 
-        if (isMountedRef.current) {
+        if (isMountedRef.current && !hasNavigated) {
           Alert.alert(
             "Hết thời gian chờ",
             "Đã hết thời gian chờ xác nhận thanh toán. Vui lòng kiểm tra lại.",
@@ -545,20 +608,22 @@ export default function PaymentWaitingScreen() {
     paymentStatus,
     statusCheckCount,
     isPaymentComplete,
+    isHandlingSuccess,
+    hasNavigated,
     checkPaymentStatus,
     stopPolling,
   ]);
 
-  // ✅ NEW: Add app state monitoring for background polling
+  // ✅ FIXED: App state monitoring for background polling
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextAppState) => {
       console.log("📱 App state changed:", nextAppState);
       
-      if (nextAppState === "active" && paymentStatus === "Pending") {
+      if (nextAppState === "active" && paymentStatus === "Pending" && !isHandlingSuccess) {
         console.log("🔄 App became active, checking payment status...");
         // Check immediately when app becomes active
         setTimeout(() => {
-          if (isMountedRef.current && !isPaymentComplete) {
+          if (isMountedRef.current && !isPaymentComplete && !isHandlingSuccess) {
             checkPaymentStatus();
           }
         }, 500);
@@ -566,19 +631,28 @@ export default function PaymentWaitingScreen() {
     });
 
     return () => subscription?.remove();
-  }, [paymentStatus, isPaymentComplete, checkPaymentStatus]);
+  }, [paymentStatus, isPaymentComplete, isHandlingSuccess, checkPaymentStatus]);
+
+  // ✅ FIXED: Deep link handling with proper state management
   useEffect(() => {
     const handleURL = (event: { url: string }) => {
       const result = handleDeepLink(event.url);
 
       if (result.type === "PAYMENT_SUCCESS") {
+        console.log("🔗 Deep link success detected");
         setPaymentStatus("Success");
         setIsPaymentComplete(true);
         stopPolling();
         stopCountdown();
         
-        // ✅ NEW: Auto-confirm booking on deep link success
-        handlePaymentSuccess();
+        // ✅ SAFE: Let the status check handle the success logic
+        if (!isHandlingSuccess) {
+          setTimeout(() => {
+            if (isMountedRef.current && !hasNavigated) {
+              handlePaymentSuccess();
+            }
+          }, 500);
+        }
       } else if (result.type === "PAYMENT_CANCEL") {
         setPaymentStatus("Cancelled");
         setIsPaymentComplete(true);
@@ -593,7 +667,7 @@ export default function PaymentWaitingScreen() {
 
     const subscription = Linking.addEventListener("url", handleURL);
     return () => subscription?.remove();
-  }, [stopPolling, stopCountdown, handlePaymentSuccess]);
+  }, [stopPolling, stopCountdown, handlePaymentSuccess, isHandlingSuccess, hasNavigated]);
 
   // Component initialization
   useEffect(() => {
@@ -630,7 +704,7 @@ export default function PaymentWaitingScreen() {
     countdownIntervalRef.current = setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          if (isMountedRef.current && !isPaymentComplete) {
+          if (isMountedRef.current && !isPaymentComplete && !hasNavigated) {
             Alert.alert(
               "Hết thời gian",
               "Phiên thanh toán đã hết hạn. Payment sẽ được hủy tự động.",
@@ -665,10 +739,10 @@ export default function PaymentWaitingScreen() {
       apiPaymentId &&
       !isPolling &&
       (paymentStatus === "Pending" || paymentStatus === "PENDING") &&
-      !isPaymentComplete
+      !isPaymentComplete &&
+      !isHandlingSuccess
     ) {
       console.log("🚀 Auto-starting polling immediately...");
-      // ✅ OPTIMIZED: Start polling immediately
       startPolling();
     }
   }, [
@@ -677,6 +751,7 @@ export default function PaymentWaitingScreen() {
     isPolling,
     paymentStatus,
     isPaymentComplete,
+    isHandlingSuccess,
     startPolling,
   ]);
 
@@ -858,25 +933,29 @@ export default function PaymentWaitingScreen() {
   }, [handleCancelPayment]);
 
   const handlePaymentComplete = useCallback(() => {
+    if (isHandlingSuccess || hasNavigated) return;
+
     setIsPaymentComplete(true);
     setPaymentStatus("Success");
     stopPolling();
     stopCountdown();
     
-    // ✅ NEW: Auto-confirm booking on manual completion
-    handlePaymentSuccess();
-  }, [stopPolling, stopCountdown, handlePaymentSuccess]);
+    // ✅ SAFE: Auto-confirm booking on manual completion
+    if (!isHandlingSuccess) {
+      handlePaymentSuccess();
+    }
+  }, [isHandlingSuccess, hasNavigated, stopPolling, stopCountdown, handlePaymentSuccess]);
 
   const handleManualStatusCheck = useCallback(async () => {
     const apiPaymentId = payment?.paymentId || payment?.id;
-    if (!apiPaymentId || loadingPayment) return;
+    if (!apiPaymentId || loadingPayment || isHandlingSuccess) return;
 
     try {
       await checkPaymentStatus();
     } catch (error) {
       Alert.alert("Lỗi", "Không thể kiểm tra trạng thái thanh toán");
     }
-  }, [payment?.paymentId, payment?.id, loadingPayment, checkPaymentStatus]);
+  }, [payment?.paymentId, payment?.id, loadingPayment, isHandlingSuccess, checkPaymentStatus]);
 
   // Success Modal Component
   const SuccessModal = React.memo(() => (
@@ -923,17 +1002,7 @@ export default function PaymentWaitingScreen() {
           <TouchableOpacity
             onPress={() => {
               setShowSuccessModal(false);
-              stopCountdown();
-              stopPolling();
-              navigation.reset({
-                index: 0,
-                routes: [
-                  {
-                    name: "CustomerMain",
-                    params: { screen: "CustomerHomeScreen" },
-                  },
-                ],
-              });
+              navigateToHome();
             }}
             style={styles.completeButton}
             activeOpacity={0.8}
@@ -1000,6 +1069,12 @@ export default function PaymentWaitingScreen() {
                 </Text>
               </View>
             )}
+            {/* ✅ NEW: Time left display */}
+            {paymentStatus === "Pending" && timeLeft > 0 && (
+              <Text style={styles.timeLeft}>
+                Thời gian còn lại: {formatTime(timeLeft)}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -1053,6 +1128,7 @@ export default function PaymentWaitingScreen() {
             </View>
           </View>
         )}
+
         {/* Booking Info */}
         <View style={styles.bookingCard}>
           <Text style={styles.bookingCardTitle}>Thông tin booking</Text>
@@ -1095,19 +1171,7 @@ export default function PaymentWaitingScreen() {
             paymentStatus === "Paid" ||
             paymentStatus === "Completed") && (
             <TouchableOpacity
-              onPress={() => {
-                stopCountdown();
-                stopPolling();
-                navigation.reset({
-                  index: 0,
-                  routes: [
-                    {
-                      name: "CustomerMain",
-                      params: { screen: "CustomerHomeScreen" },
-                    },
-                  ],
-                });
-              }}
+              onPress={navigateToHome}
               style={styles.primaryAction}
               activeOpacity={0.8}
             >
@@ -1131,9 +1195,9 @@ export default function PaymentWaitingScreen() {
               onPress={handleManualStatusCheck}
               style={styles.checkStatusAction}
               activeOpacity={0.7}
-              disabled={loadingPayment}
+              disabled={loadingPayment || isHandlingSuccess}
             >
-              {loadingPayment ? (
+              {loadingPayment || isHandlingSuccess ? (
                 <ActivityIndicator size="small" color="#666" />
               ) : (
                 <MaterialIcons
@@ -1143,7 +1207,7 @@ export default function PaymentWaitingScreen() {
                 />
               )}
               <Text style={styles.checkStatusText}>
-                {loadingPayment ? "Đang kiểm tra..." : "Kiểm tra trạng thái"}
+                {loadingPayment || isHandlingSuccess ? "Đang kiểm tra..." : "Kiểm tra trạng thái"}
               </Text>
             </TouchableOpacity>
           )}
@@ -1293,21 +1357,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginTop: getResponsiveSize(8),
   },
-  pollingIndicator: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: getResponsiveSize(12),
-    paddingHorizontal: getResponsiveSize(16),
-    paddingVertical: getResponsiveSize(8),
-    backgroundColor: "rgba(233, 30, 99, 0.1)",
-    borderRadius: getResponsiveSize(20),
-  },
-  pollingText: {
-    marginLeft: getResponsiveSize(8),
-    fontSize: getResponsiveSize(12),
-    color: "#E91E63",
-    fontWeight: "500",
-  },
   confirmingIndicator: {
     flexDirection: "row",
     alignItems: "center",
@@ -1338,7 +1387,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
 
-  // ✅ NEW: QR Fallback styles
+  // QR Fallback styles
   qrFallback: {
     alignItems: "center",
     paddingVertical: getResponsiveSize(20),
@@ -1373,54 +1422,6 @@ const styles = StyleSheet.create({
   openPaymentText: {
     color: "#fff",
     fontSize: getResponsiveSize(16),
-    fontWeight: "600",
-  },
-
-  // ✅ NEW: Debug styles
-  debugSection: {
-    backgroundColor: "#f0f0f0",
-    marginHorizontal: getResponsiveSize(20),
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(16),
-    marginBottom: getResponsiveSize(20),
-    borderWidth: 1,
-    borderColor: "#ddd",
-  },
-  debugTitle: {
-    fontSize: getResponsiveSize(14),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: getResponsiveSize(8),
-  },
-  debugText: {
-    fontSize: getResponsiveSize(12),
-    color: "#666",
-    marginBottom: getResponsiveSize(4),
-    fontFamily: "monospace",
-  },
-  debugButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: getResponsiveSize(12),
-    gap: getResponsiveSize(8),
-  },
-  debugButton: {
-    flex: 1,
-    backgroundColor: "#007AFF",
-    paddingVertical: getResponsiveSize(8),
-    paddingHorizontal: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(6),
-    alignItems: "center",
-  },
-  debugButtonSuccess: {
-    backgroundColor: "#4CAF50",
-  },
-  debugButtonWarning: {
-    backgroundColor: "#FF9800",
-  },
-  debugButtonText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(10),
     fontWeight: "600",
   },
 

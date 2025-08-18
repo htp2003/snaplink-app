@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getResponsiveSize } from "../../utils/responsive";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { AntDesign, Feather, MaterialIcons } from "@expo/vector-icons";
@@ -486,26 +487,74 @@ export default function BookingScreen() {
   // Price calculation
   useEffect(() => {
     const calculateAndSetPrice = async () => {
-      if (!selectedStartTime || !selectedEndTime || !currentPhotographerId) {
+      console.log("💰 PRICE CALCULATION START:", {
+        hasSelectedStartTime: !!selectedStartTime,
+        hasSelectedEndTime: !!selectedEndTime,
+        hasCurrentPhotographerId: !!currentPhotographerId,
+        isAuthenticated,
+        hasUser: !!user,
+      });
+  
+      if (!isAuthenticated || !user) {
+        console.warn("⚠️ Not authenticated, skipping price calculation");
         return;
       }
-
+  
+      if (!selectedStartTime || !selectedEndTime || !currentPhotographerId) {
+        console.log("⚠️ Missing required data for price calculation");
+        return;
+      }
+  
+      // 🔍 CHECK TOKEN BEFORE API CALL
+      const storedToken = await AsyncStorage.getItem("token");
+      console.log("🔐 Pre-API token check:", {
+        hasStoredToken: !!storedToken,
+        tokenLength: storedToken?.length,
+        isValidJWT: storedToken ? storedToken.split('.').length === 3 : false,
+      });
+  
+      if (!storedToken) {
+        console.error("🚨 NO TOKEN FOUND - Redirecting to login");
+        Alert.alert(
+          "Phiên đăng nhập hết hạn",
+          "Vui lòng đăng nhập lại để tiếp tục",
+          [
+            {
+              text: "Đăng nhập",
+              onPress: () => navigation.navigate("Login"),
+            },
+            { text: "Hủy", style: "cancel" }
+          ]
+        );
+        return;
+      }
+  
       const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
       const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
       const startTotalMinutes = startHour * 60 + startMinute;
       const endTotalMinutes = endHour * 60 + endMinute;
       const duration = (endTotalMinutes - startTotalMinutes) / 60;
-
+  
       const photographerFee = photographerRate * duration;
       const locationFee = selectedLocation?.hourlyRate ? selectedLocation.hourlyRate * duration : 0;
       const manualTotalPrice = photographerFee + locationFee;
+  
       try {
         const startDateTimeString = createUnifiedDateTime(selectedDate, selectedStartTime);
         const endDateTimeString = createUnifiedDateTime(selectedDate, selectedEndTime);
-
+  
         const locationId = selectedLocation?.id || selectedLocation?.locationId;
         const isValidLocationId = locationId && typeof locationId === "number" && locationId > 0;
-
+  
+        console.log("💰 CALLING CALCULATE PRICE API:", {
+          photographerId: currentPhotographerId,
+          startDateTime: startDateTimeString,
+          endDateTime: endDateTimeString,
+          locationId: isValidLocationId ? locationId : "none",
+          hasToken: !!storedToken,
+          apiUrl: "calculate-price"
+        });
+  
         let calculatePriceResult;
         if (isValidLocationId) {
           calculatePriceResult = await calculatePrice(
@@ -521,7 +570,9 @@ export default function BookingScreen() {
             endDateTimeString
           );
         }
-
+  
+        console.log("✅ Price calculation API success:", calculatePriceResult);
+  
         const finalPriceCalculation = {
           totalPrice: calculatePriceResult?.totalPrice ?? manualTotalPrice,
           photographerFee: calculatePriceResult?.photographerFee ?? photographerFee,
@@ -534,16 +585,44 @@ export default function BookingScreen() {
           },
         };
         setPriceCalculation(finalPriceCalculation);
-
-        // Verify ngay sau khi set
-        setTimeout(() => {
-          console.log("💰 VERIFY PRICE STATE AFTER SET:", priceCalculation);
-        }, 100);
-
+  
       } catch (error) {
-        console.error("❌ Error in price calculation:", error);
-
-        // 🔥 FALLBACK: SET MANUAL CALCULATION
+        console.error("❌ DETAILED ERROR in price calculation:", {
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+          errorType: error?.constructor?.name,
+        });
+        
+        // 🔍 SPECIFIC 401 HANDLING
+        if (error instanceof Error) {
+          if (error.message.includes("401") || error.message.includes("Unauthorized")) {
+            console.error("🚨 401 UNAUTHORIZED - Token is invalid/expired");
+            
+            // Clear all auth data
+            await AsyncStorage.multiRemove(["token", "user", "currentUserId"]);
+            
+            Alert.alert(
+              "Phiên đăng nhập hết hạn",
+              "Token xác thực đã hết hạn. Vui lòng đăng nhập lại.",
+              [
+                {
+                  text: "Đăng nhập lại",
+                  onPress: async () => {
+                    navigation.navigate("Login");
+                  },
+                },
+                { text: "Bỏ qua", style: "cancel" }
+              ]
+            );
+            return;
+          }
+          
+          if (error.message.includes("Network") || error.message.includes("fetch")) {
+            console.warn("🌐 Network error in price calculation, using fallback");
+          }
+        }
+  
+        // ✅ ALWAYS USE FALLBACK CALCULATION
         const fallbackCalculation = {
           totalPrice: manualTotalPrice,
           photographerFee: photographerFee,
@@ -555,12 +634,12 @@ export default function BookingScreen() {
             additionalFees: [],
           },
         };
-
-        console.log("💰 SETTING FALLBACK CALCULATION:", fallbackCalculation);
+  
+        console.log("💰 USING FALLBACK CALCULATION:", fallbackCalculation);
         setPriceCalculation(fallbackCalculation);
       }
     };
-
+  
     calculateAndSetPrice();
   }, [
     selectedStartTime,
@@ -570,6 +649,8 @@ export default function BookingScreen() {
     currentPhotographerId,
     calculatePrice,
     photographerRate,
+    isAuthenticated,
+    user,
   ]);
 
   // Booking submission

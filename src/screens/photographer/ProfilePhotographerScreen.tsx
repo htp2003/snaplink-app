@@ -101,6 +101,58 @@ const ProfilePhotographerScreen = () => {
     [{ nativeEvent: { contentOffset: { y: scrollY } } }],
     { useNativeDriver: false }
   );
+
+  const handleLogout = async () => {
+  Alert.alert(
+    "Đăng xuất", 
+    "Bạn có chắc chắn muốn đăng xuất không?", 
+    [
+      {
+        text: "Hủy",
+        style: "cancel",
+      },
+      {
+        text: "Đăng xuất",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setIsLoggingOut(true);
+
+            // Clear any cached data first
+            await AsyncStorage.clear();
+            
+            // Call logout from auth context
+            await logout();
+
+            // Small delay to ensure logout is processed
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Reset navigation stack completely
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "Login" }],
+            });
+
+          } catch (error) {
+            console.error("❌ Logout error:", error);
+
+            // Reset loading state on error
+            setIsLoggingOut(false);
+
+            // Show error alert
+            Alert.alert(
+              "Lỗi đăng xuất",
+              "Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.",
+              [{ text: "OK" }]
+            );
+          }
+          // Note: Don't set setIsLoggingOut(false) in finally block
+          // because component will unmount after navigation reset
+        },
+      },
+    ]
+  );
+};
   
   const handlePortfolioPress = () => {
     if (photographerData) {
@@ -120,44 +172,21 @@ const ProfilePhotographerScreen = () => {
     }
   };
 
+  const handleFavoritedPress = () => {
+    setIsModalVisible(true);
+  };
+
+  const handleModalClose = () => {
+    setIsModalVisible(false);
+  };
+
+  const handleNotificationPress = () => {
+    // navigation.navigate('Notifications');
+  };
+
   
 
-  const handleLogout = async () => {
-      Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
-        {
-          text: "Hủy",
-          style: "cancel",
-        },
-        {
-          text: "Đăng xuất",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              setIsLoggingOut(true);
   
-              await logout();
-  
-              // Navigate to login screen or reset navigation stack
-              navigation.reset({
-                index: 0,
-                routes: [{ name: "Login" }], // Adjust route name as needed
-              });
-            } catch (error) {
-              console.error("❌ Logout error:", error);
-  
-              // Show error alert
-              Alert.alert(
-                "Lỗi đăng xuất",
-                "Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.",
-                [{ text: "OK" }]
-              );
-            } finally {
-              setIsLoggingOut(false);
-            }
-          },
-        },
-      ]);
-    };
 
   const menuItems = [
   {
@@ -225,17 +254,7 @@ const ProfilePhotographerScreen = () => {
     isLoading: isLoggingOut,
   },
 ];
-  const handleFavoritedPress = () => {
-    setIsModalVisible(true);
-  };
-
-  const handleModalClose = () => {
-    setIsModalVisible(false);
-  };
-
-  const handleNotificationPress = () => {
-    // navigation.navigate('Notifications');
-  };
+  
 
   const renderMenuItem = (item: any, index: number) => (
     <TouchableOpacity

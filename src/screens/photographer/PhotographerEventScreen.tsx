@@ -592,7 +592,7 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
               startDate: application.eventStartDate || "",
               endDate: application.eventEndDate || "",
               discountedPrice:
-                application.specialRate > 0
+                application.specialRate !== undefined && application.specialRate > 0
                   ? application.specialRate
                   : undefined,
               originalPrice: undefined,
@@ -601,6 +601,8 @@ const PhotographerEventScreen: React.FC<PhotographerEventScreenProps> = ({
               totalBookingsCount: 0,
               createdAt: application.appliedAt || new Date().toISOString(),
               updatedAt: application.appliedAt || new Date().toISOString(),
+              maxPhotographers: 0,
+              maxBookingsPerSlot: 0
             };
 
             return (

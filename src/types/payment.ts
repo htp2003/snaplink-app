@@ -163,12 +163,19 @@ export interface WalletTopUpResponse {
   data: {
     paymentId: number;
     payOSData: {
+      status: string;
       paymentUrl?: string;
       checkoutUrl?: string;
       orderCode: string;
       qrCode?: string;
       expiredAt: string;
       amount: number;
+      paymentLinkId: string;
+      accountNumber: string;
+      bin: string;
+      description: string;
+      currency: string;
+      
     };
   };
 }

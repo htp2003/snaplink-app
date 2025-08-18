@@ -329,7 +329,7 @@ export default function VenueOwnerHomeScreen() {
                         marginTop: 2,
                       }}
                     >
-                      {formatCurrency(walletBalance.totalSpent || 0)}
+                      {formatCurrency(walletBalance.balance|| 0)}
                     </Text>
                   </View>
                   <View>
@@ -348,7 +348,7 @@ export default function VenueOwnerHomeScreen() {
                         marginTop: 2,
                       }}
                     >
-                      {formatCurrency(walletBalance.totalEarned || 0)}
+                      {formatCurrency(walletBalance.balance || 0)}
                     </Text>
                   </View>
                 </View>

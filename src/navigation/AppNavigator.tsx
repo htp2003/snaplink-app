@@ -38,7 +38,7 @@ import EditProfileUserScreen from "../screens/customer/EditProifileUserScreen";
 import OrderHistoryScreen from "../screens/customer/OrderHistoryScreen";
 import PortfolioScreen from "../screens/photographer/PortfolioScreen";
 import PaymentWaitingScreen from "../screens/customer/PaymentWaitingScreen ";
-
+import PaymentWaitingScreenWallet from "../screens/photographer/PaymentWaitingScreenWallet";
 import BookingDetailScreen from "../screens/customer/BookingDetailScreen";
 
 import PhotoDeliveryScreen from "../screens/photographer/PhotoDeliveryScreen";
@@ -198,6 +198,10 @@ const AppNavigator = () => {
           headerShown: false,
           presentation: "card",
         }}
+      />
+      <Stack.Screen
+        name="PaymentWaitingScreenWallet"
+        component={PaymentWaitingScreenWallet}
       />
 
       {/* VenueOwner Event Management Screens */}

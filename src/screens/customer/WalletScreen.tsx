@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,14 @@ import { useNavigation } from '@react-navigation/native';
 import { RootStackNavigationProp } from '../../navigation/types';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useWallet } from '../../hooks/useWallet';
+import WalletTopUpModal from '../../components/WalletTopUpModal';
 
 const WalletScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
   const insets = useSafeAreaInsets();
+  
+  // State for Top-up Modal
+  const [showTopUpModal, setShowTopUpModal] = useState(false);
   
   const {
     walletBalance,
@@ -29,6 +33,15 @@ const WalletScreen = () => {
 
   const handleGoBack = () => {
     navigation.goBack();
+  };
+
+  const handleTopUpPress = () => {
+    setShowTopUpModal(true);
+  };
+
+  const handleTopUpSuccess = () => {
+    // Refresh wallet data after successful top-up
+    refreshWalletData();
   };
 
   const formatDate = (dateString: string): string => {
@@ -150,6 +163,54 @@ const WalletScreen = () => {
           </View>
         </View>
 
+        {/* Quick Actions */}
+        <View className="mx-4 mb-6">
+          <Text className="text-lg font-semibold text-black mb-4">Thao tác nhanh</Text>
+          
+          <View className="flex-row justify-between">
+            {/* Top-up Button */}
+            <TouchableOpacity
+              className="flex-1 bg-white rounded-xl p-4 mr-2 shadow-sm border border-gray-100"
+              onPress={handleTopUpPress}
+              activeOpacity={0.7}
+            >
+              <View className="items-center">
+                <View className="w-12 h-12 rounded-full bg-green-100 items-center justify-center mb-3">
+                  <Ionicons name="add-circle" size={24} color="#10B981" />
+                </View>
+                <Text className="text-base font-semibold text-black mb-1">
+                  Nạp tiền
+                </Text>
+                <Text className="text-sm text-gray-500 text-center">
+                  Nạp tiền vào ví
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Transaction History Button (Coming Soon) */}
+            <TouchableOpacity
+              className="flex-1 bg-white rounded-xl p-4 ml-2 shadow-sm border border-gray-100 opacity-60"
+              disabled={true}
+              activeOpacity={0.7}
+            >
+              <View className="items-center">
+                <View className="w-12 h-12 rounded-full bg-blue-100 items-center justify-center mb-3">
+                  <Ionicons name="receipt-outline" size={24} color="#3B82F6" />
+                </View>
+                <Text className="text-base font-semibold text-black mb-1">
+                  Lịch sử
+                </Text>
+                <Text className="text-sm text-gray-500 text-center">
+                  Xem giao dịch
+                </Text>
+                <View className="absolute top-2 right-2 bg-orange-100 px-2 py-1 rounded-full">
+                  <Text className="text-orange-600 text-xs font-medium">Sớm</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Information Cards */}
         <View className="mx-4 mb-6">
           <Text className="text-lg font-semibold text-black mb-4">Thông tin ví</Text>
@@ -212,40 +273,40 @@ const WalletScreen = () => {
             </View>
           )}
 
-          {/* Coming Soon Features */}
+          {/* Payment Methods Info */}
           <View className="bg-white rounded-xl p-4 shadow-sm">
-            <Text className="text-base font-semibold text-black mb-3">
-              Tính năng sắp ra mắt
-            </Text>
+            <View className="flex-row items-center mb-3">
+              <View className="w-12 h-12 rounded-full bg-purple-100 items-center justify-center mr-3">
+                <Ionicons name="card-outline" size={24} color="#8B5CF6" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-base font-semibold text-black mb-1">
+                  Phương thức thanh toán
+                </Text>
+                <Text className="text-sm text-gray-500">
+                  Hỗ trợ tất cả ngân hàng Việt Nam
+                </Text>
+              </View>
+            </View>
             
-            <View className="space-y-3">
-              <View className="flex-row items-center py-2">
-                <Ionicons name="send-outline" size={20} color="#9CA3AF" />
-                <Text className="text-sm text-gray-500 ml-3">Chuyển tiền</Text>
-                <View className="ml-auto bg-orange-100 px-2 py-1 rounded-full">
-                  <Text className="text-orange-600 text-xs font-medium">Sớm</Text>
-                </View>
-              </View>
-              
-              <View className="flex-row items-center py-2">
-                <Ionicons name="add-circle-outline" size={20} color="#9CA3AF" />
-                <Text className="text-sm text-gray-500 ml-3">Nạp tiền</Text>
-                <View className="ml-auto bg-orange-100 px-2 py-1 rounded-full">
-                  <Text className="text-orange-600 text-xs font-medium">Sớm</Text>
-                </View>
-              </View>
-              
-              <View className="flex-row items-center py-2">
-                <Ionicons name="receipt-outline" size={20} color="#9CA3AF" />
-                <Text className="text-sm text-gray-500 ml-3">Lịch sử giao dịch</Text>
-                <View className="ml-auto bg-orange-100 px-2 py-1 rounded-full">
-                  <Text className="text-orange-600 text-xs font-medium">Sớm</Text>
-                </View>
+            <View className="bg-purple-50 rounded-lg p-3 mt-2">
+              <View className="flex-row items-center">
+                <Ionicons name="shield-checkmark" size={16} color="#8B5CF6" />
+                <Text className="text-sm text-purple-700 ml-2 flex-1">
+                  Thanh toán an toàn với mã QR Banking
+                </Text>
               </View>
             </View>
           </View>
         </View>
       </ScrollView>
+
+      {/* Wallet Top-up Modal */}
+      <WalletTopUpModal
+        visible={showTopUpModal}
+        onClose={() => setShowTopUpModal(false)}
+        onSuccess={handleTopUpSuccess}
+      />
     </View>
   );
 };

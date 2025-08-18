@@ -66,7 +66,7 @@ export type RootStackParamList = {
   PortfolioScreen: undefined;
   PaymentWaitingScreen: PaymentFlowData;
   WalletScreen: undefined;
-
+  PaymentWaitingScreenWallet: PaymentFlowData;
 
   PhotoDeliveryScreen: {
     bookingId: number;

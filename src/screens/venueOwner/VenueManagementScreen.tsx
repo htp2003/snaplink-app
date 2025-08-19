@@ -10,6 +10,7 @@ import {
   Modal,
   TextInput,
   FlatList,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +25,8 @@ import {
   CreateLocationRequest,
   UpdateLocationRequest,
 } from "../../types/venueLocation";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 export default function VenueManagementScreen() {
   const { user } = useAuth();
@@ -49,7 +52,7 @@ export default function VenueManagementScreen() {
   const [editingLocation, setEditingLocation] = useState<VenueLocation | null>(
     null
   );
-  const [forceRefreshKey, setForceRefreshKey] = useState(0); // Key để force refresh
+  const [forceRefreshKey, setForceRefreshKey] = useState(0);
 
   // Image hook for selected location
   const {
@@ -90,7 +93,6 @@ export default function VenueManagementScreen() {
     setProfileLoading(true);
     try {
       const profile = await getProfileByUserId(user.id);
-
       if (profile) {
         setLocationOwnerId(profile.locationOwnerId);
       } else {
@@ -104,7 +106,6 @@ export default function VenueManagementScreen() {
     }
   }, [user?.id, getProfileByUserId]);
 
-  // Sử dụng useFocusEffect để refresh khi màn hình được focus
   useFocusEffect(
     useCallback(() => {
       console.log("🔄 Screen focused, checking venue owner profile...");
@@ -112,23 +113,18 @@ export default function VenueManagementScreen() {
     }, [fetchVenueOwnerProfile])
   );
 
-  // Load locations sau khi có profile
   useEffect(() => {
     if (!profileLoading && locationOwnerId) {
-      console.log("📍 Loading locations for owner ID:", locationOwnerId);
+      console.log("🏠 Loading locations for owner ID:", locationOwnerId);
       getAllLocations();
     }
   }, [profileLoading, locationOwnerId, forceRefreshKey]);
 
   const onRefresh = async () => {
     console.log("🔄 Manual refresh triggered");
-    await Promise.all([
-      fetchVenueOwnerProfile(), // Refresh profile
-      refreshLocations(), // Refresh locations
-    ]);
+    await Promise.all([fetchVenueOwnerProfile(), refreshLocations()]);
   };
 
-  // Function để force refresh toàn bộ
   const forceRefresh = useCallback(async () => {
     console.log("🔄 Force refresh triggered");
     setForceRefreshKey((prev) => prev + 1);
@@ -174,7 +170,7 @@ export default function VenueManagementScreen() {
     setShowImageModal(true);
     clearImageError();
   };
-  // Part 2: Functions & Handlers
+
   const handleSave = async () => {
     if (!formData.name.trim() || !formData.address.trim()) {
       Alert.alert("Lỗi", "Vui lòng nhập tên và địa chỉ địa điểm");
@@ -270,7 +266,6 @@ export default function VenueManagementScreen() {
 
   const handlePickImages = async () => {
     try {
-      // Request permission
       const permissionResult =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -279,7 +274,6 @@ export default function VenueManagementScreen() {
         return;
       }
 
-      // Pick multiple images
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsMultipleSelection: true,
@@ -292,7 +286,7 @@ export default function VenueManagementScreen() {
 
         if (imageUris.length > 0) {
           try {
-            await uploadMultipleImages(imageUris, 0); // First image as primary
+            await uploadMultipleImages(imageUris, 0);
             Alert.alert("Thành công", `Đã upload ${imageUris.length} hình ảnh`);
           } catch (error) {
             Alert.alert("Lỗi", "Có lỗi xảy ra khi upload hình ảnh");
@@ -347,20 +341,39 @@ export default function VenueManagementScreen() {
     }).format(amount);
   };
 
-  // Show loading state while getting profile
+  // Get thumbnail image for a location
+  const getLocationThumbnail = (location: VenueLocation) => {
+    if (location.images && location.images.length > 0) {
+      const primaryImage = location.images.find((img) => img.isPrimary);
+      return primaryImage?.url || location.images[0].url;
+    }
+    return null;
+  };
+
+  // Loading State
   if (profileLoading) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
         <View className="flex-1 justify-center items-center px-4">
-          <Text className="text-lg text-gray-600">
-            Đang tải hồ sơ venue owner...
-          </Text>
+          <View className="bg-white p-8 rounded-2xl shadow-sm">
+            <View className="items-center">
+              <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center mb-4">
+                <Ionicons name="business" size={32} color="#3B82F6" />
+              </View>
+              <Text className="text-lg font-semibold text-gray-900 mb-2">
+                Đang tải hồ sơ...
+              </Text>
+              <Text className="text-gray-600 text-center">
+                Vui lòng chờ trong giây lát
+              </Text>
+            </View>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Show proper state based on venue owner profile
+  // No User State
   if (!user?.id) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
@@ -371,51 +384,71 @@ export default function VenueManagementScreen() {
     );
   }
 
+  // No Venue Owner Profile State
   if (!locationOwnerId) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
-        <View className="flex-1 justify-center items-center px-4">
-          <Ionicons name="business-outline" size={64} color="#6B7280" />
-          <Text className="text-xl font-semibold text-gray-900 mt-4 text-center">
-            Cần tạo hồ sơ venue owner
-          </Text>
-          <Text className="text-gray-600 mt-2 text-center">
-            Bạn cần tạo hồ sơ venue owner trước khi quản lý địa điểm
-          </Text>
-
-          {/* Nút refresh để check lại sau khi tạo profile */}
-          <TouchableOpacity
-            onPress={forceRefresh}
-            className="bg-blue-500 px-6 py-3 rounded-lg mt-4 flex-row items-center"
-          >
-            <Ionicons name="refresh" size={20} color="white" />
-            <Text className="text-white font-semibold ml-2">Kiểm tra lại</Text>
-          </TouchableOpacity>
+        <View className="flex-1 justify-center items-center px-6">
+          <View className="bg-white p-8 rounded-3xl shadow-lg max-w-sm w-full">
+            <View className="items-center">
+              <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center mb-6">
+                <Ionicons name="business" size={40} color="#3B82F6" />
+              </View>
+              <Text className="text-2xl font-bold text-gray-900 mb-3 text-center">
+                Tạo hồ sơ Venue Owner
+              </Text>
+              <Text className="text-gray-600 text-center mb-6 leading-relaxed">
+                Bạn cần tạo hồ sơ venue owner trước khi có thể quản lý địa điểm
+                cho thuê
+              </Text>
+              <TouchableOpacity
+                onPress={forceRefresh}
+                className="bg-blue-500 px-8 py-4 rounded-2xl flex-row items-center shadow-md"
+              >
+                <Ionicons name="refresh" size={20} color="white" />
+                <Text className="text-white font-semibold ml-2 text-base">
+                  Kiểm tra lại
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
 
+  // Error State
   if (error) {
     return (
       <SafeAreaView className="flex-1 bg-gray-50">
-        <View className="flex-1 justify-center items-center px-4">
-          <Ionicons name="warning-outline" size={64} color="#EF4444" />
-          <Text className="text-xl font-semibold text-gray-900 mt-4 text-center">
-            Có lỗi xảy ra
-          </Text>
-          <Text className="text-gray-600 mt-2 text-center">{error}</Text>
-          <TouchableOpacity
-            onPress={onRefresh}
-            className="bg-red-500 px-6 py-3 rounded-lg mt-4"
-          >
-            <Text className="text-white font-semibold">Thử lại</Text>
-          </TouchableOpacity>
+        <View className="flex-1 justify-center items-center px-6">
+          <View className="bg-white p-8 rounded-3xl shadow-lg max-w-sm w-full">
+            <View className="items-center">
+              <View className="w-20 h-20 bg-red-100 rounded-full items-center justify-center mb-6">
+                <Ionicons name="warning" size={40} color="#EF4444" />
+              </View>
+              <Text className="text-2xl font-bold text-gray-900 mb-3 text-center">
+                Có lỗi xảy ra
+              </Text>
+              <Text className="text-gray-600 text-center mb-6 leading-relaxed">
+                {error}
+              </Text>
+              <TouchableOpacity
+                onPress={onRefresh}
+                className="bg-red-500 px-8 py-4 rounded-2xl shadow-md"
+              >
+                <Text className="text-white font-semibold text-base">
+                  Thử lại
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </SafeAreaView>
     );
   }
-  // Part 3: Main UI & Modals
+
+  // Main UI
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       <ScrollView
@@ -423,171 +456,249 @@ export default function VenueManagementScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        showsVerticalScrollIndicator={false}
       >
-        <View className="bg-white px-4 py-6">
-          <View className="flex-row justify-between items-center">
-            <View>
-              <Text className="text-2xl font-bold text-gray-900">
+        {/* Header */}
+        <View className="bg-white px-6 py-8 border-b border-gray-100">
+          <View className="flex-row justify-between items-start">
+            <View className="flex-1">
+              <Text className="text-3xl font-bold text-gray-900 mb-2">
                 Địa điểm của tôi
               </Text>
-              <Text className="text-gray-600 mt-1">
-                Quản lý địa điểm cho thuê ({myLocations.length} địa điểm)
+              <Text className="text-gray-600 text-base">
+                {myLocations.length} địa điểm • Quản lý dễ dàng
               </Text>
             </View>
             <TouchableOpacity
               onPress={openCreateModal}
-              className="bg-blue-500 p-3 rounded-full"
+              className="bg-blue-500 p-4 rounded-2xl shadow-md"
+              style={{
+                shadowColor: "#3B82F6",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+              }}
             >
               <Ionicons name="add" size={24} color="white" />
             </TouchableOpacity>
           </View>
         </View>
 
-        <View className="px-4 mt-4">
+        {/* Content */}
+        <View className="px-4 mt-6">
           {loading ? (
+            // Loading Skeleton
             <View className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <View
                   key={i}
-                  className="bg-white rounded-lg shadow-sm border border-gray-100 p-4"
+                  className="bg-white rounded-2xl shadow-sm p-4 overflow-hidden"
                 >
-                  <View className="flex-row space-x-3">
-                    <View className="w-20 h-20 bg-gray-200 rounded-lg" />
-                    <View className="flex-1">
-                      <View className="bg-gray-200 h-5 w-32 rounded mb-2" />
-                      <View className="bg-gray-200 h-4 w-24 rounded mb-2" />
-                      <View className="bg-gray-200 h-4 w-20 rounded" />
+                  <View className="flex-row space-x-4">
+                    <View className="w-24 h-24 bg-gray-200 rounded-xl animate-pulse" />
+                    <View className="flex-1 space-y-3">
+                      <View className="bg-gray-200 h-5 w-32 rounded animate-pulse" />
+                      <View className="bg-gray-200 h-4 w-24 rounded animate-pulse" />
+                      <View className="bg-gray-200 h-4 w-20 rounded animate-pulse" />
                     </View>
                   </View>
                 </View>
               ))}
             </View>
           ) : myLocations.length > 0 ? (
+            // Locations List
             <View className="space-y-4 mb-6">
-              {myLocations.map((location) => (
-                <View
-                  key={location.locationId}
-                  className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden"
-                >
-                  <View className="flex-row">
-                    <TouchableOpacity
-                      className="w-24 h-24"
-                      onPress={() => openImageModal(location)}
-                    >
-                      {location.images && location.images.length > 0 ? (
-                        <Image
-                          source={{
-                            uri:
-                              location.images.find((img) => img.isPrimary)
-                                ?.url || location.images[0].url,
-                          }}
-                          className="w-full h-full"
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View className="w-full h-full bg-gray-200 items-center justify-center">
-                          <Ionicons
-                            name="camera-outline"
-                            size={24}
-                            color="#9CA3AF"
-                          />
-                          <Text className="text-xs text-gray-500 mt-1">
-                            Thêm ảnh
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-
-                    <View className="flex-1 p-4">
-                      <View className="flex-row justify-between items-start mb-2">
-                        <Text className="text-lg font-semibold text-gray-900 flex-1 mr-2">
-                          {location.name}
-                        </Text>
-                        <View className="flex-row space-x-2">
-                          <TouchableOpacity
-                            onPress={() => openImageModal(location)}
-                            className="p-2"
-                          >
-                            <Ionicons
-                              name="image-outline"
-                              size={16}
-                              color="#6B7280"
-                            />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => openEditModal(location)}
-                            className="p-2"
-                          >
-                            <Ionicons
-                              name="pencil-outline"
-                              size={16}
-                              color="#6B7280"
-                            />
-                          </TouchableOpacity>
-                          <TouchableOpacity
-                            onPress={() => handleDelete(location)}
-                            className="p-2"
-                          >
-                            <Ionicons
-                              name="trash-outline"
-                              size={16}
-                              color="#EF4444"
-                            />
-                          </TouchableOpacity>
-                        </View>
-                      </View>
-
-                      <Text
-                        className="text-gray-600 text-sm mb-2"
-                        numberOfLines={2}
+              {myLocations.map((location, index) => {
+                const thumbnail = getLocationThumbnail(location);
+                return (
+                  <View
+                    key={location.locationId}
+                    className="bg-white rounded-2xl shadow-md overflow-hidden"
+                    style={{
+                      shadowColor: "#000",
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 8,
+                      elevation: 5,
+                    }}
+                  >
+                    <View className="flex-row">
+                      {/* Thumbnail */}
+                      <TouchableOpacity
+                        className="w-32 h-32"
+                        onPress={() => openImageModal(location)}
                       >
-                        {location.address}
-                      </Text>
-
-                      <View className="flex-row justify-between items-center">
-                        <Text className="text-blue-600 font-semibold">
-                          {location.hourlyRate
-                            ? formatCurrency(location.hourlyRate)
-                            : "Chưa có giá"}
-                          /giờ
-                        </Text>
-                        <View className="flex-row items-center">
-                          <View
-                            className={`w-2 h-2 rounded-full mr-2 ${
-                              location.availabilityStatus === "Available"
-                                ? "bg-green-500"
-                                : location.availabilityStatus === "Unavailable"
-                                ? "bg-red-500"
-                                : "bg-yellow-500"
-                            }`}
+                        {thumbnail ? (
+                          <Image
+                            source={{ uri: thumbnail }}
+                            className="w-full h-full"
+                            resizeMode="cover"
                           />
-                          <Text className="text-xs text-gray-500 capitalize">
-                            {location.availabilityStatus}
+                        ) : (
+                          <View className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-200 items-center justify-center">
+                            <Ionicons name="camera" size={32} color="#9CA3AF" />
+                            <Text className="text-xs text-gray-500 mt-2 px-2 text-center">
+                              Thêm ảnh
+                            </Text>
+                          </View>
+                        )}
+
+                        {/* Image count overlay */}
+                        {location.images && location.images.length > 0 && (
+                          <View className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded-full">
+                            <Text className="text-white text-xs font-medium">
+                              {location.images.length}
+                            </Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
+
+                      {/* Content */}
+                      <View className="flex-1 p-4">
+                        <View className="flex-row justify-between items-start mb-3">
+                          <Text
+                            className="text-lg font-bold text-gray-900 flex-1 mr-2"
+                            numberOfLines={2}
+                          >
+                            {location.name}
                           </Text>
+
+                          {/* Status Badge */}
+                          <View
+                            className={`px-2 py-1 rounded-full ${
+                              location.availabilityStatus === "Available"
+                                ? "bg-green-100"
+                                : location.availabilityStatus === "Unavailable"
+                                ? "bg-red-100"
+                                : "bg-yellow-100"
+                            }`}
+                          >
+                            <Text
+                              className={`text-xs font-medium ${
+                                location.availabilityStatus === "Available"
+                                  ? "text-green-800"
+                                  : location.availabilityStatus ===
+                                    "Unavailable"
+                                  ? "text-red-800"
+                                  : "text-yellow-800"
+                              }`}
+                            >
+                              {location.availabilityStatus === "Available"
+                                ? "Sẵn sàng"
+                                : location.availabilityStatus === "Unavailable"
+                                ? "Không khả dụng"
+                                : "Chờ xử lý"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Address */}
+                        <View className="flex-row items-start mb-3">
+                          <Ionicons
+                            name="location-outline"
+                            size={16}
+                            color="#6B7280"
+                          />
+                          <Text
+                            className="text-gray-600 text-sm ml-1 flex-1"
+                            numberOfLines={2}
+                          >
+                            {location.address}
+                          </Text>
+                        </View>
+
+                        {/* Features */}
+                        <View className="flex-row items-center mb-3">
+                          {location.indoor && (
+                            <View className="bg-blue-50 px-2 py-1 rounded-full mr-2">
+                              <Text className="text-blue-700 text-xs font-medium">
+                                Indoor
+                              </Text>
+                            </View>
+                          )}
+                          {location.outdoor && (
+                            <View className="bg-amber-50 px-2 py-1 rounded-full mr-2">
+                              <Text className="text-amber-700 text-xs font-medium">
+                                Outdoor
+                              </Text>
+                            </View>
+                          )}
+                          {location.capacity && (
+                            <View className="bg-gray-50 px-2 py-1 rounded-full">
+                              <Text className="text-gray-700 text-xs font-medium">
+                                {location.capacity} người
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+
+                        {/* Price and Actions */}
+                        <View className="flex-row justify-between items-center">
+                          <Text className="text-blue-600 font-bold text-base">
+                            {location.hourlyRate
+                              ? formatCurrency(location.hourlyRate) + "/giờ"
+                              : "Chưa có giá"}
+                          </Text>
+
+                          <View className="flex-row space-x-1">
+                            <TouchableOpacity
+                              onPress={() => openImageModal(location)}
+                              className="bg-gray-100 p-2 rounded-lg"
+                            >
+                              <Ionicons
+                                name="image-outline"
+                                size={16}
+                                color="#6B7280"
+                              />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => openEditModal(location)}
+                              className="bg-blue-100 p-2 rounded-lg"
+                            >
+                              <Ionicons
+                                name="pencil-outline"
+                                size={16}
+                                color="#3B82F6"
+                              />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => handleDelete(location)}
+                              className="bg-red-100 p-2 rounded-lg"
+                            >
+                              <Ionicons
+                                name="trash-outline"
+                                size={16}
+                                color="#EF4444"
+                              />
+                            </TouchableOpacity>
+                          </View>
                         </View>
                       </View>
                     </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           ) : (
-            <View className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+            // Empty State
+            <View className="bg-white p-8 rounded-2xl shadow-sm">
               <View className="items-center">
-                <View className="bg-gray-100 p-4 rounded-full mb-4">
-                  <Ionicons name="business-outline" size={32} color="#6B7280" />
+                <View className="w-24 h-24 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full items-center justify-center mb-6">
+                  <Ionicons name="business" size={48} color="#3B82F6" />
                 </View>
-                <Text className="text-gray-900 font-medium mb-2">
+                <Text className="text-2xl font-bold text-gray-900 mb-3">
                   Chưa có địa điểm nào
                 </Text>
-                <Text className="text-gray-500 text-center mb-4">
-                  Thêm địa điểm đầu tiên để bắt đầu kinh doanh
+                <Text className="text-gray-600 text-center mb-6 leading-relaxed">
+                  Thêm địa điểm đầu tiên để bắt đầu kinh doanh cho thuê không
+                  gian
                 </Text>
                 <TouchableOpacity
                   onPress={openCreateModal}
-                  className="bg-blue-500 px-6 py-3 rounded-lg"
+                  className="bg-blue-500 px-8 py-4 rounded-2xl flex-row items-center shadow-md"
                 >
-                  <Text className="text-white font-semibold">
+                  <Ionicons name="add" size={20} color="white" />
+                  <Text className="text-white font-semibold ml-2 text-base">
                     Thêm địa điểm
                   </Text>
                 </TouchableOpacity>
@@ -604,135 +715,181 @@ export default function VenueManagementScreen() {
         presentationStyle="pageSheet"
       >
         <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
+          {/* Modal Header */}
+          <View className="flex-row justify-between items-center px-6 py-4 border-b border-gray-100">
             <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-              <Text className="text-blue-500 font-medium">Hủy</Text>
+              <Text className="text-blue-600 font-semibold text-base">Hủy</Text>
             </TouchableOpacity>
-            <Text className="text-lg font-semibold">
+            <Text className="text-xl font-bold text-gray-900">
               {editingLocation ? "Chỉnh sửa địa điểm" : "Thêm địa điểm"}
             </Text>
             <TouchableOpacity onPress={handleSave}>
-              <Text className="text-blue-500 font-medium">Lưu</Text>
+              <Text className="text-blue-600 font-semibold text-base">Lưu</Text>
             </TouchableOpacity>
           </View>
 
-          <ScrollView className="flex-1 px-4 py-6">
+          <ScrollView
+            className="flex-1 px-6 py-4"
+            showsVerticalScrollIndicator={false}
+          >
             <View className="space-y-6">
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Tên địa điểm *
+              {/* Basic Information */}
+              <View className="bg-gray-50 p-4 rounded-2xl">
+                <Text className="text-lg font-bold text-gray-900 mb-4">
+                  Thông tin cơ bản
                 </Text>
-                <TextInput
-                  value={formData.name}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, name: text })
-                  }
-                  placeholder="Nhập tên địa điểm"
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
 
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Địa chỉ *
-                </Text>
-                <TextInput
-                  value={formData.address}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, address: text })
-                  }
-                  placeholder="Nhập địa chỉ"
-                  multiline
-                  numberOfLines={2}
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
+                <View className="space-y-4">
+                  <View>
+                    <Text className="text-gray-900 font-semibold mb-2">
+                      Tên địa điểm *
+                    </Text>
+                    <TextInput
+                      value={formData.name}
+                      onChangeText={(text) =>
+                        setFormData({ ...formData, name: text })
+                      }
+                      placeholder="VD: Studio chụp ảnh vintage"
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                      style={{ fontSize: 16 }}
+                    />
+                  </View>
 
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">Mô tả</Text>
-                <TextInput
-                  value={formData.description}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, description: text })
-                  }
-                  placeholder="Mô tả về địa điểm"
-                  multiline
-                  numberOfLines={3}
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
+                  <View>
+                    <Text className="text-gray-900 font-semibold mb-2">
+                      Địa chỉ *
+                    </Text>
+                    <TextInput
+                      value={formData.address}
+                      onChangeText={(text) =>
+                        setFormData({ ...formData, address: text })
+                      }
+                      placeholder="Nhập địa chỉ đầy đủ"
+                      multiline
+                      numberOfLines={3}
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                      style={{ fontSize: 16, textAlignVertical: "top" }}
+                    />
+                  </View>
 
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">Tiện ích</Text>
-                <TextInput
-                  value={formData.amenities}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, amenities: text })
-                  }
-                  placeholder="WiFi, Parking, Ánh sáng tự nhiên..."
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
-
-              <View className="flex-row space-x-4">
-                <View className="flex-1">
-                  <Text className="text-gray-900 font-medium mb-2">
-                    Giá thuê/giờ (VNĐ)
-                  </Text>
-                  <TextInput
-                    value={formData.hourlyRate}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, hourlyRate: text })
-                    }
-                    placeholder="100000"
-                    keyboardType="numeric"
-                    className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                  />
-                </View>
-
-                <View className="flex-1">
-                  <Text className="text-gray-900 font-medium mb-2">
-                    Sức chứa (người)
-                  </Text>
-                  <TextInput
-                    value={formData.capacity}
-                    onChangeText={(text) =>
-                      setFormData({ ...formData, capacity: text })
-                    }
-                    placeholder="10"
-                    keyboardType="numeric"
-                    className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                  />
+                  <View>
+                    <Text className="text-gray-900 font-semibold mb-2">
+                      Mô tả
+                    </Text>
+                    <TextInput
+                      value={formData.description}
+                      onChangeText={(text) =>
+                        setFormData({ ...formData, description: text })
+                      }
+                      placeholder="Mô tả về địa điểm, phong cách, đặc điểm nổi bật..."
+                      multiline
+                      numberOfLines={4}
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                      style={{ fontSize: 16, textAlignVertical: "top" }}
+                    />
+                  </View>
                 </View>
               </View>
 
-              <View>
-                <Text className="text-gray-900 font-medium mb-3">
+              {/* Details */}
+              <View className="bg-gray-50 p-4 rounded-2xl">
+                <Text className="text-lg font-bold text-gray-900 mb-4">
+                  Chi tiết
+                </Text>
+
+                <View className="space-y-4">
+                  <View>
+                    <Text className="text-gray-900 font-semibold mb-2">
+                      Tiện ích
+                    </Text>
+                    <TextInput
+                      value={formData.amenities}
+                      onChangeText={(text) =>
+                        setFormData({ ...formData, amenities: text })
+                      }
+                      placeholder="WiFi, Parking, Ánh sáng tự nhiên, Điều hòa..."
+                      className="bg-white border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                      style={{ fontSize: 16 }}
+                    />
+                  </View>
+
+                  <View className="flex-row space-x-3">
+                    <View className="flex-1">
+                      <Text className="text-gray-900 font-semibold mb-2">
+                        Giá thuê/giờ (VNĐ)
+                      </Text>
+                      <TextInput
+                        value={formData.hourlyRate}
+                        onChangeText={(text) =>
+                          setFormData({ ...formData, hourlyRate: text })
+                        }
+                        placeholder="100000"
+                        keyboardType="numeric"
+                        className="bg-white border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                        style={{ fontSize: 16 }}
+                      />
+                    </View>
+
+                    <View className="flex-1">
+                      <Text className="text-gray-900 font-semibold mb-2">
+                        Sức chứa (người)
+                      </Text>
+                      <TextInput
+                        value={formData.capacity}
+                        onChangeText={(text) =>
+                          setFormData({ ...formData, capacity: text })
+                        }
+                        placeholder="10"
+                        keyboardType="numeric"
+                        className="bg-white border border-gray-200 rounded-xl px-4 py-4 text-gray-900 text-base"
+                        style={{ fontSize: 16 }}
+                      />
+                    </View>
+                  </View>
+                </View>
+              </View>
+
+              {/* Space Type */}
+              <View className="bg-gray-50 p-4 rounded-2xl">
+                <Text className="text-lg font-bold text-gray-900 mb-4">
                   Loại không gian
                 </Text>
-                <View className="flex-row space-x-4">
+                <View className="flex-row space-x-3">
                   <TouchableOpacity
                     onPress={() =>
                       setFormData({ ...formData, indoor: !formData.indoor })
                     }
-                    className={`flex-1 p-4 rounded-lg border-2 ${
+                    className={`flex-1 p-6 rounded-2xl border-2 ${
                       formData.indoor
                         ? "border-blue-500 bg-blue-50"
-                        : "border-gray-300"
+                        : "border-gray-200 bg-white"
                     }`}
                   >
                     <View className="items-center">
-                      <Ionicons
-                        name="home-outline"
-                        size={24}
-                        color={formData.indoor ? "#3B82F6" : "#6B7280"}
-                      />
+                      <View
+                        className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${
+                          formData.indoor ? "bg-blue-500" : "bg-gray-200"
+                        }`}
+                      >
+                        <Ionicons
+                          name="home"
+                          size={24}
+                          color={formData.indoor ? "white" : "#6B7280"}
+                        />
+                      </View>
                       <Text
-                        className={`mt-2 font-medium ${
+                        className={`font-semibold text-base ${
                           formData.indoor ? "text-blue-600" : "text-gray-600"
                         }`}
                       >
                         Indoor
+                      </Text>
+                      <Text
+                        className={`text-sm text-center mt-1 ${
+                          formData.indoor ? "text-blue-500" : "text-gray-500"
+                        }`}
+                      >
+                        Trong nhà
                       </Text>
                     </View>
                   </TouchableOpacity>
@@ -741,43 +898,73 @@ export default function VenueManagementScreen() {
                     onPress={() =>
                       setFormData({ ...formData, outdoor: !formData.outdoor })
                     }
-                    className={`flex-1 p-4 rounded-lg border-2 ${
+                    className={`flex-1 p-6 rounded-2xl border-2 ${
                       formData.outdoor
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-gray-300"
+                        ? "border-amber-500 bg-amber-50"
+                        : "border-gray-200 bg-white"
                     }`}
                   >
                     <View className="items-center">
-                      <Ionicons
-                        name="sunny-outline"
-                        size={24}
-                        color={formData.outdoor ? "#3B82F6" : "#6B7280"}
-                      />
+                      <View
+                        className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${
+                          formData.outdoor ? "bg-amber-500" : "bg-gray-200"
+                        }`}
+                      >
+                        <Ionicons
+                          name="sunny"
+                          size={24}
+                          color={formData.outdoor ? "white" : "#6B7280"}
+                        />
+                      </View>
                       <Text
-                        className={`mt-2 font-medium ${
-                          formData.outdoor ? "text-blue-600" : "text-gray-600"
+                        className={`font-semibold text-base ${
+                          formData.outdoor ? "text-amber-600" : "text-gray-600"
                         }`}
                       >
                         Outdoor
+                      </Text>
+                      <Text
+                        className={`text-sm text-center mt-1 ${
+                          formData.outdoor ? "text-amber-500" : "text-gray-500"
+                        }`}
+                      >
+                        Ngoài trời
                       </Text>
                     </View>
                   </TouchableOpacity>
                 </View>
               </View>
 
-              <View className="bg-yellow-50 p-4 rounded-lg">
+              {/* Notice */}
+              <View className="bg-blue-50 p-4 rounded-2xl border border-blue-200">
                 <View className="flex-row items-start">
-                  <Ionicons
-                    name="information-circle"
-                    size={20}
-                    color="#F59E0B"
-                  />
-                  <Text className="text-yellow-800 text-sm flex-1 ml-2">
-                    Địa điểm sẽ cần được xác minh trước khi có thể nhận booking
-                    từ khách hàng.
-                  </Text>
+                  <View className="w-8 h-8 bg-blue-500 rounded-full items-center justify-center mr-3 mt-0.5">
+                    <Ionicons name="information" size={16} color="white" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-blue-900 font-semibold mb-1">
+                      Lưu ý quan trọng
+                    </Text>
+                    <Text className="text-blue-800 text-sm leading-relaxed">
+                      Địa điểm sẽ cần được xác minh trước khi có thể nhận
+                      booking từ khách hàng. Quá trình này thường mất 1-2 ngày
+                      làm việc.
+                    </Text>
+                  </View>
                 </View>
               </View>
+
+              {/* Save Button */}
+              <TouchableOpacity
+                onPress={handleSave}
+                className="bg-blue-500 py-4 rounded-2xl shadow-md mt-4"
+              >
+                <Text className="text-white font-bold text-center text-lg">
+                  {editingLocation ? "Cập nhật địa điểm" : "Tạo địa điểm"}
+                </Text>
+              </TouchableOpacity>
+
+              <View className="pb-6" />
             </View>
           </ScrollView>
         </SafeAreaView>
@@ -790,22 +977,36 @@ export default function VenueManagementScreen() {
         presentationStyle="pageSheet"
       >
         <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
+          {/* Modal Header */}
+          <View className="flex-row justify-between items-center px-6 py-4 border-b border-gray-100">
             <TouchableOpacity onPress={() => setShowImageModal(false)}>
-              <Text className="text-blue-500 font-medium">Đóng</Text>
+              <Text className="text-blue-600 font-semibold text-base">
+                Đóng
+              </Text>
             </TouchableOpacity>
-            <Text className="text-lg font-semibold">
-              Quản lý hình ảnh - {selectedLocation?.name}
-            </Text>
+            <View className="items-center">
+              <Text className="text-lg font-bold text-gray-900">
+                Quản lý hình ảnh
+              </Text>
+              <Text className="text-sm text-gray-600" numberOfLines={1}>
+                {selectedLocation?.name}
+              </Text>
+            </View>
             <TouchableOpacity onPress={handlePickImages}>
-              <Ionicons name="add" size={24} color="#3B82F6" />
+              <View className="bg-blue-500 p-2 rounded-lg">
+                <Ionicons name="add" size={20} color="white" />
+              </View>
             </TouchableOpacity>
           </View>
 
           <View className="flex-1">
             {imageLoading ? (
               <View className="flex-1 justify-center items-center">
-                <Text className="text-gray-600">Đang tải hình ảnh...</Text>
+                <View className="bg-gray-100 p-6 rounded-2xl">
+                  <Text className="text-gray-600 text-center">
+                    Đang tải hình ảnh...
+                  </Text>
+                </View>
               </View>
             ) : locationImages.length > 0 ? (
               <FlatList
@@ -813,101 +1014,113 @@ export default function VenueManagementScreen() {
                 numColumns={2}
                 keyExtractor={(item) => item.id.toString()}
                 contentContainerStyle={{ padding: 16 }}
-                renderItem={({ item }) => (
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item, index }) => (
                   <View className="flex-1 m-2">
-                    <View className="relative">
+                    <View
+                      className="relative bg-white rounded-2xl shadow-md overflow-hidden"
+                      style={{
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.1,
+                        shadowRadius: 4,
+                      }}
+                    >
                       <Image
                         source={{ uri: item.url }}
-                        className="w-full h-40 rounded-lg"
+                        className="w-full h-40"
                         resizeMode="cover"
                       />
 
                       {/* Primary badge */}
                       {item.isPrimary && (
-                        <View className="absolute top-2 left-2 bg-green-500 px-2 py-1 rounded">
-                          <Text className="text-white text-xs font-medium">
-                            Chính
+                        <View className="absolute top-3 left-3 bg-green-500 px-3 py-1 rounded-full">
+                          <Text className="text-white text-xs font-bold">
+                            Ảnh chính
                           </Text>
                         </View>
                       )}
 
                       {/* Action buttons */}
-                      <View className="absolute top-2 right-2 flex-row space-x-1">
+                      <View className="absolute top-3 right-3 space-y-2">
                         {!item.isPrimary && (
                           <TouchableOpacity
                             onPress={() => handleSetPrimaryImage(item.id)}
-                            className="bg-white p-1 rounded"
+                            className="bg-white/90 p-2 rounded-lg shadow-sm"
                           >
-                            <Ionicons
-                              name="star-outline"
-                              size={16}
-                              color="#3B82F6"
-                            />
+                            <Ionicons name="star" size={16} color="#F59E0B" />
                           </TouchableOpacity>
                         )}
                         <TouchableOpacity
                           onPress={() => handleDeleteImage(item.id)}
-                          className="bg-white p-1 rounded"
+                          className="bg-white/90 p-2 rounded-lg shadow-sm"
                         >
-                          <Ionicons
-                            name="trash-outline"
-                            size={16}
-                            color="#EF4444"
-                          />
+                          <Ionicons name="trash" size={16} color="#EF4444" />
                         </TouchableOpacity>
                       </View>
+
+                      {/* Bottom info */}
+                      <View className="p-3">
+                        {item.caption && (
+                          <Text
+                            className="text-sm text-gray-700 font-medium mb-1"
+                            numberOfLines={2}
+                          >
+                            {item.caption}
+                          </Text>
+                        )}
+                        <Text className="text-xs text-gray-500">
+                          {new Date(item.createdAt).toLocaleDateString(
+                            "vi-VN",
+                            {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                            }
+                          )}
+                        </Text>
+                      </View>
                     </View>
-
-                    {/* Caption */}
-                    {item.caption && (
-                      <Text
-                        className="text-sm text-gray-600 mt-2"
-                        numberOfLines={2}
-                      >
-                        {item.caption}
-                      </Text>
-                    )}
-
-                    {/* Upload date */}
-                    <Text className="text-xs text-gray-400 mt-1">
-                      {new Date(item.createdAt).toLocaleDateString("vi-VN")}
-                    </Text>
                   </View>
                 )}
               />
             ) : (
               <View className="flex-1 justify-center items-center px-8">
-                <View className="bg-gray-100 p-6 rounded-full mb-4">
-                  <Ionicons name="image-outline" size={48} color="#6B7280" />
+                <View className="bg-white p-8 rounded-3xl shadow-lg max-w-sm w-full">
+                  <View className="items-center">
+                    <View className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full items-center justify-center mb-6">
+                      <Ionicons name="image" size={40} color="#9CA3AF" />
+                    </View>
+                    <Text className="text-2xl font-bold text-gray-900 mb-3 text-center">
+                      Chưa có hình ảnh
+                    </Text>
+                    <Text className="text-gray-600 text-center mb-6 leading-relaxed">
+                      Thêm hình ảnh để khách hàng có thể xem không gian của bạn
+                    </Text>
+                    <TouchableOpacity
+                      onPress={handlePickImages}
+                      className="bg-blue-500 px-8 py-4 rounded-2xl flex-row items-center shadow-md"
+                    >
+                      <Ionicons name="camera" size={20} color="white" />
+                      <Text className="text-white font-semibold ml-2 text-base">
+                        Thêm hình ảnh
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <Text className="text-xl font-semibold text-gray-900 mb-2 text-center">
-                  Chưa có hình ảnh
-                </Text>
-                <Text className="text-gray-600 text-center mb-6">
-                  Thêm hình ảnh để khách hàng có thể xem địa điểm của bạn
-                </Text>
-                <TouchableOpacity
-                  onPress={handlePickImages}
-                  className="bg-blue-500 px-6 py-3 rounded-lg flex-row items-center"
-                >
-                  <Ionicons name="camera" size={20} color="white" />
-                  <Text className="text-white font-semibold ml-2">
-                    Thêm hình ảnh
-                  </Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
 
-          {/* Upload button at bottom */}
+          {/* Add More Images Button */}
           {locationImages.length > 0 && (
-            <View className="p-4 border-t border-gray-200">
+            <View className="p-6 border-t border-gray-100 bg-gray-50">
               <TouchableOpacity
                 onPress={handlePickImages}
-                className="bg-blue-500 px-6 py-3 rounded-lg flex-row items-center justify-center"
+                className="bg-blue-500 py-4 rounded-2xl flex-row items-center justify-center shadow-md"
               >
                 <Ionicons name="add" size={20} color="white" />
-                <Text className="text-white font-semibold ml-2">
+                <Text className="text-white font-semibold ml-2 text-base">
                   Thêm hình ảnh khác
                 </Text>
               </TouchableOpacity>

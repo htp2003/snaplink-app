@@ -3,10 +3,14 @@ import { locationService } from "../services/locationService";
 import { LocationApiResponse } from "../types/location";
 import { useLocationImages } from "./useImages";
 import { userService } from "../services/userService";
+import { Review } from '../types';
 
 export interface LocationDetailWithImages extends LocationApiResponse {
   ownerAvatar?: string;
   ownerProfile?: any; // User profile data
+  rating?: number;
+  ratingSum?: number;
+  ratingCount?: number;
 }
 
 export const useLocationDetail = () => {
@@ -18,8 +22,8 @@ export const useLocationDetail = () => {
 
   // Use the images hook for this location - only when we have a valid ID
   const {
-    images: imageResponses, // ImageResponse[] - full image objects from API
-    imageUrls: galleryImages, // string[] - image URLs extracted from ImageResponse[]
+    images: imageResponses, 
+    imageUrls: galleryImages, 
     loading: loadingImages,
     error: imageError,
     fetchImages,

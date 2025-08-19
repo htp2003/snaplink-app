@@ -4,7 +4,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import LocationCard from '../../components/LocationCard/LocationCard';
+import LocationCard from '../../components/Location/LocationCard';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useLocations } from '../../hooks/useLocations';
 import { useFavorites } from '../../hooks/useFavorites';

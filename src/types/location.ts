@@ -14,6 +14,11 @@ export interface Location {
   verificationStatus?: string;
   createdAt?: string;
   updatedAt?: string;
+
+  rating?: number;
+  ratingSum?: number;
+  ratingCount?: number;
+  
   // Add missing fields that exist in API response
   locationImages?: LocationImage[] | { $values: LocationImage[] };
   advertisements?: any[];

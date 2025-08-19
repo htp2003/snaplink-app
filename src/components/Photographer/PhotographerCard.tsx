@@ -45,7 +45,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
   // Helper function để format currency
   const formatPrice = (price?: number) => {
     if (!price) return "Liên hệ để biết giá";
-    return `₫${price.toLocaleString()}`;
+    return `${price.toLocaleString()}đ`;
   };
 
   // Helper function để render rating
@@ -105,7 +105,7 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
   const hasRealProfileImage = avatar && avatar !== "" && !imageError;
 
   return (
-    <View className="bg-white rounded-2xl overflow-hidden shadow-sm">
+    <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100">
       {/* Main Image - Avatar từ User API */}
       <TouchableOpacity onPress={handlePress} className="relative">
         <Image
@@ -306,12 +306,35 @@ const PhotographerCard: React.FC<PhotographerCardProps> = ({
                   className="text-stone-600"
                   style={{ fontSize: getResponsiveSize(14) }}
                 >
-                  {" / giờ"}
+                  / giờ
                 </Text>
               )}
             </View>
           </View>
-          <View className="flex-row items-center">{renderRating(rating)}</View>
+          <TouchableOpacity
+        className={`rounded-full px-4 py-2 ${
+            availabilityStatus?.toLowerCase() === 'unavailable'
+                ? 'bg-stone-200'
+                : 'bg-orange-500' 
+        }`}
+        onPress={onBooking}
+        disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
+        activeOpacity={0.7}
+    >
+        <Text
+            className={`font-medium ${
+                availabilityStatus?.toLowerCase() === 'unavailable'
+                    ? 'text-stone-500'
+                    : 'text-white'
+            }`}
+            style={{ fontSize: getResponsiveSize(12) }}
+        >
+            {availabilityStatus?.toLowerCase() === 'unavailable' 
+                ? 'Unavailable' 
+                : 'Đặt lịch ngay'
+            }
+        </Text>
+    </TouchableOpacity>
         </View>
       </View>
     </View>

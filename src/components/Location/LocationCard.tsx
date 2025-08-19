@@ -9,7 +9,7 @@ type LocationCardProps = {
     locationId: number;
     name: string;
     images: any[];
-    styles?: string[]; 
+    styles?: string[];
     address?: string;
     description?: string;
     hourlyRate?: number;
@@ -36,21 +36,21 @@ const LocationCard: React.FC<LocationCardProps> = ({
 }) => {
     const navigation = useNavigation<RootStackNavigationProp>();
     const [imageError, setImageError] = useState(false);
-    
+
     const handlePress = () => {
         navigation.navigate('LocationCardDetail', { locationId: locationId.toString() });
     }
 
     // Helper function để format price
     const formatPrice = (price?: number) => {
-        if (!price) return 'Liên hệ để biết giá';
-        return `₫${price.toLocaleString()}`;
+        if (!price || price === 0) return 'Miễn phí';
+        return `${price.toLocaleString()}đ`;
     };
 
 
     // Lấy ảnh đã được validate
     const mainImage = images[0];
-    
+
     // Helper function to get image source
     const getImageSource = (img: any) => {
         if (typeof img === 'string') {
@@ -67,25 +67,28 @@ const LocationCard: React.FC<LocationCardProps> = ({
     const displayName = name || 'Location';
     const locationInfo = address || 'Địa điểm chụp ảnh';
 
-// Thay đổi function handleBookLocation
-const handleBookLocation = () => {
-    const locationData: any = {
-        locationId,
-        name,
-        address,
-        hourlyRate,
-        imageUrl: images?.[0]?.uri || images?.[0], 
-        capacity,
-        styles: styles || [],
-        indoor: true,
-        outdoor: true,
+    // Thay đổi function handleBookLocation
+    const handleBookLocation = () => {
+        const locationData: any = {
+            locationId,
+            name,
+            address,
+            hourlyRate,
+            imageUrl: images?.[0]?.uri || images?.[0],
+            capacity,
+            styles: styles || [],
+            indoor: true,
+            outdoor: true,
+        };
+        (navigation as any).navigate('Booking', {
+            location: locationData,
+        });
     };
-    (navigation as any).navigate('Booking', {
-        location: locationData,
-    });
-};
     return (
-        <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100">
+        <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100"
+            style={{ height: getResponsiveSize(380) }}
+
+        >
             {/* Header với Main Image */}
             <TouchableOpacity onPress={handlePress} className="relative">
                 <Image
@@ -98,7 +101,7 @@ const handleBookLocation = () => {
                         console.log(`✅ Image loaded successfully for location ${locationId}`);
                     }}
                 />
-                
+
                 {/* Favorite Button */}
                 <TouchableOpacity
                     className="absolute top-3 right-3 bg-black/30 rounded-full"
@@ -114,14 +117,14 @@ const handleBookLocation = () => {
 
                 {/* Availability Badge */}
                 {availabilityStatus && availabilityStatus.toLowerCase() === 'available' && (
-                    <View 
+                    <View
                         className="absolute top-3 left-3 bg-emerald-500 rounded-full"
-                        style={{ 
-                            paddingHorizontal: getResponsiveSize(8), 
-                            paddingVertical: getResponsiveSize(4) 
+                        style={{
+                            paddingHorizontal: getResponsiveSize(8),
+                            paddingVertical: getResponsiveSize(4)
                         }}
                     >
-                        <Text 
+                        <Text
                             className="text-white font-medium"
                             style={{ fontSize: getResponsiveSize(10) }}
                         >
@@ -132,18 +135,18 @@ const handleBookLocation = () => {
             </TouchableOpacity>
 
             {/* Content area */}
-            <View style={{ padding: getResponsiveSize(8) }}>
+            <View style={{ padding: getResponsiveSize(8), flex: 1, justifyContent: 'space-between' }}>
                 {/* Title và thông tin cơ bản */}
                 <View style={{ marginBottom: getResponsiveSize(12) }}>
-                    <Text 
-                        className="text-stone-900 font-semibold" 
+                    <Text
+                        className="text-stone-900 font-semibold"
                         style={{ fontSize: getResponsiveSize(17) }}
                         numberOfLines={1}
                     >
                         {displayName}
                     </Text>
-                    <Text 
-                        className="text-stone-600" 
+                    <Text
+                        className="text-stone-600"
                         style={{ fontSize: getResponsiveSize(14), marginTop: getResponsiveSize(2) }}
                         numberOfLines={1}
                     >
@@ -157,7 +160,7 @@ const handleBookLocation = () => {
                     {capacity && (
                         <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
                             <Ionicons name="people-outline" size={getResponsiveSize(14)} color="#57534e" />
-                            <Text 
+                            <Text
                                 className="text-stone-700 font-medium ml-1"
                                 style={{ fontSize: getResponsiveSize(12) }}
                             >
@@ -169,7 +172,7 @@ const handleBookLocation = () => {
                     {/* Rating placeholder */}
                     <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
                         <Ionicons name="star" size={getResponsiveSize(14)} color="#d97706" />
-                        <Text 
+                        <Text
                             className="text-stone-700 font-medium ml-1"
                             style={{ fontSize: getResponsiveSize(12) }}
                         >
@@ -180,11 +183,11 @@ const handleBookLocation = () => {
                     {/* Price indicator */}
                     <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
                         <Ionicons name="cash-outline" size={getResponsiveSize(14)} color="#57534e" />
-                        <Text 
+                        <Text
                             className="text-stone-700 font-medium ml-1"
                             style={{ fontSize: getResponsiveSize(12) }}
                         >
-                            {hourlyRate ? `${Math.floor(hourlyRate/1000)}K` : 'TBD'}
+                            {hourlyRate ? `${Math.floor(hourlyRate / 1000)}K` : 'TBD'}
                         </Text>
                     </View>
                 </View>
@@ -196,12 +199,12 @@ const handleBookLocation = () => {
                             <View
                                 key={idx}
                                 className="bg-amber-50 border border-amber-200 rounded-full"
-                                style={{ 
-                                    paddingHorizontal: getResponsiveSize(10), 
-                                    paddingVertical: getResponsiveSize(4) 
+                                style={{
+                                    paddingHorizontal: getResponsiveSize(10),
+                                    paddingVertical: getResponsiveSize(4)
                                 }}
                             >
-                                <Text 
+                                <Text
                                     className="text-amber-700 font-medium"
                                     style={{ fontSize: getResponsiveSize(11) }}
                                 >
@@ -211,7 +214,7 @@ const handleBookLocation = () => {
                         ))
                     ) : (
                         <View className="bg-stone-50 rounded-full px-3 py-1">
-                            <Text 
+                            <Text
                                 className="text-stone-500"
                                 style={{ fontSize: getResponsiveSize(11) }}
                             >
@@ -223,40 +226,51 @@ const handleBookLocation = () => {
 
                 {/* Price và action */}
                 <View className="flex-row items-center justify-between">
-                    <View>
-                        <Text 
-                            className="text-stone-900 font-bold"
-                            style={{ fontSize: getResponsiveSize(16) }}
-                        >
-                            {formatPrice(hourlyRate)}
-                        </Text>
-                        <Text 
-                            className="text-stone-500"
-                            style={{ fontSize: getResponsiveSize(12) }}
-                        >
-                            /giờ
-                        </Text>
+                    <View className="flex-1">
+                        {hourlyRate && hourlyRate > 0 ? (
+                            <View className="flex-row items-baseline">
+                                <Text
+                                    className="text-stone-900 font-semibold"
+                                    style={{ fontSize: getResponsiveSize(16) }}
+                                >
+                                    {formatPrice(hourlyRate)}
+                                </Text>
+                                <Text
+                                    className="text-stone-600"
+                                    style={{
+                                        fontSize: getResponsiveSize(14),
+                                        marginLeft: getResponsiveSize(4)
+                                    }}
+                                >
+                                    / giờ
+                                </Text>
+                            </View>
+                        ) : (
+                            <Text
+                                className="text-stone-900 font-semibold"
+                                style={{ fontSize: getResponsiveSize(16) }}
+                            >
+                                {formatPrice(hourlyRate)}
+                            </Text>
+                        )}
                     </View>
 
-                    {/* Quick book button */}
                     <TouchableOpacity
-                        className={`rounded-full px-4 py-2 ${
-                            availabilityStatus?.toLowerCase() === 'unavailable' 
-                                ? 'bg-stone-200' 
-                                : 'bg-emerald-500'
-                        }`}
+                        className={`rounded-full px-4 py-2 ${availabilityStatus?.toLowerCase() === 'unavailable'
+                            ? 'bg-stone-200'
+                            : 'bg-emerald-500'
+                            }`}
                         onPress={handleBookLocation}
                         disabled={availabilityStatus?.toLowerCase() === 'unavailable'}
                     >
-                        <Text 
-                            className={`font-medium ${
-                                availabilityStatus?.toLowerCase() === 'unavailable'
-                                    ? 'text-stone-500'
-                                    : 'text-white'
-                            }`}
+                        <Text
+                            className={`font-medium ${availabilityStatus?.toLowerCase() === 'unavailable'
+                                ? 'text-stone-500'
+                                : 'text-white'
+                                }`}
                             style={{ fontSize: getResponsiveSize(12) }}
                         >
-                            {availabilityStatus?.toLowerCase() === 'unavailable' ? 'Unavailable' : 'Book Now'}
+                            {availabilityStatus?.toLowerCase() === 'unavailable' ? 'Unavailable' : 'Đặt lịch ngay'}
                         </Text>
                     </TouchableOpacity>
                 </View>

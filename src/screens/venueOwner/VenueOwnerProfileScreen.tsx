@@ -1,4 +1,4 @@
-// screens/venueOwner/VenueOwnerProfileScreen.tsx - UPDATED
+// screens/venueOwner/VenueOwnerProfileScreen.tsx - BEAUTIFUL REDESIGN
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -10,6 +10,8 @@ import {
   Modal,
   TextInput,
   Image,
+  Dimensions,
+  StatusBar,
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
@@ -18,6 +20,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../hooks/useAuth";
 import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
 import { LocationOwner } from "../../types/venueOwner";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 export default function VenueOwnerProfileScreen() {
   const { user, logout } = useAuth();
@@ -49,7 +53,6 @@ export default function VenueOwnerProfileScreen() {
   const checkExistingProfile = async () => {
     if (!user?.id) return;
 
-    // Try to find existing profile by userId
     const existingProfile = await getProfileByUserId(user.id);
 
     if (existingProfile) {
@@ -89,7 +92,6 @@ export default function VenueOwnerProfileScreen() {
       });
       setShowCreateModal(false);
     } else {
-      // Profile not found, show create form
       setShowCreateModal(true);
     }
   };
@@ -124,7 +126,6 @@ export default function VenueOwnerProfileScreen() {
       setShowCreateModal(false);
       Alert.alert("Thành công", "Tạo hồ sơ venue owner thành công!");
 
-      // If ID is 0 (temporary), try to fetch the real profile
       if (result.locationOwnerId === 0) {
         setTimeout(() => {
           checkExistingProfile();
@@ -169,17 +170,13 @@ export default function VenueOwnerProfileScreen() {
         onPress: async () => {
           try {
             setIsLoggingOut(true);
-
             await logout();
-
-            // Reset navigation stack về Login
             navigation.reset({
               index: 0,
-              routes: [{ name: "Login" }], // nhớ đổi nếu Login có tên route khác
+              routes: [{ name: "Login" }],
             });
           } catch (error) {
             console.error("⚠ Logout error:", error);
-
             Alert.alert(
               "Lỗi đăng xuất",
               "Có lỗi xảy ra khi đăng xuất. Vui lòng thử lại.",
@@ -196,13 +193,33 @@ export default function VenueOwnerProfileScreen() {
   const getVerificationStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case "verified":
-        return { color: "#10B981", bg: "#D1FAE5", text: "Đã xác minh" };
+        return {
+          color: "#10B981",
+          bg: "#ECFDF5",
+          text: "Đã xác minh",
+          icon: "checkmark-circle",
+        };
       case "pending":
-        return { color: "#F59E0B", bg: "#FEF3C7", text: "Đang chờ xác minh" };
+        return {
+          color: "#F59E0B",
+          bg: "#FFFBEB",
+          text: "Đang chờ xác minh",
+          icon: "time",
+        };
       case "rejected":
-        return { color: "#EF4444", bg: "#FEE2E2", text: "Bị từ chối" };
+        return {
+          color: "#EF4444",
+          bg: "#FEF2F2",
+          text: "Bị từ chối",
+          icon: "close-circle",
+        };
       default:
-        return { color: "#6B7280", bg: "#F3F4F6", text: "Chưa xác minh" };
+        return {
+          color: "#6B7280",
+          bg: "#F9FAFB",
+          text: "Chưa xác minh",
+          icon: "alert-circle",
+        };
     }
   };
 
@@ -214,7 +231,7 @@ export default function VenueOwnerProfileScreen() {
     });
   };
 
-  // Avatar component
+  // Avatar component with test image fallback
   const ProfileAvatar = () => {
     // Debug log to check user object structure
     console.log("🔍 User object for avatar:", user);
@@ -223,25 +240,98 @@ export default function VenueOwnerProfileScreen() {
     // Temporary test with fixed image URL
     const testImageUrl = "https://picsum.photos/200/300";
     const imageUrl = user?.profileImage || testImageUrl;
+    const initials =
+      user?.fullName
+        ?.split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase() || "VO";
 
     return (
-      <View className="w-20 h-20 bg-gray-200 rounded-full border-2 border-gray-300 overflow-hidden">
-        {imageUrl ? (
+      <View className="relative">
+        <View className="w-20 h-20 rounded-full border-2 border-white overflow-hidden">
           <Image
             source={{ uri: imageUrl }}
             className="w-full h-full"
             resizeMode="cover"
-            onError={(error) => console.log("❌ Image load error:", error)}
-            onLoad={() => console.log("✅ Image loaded successfully")}
+            onError={(error) => {
+              console.log("❌ Image load error:", error);
+              console.log("❌ Failed URL:", imageUrl);
+            }}
+            onLoad={() =>
+              console.log("✅ Image loaded successfully:", imageUrl)
+            }
           />
-        ) : (
-          <View className="w-full h-full bg-gray-100 items-center justify-center">
-            <Text className="text-gray-400 text-xs">No Image</Text>
-          </View>
-        )}
+        </View>
+        {/* Simple online dot */}
+        <View className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-white" />
       </View>
     );
   };
+
+  const InfoRow = ({
+    icon,
+    label,
+    value,
+    iconColor,
+    iconBg,
+  }: {
+    icon: string;
+    label: string;
+    value: string;
+    iconColor: string;
+    iconBg: string;
+  }) => (
+    <View className="flex-row items-center py-4">
+      <View
+        className="w-10 h-10 rounded-full items-center justify-center mr-3"
+        style={{ backgroundColor: iconBg }}
+      >
+        <Ionicons name={icon as any} size={20} color={iconColor} />
+      </View>
+      <View className="flex-1">
+        <Text className="text-gray-500 text-sm">{label}</Text>
+        <Text className="text-gray-900 font-medium mt-1">{value}</Text>
+      </View>
+    </View>
+  );
+
+  const ActionCard = ({
+    icon,
+    title,
+    subtitle,
+    onPress,
+    color = "#6B7280",
+  }: {
+    icon: string;
+    title: string;
+    subtitle?: string;
+    onPress: () => void;
+    color?: string;
+  }) => (
+    <TouchableOpacity
+      onPress={onPress}
+      className="bg-white rounded-xl p-4 flex-row items-center border border-gray-100 mb-3"
+      style={{
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+        elevation: 2,
+      }}
+    >
+      <View className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center mr-4">
+        <Ionicons name={icon as any} size={20} color={color} />
+      </View>
+      <View className="flex-1">
+        <Text className="text-gray-900 font-medium">{title}</Text>
+        {subtitle && (
+          <Text className="text-gray-500 text-sm mt-1">{subtitle}</Text>
+        )}
+      </View>
+      <Ionicons name="chevron-forward" size={16} color="#D1D5DB" />
+    </TouchableOpacity>
+  );
 
   useEffect(() => {
     checkExistingProfile();
@@ -258,47 +348,61 @@ export default function VenueOwnerProfileScreen() {
     : null;
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
-      <ScrollView
-        className="flex-1"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        contentContainerStyle={{ paddingBottom: 80 }}
-      >
-        {/* Header */}
-        <View className="bg-white px-4 py-6">
-          <Text className="text-2xl font-bold text-gray-900">
-            Hồ sơ Venue Owner
-          </Text>
-          <Text className="text-gray-600 mt-1">
-            Quản lý thông tin venue owner
-          </Text>
+    <>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <SafeAreaView className="flex-1 bg-gray-50">
+        {/* Simple header */}
+        <View className="bg-white px-6 py-4 border-b border-gray-100">
+          <View className="flex-row items-center justify-between">
+            <View>
+              <Text className="text-xl font-bold text-gray-900">
+                Hồ sơ của tôi
+              </Text>
+              <Text className="text-gray-500 text-sm mt-1">
+                Quản lý thông tin venue owner
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() =>
+                Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
+              }
+              className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center"
+            >
+              <Ionicons name="settings-outline" size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Profile Card */}
-        <View className="mx-4 mt-4">
-          <View className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-            <View className="items-center mb-6">
-              <View className="mb-4">
-                <ProfileAvatar />
-              </View>
-              <Text className="text-xl font-semibold text-gray-900">
+        <ScrollView
+          className="flex-1"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        >
+          {/* Profile section */}
+          <View className="bg-white mx-4 mt-4 rounded-xl p-6 border border-gray-100">
+            <View className="items-center">
+              <ProfileAvatar />
+              <Text className="text-xl font-bold text-gray-900 mt-3">
                 {user?.fullName || "Venue Owner"}
               </Text>
-              <Text className="text-gray-500">{user?.email}</Text>
+              <Text className="text-gray-500 mt-1">{user?.email}</Text>
 
               {verificationStatus && (
                 <View
                   className="flex-row items-center px-3 py-1 rounded-full mt-3"
                   style={{ backgroundColor: verificationStatus.bg }}
                 >
-                  <View
-                    className="w-2 h-2 rounded-full mr-2"
-                    style={{ backgroundColor: verificationStatus.color }}
+                  <Ionicons
+                    name={verificationStatus.icon as any}
+                    size={14}
+                    color={verificationStatus.color}
+                    className="mr-1"
                   />
                   <Text
-                    className="text-sm font-medium"
+                    className="text-xs font-medium"
                     style={{ color: verificationStatus.color }}
                   >
                     {verificationStatus.text}
@@ -306,366 +410,361 @@ export default function VenueOwnerProfileScreen() {
                 </View>
               )}
             </View>
+          </View>
 
-            {/* Business Info */}
+          {/* Business Info */}
+          <View className="mx-4 mt-4">
+            <Text className="text-lg font-bold text-gray-900 mb-3">
+              Thông tin doanh nghiệp
+            </Text>
+
             {loading ? (
-              <View className="space-y-4">
-                {[1, 2, 3].map((i) => (
-                  <View key={i} className="space-y-2">
-                    <View className="bg-gray-200 h-4 w-20 rounded animate-pulse" />
-                    <View className="bg-gray-200 h-6 w-full rounded animate-pulse" />
-                  </View>
-                ))}
+              <View className="bg-white rounded-xl p-6 border border-gray-100">
+                <View className="space-y-4">
+                  {[1, 2, 3].map((i) => (
+                    <View key={i} className="flex-row items-center">
+                      <View className="w-10 h-10 bg-gray-200 rounded-full mr-3" />
+                      <View className="flex-1 space-y-2">
+                        <View className="bg-gray-200 h-3 w-20 rounded" />
+                        <View className="bg-gray-200 h-4 w-full rounded" />
+                      </View>
+                    </View>
+                  ))}
+                </View>
               </View>
             ) : venueOwner ? (
-              <View className="space-y-4">
-                <View>
-                  <Text className="text-sm text-gray-500 mb-1">
-                    Tên doanh nghiệp
-                  </Text>
-                  <Text className="text-gray-900 font-medium">
-                    {venueOwner.businessName || "Chưa cập nhật"}
-                  </Text>
-                </View>
-
-                <View>
-                  <Text className="text-sm text-gray-500 mb-1">
-                    Địa chỉ doanh nghiệp
-                  </Text>
-                  <Text className="text-gray-900 font-medium">
-                    {venueOwner.businessAddress || "Chưa cập nhật"}
-                  </Text>
-                </View>
-
-                <View>
-                  <Text className="text-sm text-gray-500 mb-1">
-                    Số đăng ký kinh doanh
-                  </Text>
-                  <Text className="text-gray-900 font-medium">
-                    {venueOwner.businessRegistrationNumber || "Chưa cập nhật"}
-                  </Text>
-                </View>
+              <View className="bg-white rounded-xl p-4 border border-gray-100">
+                <InfoRow
+                  icon="business"
+                  label="Tên doanh nghiệp"
+                  value={venueOwner.businessName || "Chưa cập nhật"}
+                  iconColor="#3B82F6"
+                  iconBg="#EFF6FF"
+                />
+                <View className="h-px bg-gray-100 ml-13" />
+                <InfoRow
+                  icon="location"
+                  label="Địa chỉ doanh nghiệp"
+                  value={venueOwner.businessAddress || "Chưa cập nhật"}
+                  iconColor="#10B981"
+                  iconBg="#ECFDF5"
+                />
+                <View className="h-px bg-gray-100 ml-13" />
+                <InfoRow
+                  icon="document-text"
+                  label="Số đăng ký kinh doanh"
+                  value={
+                    venueOwner.businessRegistrationNumber || "Chưa cập nhật"
+                  }
+                  iconColor="#8B5CF6"
+                  iconBg="#F3E8FF"
+                />
 
                 <TouchableOpacity
                   onPress={() => setShowEditModal(true)}
-                  className="bg-blue-500 py-3 rounded-lg mt-4"
                   disabled={loading}
+                  className="bg-blue-600 py-3 rounded-lg mt-4"
                 >
-                  <Text className="text-white font-semibold text-center">
+                  <Text className="text-white font-medium text-center">
                     Chỉnh sửa thông tin
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : (
-              <View className="items-center py-8">
-                <Ionicons name="business-outline" size={48} color="#6B7280" />
-                <Text className="text-gray-500 mt-2 text-center">
+              <View className="bg-white rounded-xl p-8 border border-gray-100 items-center">
+                <View className="w-16 h-16 bg-gray-100 rounded-full items-center justify-center mb-4">
+                  <Ionicons name="business-outline" size={32} color="#6B7280" />
+                </View>
+                <Text className="text-gray-900 font-semibold text-lg text-center mb-2">
                   Chưa có hồ sơ venue owner
+                </Text>
+                <Text className="text-gray-500 text-center text-sm mb-6">
+                  Tạo hồ sơ để bắt đầu quản lý địa điểm của bạn
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
                     resetForm();
                     setShowCreateModal(true);
                   }}
-                  className="bg-blue-500 py-3 px-6 rounded-lg mt-4"
                   disabled={loading}
+                  className="bg-blue-600 py-3 px-6 rounded-lg"
                 >
-                  <Text className="text-white font-semibold">
+                  <Text className="text-white font-medium">
                     Tạo hồ sơ venue owner
                   </Text>
                 </TouchableOpacity>
               </View>
             )}
           </View>
-        </View>
 
-        {/* Quick Actions */}
-        <View className="mx-4 mt-6">
-          <Text className="text-lg font-semibold text-gray-900 mb-4">
-            Thao tác nhanh
-          </Text>
+          {/* Quick Actions */}
+          <View className="mx-4 mt-6">
+            <Text className="text-lg font-bold text-gray-900 mb-3">
+              Thao tác nhanh
+            </Text>
 
-          <View className="space-y-3">
-            <TouchableOpacity
-              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
+            <ActionCard
+              icon="card-outline"
+              title="Quản lý gói đăng ký"
+              subtitle="Xem và nâng cấp gói dịch vụ"
               onPress={() => navigation.navigate("VenueOwnerSubscription")}
-            >
-              <View className="flex-row items-center">
-                <View className="bg-green-100 p-3 rounded-full mr-4">
-                  <Ionicons name="card-outline" size={20} color="#10B981" />
-                </View>
-                <Text className="text-gray-900 font-medium">
-                  Quản lý gói đăng ký
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-            </TouchableOpacity>
+              color="#10B981"
+            />
 
-            <TouchableOpacity
-              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
+            <ActionCard
+              icon="location-outline"
+              title="Quản lý địa điểm"
+              subtitle="Thêm và chỉnh sửa venue"
               onPress={() =>
                 Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
               }
-            >
-              <View className="flex-row items-center">
-                <View className="bg-blue-100 p-3 rounded-full mr-4">
-                  <Ionicons
-                    name="notifications-outline"
-                    size={20}
-                    color="#3B82F6"
-                  />
-                </View>
-                <Text className="text-gray-900 font-medium">
-                  Cài đặt thông báo
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-            </TouchableOpacity>
+              color="#3B82F6"
+            />
 
-            <TouchableOpacity
-              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
+            <ActionCard
+              icon="notifications-outline"
+              title="Cài đặt thông báo"
+              subtitle="Quản lý thông báo đặt chỗ"
               onPress={() =>
                 Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
               }
-            >
-              <View className="flex-row items-center">
-                <View className="bg-green-100 p-3 rounded-full mr-4">
-                  <Ionicons
-                    name="help-circle-outline"
-                    size={20}
-                    color="#10B981"
-                  />
-                </View>
-                <Text className="text-gray-900 font-medium">
-                  Trợ giúp & Hỗ trợ
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-            </TouchableOpacity>
+              color="#F59E0B"
+            />
 
-            <TouchableOpacity
-              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
+            <ActionCard
+              icon="help-circle-outline"
+              title="Trợ giúp & Hỗ trợ"
+              subtitle="Liên hệ đội ngũ hỗ trợ"
               onPress={() =>
                 Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
               }
-            >
-              <View className="flex-row items-center">
-                <View className="bg-purple-100 p-3 rounded-full mr-4">
-                  <Ionicons
-                    name="document-text-outline"
-                    size={20}
-                    color="#8B5CF6"
-                  />
-                </View>
-                <Text className="text-gray-900 font-medium">
-                  Điều khoản & Chính sách
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-            </TouchableOpacity>
+              color="#06B6D4"
+            />
 
-            <TouchableOpacity
-              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
+            <ActionCard
+              icon="log-out-outline"
+              title="Đăng xuất"
+              subtitle="Thoát khỏi tài khoản"
               onPress={handleLogout}
-            >
-              <View className="flex-row items-center">
-                <View className="bg-red-100 p-3 rounded-full mr-4">
-                  <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-                </View>
-                <Text className="text-red-600 font-medium">Đăng xuất</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#6B7280" />
-            </TouchableOpacity>
+              color="#EF4444"
+            />
           </View>
-        </View>
+        </ScrollView>
 
-        <View className="h-6" />
-      </ScrollView>
-
-      {/* Create Profile Modal */}
-      <Modal
-        visible={showCreateModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowCreateModal(false)}
-      >
-        <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
-            <TouchableOpacity onPress={() => setShowCreateModal(false)}>
-              <Text className="text-gray-500 font-medium">Hủy</Text>
-            </TouchableOpacity>
-            <Text className="text-lg font-semibold">Tạo hồ sơ Venue Owner</Text>
-            <TouchableOpacity onPress={handleCreateProfile} disabled={loading}>
-              <Text
-                className={`font-medium ${
-                  loading ? "text-gray-400" : "text-blue-500"
-                }`}
+        {/* Create Profile Modal */}
+        <Modal
+          visible={showCreateModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowCreateModal(false)}
+        >
+          <SafeAreaView className="flex-1 bg-white">
+            <View className="flex-row justify-between items-center px-6 py-4 border-b border-gray-100">
+              <TouchableOpacity onPress={() => setShowCreateModal(false)}>
+                <Text className="text-gray-500 font-medium">Hủy</Text>
+              </TouchableOpacity>
+              <Text className="text-lg font-bold">Tạo hồ sơ</Text>
+              <TouchableOpacity
+                onPress={handleCreateProfile}
+                disabled={loading}
               >
-                {loading ? "Đang tạo..." : "Tạo"}
+                <Text
+                  className={`font-medium ${
+                    loading ? "text-gray-400" : "text-blue-600"
+                  }`}
+                >
+                  {loading ? "Đang tạo..." : "Tạo"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView className="flex-1 px-6 py-6">
+              <Text className="text-xl font-bold text-gray-900 mb-6">
+                Thông tin doanh nghiệp
               </Text>
-            </TouchableOpacity>
-          </View>
 
-          <ScrollView className="flex-1 px-4 py-6">
-            <View className="space-y-6">
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Tên doanh nghiệp *
-                </Text>
-                <TextInput
-                  value={formData.businessName}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, businessName: text })
-                  }
-                  placeholder="Nhập tên doanh nghiệp"
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
-
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Địa chỉ doanh nghiệp
-                </Text>
-                <TextInput
-                  value={formData.businessAddress}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, businessAddress: text })
-                  }
-                  placeholder="Nhập địa chỉ doanh nghiệp"
-                  multiline
-                  numberOfLines={2}
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
-
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Số đăng ký kinh doanh
-                </Text>
-                <TextInput
-                  value={formData.businessRegistrationNumber}
-                  onChangeText={(text) =>
-                    setFormData({
-                      ...formData,
-                      businessRegistrationNumber: text,
-                    })
-                  }
-                  placeholder="Nhập số đăng ký kinh doanh"
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
-
-              <View className="bg-blue-50 p-4 rounded-lg">
-                <View className="flex-row items-start">
-                  <Ionicons
-                    name="information-circle"
-                    size={20}
-                    color="#3B82F6"
-                    className="mr-2 mt-0.5"
-                  />
-                  <Text className="text-blue-800 text-sm flex-1">
-                    Hồ sơ venue owner cho phép bạn tạo và quản lý các địa điểm
-                    cho thuê chụp ảnh. Thông tin này sẽ được sử dụng để xác minh
-                    tài khoản của bạn.
+              <View className="space-y-4">
+                <View>
+                  <Text className="text-gray-900 font-medium mb-2">
+                    Tên doanh nghiệp <Text className="text-red-500">*</Text>
                   </Text>
+                  <TextInput
+                    value={formData.businessName}
+                    onChangeText={(text) =>
+                      setFormData({ ...formData, businessName: text })
+                    }
+                    placeholder="Nhập tên doanh nghiệp"
+                    className="border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                  />
+                </View>
+
+                <View>
+                  <Text className="text-gray-900 font-medium mb-2">
+                    Địa chỉ doanh nghiệp
+                  </Text>
+                  <TextInput
+                    value={formData.businessAddress}
+                    onChangeText={(text) =>
+                      setFormData({ ...formData, businessAddress: text })
+                    }
+                    placeholder="Nhập địa chỉ doanh nghiệp"
+                    multiline
+                    numberOfLines={2}
+                    className="border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                    style={{ textAlignVertical: "top" }}
+                  />
+                </View>
+
+                <View>
+                  <Text className="text-gray-900 font-medium mb-2">
+                    Số đăng ký kinh doanh
+                  </Text>
+                  <TextInput
+                    value={formData.businessRegistrationNumber}
+                    onChangeText={(text) =>
+                      setFormData({
+                        ...formData,
+                        businessRegistrationNumber: text,
+                      })
+                    }
+                    placeholder="Nhập số đăng ký kinh doanh"
+                    className="border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                  />
+                </View>
+
+                <View className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                  <View className="flex-row items-start">
+                    <Ionicons
+                      name="information-circle"
+                      size={20}
+                      color="#3B82F6"
+                      className="mr-3 mt-1"
+                    />
+                    <Text className="text-blue-800 text-sm flex-1">
+                      Hồ sơ venue owner cho phép bạn tạo và quản lý các địa điểm
+                      cho thuê chụp ảnh. Thông tin này sẽ được sử dụng để xác
+                      minh tài khoản của bạn.
+                    </Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
 
-      {/* Edit Profile Modal */}
-      <Modal
-        visible={showEditModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowEditModal(false)}
-      >
-        <SafeAreaView className="flex-1 bg-white">
-          <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-200">
-            <TouchableOpacity onPress={() => setShowEditModal(false)}>
-              <Text className="text-gray-500 font-medium">Hủy</Text>
-            </TouchableOpacity>
-            <Text className="text-lg font-semibold">Chỉnh sửa hồ sơ</Text>
-            <TouchableOpacity onPress={handleUpdateProfile} disabled={loading}>
-              <Text
-                className={`font-medium ${
-                  loading ? "text-gray-400" : "text-blue-500"
-                }`}
+        {/* Edit Profile Modal */}
+        <Modal
+          visible={showEditModal}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowEditModal(false)}
+        >
+          <SafeAreaView className="flex-1 bg-white">
+            <View className="flex-row justify-between items-center px-6 py-4 border-b border-gray-100">
+              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                <Text className="text-gray-500 font-medium">Hủy</Text>
+              </TouchableOpacity>
+              <Text className="text-lg font-bold">Chỉnh sửa</Text>
+              <TouchableOpacity
+                onPress={handleUpdateProfile}
+                disabled={loading}
               >
-                {loading ? "Đang lưu..." : "Lưu"}
+                <Text
+                  className={`font-medium ${
+                    loading ? "text-gray-400" : "text-blue-600"
+                  }`}
+                >
+                  {loading ? "Đang lưu..." : "Lưu"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView className="flex-1 px-6 py-6">
+              <Text className="text-xl font-bold text-gray-900 mb-6">
+                Cập nhật thông tin
               </Text>
-            </TouchableOpacity>
-          </View>
 
-          <ScrollView className="flex-1 px-4 py-6">
-            <View className="space-y-6">
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Tên doanh nghiệp
-                </Text>
-                <TextInput
-                  value={formData.businessName}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, businessName: text })
-                  }
-                  placeholder="Nhập tên doanh nghiệp"
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
-
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Địa chỉ doanh nghiệp
-                </Text>
-                <TextInput
-                  value={formData.businessAddress}
-                  onChangeText={(text) =>
-                    setFormData({ ...formData, businessAddress: text })
-                  }
-                  placeholder="Nhập địa chỉ doanh nghiệp"
-                  multiline
-                  numberOfLines={2}
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
-
-              <View>
-                <Text className="text-gray-900 font-medium mb-2">
-                  Số đăng ký kinh doanh
-                </Text>
-                <TextInput
-                  value={formData.businessRegistrationNumber}
-                  onChangeText={(text) =>
-                    setFormData({
-                      ...formData,
-                      businessRegistrationNumber: text,
-                    })
-                  }
-                  placeholder="Nhập số đăng ký kinh doanh"
-                  className="border border-gray-300 rounded-lg px-3 py-3 text-gray-900"
-                />
-              </View>
-
-              <View className="bg-blue-50 p-4 rounded-lg">
-                <View className="flex-row items-start">
-                  <Ionicons
-                    name="information-circle"
-                    size={20}
-                    color="#3B82F6"
-                    className="mr-2 mt-0.5"
-                  />
-                  <Text className="text-blue-800 text-sm flex-1">
-                    Thông tin này sẽ được sử dụng để xác minh tài khoản của bạn.
-                    Vui lòng cung cấp thông tin chính xác.
+              <View className="space-y-4">
+                <View>
+                  <Text className="text-gray-900 font-medium mb-2">
+                    Tên doanh nghiệp
                   </Text>
+                  <TextInput
+                    value={formData.businessName}
+                    onChangeText={(text) =>
+                      setFormData({ ...formData, businessName: text })
+                    }
+                    placeholder="Nhập tên doanh nghiệp"
+                    className="border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                  />
+                </View>
+
+                <View>
+                  <Text className="text-gray-900 font-medium mb-2">
+                    Địa chỉ doanh nghiệp
+                  </Text>
+                  <TextInput
+                    value={formData.businessAddress}
+                    onChangeText={(text) =>
+                      setFormData({ ...formData, businessAddress: text })
+                    }
+                    placeholder="Nhập địa chỉ doanh nghiệp"
+                    multiline
+                    numberOfLines={2}
+                    className="border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                    style={{ textAlignVertical: "top" }}
+                  />
+                </View>
+
+                <View>
+                  <Text className="text-gray-900 font-medium mb-2">
+                    Số đăng ký kinh doanh
+                  </Text>
+                  <TextInput
+                    value={formData.businessRegistrationNumber}
+                    onChangeText={(text) =>
+                      setFormData({
+                        ...formData,
+                        businessRegistrationNumber: text,
+                      })
+                    }
+                    placeholder="Nhập số đăng ký kinh doanh"
+                    className="border border-gray-300 rounded-lg px-4 py-3 text-gray-900"
+                  />
+                </View>
+
+                <View className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+                  <View className="flex-row items-start">
+                    <Ionicons
+                      name="warning"
+                      size={20}
+                      color="#F59E0B"
+                      className="mr-3 mt-1"
+                    />
+                    <Text className="text-yellow-800 text-sm flex-1">
+                      Thông tin này sẽ được sử dụng để xác minh tài khoản của
+                      bạn. Vui lòng cung cấp thông tin chính xác để tránh gián
+                      đoạn dịch vụ.
+                    </Text>
+                  </View>
                 </View>
               </View>
+            </ScrollView>
+          </SafeAreaView>
+        </Modal>
+
+        {/* Loading Overlay */}
+        {isLoggingOut && (
+          <View className="absolute inset-0 bg-black/30 items-center justify-center">
+            <View className="bg-white rounded-xl p-6 items-center">
+              <View className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
+              <Text className="text-gray-900 font-medium">
+                Đang đăng xuất...
+              </Text>
             </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
+          </View>
+        )}
+      </SafeAreaView>
+    </>
   );
 }

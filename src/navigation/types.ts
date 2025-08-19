@@ -1,4 +1,3 @@
-
 // navigation/types.ts
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
@@ -39,6 +38,39 @@ export interface Photographer {
   hourlyRate: number;
 }
 
+// 🏢 VENUE PAYMENT DATA INTERFACE
+export interface VenuePaymentData {
+  booking?: {
+    id: number;
+    photographerName: string;
+    date: string;
+    time: string;
+    location: string;
+    totalAmount: number;
+  };
+  payment?: {
+    id: number;
+    paymentId: number;
+    orderCode: string;
+    externalTransactionId: string;
+    amount: number;
+    totalAmount: number;
+    status: string;
+    paymentUrl: string;
+    qrCode: string;
+    bin: string;
+    accountNumber: string;
+    description: string;
+    currency: string;
+    paymentLinkId: string;
+    expiredAt: string | null;
+    payOSData: any;
+  };
+  isVenueOwner?: boolean;
+  returnToVenueHome?: boolean;
+  onPaymentSuccess?: () => void;
+}
+
 export type RootStackParamList = {
   StepContainer: undefined;
   RoleSelection: undefined;
@@ -68,6 +100,9 @@ export type RootStackParamList = {
   WalletScreen: undefined;
   PaymentWaitingScreenWallet: PaymentFlowData;
 
+  // 🏢 VENUE OWNER PAYMENT SCREEN
+  VenuePaymentWaitingScreen: VenuePaymentData;
+
   PhotoDeliveryScreen: {
     bookingId: number;
     customerName: string;
@@ -76,7 +111,7 @@ export type RootStackParamList = {
   PhotographerEventScreen: {
     photographerId: number;
   };
-  EventDetailScreen: { eventId: string;}
+  EventDetailScreen: { eventId: string };
 
   // Customer screens
   PhotographerCardDetail: { photographerId: string };
@@ -133,7 +168,7 @@ export type RootStackParamList = {
       styles?: string[];
       indoor?: boolean;
       outdoor?: boolean;
-  };
+    };
     editMode?: boolean;
     existingBookingId?: number;
     existingBookingData?: {
@@ -148,7 +183,7 @@ export type RootStackParamList = {
       specialRequests?: string;
     };
   };
-    OrderDetail: {
+  OrderDetail: {
     bookingId: number;
     photographer: {
       photographerId: number;
@@ -170,7 +205,7 @@ export type RootStackParamList = {
     specialRequests?: string;
     priceCalculation: PriceCalculationResponse;
   };
-BookingEvent: {
+  BookingEvent: {
     event: {
       eventId: number;
       name: string;
@@ -195,7 +230,7 @@ BookingEvent: {
       eventPhotographerId: number;
       fullName: string;
       profileImage?: string;
-      specialRate?: number; 
+      specialRate?: number;
     };
     event: {
       eventId: number;
@@ -223,10 +258,10 @@ BookingEvent: {
       };
     };
     bookingTimes?: {
-      startTime: string;      
-      endTime: string;       
-      startDatetime?: string; 
-      endDatetime?: string;   
+      startTime: string;
+      endTime: string;
+      startDatetime?: string;
+      endDatetime?: string;
     };
   };
 

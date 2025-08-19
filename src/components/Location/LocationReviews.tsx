@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Image, FlatList, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { getResponsiveSize } from '../../utils/responsive';
-import { usePhotographerReviews } from '../../hooks/usePhotographerReviews';
+import { useLocationReviews } from '../../hooks/useLocationReviews';
+
 
 // Use the enhanced rating response from the hook
 interface EnhancedRatingResponse {
@@ -24,19 +25,19 @@ interface EnhancedRatingResponse {
   reviewerProfileImage?: string | null; 
 }
 
-interface PhotographerReviewsProps {
-  photographerId: number | string;
+interface LocationReviewsProps {
+  locationId: number | string;
   currentRating?: number;
   totalReviews?: number;
 }
 
 const { width } = Dimensions.get('window');
 
-export default function PhotographerReviews({ 
-  photographerId, 
+export default function LocationReviews({ 
+  locationId, 
   currentRating, 
   totalReviews 
-}: PhotographerReviewsProps) {
+}: LocationReviewsProps) {
   const flatListRef = useRef<FlatList>(null);
   const { 
     reviews, 
@@ -45,7 +46,7 @@ export default function PhotographerReviews({
     loading, 
     error, 
     refreshReviews 
-  } = usePhotographerReviews(photographerId, currentRating, totalReviews);
+  } = useLocationReviews(locationId, currentRating, totalReviews);
 
   const renderStars = (rating: number, size: number = 16) => {
     const stars = [];
@@ -252,11 +253,11 @@ export default function PhotographerReviews({
           backgroundColor: 'white'
         }}
       >
-        {/* Rating number với icon lá như trong thiết kế */}
+        {/* Rating number với icon địa điểm như trong thiết kế */}
         <View className="flex-row items-center mb-3">
           <View className="flex-row items-center mr-3">
-            <Ionicons name="leaf-outline" size={getResponsiveSize(20)} color="#10b981" />
-            <Ionicons name="leaf-outline" size={getResponsiveSize(20)} color="#10b981" style={{ marginLeft: -6 }} />
+            <Ionicons name="location-outline" size={getResponsiveSize(20)} color="#3b82f6" />
+            <Ionicons name="location-outline" size={getResponsiveSize(20)} color="#3b82f6" style={{ marginLeft: -6 }} />
           </View>
           
           <Text 
@@ -267,8 +268,8 @@ export default function PhotographerReviews({
           </Text>
           
           <View className="flex-row items-center ml-3">
-            <Ionicons name="leaf-outline" size={getResponsiveSize(20)} color="#10b981" style={{ transform: [{ scaleX: -1 }] }} />
-            <Ionicons name="leaf-outline" size={getResponsiveSize(20)} color="#10b981" style={{ marginLeft: -6, transform: [{ scaleX: -1 }] }} />
+            <Ionicons name="location-outline" size={getResponsiveSize(20)} color="#3b82f6" style={{ transform: [{ scaleX: -1 }] }} />
+            <Ionicons name="location-outline" size={getResponsiveSize(20)} color="#3b82f6" style={{ marginLeft: -6, transform: [{ scaleX: -1 }] }} />
           </View>
         </View>
 
@@ -276,14 +277,14 @@ export default function PhotographerReviews({
           className="text-stone-800 font-semibold mb-2"
           style={{ fontSize: getResponsiveSize(18) }}
         >
-          Được khách yêu thích
+          Địa điểm được yêu thích
         </Text>
         
         <Text 
           className="text-stone-600 text-center leading-6"
           style={{ fontSize: getResponsiveSize(14) }}
         >
-          Thợ chụp ảnh này được khách yêu thích dựa trên điểm{'\n'}xếp hạng, lượt đánh giá và độ tin cậy
+          Địa điểm này được khách yêu thích dựa trên điểm{'\n'}xếp hạng, lượt đánh giá và độ tin cậy
         </Text>
       </View>
 

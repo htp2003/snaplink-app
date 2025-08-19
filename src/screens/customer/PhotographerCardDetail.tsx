@@ -28,7 +28,7 @@ import { useFavorites, FavoriteItem } from "../../hooks/useFavorites";
 import { usePhotographerDetail } from "../../hooks/usePhotographerDetail";
 import { useRecentlyViewed } from "../../hooks/useRecentlyViewed";
 import PhotographerReviews from "../../components/Photographer/PhotographerReviews";
-// import PhotographerReviews from "../../components/Photographer/PhotographerReviews";
+import { usePhotographerReviews } from "../../hooks/usePhotographerReviews";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type ProfileCardDetailRouteProp = RouteProp<
@@ -38,6 +38,56 @@ type ProfileCardDetailRouteProp = RouteProp<
 
 const { width, height } = Dimensions.get("window");
 
+// 🆕 Default fallback images
+const DEFAULT_PROFILE_IMAGE = "https://via.placeholder.com/150/cccccc/666666?text=No+Photo";
+const DEFAULT_GALLERY_IMAGE = "https://via.placeholder.com/400x600/f5f5f5/999999?text=No+Images";
+
+// 🆕 Image error handler component
+const SafeImage = ({
+  source,
+  style,
+  resizeMode = "cover",
+  fallbackSource,
+  onError,
+  ...props
+}: any) => {
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const handleError = useCallback(() => {
+    setHasError(true);
+    setIsLoading(false);
+    onError && onError();
+  }, [onError]);
+
+  const handleLoad = useCallback(() => {
+    setIsLoading(false);
+  }, []);
+
+  // Use fallback if error or no source
+  const imageSource = hasError || !source?.uri
+    ? (fallbackSource || { uri: DEFAULT_PROFILE_IMAGE })
+    : source;
+
+  return (
+    <View style={style}>
+      <Image
+        source={imageSource}
+        style={style}
+        resizeMode={resizeMode}
+        onError={handleError}
+        onLoad={handleLoad}
+        {...props}
+      />
+      {isLoading && !hasError && (
+        <View style={[style, { position: 'absolute', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }]}>
+          <ActivityIndicator size="small" color="#d97706" />
+        </View>
+      )}
+    </View>
+  );
+};
+
 export default function PhotographerCardDetail() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<ProfileCardDetailRouteProp>();
@@ -46,6 +96,7 @@ export default function PhotographerCardDetail() {
   // State management
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [hasTrackedView, setHasTrackedView] = useState(false);
+  const [imageLoadErrors, setImageLoadErrors] = useState<Set<string>>(new Set());
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
 
@@ -57,7 +108,6 @@ export default function PhotographerCardDetail() {
     loading,
     error,
     fetchPhotographerById,
-    // Images data and methods from unified hook
     images: photographerImages,
     imageResponses,
     primaryImage,
@@ -66,14 +116,66 @@ export default function PhotographerCardDetail() {
     imageError,
   } = usePhotographerDetail();
 
-  // Fetch photographer details (including images via hook) - only once
+  const {
+    reviews,
+    averageRating,
+    totalReviews,
+    loading: reviewsLoading,
+    error: reviewsError,
+    refreshReviews
+  } = usePhotographerReviews(photographerId);
+
+  // 🆕 Enhanced image processing with error handling
+  const processedImages = useMemo(() => {
+    console.log('🖼️ Processing images:', {
+      photographerImages,
+      imageError,
+      loadingImages
+    });
+
+    // If loading, return empty array
+    if (loadingImages) {
+      return [];
+    }
+
+    // If there's an error or no images, return default
+    if (imageError || !photographerImages || photographerImages.length === 0) {
+      console.log('🖼️ No images available, using default');
+      return [DEFAULT_GALLERY_IMAGE];
+    }
+
+    // Filter out broken images and return valid ones
+    const validImages = photographerImages.filter((img: string) =>
+      img && typeof img === 'string' && !imageLoadErrors.has(img)
+    );
+
+    console.log('🖼️ Valid images:', validImages.length);
+
+    return validImages.length > 0 ? validImages : [DEFAULT_GALLERY_IMAGE];
+  }, [photographerImages, imageError, loadingImages, imageLoadErrors]);
+
+  // 🆕 Handle image load errors
+  const handleImageError = useCallback((imageUrl: string) => {
+    console.log('❌ Image failed to load:', imageUrl);
+    setImageLoadErrors(prev => new Set([...prev, imageUrl]));
+  }, []);
+
+  // 🆕 Safe profile image
+  const profileImageSource = useMemo(() => {
+    const profileUrl = photographerDetail?.profileImage;
+    return profileUrl && !imageLoadErrors.has(profileUrl)
+      ? { uri: profileUrl }
+      : { uri: DEFAULT_PROFILE_IMAGE };
+  }, [photographerDetail?.profileImage, imageLoadErrors]);
+
+  // Fetch photographer details
   useEffect(() => {
     if (photographerId) {
       fetchPhotographerById(photographerId);
     }
   }, [photographerId, fetchPhotographerById]);
 
-  // Memoize the track view data to prevent changes on every render
+  // Track view data with safe fallbacks
   const trackViewData = useMemo(() => {
     if (!photographerDetail) return null;
 
@@ -83,38 +185,23 @@ export default function PhotographerCardDetail() {
       data: {
         id: photographerDetail.photographerId.toString(),
         fullName: photographerDetail.fullName || "Unknown Photographer",
-        avatar: photographerDetail.profileImage || "",
-        cardImage:
-          primaryImageUrl ||
-          (photographerImages && photographerImages.length > 0
-            ? photographerImages[0]
-            : null),
-        images: photographerImages || [],
+        avatar: photographerDetail.profileImage || DEFAULT_PROFILE_IMAGE,
+        cardImage: processedImages[0] || DEFAULT_GALLERY_IMAGE,
+        images: processedImages,
         styles: Array.isArray(photographerDetail.styles)
           ? photographerDetail.styles
           : photographerDetail.styles && "$values" in photographerDetail.styles
-          ? (photographerDetail.styles as any).$values
-          : [photographerDetail.specialty || "Photography"],
+            ? (photographerDetail.styles as any).$values
+            : [photographerDetail.specialty || "Photography"],
         rating: photographerDetail.rating,
         hourlyRate: photographerDetail.hourlyRate,
         availabilityStatus: photographerDetail.availabilityStatus,
         specialty: photographerDetail.specialty,
       },
     };
-  }, [
-    photographerDetail?.photographerId,
-    photographerDetail?.fullName,
-    photographerDetail?.profileImage,
-    photographerDetail?.styles,
-    photographerDetail?.rating,
-    photographerDetail?.hourlyRate,
-    photographerDetail?.availabilityStatus,
-    photographerDetail?.specialty,
-    primaryImageUrl,
-    photographerImages,
-  ]);
+  }, [photographerDetail, processedImages]);
 
-  // Track recently viewed - only once when data is ready
+  // Track recently viewed
   useEffect(() => {
     if (trackViewData && !hasTrackedView) {
       trackView(trackViewData);
@@ -122,9 +209,9 @@ export default function PhotographerCardDetail() {
     }
   }, [trackViewData, hasTrackedView, trackView]);
 
-  // Handle error
+  // 🆕 Enhanced error handling - only show alerts for critical errors
   useEffect(() => {
-    if (error) {
+    if (error && !error.includes('404') && !error.includes('image')) {
       Alert.alert("Lỗi", `Không thể tải thông tin photographer: ${error}`, [
         {
           text: "Thử lại",
@@ -135,14 +222,14 @@ export default function PhotographerCardDetail() {
     }
   }, [error, photographerId, fetchPhotographerById, navigation]);
 
-  // Handle image error - don't show alert, just log
+  // 🆕 Silent image error logging
   useEffect(() => {
     if (imageError) {
-      console.warn("Image loading error:", imageError);
+      console.warn('🖼️ Image loading issue (handled gracefully):', imageError);
     }
   }, [imageError]);
 
-  // Memoize favorite item to prevent recreation on every render
+  // Favorite item setup
   const favoriteItem = useMemo((): FavoriteItem | null => {
     if (!photographerDetail) return null;
 
@@ -152,31 +239,20 @@ export default function PhotographerCardDetail() {
       data: {
         id: photographerDetail.photographerId.toString(),
         fullName: photographerDetail.fullName || "Unknown",
-        avatar: photographerDetail.profileImage || "",
-        images: photographerImages || [],
+        avatar: photographerDetail.profileImage || DEFAULT_PROFILE_IMAGE,
+        images: processedImages,
         styles: Array.isArray(photographerDetail.styles)
           ? photographerDetail.styles
           : photographerDetail.styles && "$values" in photographerDetail.styles
-          ? (photographerDetail.styles as any).$values
-          : [],
+            ? (photographerDetail.styles as any).$values
+            : [],
         rating: photographerDetail.rating,
         hourlyRate: photographerDetail.hourlyRate,
         availabilityStatus: photographerDetail.availabilityStatus,
       },
     };
-  }, [
-    photographerDetail?.photographerId,
-    photographerDetail?.fullName,
-    photographerDetail?.profileImage,
-    photographerDetail?.styles,
-    photographerDetail?.rating,
-    photographerDetail?.hourlyRate,
-    photographerDetail?.availabilityStatus,
-    primaryImageUrl,
-    photographerImages,
-  ]);
+  }, [photographerDetail, processedImages]);
 
-  // Handle favorite toggle
   const handleToggleFavorite = useCallback(() => {
     if (!favoriteItem) return;
 
@@ -188,7 +264,7 @@ export default function PhotographerCardDetail() {
     }
   }, [favoriteItem, isFavorite, addFavorite, removeFavorite]);
 
-  // Render stars for rating
+  // Render stars
   const renderStars = useCallback((rating: number) => {
     const stars = [];
     const fullStars = Math.floor(rating);
@@ -235,11 +311,11 @@ export default function PhotographerCardDetail() {
     }
   }).current;
 
-  // Render image item
+  // 🆕 Enhanced render image item with error handling
   const renderImageItem = useCallback(
     ({ item }: { item: string }) => (
       <View style={{ width }}>
-        <Image
+        <SafeImage
           source={{ uri: item }}
           style={{
             width,
@@ -247,16 +323,15 @@ export default function PhotographerCardDetail() {
             marginTop: -50,
           }}
           resizeMode="cover"
-          onError={() => {
-            console.log("Failed to load image:", item);
-          }}
+          fallbackSource={{ uri: DEFAULT_GALLERY_IMAGE }}
+          onError={() => handleImageError(item)}
         />
       </View>
     ),
-    []
+    [handleImageError]
   );
 
-  // Handle status bar style change
+  // Status bar handling
   useEffect(() => {
     const listener = scrollY.addListener(({ value }) => {
       if (value > getResponsiveSize(160)) {
@@ -268,7 +343,7 @@ export default function PhotographerCardDetail() {
     return () => scrollY.removeListener(listener);
   }, [scrollY]);
 
-  // Handle navigation
+  // Navigation handlers
   const handleGoBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
@@ -282,7 +357,7 @@ export default function PhotographerCardDetail() {
         photographerId: Number(photographerDetail.photographerId),
         userId: String(photographerDetail.userId),
         fullName: photographerDetail.fullName || "Unknown Photographer",
-        profileImage: photographerDetail.profileImage || "",
+        profileImage: photographerDetail.profileImage || DEFAULT_PROFILE_IMAGE,
         hourlyRate: photographerDetail.hourlyRate || 0,
         specialty: photographerDetail.specialty || "Photography",
         yearsExperience: photographerDetail.yearsExperience,
@@ -526,28 +601,28 @@ export default function PhotographerCardDetail() {
           scrollEventThrottle={1}
           contentContainerStyle={{ paddingTop: 0 }}
         >
-          {/* Photographer Images Gallery from unified hook */}
+          {/* 🆕 Enhanced Image Gallery with Error Handling */}
           <View
             style={{
               height: height * 0.6,
               overflow: "hidden",
               marginTop: -50,
               zIndex: 1,
-              backgroundColor: "#eee",
+              backgroundColor: "#f5f5f5",
             }}
           >
             {loadingImages ? (
               <View className="flex-1 justify-center items-center">
                 <ActivityIndicator size="large" color="#d97706" />
                 <Text className="text-stone-600 mt-2">
-                  Đang tải ảnh từ Image API...
+                  Đang tải ảnh...
                 </Text>
               </View>
-            ) : photographerImages && photographerImages.length > 0 ? (
+            ) : (
               <>
                 <FlatList
                   ref={flatListRef}
-                  data={photographerImages}
+                  data={processedImages}
                   renderItem={renderImageItem}
                   keyExtractor={(item, index) => `${item}-${index}`}
                   horizontal
@@ -571,41 +646,31 @@ export default function PhotographerCardDetail() {
                     className="text-white font-medium"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
-                    {currentImageIndex + 1} / {photographerImages.length}
+                    {currentImageIndex + 1} / {processedImages.length}
                   </Text>
                 </View>
-                {/* Primary image indicator */}
-                {primaryImage && (
-                  <View
-                    className="absolute bg-amber-500 rounded-full"
-                    style={{
-                      bottom: getResponsiveSize(90),
-                      left: getResponsiveSize(16),
-                      paddingHorizontal: getResponsiveSize(8),
-                      paddingVertical: getResponsiveSize(4),
-                      zIndex: 50,
-                    }}
+                {/* 🆕 Status indicator */}
+                <View
+                  className="absolute bg-amber-500 rounded-full"
+                  style={{
+                    bottom: getResponsiveSize(90),
+                    left: getResponsiveSize(16),
+                    paddingHorizontal: getResponsiveSize(8),
+                    paddingVertical: getResponsiveSize(4),
+                    zIndex: 50,
+                  }}
+                >
+                  <Text
+                    className="text-white font-medium text-xs"
+                    style={{ fontSize: getResponsiveSize(12) }}
                   >
-                    <Text
-                      className="text-white font-medium text-xs"
-                      style={{ fontSize: getResponsiveSize(12) }}
-                    >
-                      Ảnh chính
-                    </Text>
-                  </View>
-                )}
+                    {photographerImages && photographerImages.length > 0 && processedImages[0] !== DEFAULT_GALLERY_IMAGE
+                      ? primaryImage ? "Ảnh chính" : "Bộ sưu tập"
+                      : "Ảnh mặc định"
+                    }
+                  </Text>
+                </View>
               </>
-            ) : (
-              <View className="flex-1 justify-center items-center">
-                <Ionicons
-                  name="camera-outline"
-                  size={getResponsiveSize(60)}
-                  color="#9ca3af"
-                />
-                <Text className="text-stone-600 mt-4 text-center">
-                  Chưa có ảnh từ photographer
-                </Text>
-              </View>
             )}
           </View>
 
@@ -652,7 +717,7 @@ export default function PhotographerCardDetail() {
                   className="text-stone-600 text-center"
                   style={{ fontSize: getResponsiveSize(14) }}
                 >
-                  {photographerDetail?.yearsExperience || 0} năm kinh nghiệm •{" "}
+                  {photographerDetail?.yearsExperience || 0} năm kinh nghiệm • {" "}
                   {photographerDetail?.equipment || "Thiết bị chuyên nghiệp"}
                 </Text>
               </View>
@@ -667,11 +732,13 @@ export default function PhotographerCardDetail() {
                     className="text-stone-900 font-bold"
                     style={{ fontSize: getResponsiveSize(28) }}
                   >
-                    {photographerDetail?.rating?.toFixed(2).replace(".", ",") ||
-                      "4,81"}
+                    {averageRating > 0
+                      ? averageRating.toFixed(1).replace(".", ",")
+                      : "0"
+                    }
                   </Text>
                   <View className="flex-row mt-1">
-                    {renderStars(photographerDetail?.rating || 4.81)}
+                    {renderStars(averageRating)}
                   </View>
                 </View>
 
@@ -694,7 +761,7 @@ export default function PhotographerCardDetail() {
                     className="text-stone-900 font-bold"
                     style={{ fontSize: getResponsiveSize(28) }}
                   >
-                    {photographerDetail?.ratingCount || "79"}
+                    {totalReviews}
                   </Text>
                   <Text
                     className="text-stone-600"
@@ -705,24 +772,22 @@ export default function PhotographerCardDetail() {
                 </View>
               </View>
 
-              {/* Photographer Info */}
+              {/* 🆕 Enhanced Photographer Info with Safe Image */}
               <View
                 className="flex-row items-center pb-6 border-b border-stone-200"
                 style={{ marginBottom: getResponsiveSize(24) }}
               >
-                <Image
-                  source={{
-                    uri:
-                      photographerDetail?.profileImage ||
-                      "https://via.placeholder.com/60",
-                  }}
+                <SafeImage
+                  source={profileImageSource}
                   style={{
                     width: getResponsiveSize(56),
                     height: getResponsiveSize(56),
+                    borderRadius: getResponsiveSize(28),
                   }}
-                  className="rounded-full mr-4"
+                  resizeMode="cover"
+                  onError={() => handleImageError(photographerDetail?.profileImage || '')}
                 />
-                <View className="flex-1">
+                <View className="flex-1 ml-4">
                   <Text
                     className="text-stone-900 font-semibold"
                     style={{ fontSize: getResponsiveSize(18) }}
@@ -734,7 +799,7 @@ export default function PhotographerCardDetail() {
                     className="text-stone-600"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
-                    {photographerDetail?.yearsExperience || 0} năm kinh nghiệm •{" "}
+                    {photographerDetail?.yearsExperience || 0} năm kinh nghiệm • {" "}
                     {photographerDetail?.availabilityStatus || "Available"}
                   </Text>
                 </View>
@@ -849,7 +914,7 @@ export default function PhotographerCardDetail() {
                   </View>
                 )}
 
-                {/* Images from new Image API via unified hook */}
+                {/* 🆕 Enhanced Images Info with Status */}
                 <View className="flex-row">
                   <Ionicons
                     name="images-outline"
@@ -864,25 +929,52 @@ export default function PhotographerCardDetail() {
                         marginBottom: getResponsiveSize(4),
                       }}
                     >
-                      Ảnh từ photographer
+                      Bộ sưu tập ảnh
                     </Text>
                     <Text
                       className="text-stone-600 leading-6"
                       style={{ fontSize: getResponsiveSize(14) }}
                     >
-                      {photographerImages && photographerImages.length > 0
-                        ? `${
-                            photographerImages.length
-                          } ảnh được upload bởi photographer.${
-                            primaryImage ? " Có ảnh chính được đánh dấu." : ""
-                          }`
-                        : "Đang cập nhật ảnh mới nhất."}
+                      {(() => {
+                        if (loadingImages) {
+                          return "Đang tải ảnh từ photographer...";
+                        }
+
+                        if (imageError && imageError.includes('404')) {
+                          return "Photographer chưa upload ảnh nào. Ảnh hiển thị là ảnh mặc định.";
+                        }
+
+                        if (!photographerImages || photographerImages.length === 0) {
+                          return "Chưa có ảnh được upload. Hiển thị ảnh mặc định.";
+                        }
+
+                        const validImageCount = photographerImages.filter((img: string) =>
+                          img && !imageLoadErrors.has(img)
+                        ).length;
+
+                        if (validImageCount === 0) {
+                          return "Một số ảnh không thể tải được. Hiển thị ảnh mặc định.";
+                        }
+
+                        return `${validImageCount} ảnh được upload bởi photographer.${primaryImage ? " Có ảnh chính được đánh dấu." : ""
+                          }`;
+                      })()}
                     </Text>
+
+                    {/* 🆕 Image Status Indicator */}
+                    {imageError && imageError.includes('404') && (
+                      <View className="mt-2 px-3 py-1 bg-amber-100 rounded-full self-start">
+                        <Text className="text-amber-700 text-xs font-medium">
+                          Đang cập nhật ảnh mới
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 </View>
               </View>
             </View>
           </View>
+
           {/* Reviews Section */}
           <PhotographerReviews
             photographerId={
@@ -903,9 +995,8 @@ export default function PhotographerCardDetail() {
             <TouchableOpacity
               onPress={handleBooking}
               disabled={isUnavailable}
-              className={`rounded-2xl items-center ${
-                isUnavailable ? "bg-stone-300" : "bg-pink-500"
-              }`}
+              className={`rounded-2xl items-center ${isUnavailable ? "bg-stone-300" : "bg-pink-500"
+                }`}
               style={{ paddingVertical: getResponsiveSize(16) }}
             >
               <Text
@@ -915,8 +1006,8 @@ export default function PhotographerCardDetail() {
                 {isUnavailable
                   ? "Không khả dụng"
                   : `Đặt lịch - ₫${(
-                      photographerDetail?.hourlyRate || 0
-                    ).toLocaleString("vi-VN")}/giờ`}
+                    photographerDetail?.hourlyRate || 0
+                  ).toLocaleString("vi-VN")}/giờ`}
               </Text>
             </TouchableOpacity>
           </View>

@@ -23,6 +23,8 @@ import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { useLocationDetail } from '../../hooks/useLocationDetail';
+import LocationReviews from '../../components/Location/LocationReviews';
+import { useLocationReviews } from '../../hooks/useLocationReviews';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type LocationCardDetailRouteProp = RouteProp<RootStackParamList, 'LocationCardDetail'>;
@@ -47,6 +49,9 @@ export default function LocationCardDetail() {
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { trackView } = useRecentlyViewed();
 
+  const [calculatedRating, setCalculatedRating] = useState<number | null>(null);
+  const [calculatedReviewCount, setCalculatedReviewCount] = useState<number | null>(null);
+
   // Use updated hook with Image API integration
   const {
     locationDetail,
@@ -59,6 +64,16 @@ export default function LocationCardDetail() {
     loadingImages,
     imageError
   } = useLocationDetail();
+
+  const {
+    averageRating,
+    totalReviews: reviewCount,
+    loading: reviewsLoading
+  } = useLocationReviews(
+    locationDetail?.locationId || parseInt(locationId),
+    locationDetail?.rating,
+    locationDetail?.ratingCount
+  );
 
   // Move getAmenities up before it's used
   const getAmenities = useCallback((): string[] => {
@@ -309,31 +324,31 @@ export default function LocationCardDetail() {
     });
     return () => scrollY.removeListener(listener);
   }, [scrollY]);
-// Sửa function handleBookLocation
-const handleBookLocation = () => {
-  if (!locationDetail?.locationId) {
-    Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
-    return;
-  }
+  // Sửa function handleBookLocation
+  const handleBookLocation = () => {
+    if (!locationDetail?.locationId) {
+      Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
+      return;
+    }
 
-  // ✅ Cast as any to bypass type check
-  const locationData: any = {
-    locationId: locationDetail.locationId,
-    name: locationDetail.name || 'Unknown Location',
-    address: locationDetail.address || '',
-    hourlyRate: locationDetail.hourlyRate || 0,
-    imageUrl: galleryImages?.[0] || '', 
-    capacity: locationDetail.capacity || 0,
-    styles: getAmenities(),
-    indoor: locationDetail.indoor || false,
-    outdoor: locationDetail.outdoor || false,
+    // ✅ Cast as any to bypass type check
+    const locationData: any = {
+      locationId: locationDetail.locationId,
+      name: locationDetail.name || 'Unknown Location',
+      address: locationDetail.address || '',
+      hourlyRate: locationDetail.hourlyRate || 0,
+      imageUrl: galleryImages?.[0] || '',
+      capacity: locationDetail.capacity || 0,
+      styles: getAmenities(),
+      indoor: locationDetail.indoor || false,
+      outdoor: locationDetail.outdoor || false,
+    };
+
+    // ✅ Cast navigation as any
+    (navigation as any).navigate('Booking', {
+      location: locationData,
+    });
   };
-
-  // ✅ Cast navigation as any
-  (navigation as any).navigate('Booking', {
-    location: locationData,
-  });
-};
 
   if (loading) {
     return (
@@ -643,10 +658,13 @@ const handleBookLocation = () => {
                     className="text-stone-900 font-bold"
                     style={{ fontSize: getResponsiveSize(28) }}
                   >
-                    4.8
+                    {averageRating > 0
+                      ? averageRating.toFixed(2).replace(".", ",")
+                      : "0"
+                    }
                   </Text>
                   <View className="flex-row mt-1">
-                    {renderStars(4.8)}
+                  {renderStars(averageRating || 0)}
                   </View>
                 </View>
 
@@ -665,7 +683,7 @@ const handleBookLocation = () => {
                     className="text-stone-900 font-bold"
                     style={{ fontSize: getResponsiveSize(28) }}
                   >
-                    45
+                   {reviewCount || "0"}
                   </Text>
                   <Text
                     className="text-stone-600"
@@ -1057,6 +1075,13 @@ const handleBookLocation = () => {
             </View>
           </View>
 
+          {/* 🆕 Reviews Section */}
+          <LocationReviews
+            locationId={locationDetail?.locationId || parseInt(locationId)}
+            currentRating={locationDetail?.rating}
+            totalReviews={locationDetail?.ratingCount}
+          />
+
           <View style={{ height: getResponsiveSize(32) }} />
         </Animated.ScrollView>
 
@@ -1067,37 +1092,6 @@ const handleBookLocation = () => {
             style={{ paddingVertical: getResponsiveSize(16) }}
           >
             <View className="flex-row space-x-3">
-              {/* Contact Owner Button */}
-              <TouchableOpacity
-                className="flex-1 bg-stone-100 rounded-2xl items-center"
-                style={{ paddingVertical: getResponsiveSize(16) }}
-                onPress={() => {
-                  const businessInfo = locationDetail?.locationOwner;
-                  const ownerInfo = locationDetail?.ownerProfile;
-
-                  const contactInfo = [
-                    businessInfo?.businessName && `Tên doanh nghiệp: ${businessInfo.businessName}`,
-                    ownerInfo?.fullName && `Chủ sở hữu: ${ownerInfo.fullName}`,
-                    ownerInfo?.email && `Email: ${ownerInfo.email}`,
-                    ownerInfo?.phoneNumber && `Điện thoại: ${ownerInfo.phoneNumber}`,
-                    businessInfo?.businessAddress && `Địa chỉ kinh doanh: ${businessInfo.businessAddress}`,
-                    businessInfo?.businessRegistrationNumber && `Mã đăng ký: ${businessInfo.businessRegistrationNumber}`,
-                  ].filter(Boolean).join('\n');
-
-                  Alert.alert(
-                    'Thông tin liên hệ',
-                    contactInfo || 'Thông tin liên hệ chưa được cập nhật.',
-                    [{ text: 'OK' }]
-                  );
-                }}
-              >
-                <Text
-                  className="text-stone-700 font-semibold"
-                  style={{ fontSize: getResponsiveSize(16) }}
-                >
-                  Liên hệ
-                </Text>
-              </TouchableOpacity>
               {/* Book Location Button */}
               <TouchableOpacity
                 className="flex-1 bg-emerald-500 rounded-2xl items-center"

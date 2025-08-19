@@ -26,7 +26,7 @@ import { useCurrentUserId } from "../../hooks/useAuth";
 
 import * as Location from "expo-location";
 import { useNearbyLocations } from "../../hooks/useNearbyLocations";
-import LocationModal from "../../components/LocationCard/LocationModal";
+import LocationModal from "../../components/Location/LocationModal";
 
 // Route params interface - UPDATED
 interface RouteParams {

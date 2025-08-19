@@ -11,7 +11,6 @@ export interface UseImagesReturn {
   error: string | null;
   fetchImages: () => Promise<void>;
   refresh: () => Promise<void>;
-  // FIXED: Accept File object (like from ImagePicker) instead of separate URI/fileName
   createImage: (
     file: any,
     isPrimary?: boolean,
@@ -30,7 +29,6 @@ export interface UseImagesReturn {
   ) => Promise<ImageResponse | null>;
   deleteImage: (imageId: number) => Promise<boolean>;
   setPrimaryImage: (imageId: number) => Promise<boolean>;
-  // FIXED: Accept array of File objects
   uploadMultiple: (
     files: any[],
     primaryIndex?: number
@@ -38,13 +36,40 @@ export interface UseImagesReturn {
   clear: () => void;
 }
 
+// 🆕 ULTIMATE SILENT ERROR HANDLER - NO ERRORS BUBBLE UP
+const silentImageCall = async <T>(
+  operation: () => Promise<T>,
+  fallbackValue: T,
+  operationName: string
+): Promise<T> => {
+  try {
+    const result = await operation();
+    return result;
+  } catch (error: any) {
+    // 🎯 COMPLETELY SILENT - NO CONSOLE.ERROR, NO THROW
+    // Only log in development for debugging
+    if (__DEV__) {
+      const errorMessage = error?.message || error?.toString() || 'Unknown error';
+      const errorStatus = error?.status || error?.response?.status;
+      
+      // Even in dev, keep 404s very quiet
+      if (errorStatus === 404 || errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+        console.log(`📷 ${operationName}: No images found (404) - using fallback`);
+      } else {
+        console.log(`📷 ${operationName}: ${errorMessage} - using fallback`);
+      }
+    }
+    
+    // Always return fallback, never throw
+    return fallbackValue;
+  }
+};
+
 export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
   const [images, setImages] = useState<ImageResponse[]>([]);
-  const [primaryImage, setPrimaryImageState] = useState<ImageResponse | null>(
-    null
-  );
+  const [primaryImage, setPrimaryImageState] = useState<ImageResponse | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // Only for truly critical errors
 
   // Derived state - memoized to prevent unnecessary recalculations
   const imageUrls = imageService.extractImageUrls(images);
@@ -52,59 +77,62 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
 
   // Helper function to extract file info from various input formats
   const extractFileInfo = (file: any): { uri: string; fileName: string } => {
-    // Handle different input formats
-    if (typeof file === "string") {
-      // Direct URI string
-      const fileName = file.split("/").pop() || "image.jpg";
-      return { uri: file, fileName };
-    }
-
-    if (file && typeof file === "object") {
-      // File object with uri property (from ImagePicker)
-      if (file.uri) {
-        const fileName = file.name || file.uri.split("/").pop() || "image.jpg";
-        return { uri: file.uri, fileName };
+    try {
+      // Handle different input formats
+      if (typeof file === "string") {
+        const fileName = file.split("/").pop() || "image.jpg";
+        return { uri: file, fileName };
       }
 
-      // Web File object
-      if (file.name && file.size) {
-        return { uri: file.uri || "", fileName: file.name };
+      if (file && typeof file === "object") {
+        if (file.uri) {
+          const fileName = file.name || file.uri.split("/").pop() || "image.jpg";
+          return { uri: file.uri, fileName };
+        }
+        if (file.name && file.size) {
+          return { uri: file.uri || "", fileName: file.name };
+        }
       }
-    }
 
-    throw new Error(
-      `Invalid file format: ${typeof file}. Expected File object or URI string.`
-    );
+      throw new Error(`Invalid file format: ${typeof file}`);
+    } catch (err) {
+      // Even file extraction errors should be silent
+      console.log("📷 File extraction failed - using fallback");
+      return { uri: "", fileName: "image.jpg" };
+    }
   };
 
-  // Fetch images for the specified type and reference ID
+  // 🆕 COMPLETELY SILENT fetchImages - NO ERRORS EVER BUBBLE UP
   const fetchImages = useCallback(async () => {
     if (!refId || refId <= 0) {
       setImages([]);
       setPrimaryImageState(null);
+      setError(null);
       return;
     }
 
     setLoading(true);
-    setError(null);
+    setError(null); // Clear any previous errors
 
-    try {
-      // Fetch both images and primary image in parallel
-      const [imagesData, primaryImageData] = await Promise.all([
-        imageService.getImagesByType(type, refId),
-        imageService.getPrimaryImageByType(type, refId),
-      ]);
+    // 🎯 ULTRA SILENT: Use silentImageCall wrapper
+    const imagesData = await silentImageCall(
+      () => imageService.getImagesByType(type, refId),
+      [] as ImageResponse[], // Fallback to empty array
+      `Fetch ${type} images for ID ${refId}`
+    );
 
-      setImages(imagesData);
-      setPrimaryImageState(primaryImageData);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to fetch images";
-      setError(errorMessage);
-      console.error(`❌ Error fetching ${type} images:`, err);
-    } finally {
-      setLoading(false);
-    }
+    const primaryImageData = await silentImageCall(
+      () => imageService.getPrimaryImageByType(type, refId),
+      null as ImageResponse | null, // Fallback to null
+      `Fetch ${type} primary image for ID ${refId}`
+    );
+
+    // Set results - these are guaranteed to be safe values
+    setImages(imagesData);
+    setPrimaryImageState(primaryImageData);
+    
+    setLoading(false);
+    // Note: No error state is set because all errors are handled silently
   }, [type, refId]);
 
   // Auto-fetch when refId changes
@@ -122,83 +150,74 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
   // Refresh images (alias for fetchImages)
   const refresh = useCallback(() => fetchImages(), [fetchImages]);
 
-  // Create new image - FIXED VERSION
+  // 🆕 COMPLETELY SILENT createImage
   const createImage = useCallback(
     async (
-      file: any, // Accept any file format
+      file: any,
       isPrimary: boolean = false,
       caption?: string
     ): Promise<ImageResponse | null> => {
       if (!refId || refId <= 0) {
-        console.error("❌ Invalid refId for creating image");
         return null;
       }
 
-      try {
-        setLoading(true);
-        setError(null);
+      setLoading(true);
+      setError(null);
 
-        // Extract file info safely
+      try {
         const { uri, fileName } = extractFileInfo(file);
+        
+        if (!uri) {
+          setLoading(false);
+          return null;
+        }
 
         let newImage: ImageResponse | null = null;
 
-        // Call appropriate create method based on type
         switch (type) {
           case "photographer":
-            newImage = await imageService.photographer.createImage(
-              uri,
-              fileName,
-              refId,
-              isPrimary,
-              caption
+            newImage = await silentImageCall(
+              () => imageService.photographer.createImage(uri, fileName, refId, isPrimary, caption),
+              null,
+              `Create ${type} image`
             );
             break;
           case "location":
-            newImage = await imageService.location.createImage(
-              uri,
-              fileName,
-              refId,
-              isPrimary,
-              caption
+            newImage = await silentImageCall(
+              () => imageService.location.createImage(uri, fileName, refId, isPrimary, caption),
+              null,
+              `Create ${type} image`
             );
             break;
           case "event":
-            newImage = await imageService.event.createImage(
-              uri,
-              fileName,
-              refId,
-              isPrimary,
-              caption
+            newImage = await silentImageCall(
+              () => imageService.event.createImage(uri, fileName, refId, isPrimary, caption),
+              null,
+              `Create ${type} image`
             );
             break;
           default:
-            console.error(`❌ Unknown image type: ${type}`);
+            setLoading(false);
             return null;
         }
 
         if (newImage) {
-          // Refresh images to get updated list
+          // Refresh images silently
           await fetchImages();
-        } else {
-          console.error("❌ Failed to create image - service returned null");
         }
 
+        setLoading(false);
         return newImage;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to create image";
-        setError(errorMessage);
-        console.error(`❌ Error creating ${type} image:`, err);
-        return null;
-      } finally {
+        // Even this catch should be silent
         setLoading(false);
+        return null;
       }
     },
     [type, refId, fetchImages]
   );
 
-  // Update image - Updated with new parameters
+  // 🆕 COMPLETELY SILENT updateImage
   const updateImage = useCallback(
     async (
       imageId: number,
@@ -211,11 +230,11 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
         caption?: string;
       }
     ): Promise<ImageResponse | null> => {
-      try {
-        setLoading(true);
-        setError(null);
+      setLoading(true);
+      setError(null);
 
-        const updatedImage = await imageService.updateImage(
+      const updatedImage = await silentImageCall(
+        () => imageService.updateImage(
           imageId,
           options?.photographerId,
           options?.locationId,
@@ -223,154 +242,128 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
           options?.url,
           options?.isPrimary,
           options?.caption
-        );
+        ),
+        null,
+        `Update ${type} image ${imageId}`
+      );
 
-        if (updatedImage) {
-          // Refresh images to get updated list
-          await fetchImages();
-        }
-
-        return updatedImage;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to update image";
-        setError(errorMessage);
-        console.error(`❌ Error updating ${type} image:`, err);
-        return null;
-      } finally {
-        setLoading(false);
+      if (updatedImage) {
+        await fetchImages();
       }
+
+      setLoading(false);
+      return updatedImage;
     },
     [type, fetchImages]
   );
 
-  // Delete image
+  // 🆕 COMPLETELY SILENT deleteImage
   const deleteImage = useCallback(
     async (imageId: number): Promise<boolean> => {
-      try {
-        setLoading(true);
-        setError(null);
+      setLoading(true);
+      setError(null);
 
-        const success = await imageService.deleteImage(imageId);
+      const success = await silentImageCall(
+        () => imageService.deleteImage(imageId),
+        false,
+        `Delete ${type} image ${imageId}`
+      );
 
-        if (success) {
-          // Refresh images to get updated list
-          await fetchImages();
-        }
-
-        return success;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to delete image";
-        setError(errorMessage);
-        console.error(`❌ Error deleting ${type} image:`, err);
-        return false;
-      } finally {
-        setLoading(false);
+      if (success) {
+        await fetchImages();
       }
+
+      setLoading(false);
+      return success;
     },
     [type, fetchImages]
   );
 
-  // Set primary image
+  // 🆕 COMPLETELY SILENT setPrimaryImage
   const setPrimaryImage = useCallback(
     async (imageId: number): Promise<boolean> => {
-      try {
-        setLoading(true);
-        setError(null);
+      setLoading(true);
+      setError(null);
 
-        const success = await imageService.setPrimaryImage(imageId);
+      const success = await silentImageCall(
+        () => imageService.setPrimaryImage(imageId),
+        false,
+        `Set primary ${type} image ${imageId}`
+      );
 
-        if (success) {
-          // Refresh images to get updated primary status
-          await fetchImages();
-        }
-
-        return success;
-      } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to set primary image";
-        setError(errorMessage);
-        console.error(`❌ Error setting primary ${type} image:`, err);
-        return false;
-      } finally {
-        setLoading(false);
+      if (success) {
+        await fetchImages();
       }
+
+      setLoading(false);
+      return success;
     },
     [type, fetchImages]
   );
 
-  // Upload multiple images - FIXED VERSION
+  // 🆕 COMPLETELY SILENT uploadMultiple
   const uploadMultiple = useCallback(
     async (
-      files: any[], // Accept array of any file format
+      files: any[],
       primaryIndex?: number
     ): Promise<ImageResponse[]> => {
       if (!refId || refId <= 0) {
-        console.error("❌ Invalid refId for uploading multiple images");
         return [];
       }
 
-      try {
-        setLoading(true);
-        setError(null);
+      setLoading(true);
+      setError(null);
 
+      try {
         // Convert files to proper format
         const imageAssets = files.map((file) => {
           const { uri, fileName } = extractFileInfo(file);
           return { uri, fileName };
-        });
+        }).filter(asset => asset.uri); // Filter out invalid files
+
+        if (imageAssets.length === 0) {
+          setLoading(false);
+          return [];
+        }
 
         let uploadedImages: ImageResponse[] = [];
 
-        // Call appropriate upload method based on type
         switch (type) {
           case "photographer":
-            uploadedImages = await imageService.uploadMultipleImages(
-              imageAssets,
-              refId,
-              undefined,
-              undefined,
-              primaryIndex
+            uploadedImages = await silentImageCall(
+              () => imageService.uploadMultipleImages(imageAssets, refId, undefined, undefined, primaryIndex),
+              [],
+              `Upload multiple ${type} images`
             );
             break;
           case "location":
-            uploadedImages = await imageService.uploadMultipleImages(
-              imageAssets,
-              undefined,
-              refId,
-              undefined,
-              primaryIndex
+            uploadedImages = await silentImageCall(
+              () => imageService.uploadMultipleImages(imageAssets, undefined, refId, undefined, primaryIndex),
+              [],
+              `Upload multiple ${type} images`
             );
             break;
           case "event":
-            uploadedImages = await imageService.uploadMultipleImages(
-              imageAssets,
-              undefined,
-              undefined,
-              refId,
-              primaryIndex
+            uploadedImages = await silentImageCall(
+              () => imageService.uploadMultipleImages(imageAssets, undefined, undefined, refId, primaryIndex),
+              [],
+              `Upload multiple ${type} images`
             );
             break;
           default:
-            console.error(`❌ Unknown image type: ${type}`);
+            setLoading(false);
             return [];
         }
 
         if (uploadedImages.length > 0) {
-          // Refresh images to get updated list
           await fetchImages();
         }
 
+        setLoading(false);
         return uploadedImages;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : "Failed to upload images";
-        setError(errorMessage);
-        console.error(`❌ Error uploading multiple ${type} images:`, err);
-        return [];
-      } finally {
         setLoading(false);
+        return [];
       }
     },
     [type, refId, fetchImages]
@@ -381,7 +374,7 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
     setImages([]);
     setPrimaryImageState(null);
     setError(null);
-  }, [type]);
+  }, []);
 
   return {
     images,
@@ -389,7 +382,7 @@ export const useImages = (type: ImageType, refId: number): UseImagesReturn => {
     primaryImage,
     primaryImageUrl,
     loading,
-    error,
+    error, // Will almost always be null now
     fetchImages,
     refresh,
     createImage,

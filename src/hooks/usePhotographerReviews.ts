@@ -6,7 +6,7 @@ import type { RatingResponse } from '../types/rating';
 // Enhanced rating response with user info
 interface EnhancedRatingResponse extends RatingResponse {
   reviewerFullName?: string;
-  reviewerProfileImage?: string | null; // Allow null to match userService response
+  reviewerProfileImage?: string | null; 
 }
 
 interface UsePhotographerReviewsResult {
@@ -19,13 +19,11 @@ interface UsePhotographerReviewsResult {
 }
 
 export function usePhotographerReviews(
-  photographerId: number | string,
-  currentRating?: number,
-  totalReviews?: number
+  photographerId: number | string
 ): UsePhotographerReviewsResult {
   const [reviews, setReviews] = useState<EnhancedRatingResponse[]>([]);
-  const [averageRating, setAverageRating] = useState<number>(currentRating || 0);
-  const [totalReviewsCount, setTotalReviewsCount] = useState<number>(totalReviews || 0);
+  const [averageRating, setAverageRating] = useState<number>(0);
+  const [totalReviewsCount, setTotalReviewsCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,30 +41,56 @@ export function usePhotographerReviews(
       console.log('✅ User info fetched:', userData);
       return userData;
     } catch (error) {
-      console.warn('Failed to fetch user info for ID:', userId, error);
+      console.warn('⚠️ Failed to fetch user info for ID:', userId, error);
       return null;
     }
   };
 
+  // Reset state function
+  const resetState = useCallback(() => {
+    setReviews([]);
+    setAverageRating(0);
+    setTotalReviewsCount(0);
+    setError(null);
+  }, []);
+
   const fetchReviews = useCallback(async () => {
+    // Validate photographer ID
     if (!photographerIdNum || isNaN(photographerIdNum) || photographerIdNum <= 0) {
-      console.warn('Invalid photographer ID:', photographerId);
+      console.warn('❌ Invalid photographer ID:', photographerId);
       setError('ID photographer không hợp lệ');
+      resetState();
       return;
     }
 
     try {
       setLoading(true);
       setError(null);
+      
+      // 🔥 Reset state ngay khi bắt đầu fetch để tránh hiển thị data cũ
+      resetState();
 
       console.log('📸 Fetching reviews for photographer:', photographerIdNum);
       
-      // Sử dụng Rating API endpoint: /api/Rating/ByPhotographer/{photographerId}
+      // Fetch ratings from API
       const fetchedRatings = await ratingService.getRatingsByPhotographer(photographerIdNum);
       
-      console.log('✅ Reviews fetched successfully:', fetchedRatings);
+      console.log('✅ Raw reviews fetched:', {
+        count: fetchedRatings?.length || 0,
+        data: fetchedRatings
+      });
+      
+      // 🔥 Kiểm tra xem có reviews thực sự không
+      if (!fetchedRatings || !Array.isArray(fetchedRatings) || fetchedRatings.length === 0) {
+        console.log('📊 No reviews found for photographer:', photographerIdNum);
+        setReviews([]);
+        setAverageRating(0);
+        setTotalReviewsCount(0);
+        return;
+      }
       
       // Enhance ratings with user information
+      console.log('🔄 Enhancing ratings with user info...');
       const enhancedRatings: EnhancedRatingResponse[] = await Promise.all(
         fetchedRatings.map(async (rating) => {
           const userInfo = await fetchUserInfo(rating.reviewerUserId);
@@ -79,21 +103,28 @@ export function usePhotographerReviews(
         })
       );
       
-      console.log('✅ Enhanced ratings with user info:', enhancedRatings);
+      console.log('✅ Enhanced ratings completed:', enhancedRatings.length);
       
+      // Set reviews
       setReviews(enhancedRatings);
       
-      // Tính toán average rating và total count từ data thực tế
+      // 🔥 Tính toán rating CHỈ từ data thực tế, KHÔNG fallback
       const calculatedAverage = ratingService.calculateAverageRating(enhancedRatings);
       const calculatedTotal = enhancedRatings.length;
       
-      setAverageRating(calculatedAverage || currentRating || 0);
-      setTotalReviewsCount(calculatedTotal || totalReviews || 0);
+      // 🔥 Đảm bảo chỉ set giá trị thực tế
+      const finalAverage = calculatedAverage && calculatedAverage > 0 ? calculatedAverage : 0;
+      const finalTotal = calculatedTotal && calculatedTotal > 0 ? calculatedTotal : 0;
       
-      console.log('📊 Rating stats:', {
-        average: calculatedAverage,
-        total: calculatedTotal,
-        reviews: enhancedRatings.length
+      setAverageRating(finalAverage);
+      setTotalReviewsCount(finalTotal);
+      
+      console.log('📊 Final rating calculation:', {
+        rawAverage: calculatedAverage,
+        finalAverage,
+        rawTotal: calculatedTotal,
+        finalTotal,
+        reviewsLength: enhancedRatings.length
       });
       
     } catch (err) {
@@ -105,36 +136,50 @@ export function usePhotographerReviews(
       
       setError(errorMessage);
       
-      // Fallback to provided values if API fails
-      if (currentRating !== undefined) {
-        setAverageRating(currentRating);
-      }
-      if (totalReviews !== undefined) {
-        setTotalReviewsCount(totalReviews);
-      }
+      // 🔥 Khi có lỗi, đảm bảo reset về 0
+      setReviews([]);
+      setAverageRating(0);
+      setTotalReviewsCount(0);
     } finally {
       setLoading(false);
     }
-  }, [photographerIdNum, currentRating, totalReviews, photographerId]);
+  }, [photographerIdNum, photographerId, resetState]);
 
   const refreshReviews = useCallback(async () => {
-    console.log('🔄 Refreshing photographer reviews...');
+    console.log('🔄 Manually refreshing photographer reviews...');
     await fetchReviews();
   }, [fetchReviews]);
 
-  // Fetch reviews when component mounts or photographerId changes
+  // 🔥 Effect để fetch reviews khi photographerId thay đổi
   useEffect(() => {
+    console.log('🔄 Photographer ID changed, resetting and fetching:', {
+      photographerId,
+      photographerIdNum,
+      isValid: photographerIdNum && photographerIdNum > 0
+    });
+
+    // Reset state ngay khi photographerId thay đổi
+    resetState();
+    setLoading(false);
+    
     if (photographerIdNum && photographerIdNum > 0) {
       fetchReviews();
     } else {
-      // Use fallback values if no valid photographer ID
-      setAverageRating(currentRating || 0);
-      setTotalReviewsCount(totalReviews || 0);
-      setReviews([]);
-      setError(null);
-      setLoading(false);
+      console.log('⚠️ Invalid photographer ID, keeping empty state');
     }
-  }, [fetchReviews, photographerIdNum, currentRating, totalReviews]);
+  }, [photographerIdNum, fetchReviews, resetState]);
+
+  // 🔥 Debug effect
+  useEffect(() => {
+    console.log('🔍 usePhotographerReviews State Update:', {
+      photographerId: photographerIdNum,
+      reviews: reviews.length,
+      averageRating,
+      totalReviews: totalReviewsCount,
+      loading,
+      error
+    });
+  }, [photographerIdNum, reviews.length, averageRating, totalReviewsCount, loading, error]);
 
   return {
     reviews,

@@ -20,7 +20,7 @@ import {
 import { useLocations } from "../../hooks/useLocations";
 import { useFavorites } from "../../hooks/useFavorites";
 import PhotographerCard from "../../components/Photographer/PhotographerCard";
-import LocationCard from "../../components/LocationCard/LocationCard";
+import LocationCard from "../../components/Location/LocationCard";
 import { useNavigation } from "@react-navigation/native";
 import CategoryTabs, { CategoryItem } from "../../components/CategoryTabs";
 import { SearchBar } from "../../components/SearchBar";

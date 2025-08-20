@@ -1,3 +1,4 @@
+
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { PriceCalculationResponse } from "../types/booking";
@@ -61,6 +62,39 @@ export interface Photographer {
   hourlyRate: number;
 }
 
+// 🏢 VENUE PAYMENT DATA INTERFACE
+export interface VenuePaymentData {
+  booking?: {
+    id: number;
+    photographerName: string;
+    date: string;
+    time: string;
+    location: string;
+    totalAmount: number;
+  };
+  payment?: {
+    id: number;
+    paymentId: number;
+    orderCode: string;
+    externalTransactionId: string;
+    amount: number;
+    totalAmount: number;
+    status: string;
+    paymentUrl: string;
+    qrCode: string;
+    bin: string;
+    accountNumber: string;
+    description: string;
+    currency: string;
+    paymentLinkId: string;
+    expiredAt: string | null;
+    payOSData: any;
+  };
+  isVenueOwner?: boolean;
+  returnToVenueHome?: boolean;
+  onPaymentSuccess?: () => void;
+}
+
 export type RootStackParamList = {
   StepContainer: undefined;
   RoleSelection: undefined;
@@ -90,6 +124,9 @@ export type RootStackParamList = {
   PaymentWaitingScreen: PaymentFlowData;
   WalletScreen: undefined;
   PaymentWaitingScreenWallet: PaymentFlowData;
+
+  // 🏢 VENUE OWNER PAYMENT SCREEN
+  VenuePaymentWaitingScreen: VenuePaymentData;
 
   PhotoDeliveryScreen: {
     bookingId: number;
@@ -167,8 +204,10 @@ export type RootStackParamList = {
       indoor?: boolean;
       outdoor?: boolean;
     };
+
     // 🆕 NEW: Use booking API format
     externalLocation?: BookingExternalLocation;
+
     editMode?: boolean;
     existingBookingId?: number;
     existingBookingData?: {
@@ -183,7 +222,6 @@ export type RootStackParamList = {
       specialRequests?: string;
     };
   };
-  
   OrderDetail: {
     bookingId: number;
     photographer: {
@@ -206,7 +244,6 @@ export type RootStackParamList = {
     specialRequests?: string;
     priceCalculation: PriceCalculationResponse;
   };
-  
   BookingEvent: {
     event: {
       eventId: number;

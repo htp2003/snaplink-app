@@ -64,6 +64,10 @@ import BookingEventScreen from "../screens/customer/BookingEventScreen";
 import OrderEventDetailScreen from "../screens/customer/OrderEventDetailScreen";
 
 
+// 🏢 VENUE OWNER PAYMENT SCREEN
+import VenuePaymentWaitingScreen from "../screens/venueOwner/VenuePaymentWaitingScreen";
+
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
@@ -131,10 +135,10 @@ const AppNavigator = () => {
       <Stack.Screen name="ChatScreen" component={ChatScreen} />
       <Stack.Screen name="NewChatScreen" component={MessagesScreen} />
       <Stack.Screen name="EventDetailScreen" component={EventDetailScreen} />
+
       <Stack.Screen name="BookingEvent" component={BookingEventScreen}/>
       <Stack.Screen name="OrderEventDetail" component={OrderEventDetailScreen}/>
       {/* Test */}
-
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen
@@ -205,6 +209,17 @@ const AppNavigator = () => {
       <Stack.Screen
         name="PaymentWaitingScreenWallet"
         component={PaymentWaitingScreenWallet}
+      />
+
+      {/* 🏢 VENUE OWNER PAYMENT SCREEN */}
+      <Stack.Screen
+        name="VenuePaymentWaitingScreen"
+        component={VenuePaymentWaitingScreen}
+        options={{
+          headerShown: false,
+          gestureEnabled: false, // Prevent swipe to go back during payment
+          presentation: "card",
+        }}
       />
 
       {/* VenueOwner Event Management Screens */}

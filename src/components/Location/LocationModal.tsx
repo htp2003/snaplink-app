@@ -1,17 +1,15 @@
-// components/LocationModal.tsx - Debug Version
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+// components/LocationModal.tsx - System Only (Simplified)
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   Modal,
-  Alert,
-  Linking,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { AntDesign, Feather } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import { useNearbyLocations } from '../../hooks/useNearbyLocations';
 import { getResponsiveSize } from '../../utils/responsive';
 
 interface LocationModalProps {
@@ -34,27 +32,10 @@ export default function LocationModal({
   formatPrice,
 }: LocationModalProps) {
 
-  
-  const [activeTab, setActiveTab] = useState<'system' | 'nearby'>('system');
-  const [userLocation, setUserLocation] = useState<{
-    latitude: number;
-    longitude: number;
-    address?: string;
-  } | null>(null);
-
-  // Nearby locations hook
-  const {
-    nearbyLocations = [],
-    loading: loadingNearby = false,
-    error: nearbyError,
-    searchNearbyLocations,
-  } = useNearbyLocations();
-
-  // 🐛 DEBUG: Ultra safe string function
+  // Ultra safe string function
   const safeString = useCallback((value: any, fallback: string = ''): string => {
     try {
       if (value === null || value === undefined) {
-        console.log('🐛 safeString: null/undefined, using fallback:', fallback);
         return fallback;
       }
       if (typeof value === 'string') {
@@ -63,42 +44,36 @@ export default function LocationModal({
       if (typeof value === 'number') {
         return value.toString();
       }
-      const result = String(value);
-      console.log('🐛 safeString converted:', typeof value, '→', result);
-      return result;
+      return String(value);
     } catch (error) {
-      console.error('🐛 safeString error:', error, 'value:', value);
+      console.error('🛠 safeString error:', error, 'value:', value);
       return fallback;
     }
   }, []);
 
-  // 🐛 DEBUG: Ultra safe format price
+  // Ultra safe format price
   const safeFormatPrice = useCallback((price: any): string => {
     try {
-      console.log('🐛 safeFormatPrice input:', price, typeof price);
-      
       if (!price || typeof price !== 'number' || isNaN(price)) {
-        console.log('🐛 safeFormatPrice: Invalid price, returning Liên hệ');
         return 'Liên hệ';
       }
       
       if (typeof formatPrice !== 'function') {
-        console.error('🐛 formatPrice is not a function:', typeof formatPrice);
+        console.error('🛠 formatPrice is not a function:', typeof formatPrice);
         return 'Liên hệ';
       }
       
       const result = formatPrice(price);
-      console.log('🐛 safeFormatPrice result:', result, typeof result);
       return safeString(result, 'Liên hệ');
     } catch (error) {
-      console.error('🐛 safeFormatPrice error:', error);
+      console.error('🛠 safeFormatPrice error:', error);
       return 'Liên hệ';
     }
   }, [formatPrice, safeString]);
 
-  // 🐛 DEBUG: Memoized safe locations with extensive logging
+  // Memoized safe locations
   const safeLocations = useMemo(() => {
-    console.log('🐛 Processing safeLocations, input:', locations);
+    console.log('🛠 Processing safeLocations, input:', locations);
     
     if (!Array.isArray(locations)) {
       return [];
@@ -109,96 +84,121 @@ export default function LocationModal({
       return isValid;
     });
     
-    console.log('🐛 safeLocations result:', filtered.length, 'valid locations');
+    console.log('🛠 safeLocations result:', filtered.length, 'valid locations');
     return filtered;
   }, [locations]);
 
-  // Get user GPS location (simplified for debug)
-  const getUserLocation = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert('Cần quyền GPS', 'Vui lòng cấp quyền truy cập vị trí.');
-        return null;
-      }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      
-      const userLocationData = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        address: `${location.coords.latitude}, ${location.coords.longitude}`
-      };
-      
-      setUserLocation(userLocationData);
-      return userLocationData;
-      
-    } catch (error) {
-      console.error('Error getting user location:', error);
-      return null;
-    }
-  };
-
-  // Handle nearby tab press
-  const handleNearbyTabPress = async () => {
-    console.log('🐛 handleNearbyTabPress called');
-    setActiveTab('nearby');
-    
-    // Always try to search nearby locations when tab is pressed
-    try {
-      let locationData = userLocation;
-      if (!locationData) {
-        console.log('🐛 No user location, getting GPS...');
-        locationData = await getUserLocation();
-        if (!locationData) {
-          console.log('🐛 Failed to get GPS, switching back to system tab');
-          setActiveTab('system');
-          return;
-        }
-      }
-      
-      console.log('🐛 Searching nearby locations with:', locationData);
-      await searchNearbyLocations({
-        address: locationData.address,
-        radiusInKm: 5,
-        tags: "cafe, studio, coffee, restaurant, hotel, event space",
-        limit: 10
-      });
-      console.log('🐛 Nearby search completed');
-    } catch (error) {
-      console.error('🐛 Error in handleNearbyTabPress:', error);
-    }
-  };
-
-  const handleClose = () => {
-    setActiveTab('system');
-    onClose();
-  };
-
-  // 🐛 DEBUG: Safe location selection handler
+  // Safe location selection handler
   const handleLocationSelect = useCallback((location: any) => {
-    console.log('🐛 handleLocationSelect called with:', location);
+    console.log('🛠 handleLocationSelect called with:', location);
     if (!location) {
-      console.log('🐛 handleLocationSelect: No location provided');
       return;
     }
     try {
       onLocationSelect(location);
     } catch (error) {
-      console.error('🐛 handleLocationSelect error:', error);
+      console.error('🛠 handleLocationSelect error:', error);
     }
   }, [onLocationSelect]);
 
+  // Simple render location image - use images already in location data
+  const renderLocationImage = useCallback((location: any) => {
+    // Check if location has images in its data
+    const images = location?.images;
+    
+    if (!images || !Array.isArray(images) || images.length === 0) {
+      // No images available - show placeholder
+      return (
+        <View style={{
+          width: getResponsiveSize(70),
+          height: getResponsiveSize(50),
+          backgroundColor: '#f8f9fa',
+          borderRadius: getResponsiveSize(8),
+          marginRight: getResponsiveSize(12),
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <Feather name="image" size={getResponsiveSize(16)} color="#ccc" />
+        </View>
+      );
+    }
+
+    // Get first image
+    const firstImage = images[0];
+    if (!firstImage) {
+      return (
+        <View style={{
+          width: getResponsiveSize(70),
+          height: getResponsiveSize(50),
+          backgroundColor: '#f8f9fa',
+          borderRadius: getResponsiveSize(8),
+          marginRight: getResponsiveSize(12),
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <Feather name="image" size={getResponsiveSize(16)} color="#ccc" />
+        </View>
+      );
+    }
+
+    // Determine image source
+    const imageSource = typeof firstImage === 'string' 
+      ? { uri: firstImage } 
+      : { uri: firstImage.url || firstImage.uri || firstImage };
+
+    return (
+      <View style={{
+        width: getResponsiveSize(70),
+        height: getResponsiveSize(50),
+        marginRight: getResponsiveSize(12),
+        position: 'relative',
+      }}>
+        <Image
+          source={imageSource}
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: getResponsiveSize(8),
+          }}
+          resizeMode="cover"
+          onError={(error) => {
+            console.log('❌ Image load error for location:', location?.id || location?.locationId, error.nativeEvent.error);
+          }}
+          onLoad={() => {
+            console.log('✅ Image loaded successfully for location:', location?.id || location?.locationId);
+          }}
+        />
+        
+        {/* Multiple images indicator */}
+        {images.length > 1 && (
+          <View style={{
+            position: 'absolute',
+            bottom: 2,
+            right: 2,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            borderRadius: getResponsiveSize(8),
+            paddingHorizontal: getResponsiveSize(4),
+            paddingVertical: getResponsiveSize(1),
+          }}>
+            <Text style={{
+              color: '#fff',
+              fontSize: getResponsiveSize(8),
+              fontWeight: 'bold',
+            }}>
+              +{images.length - 1}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }, []);
 
   return (
     <Modal
       animationType="slide"
       transparent={true}
       visible={visible}
-      onRequestClose={handleClose}
+      onRequestClose={onClose}
     >
       <View
         style={{
@@ -218,7 +218,7 @@ export default function LocationModal({
             maxHeight: "80%",
           }}
         >
-          {/* Header - Ultra safe */}
+          {/* Header */}
           <View
             style={{
               flexDirection: "row",
@@ -237,7 +237,7 @@ export default function LocationModal({
               Chọn địa điểm
             </Text>
             <TouchableOpacity
-              onPress={handleClose}
+              onPress={onClose}
               style={{
                 backgroundColor: "#f5f5f5",
                 borderRadius: getResponsiveSize(20),
@@ -252,388 +252,117 @@ export default function LocationModal({
             </TouchableOpacity>
           </View>
 
-          {/* Tab Buttons - Ultra safe */}
-          <View
-            style={{
-              flexDirection: "row",
-              backgroundColor: "#f8f9fa",
-              borderRadius: getResponsiveSize(12),
-              padding: getResponsiveSize(4),
-              marginBottom: getResponsiveSize(20),
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => setActiveTab('system')}
-              style={{
-                flex: 1,
-                backgroundColor: activeTab === 'system' ? "#E91E63" : "transparent",
-                borderRadius: getResponsiveSize(8),
-                paddingVertical: getResponsiveSize(12),
-                alignItems: "center",
-              }}
-            >
-              <Text
-                style={{
-                  color: activeTab === 'system' ? "#fff" : "#666",
-                  fontWeight: activeTab === 'system' ? "bold" : "normal",
-                  fontSize: getResponsiveSize(14),
-                }}
-              >
-                Trên hệ thống
-              </Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              onPress={handleNearbyTabPress}
-              style={{
-                flex: 1,
-                backgroundColor: activeTab === 'nearby' ? "#E91E63" : "transparent",
-                borderRadius: getResponsiveSize(8),
-                paddingVertical: getResponsiveSize(12),
-                alignItems: "center",
-              }}
-            >
-              <Text
-                style={{
-                  color: activeTab === 'nearby' ? "#fff" : "#666",
-                  fontWeight: activeTab === 'nearby' ? "bold" : "normal",
-                  fontSize: getResponsiveSize(14),
-                }}
-              >
-                Gần bạn
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Content - Only System tab for now */}
+          {/* Content */}
           <ScrollView showsVerticalScrollIndicator={false}>
-            {activeTab === 'system' ? (
-              <View>
-                {/* 🐛 DEBUG: Show loading state */}
-                {locationsLoading ? (
-                  <View style={{ alignItems: "center", padding: getResponsiveSize(20) }}>
-                    <Text style={{ color: "#666" }}>
-                      Đang tải địa điểm...
-                    </Text>
-                  </View>
-                ) : safeLocations.length === 0 ? (
-                  <View style={{ alignItems: "center", padding: getResponsiveSize(20) }}>
-                    <Feather name="map-pin" size={getResponsiveSize(40)} color="#ccc" />
-                    <Text style={{ color: "#666", marginTop: getResponsiveSize(10) }}>
-                      Không có địa điểm nào trên hệ thống
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    {/* 🐛 DEBUG: Ultra safe location rendering */}
-                    {safeLocations.map((location, index) => {
-
-                      
-                      // 🐛 ULTRA SAFE: Extract all values first
-                      const locationId = location?.id || location?.locationId || `fallback-${index}`;
-                      const locationName = safeString(location?.name, `Location ${index + 1}`);
-                      const locationAddress = safeString(location?.address, "Địa chỉ chưa cập nhật");
-                      const hourlyRate = location?.hourlyRate;
-                      const isSelected = selectedLocation?.id === locationId;
-
-                      
-                      return (
-                        <View key={`debug-location-${index}`}>
-                          <TouchableOpacity
-                            onPress={() => {
-                              console.log(`🐛 Clicked location ${index}`);
-                              handleLocationSelect(location);
-                            }}
-                            style={{
-                              backgroundColor: isSelected ? "#fff" : "#f8f9fa",
-                              borderRadius: getResponsiveSize(12),
-                              marginBottom: getResponsiveSize(12),
-                              borderWidth: isSelected ? 2 : 1,
-                              borderColor: isSelected ? "#E91E63" : "#e0e0e0",
-                              padding: getResponsiveSize(15),
-                            }}
-                          >
-                            <View style={{ flexDirection: "row", alignItems: "center" }}>
-                              <View style={{ flex: 1 }}>
-                                {/* 🐛 ULTRA SAFE: Hardcoded text first */}
-                                <Text
-                                  style={{
-                                    fontSize: getResponsiveSize(16),
-                                    fontWeight: "bold",
-                                    color: "#333",
-                                    marginBottom: getResponsiveSize(4),
-                                  }}
-                                >
-                                  {locationName}
-                                </Text>
-                                
-                                <Text
-                                  style={{
-                                    fontSize: getResponsiveSize(14),
-                                    color: "#666",
-                                    marginBottom: getResponsiveSize(4),
-                                  }}
-                                >
-                                  {locationAddress}
-                                </Text>
-                                
-                                {/* 🐛 ULTRA SAFE: Only show price if valid */}
-                                {(hourlyRate && typeof hourlyRate === 'number') ? (
-                                  <Text
-                                    style={{
-                                      fontSize: getResponsiveSize(12),
-                                      color: "#E91E63",
-                                      fontWeight: "bold",
-                                    }}
-                                  >
-                                    {safeFormatPrice(hourlyRate) + "/giờ"}
-                                  </Text>
-                                ) : null}
-                              </View>
-                              
-                              {/* 🐛 ULTRA SAFE: Selection indicator */}
-                              {isSelected ? (
-                                <Feather name="check-circle" size={getResponsiveSize(20)} color="#E91E63" />
-                              ) : null}
-                            </View>
-                          </TouchableOpacity>
-                        </View>
-                      );
-                    })}
-                  </View>
-                )}
+            {/* System Locations with Images */}
+            {locationsLoading ? (
+              <View style={{ alignItems: "center", padding: getResponsiveSize(20) }}>
+                <ActivityIndicator size="large" color="#E91E63" />
+                <Text style={{ color: "#666", marginTop: 10 }}>
+                  Đang tải địa điểm...
+                </Text>
+              </View>
+            ) : safeLocations.length === 0 ? (
+              <View style={{ alignItems: "center", padding: getResponsiveSize(20) }}>
+                <Feather name="map-pin" size={getResponsiveSize(40)} color="#ccc" />
+                <Text style={{ color: "#666", marginTop: getResponsiveSize(10) }}>
+                  Không có địa điểm nào trong hệ thống
+                </Text>
               </View>
             ) : (
-              // Nearby Locations Tab - RESTORED FUNCTIONALITY
               <View>
-                {loadingNearby ? (
-                  <View style={{ alignItems: "center", padding: getResponsiveSize(20) }}>
-                    <Text style={{ color: "#666" }}>
-                      Đang tìm địa điểm gần bạn...
-                    </Text>
-                    {userLocation?.address && (
-                      <Text style={{ color: "#999", fontSize: getResponsiveSize(12), marginTop: 5 }}>
-                        {safeString(userLocation.address)}
-                      </Text>
-                    )}
-                  </View>
-                ) : nearbyError ? (
-                  <View style={{ alignItems: "center", padding: getResponsiveSize(20) }}>
-                    <Feather name="alert-circle" size={getResponsiveSize(40)} color="#F44336" />
-                    <Text style={{ color: "#F44336", marginTop: getResponsiveSize(10), textAlign: "center" }}>
-                      {safeString(nearbyError)}
-                    </Text>
+                {/* Location list with images from data */}
+                {safeLocations.map((location, index) => {
+                  const locationId = location?.id || location?.locationId || `fallback-${index}`;
+                  const locationName = safeString(location?.name, `Location ${index + 1}`);
+                  const locationAddress = safeString(location?.address, "Địa chỉ chưa cập nhật");
+                  const hourlyRate = location?.hourlyRate;
+                  const isSelected = selectedLocation?.id === locationId;
+
+                  console.log(`🖼️ Location ${index} images:`, location?.images);
+
+                  return (
                     <TouchableOpacity
-                      onPress={handleNearbyTabPress}
-                      style={{
-                        backgroundColor: "#E91E63",
-                        borderRadius: getResponsiveSize(8),
-                        paddingHorizontal: getResponsiveSize(16),
-                        paddingVertical: getResponsiveSize(8),
-                        marginTop: getResponsiveSize(10),
+                      key={`system-location-${index}`}
+                      onPress={() => {
+                        console.log(`🛠 Clicked location ${index}`);
+                        handleLocationSelect(location);
                       }}
-                    >
-                      <Text style={{ color: "#fff", fontSize: getResponsiveSize(12) }}>
-                        Thử lại
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : nearbyLocations.length === 0 ? (
-                  <View style={{ alignItems: "center", padding: getResponsiveSize(20) }}>
-                    <Feather name="map" size={getResponsiveSize(40)} color="#ccc" />
-                    <Text style={{ color: "#666", marginTop: getResponsiveSize(10) }}>
-                      Không tìm thấy địa điểm nào gần bạn
-                    </Text>
-                    <TouchableOpacity
-                      onPress={handleNearbyTabPress}
                       style={{
-                        backgroundColor: "#E91E63",
-                        borderRadius: getResponsiveSize(8),
-                        paddingHorizontal: getResponsiveSize(16),
-                        paddingVertical: getResponsiveSize(8),
-                        marginTop: getResponsiveSize(10),
-                      }}
-                    >
-                      <Text style={{ color: "#fff", fontSize: getResponsiveSize(12) }}>
-                        Tìm lại
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View>
-                    {/* User location info */}
-                    {userLocation?.address && (
-                      <View
-                        style={{
-                          backgroundColor: "#E8F5E8",
-                          borderRadius: getResponsiveSize(8),
-                          padding: getResponsiveSize(12),
-                          marginBottom: getResponsiveSize(15),
-                          borderWidth: 1,
-                          borderColor: "#4CAF50",
-                        }}
-                      >
-                        <Text style={{ color: "#2E7D32", fontSize: getResponsiveSize(12), fontWeight: "bold" }}>
-                          Vị trí của bạn
-                        </Text>
-                        <Text style={{ color: "#2E7D32", fontSize: getResponsiveSize(11) }}>
-                          {safeString(userLocation.address)}
-                        </Text>
-                      </View>
-                    )}
-
-                    {/* Nearby locations list */}
-                    {nearbyLocations
-                      .filter(location => location && location.name)
-                      .map((location, index) => {
-                        console.log(`🐛 Rendering nearby location ${index}:`, location);
-                        
-                        const isInternal = location?.source === 'internal';
-                        const locationName = safeString(location?.name, "");
-                        const locationAddress = safeString(location?.address, "Địa chỉ chưa có");
-                        const distance = typeof location?.distanceInKm === 'number' ? location.distanceInKm.toFixed(1) : '0.0';
-                        
-                        // Create safe location for selection
-                        const locationForSelection = isInternal ? {
-                          id: location?.locationId || index,
-                          locationId: location?.locationId,
-                          name: locationName,
-                          address: locationAddress,
-                          hourlyRate: location?.hourlyRate,
-                        } : {
-                          id: location?.externalId || `external-${index}`,
-                          locationId: undefined,
-                          name: locationName,
-                          address: locationAddress,
-                          hourlyRate: undefined,
-                          isExternal: true,
-                          place_id: location?.place_id,
-                          latitude: location?.latitude,
-                          longitude: location?.longitude,
-                        };
-
-                        const isSelected = selectedLocation?.id === locationForSelection.id;
-
-                        return (
-                          <TouchableOpacity
-                            key={`nearby-${location?.id || index}-${index}`}
-                            onPress={() => {
-                              console.log(`🐛 Clicked nearby location ${index}`);
-                              handleLocationSelect(locationForSelection);
-                            }}
-                            style={{
-                              backgroundColor: isSelected ? "#fff" : "#f8f9fa",
-                              borderRadius: getResponsiveSize(12),
-                              marginBottom: getResponsiveSize(12),
-                              borderWidth: isSelected ? 2 : 1,
-                              borderColor: isSelected ? "#E91E63" : "#e0e0e0",
-                              padding: getResponsiveSize(15),
-                            }}
-                          >
-                            <View style={{ flexDirection: "row", alignItems: "center" }}>
-                              <View style={{ flex: 1 }}>
-                                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}>
-                                  <Text
-                                    style={{
-                                      fontSize: getResponsiveSize(16),
-                                      fontWeight: "bold",
-                                      color: "#333",
-                                      flex: 1,
-                                    }}
-                                  >
-                                    {locationName}
-                                  </Text>
-                                  <View
-                                    style={{
-                                      backgroundColor: isInternal ? "#E8F5E8" : "#E3F2FD",
-                                      borderRadius: getResponsiveSize(12),
-                                      paddingHorizontal: getResponsiveSize(8),
-                                      paddingVertical: getResponsiveSize(2),
-                                    }}
-                                  >
-                                    <Text
-                                      style={{
-                                        fontSize: getResponsiveSize(10),
-                                        color: isInternal ? "#2E7D32" : "#1976D2",
-                                        fontWeight: "bold",
-                                      }}
-                                    >
-                                      {isInternal ? "HỆ THỐNG" : "EXTERNAL"}
-                                    </Text>
-                                  </View>
-                                </View>
-                                
-                                <Text
-                                  style={{
-                                    fontSize: getResponsiveSize(14),
-                                    color: "#666",
-                                    marginBottom: getResponsiveSize(4),
-                                  }}
-                                >
-                                  {locationAddress}
-                                </Text>
-                                
-                                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-                                  <Text
-                                    style={{
-                                      fontSize: getResponsiveSize(12),
-                                      color: "#999",
-                                    }}
-                                  >
-                                    {distance + " km"}
-                                  </Text>
-                                  
-                                  {isInternal && location?.hourlyRate ? (
-                                    <Text
-                                      style={{
-                                        fontSize: getResponsiveSize(12),
-                                        color: "#E91E63",
-                                        fontWeight: "bold",
-                                      }}
-                                    >
-                                      {safeFormatPrice(location.hourlyRate) + "/giờ"}
-                                    </Text>
-                                  ) : !isInternal && location?.rating ? (
-                                    <Text
-                                      style={{
-                                        fontSize: getResponsiveSize(12),
-                                        color: "#FF9800",
-                                        fontWeight: "bold",
-                                      }}
-                                    >
-                                      {typeof location.rating === 'number' ? location.rating.toFixed(1) + " sao" : ""}
-                                    </Text>
-                                  ) : null}
-                                </View>
-                              </View>
-                              
-                              {isSelected && (
-                                <Feather name="check-circle" size={getResponsiveSize(20)} color="#E91E63" />
-                              )}
-                            </View>
-                          </TouchableOpacity>
-                        );
-                      })}
-
-                    {/* Refresh button */}
-                    <TouchableOpacity
-                      onPress={handleNearbyTabPress}
-                      style={{
-                        backgroundColor: "#f8f9fa",
-                        borderRadius: getResponsiveSize(8),
-                        paddingVertical: getResponsiveSize(12),
+                        backgroundColor: isSelected ? "#fff" : "#f8f9fa",
+                        borderRadius: getResponsiveSize(12),
+                        marginBottom: getResponsiveSize(12),
+                        borderWidth: isSelected ? 2 : 1,
+                        borderColor: isSelected ? "#E91E63" : "#e0e0e0",
+                        padding: getResponsiveSize(15),
+                        flexDirection: "row",
                         alignItems: "center",
-                        marginTop: getResponsiveSize(10),
-                        borderWidth: 1,
-                        borderColor: "#e0e0e0",
                       }}
                     >
-                      <Text style={{ color: "#666", fontSize: getResponsiveSize(14) }}>
-                        Tìm lại địa điểm gần đây
-                      </Text>
+                      {/* Location Image from existing data */}
+                      {renderLocationImage(location)}
+                      
+                      {/* Location Info */}
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            fontSize: getResponsiveSize(16),
+                            fontWeight: "bold",
+                            color: "#333",
+                            marginBottom: getResponsiveSize(4),
+                          }}
+                          numberOfLines={1}
+                        >
+                          {locationName}
+                        </Text>
+                        
+                        <Text
+                          style={{
+                            fontSize: getResponsiveSize(14),
+                            color: "#666",
+                            marginBottom: getResponsiveSize(4),
+                          }}
+                          numberOfLines={2}
+                        >
+                          {locationAddress}
+                        </Text>
+                        
+                        {/* Price and Selection indicator */}
+                        <View style={{ 
+                          flexDirection: "row", 
+                          alignItems: "center", 
+                          justifyContent: "space-between" 
+                        }}>
+                          {(hourlyRate && typeof hourlyRate === 'number') ? (
+                            <Text
+                              style={{
+                                fontSize: getResponsiveSize(12),
+                                color: "#E91E63",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {safeFormatPrice(hourlyRate) + "/giờ"}
+                            </Text>
+                          ) : (
+                            <Text
+                              style={{
+                                fontSize: getResponsiveSize(12),
+                                color: "#4CAF50",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              Miễn phí
+                            </Text>
+                          )}
+                          
+                          {isSelected && (
+                            <Feather name="check-circle" size={getResponsiveSize(20)} color="#E91E63" />
+                          )}
+                        </View>
+                      </View>
                     </TouchableOpacity>
-                  </View>
-                )}
+                  );
+                })}
               </View>
             )}
           </ScrollView>

@@ -43,12 +43,26 @@ export default function LocationCardDetail() {
 
   // State
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [externalImages, setExternalImages] = useState<string[]>([]);
+
+  // 🆕 OPTIMIZED: External photo loading state
+  const [externalPhotos, setExternalPhotos] = useState<{
+    urls: string[];
+    loading: boolean;
+    error: string | null;
+    loaded: boolean;
+  }>({
+    urls: [],
+    loading: false,
+    error: null,
+    loaded: false
+  });
+
   const [addressValidation, setAddressValidation] = useState<{
     isValid: boolean;
     coordinates?: { lat: number; lng: number };
     displayName?: string;
   } | null>(null);
+
   const [hasTrackedView, setHasTrackedView] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
@@ -83,8 +97,8 @@ export default function LocationCardDetail() {
 
     const initialize = async () => {
       if (isExternalLocation && externalLocationData) {
-        console.log('🌍 External location mode:', externalLocationData.name);
-        
+        console.log('🌐 External location mode:', externalLocationData.name);
+
         // Set coordinates for external location
         if (externalLocationData.latitude && externalLocationData.longitude && isMounted) {
           setAddressValidation({
@@ -97,17 +111,9 @@ export default function LocationCardDetail() {
           });
         }
 
-        // Load external images
-        if (externalLocationData.photoReference && isMounted) {
-          try {
-            const photoUrl = directGooglePlaces.getPhotoUrl(externalLocationData.photoReference, 600);
-            if (photoUrl && isMounted) {
-              setExternalImages([photoUrl]);
-            }
-          } catch (error) {
-            console.error('Failed to load external images:', error);
-          }
-        }
+        // 🆕 OPTIMIZED: Load photos only when component mounts
+        await loadExternalPhotos();
+
       } else if (!isExternalLocation && locationId && isMounted) {
         console.log('🏢 App location mode:', locationId);
         fetchLocationById(locationId);
@@ -118,12 +124,53 @@ export default function LocationCardDetail() {
     return () => { isMounted = false; };
   }, []);
 
+  // 🆕 OPTIMIZED: Load external photos function
+  const loadExternalPhotos = useCallback(async () => {
+    if (!isExternalLocation || !externalLocationData?.placeId || externalPhotos.loaded) {
+      return;
+    }
+
+    console.log('📸 Loading photos for external location:', externalLocationData.name);
+
+    setExternalPhotos(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      // 🎯 Use optimized photo loading from service
+      const photoUrls = await directGooglePlaces.getPlacePhotos(externalLocationData.placeId, {
+        maxWidth: 800,
+        maxHeight: 600,
+        maxPhotos: 5 // Load multiple photos for gallery
+      });
+
+      console.log('✅ External photos loaded:', {
+        count: photoUrls.length,
+        apiUsage: directGooglePlaces.getApiUsage()
+      });
+
+      setExternalPhotos({
+        urls: photoUrls,
+        loading: false,
+        error: null,
+        loaded: true
+      });
+
+    } catch (error) {
+      console.error('❌ Failed to load external photos:', error);
+      setExternalPhotos(prev => ({
+        ...prev,
+        loading: false,
+        error: 'Không thể tải ảnh địa điểm',
+        loaded: true
+      }));
+    }
+  }, [isExternalLocation, externalLocationData?.placeId, externalPhotos.loaded]);
+
   // Address validation for app locations
   useEffect(() => {
     if (isExternalLocation || !locationDetail?.address) return;
-    
+
     let isMounted = true;
-    
+
     const validateAddress = async () => {
       try {
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -174,7 +221,7 @@ export default function LocationCardDetail() {
           hourlyRate: locationDetail.hourlyRate,
           capacity: locationDetail.capacity,
           availabilityStatus: locationDetail.availabilityStatus
-        } 
+        }
       };
       trackView(trackData);
       setHasTrackedView(true);
@@ -250,14 +297,14 @@ export default function LocationCardDetail() {
           locationId: 0,
           name: externalLocationData!.name,
           avatar: '',
-          images: externalImages,
+          images: externalPhotos.urls, // 🆕 Use loaded photos
           styles: externalLocationData!.types || [],
           address: externalLocationData!.address,
           hourlyRate: 0,
           availabilityStatus: 'external'
         }
       };
-      
+
       if (isFavorite(externalLocationData!.placeId, 'location')) {
         removeFavorite(externalLocationData!.placeId, 'location');
       } else {
@@ -286,7 +333,7 @@ export default function LocationCardDetail() {
         addFavorite(favoriteItem);
       }
     }
-  }, [isExternalLocation, externalLocationData, externalImages, locationDetail, galleryImages, getAmenities, isFavorite, addFavorite, removeFavorite]);
+  }, [isExternalLocation, externalLocationData, externalPhotos.urls, locationDetail, galleryImages, getAmenities, isFavorite, addFavorite, removeFavorite]);
 
   const renderStars = (rating: number = 0) => {
     const stars = [];
@@ -324,12 +371,6 @@ export default function LocationCardDetail() {
   );
 
   const handleBookLocation = () => {
-    console.log("🔍 External Location Data Debug:", {
-      externalLocationData,
-      types: externalLocationData?.types,
-      typesIsArray: Array.isArray(externalLocationData?.types),
-      typesType: typeof externalLocationData?.types
-    });
     if (externalLocationData && (!externalLocationData.latitude || !externalLocationData.longitude)) {
       Alert.alert(
         'Địa điểm không hợp lệ',
@@ -338,31 +379,29 @@ export default function LocationCardDetail() {
       );
       return;
     }
+
     if (isExternalLocation) {
       if (!externalLocationData) {
         Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
         return;
       }
-  
-      // ✅ FIXED: Safe handling của types
+
       const locationData = {
         placeId: externalLocationData.placeId,
         name: externalLocationData.name || 'Unknown Location',
         address: externalLocationData.address || '',
         description: '',
-        latitude: Number(externalLocationData.latitude), 
-        longitude: Number(externalLocationData.longitude), 
-        // ✅ Fix này - đảm bảo types được xử lý an toàn
-        types: Array.isArray(externalLocationData.types) 
-        ? externalLocationData.types.join(',')
-        : (externalLocationData.types || ''), 
-      hourlyRate: 0,
+        latitude: Number(externalLocationData.latitude),
+        longitude: Number(externalLocationData.longitude),
+        types: Array.isArray(externalLocationData.types)
+          ? externalLocationData.types.join(',')
+          : (externalLocationData.types || ''),
+        hourlyRate: 0,
       };
-      
+
       (navigation as any).navigate('Booking', { location: locationData });
-      
+
     } else {
-      // App location logic giữ nguyên
       if (!locationDetail?.locationId) {
         Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
         return;
@@ -381,6 +420,32 @@ export default function LocationCardDetail() {
       (navigation as any).navigate('Booking', { location: locationData });
     }
   };
+
+  // 🆕 OPTIMIZED: Get current images based on location type
+  const getCurrentImages = useCallback(() => {
+    if (isExternalLocation) {
+      return externalPhotos.urls;
+    } else {
+      return galleryImages || [];
+    }
+  }, [isExternalLocation, externalPhotos.urls, galleryImages]);
+
+  // 🆕 OPTIMIZED: Get loading state
+  const getImageLoadingState = useCallback(() => {
+    if (isExternalLocation) {
+      return {
+        loading: externalPhotos.loading,
+        error: externalPhotos.error,
+        hasImages: externalPhotos.urls.length > 0
+      };
+    } else {
+      return {
+        loading: loadingImages,
+        error: imageError,
+        hasImages: galleryImages && galleryImages.length > 0
+      };
+    }
+  }, [isExternalLocation, externalPhotos, loadingImages, imageError, galleryImages]);
 
   // Loading state
   if (!isExternalLocation && loading) {
@@ -409,22 +474,21 @@ export default function LocationCardDetail() {
   const displayData = isExternalLocation ? {
     name: externalLocationData?.name || 'External Location',
     address: externalLocationData?.address || '',
-    images: externalImages,
     rating: externalLocationData?.rating || 0,
     types: externalLocationData?.types || [],
   } : {
     name: locationDetail?.name || 'Studio Location',
     address: locationDetail?.address || '',
-    images: galleryImages || [],
     rating: averageRating,
     types: getAmenities(),
   };
 
   const itemId = isExternalLocation ? externalLocationData!.placeId : locationDetail!.locationId.toString();
-  const currentImages = displayData.images;
-  const safeLocationId = locationDetail?.locationId || (locationId ? parseInt(locationId) : 0);
+  const currentImages = getCurrentImages();
+  const imageState = getImageLoadingState();
+  const safeLocationId = locationDetail?.locationId || (locationId ? parseInt(locationId) : 0)
 
-  return (
+return (
     <View className="flex-1 bg-white">
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
@@ -553,7 +617,7 @@ export default function LocationCardDetail() {
                   }}
                   numberOfLines={1}
                 >
-                  {locationDetail?.name || 'Location Detail'}
+                  {displayData.name}
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -598,7 +662,7 @@ export default function LocationCardDetail() {
           scrollEventThrottle={1}
           contentContainerStyle={{ paddingTop: 0 }}
         >
-          {/* Location Images Gallery - Now from Image API */}
+          {/* 🆕 OPTIMIZED: Location Images Gallery */}
           <View style={{
             height: height * 0.6,
             overflow: 'hidden',
@@ -606,16 +670,23 @@ export default function LocationCardDetail() {
             zIndex: 1,
             backgroundColor: '#eee',
           }}>
-            {loadingImages ? (
+            {imageState.loading ? (
               <View className="flex-1 justify-center items-center">
                 <ActivityIndicator size="large" color="#10b981" />
-                <Text className="text-stone-600 mt-2">Đang tải ảnh từ Image API...</Text>
+                <Text className="text-stone-600 mt-2">
+                  {isExternalLocation ? 'Đang tải ảnh từ Google Places...' : 'Đang tải ảnh từ Image API...'}
+                </Text>
+                {isExternalLocation && (
+                  <Text className="text-stone-400 mt-1 text-sm">
+                    API Usage: {directGooglePlaces.getApiUsage().photos} photos calls
+                  </Text>
+                )}
               </View>
-            ) : galleryImages && galleryImages.length > 0 ? (
+            ) : imageState.hasImages ? (
               <>
                 <FlatList
                   ref={flatListRef}
-                  data={galleryImages}
+                  data={currentImages}
                   renderItem={renderImageItem}
                   keyExtractor={(item, index) => `${item}-${index}`}
                   horizontal
@@ -638,7 +709,25 @@ export default function LocationCardDetail() {
                     className="text-white font-medium"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
-                    {currentImageIndex + 1} / {galleryImages.length}
+                    {currentImageIndex + 1} / {currentImages.length}
+                  </Text>
+                </View>
+                {/* 🆕 Photo source indicator */}
+                <View
+                  className="absolute bg-blue-500/80 backdrop-blur-sm rounded-full"
+                  style={{
+                    bottom: getResponsiveSize(90),
+                    left: getResponsiveSize(16),
+                    paddingHorizontal: getResponsiveSize(8),
+                    paddingVertical: getResponsiveSize(4),
+                    zIndex: 50,
+                  }}
+                >
+                  <Text
+                    className="text-white font-medium"
+                    style={{ fontSize: getResponsiveSize(11) }}
+                  >
+                    {isExternalLocation ? '📸 Google' : '🏢 Internal'}
                   </Text>
                 </View>
               </>
@@ -646,12 +735,20 @@ export default function LocationCardDetail() {
               <View className="flex-1 justify-center items-center">
                 <Ionicons name="images-outline" size={getResponsiveSize(60)} color="#9ca3af" />
                 <Text className="text-stone-600 mt-4 text-center">
-                  Chưa có ảnh địa điểm từ Image API
+                  {isExternalLocation ? 'Chưa có ảnh từ Google Places' : 'Chưa có ảnh địa điểm từ Image API'}
                 </Text>
-                {imageError && (
+                {imageState.error && (
                   <Text className="text-red-500 mt-2 text-center text-sm">
-                    {imageError}
+                    {imageState.error}
                   </Text>
+                )}
+                {isExternalLocation && !externalPhotos.loaded && (
+                  <TouchableOpacity 
+                    className="mt-4 px-4 py-2 bg-blue-500 rounded-lg"
+                    onPress={loadExternalPhotos}
+                  >
+                    <Text className="text-white font-medium">Tải ảnh</Text>
+                  </TouchableOpacity>
                 )}
               </View>
             )}
@@ -668,7 +765,6 @@ export default function LocationCardDetail() {
             }}
           >
             <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(24) }}>
-
               {/* Header Info */}
               <View className="items-center mb-4">
                 <View className="flex-row items-center mb-2">
@@ -677,7 +773,7 @@ export default function LocationCardDetail() {
                     className="text-stone-900 font-bold ml-2"
                     style={{ fontSize: getResponsiveSize(24) }}
                   >
-                    {locationDetail?.name || 'Studio Location'}
+                    {displayData.name}
                   </Text>
                 </View>
 
@@ -685,127 +781,200 @@ export default function LocationCardDetail() {
                   className="text-stone-600 text-center mb-2"
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
-                  {locationDetail?.address || 'Professional Photography Studio'}
+                  {displayData.address}
                 </Text>
 
-                <Text
-                  className="text-stone-600 text-center"
-                  style={{ fontSize: getResponsiveSize(14) }}
-                >
-                  Sức chứa {locationDetail?.capacity || 0} người • {getAmenities().join(' • ')}
-                </Text>
-              </View>
-
-              {/* Rating Section */}
-              <View
-                className="flex-row items-center justify-between pb-6 border-b border-stone-200"
-                style={{ marginBottom: getResponsiveSize(24) }}
-              >
-                <View className="items-center">
-                  <Text
-                    className="text-stone-900 font-bold"
-                    style={{ fontSize: getResponsiveSize(28) }}
-                  >
-                    {averageRating > 0
-                      ? averageRating.toFixed(2).replace(".", ",")
-                      : "0"
-                    }
-                  </Text>
-                  <View className="flex-row mt-1">
-                  {renderStars(averageRating || 0)}
+                {/* 🆕 Show different info for external vs internal locations */}
+                {isExternalLocation ? (
+                  <View className="flex-row items-center">
+                    {displayData.rating > 0 && (
+                      <>
+                        <View className="flex-row items-center mr-4">
+                          <Ionicons name="star" size={getResponsiveSize(16)} color="#d97706" />
+                          <Text className="text-stone-600 ml-1" style={{ fontSize: getResponsiveSize(14) }}>
+                            {displayData.rating.toFixed(1)}
+                          </Text>
+                        </View>
+                      </>
+                    )}
+                    <Text className="text-stone-600" style={{ fontSize: getResponsiveSize(14) }}>
+                      {displayData.types.slice(0, 2).join(' • ')}
+                    </Text>
                   </View>
-                </View>
-
-                <View className="items-center">
-                  <Ionicons name="location" size={getResponsiveSize(32)} color="#10b981" />
-                  <Text
-                    className="text-stone-700 font-medium mt-1"
-                    style={{ fontSize: getResponsiveSize(12) }}
-                  >
-                    Địa điểm ưa thích
-                  </Text>
-                </View>
-
-                <View className="items-center">
-                  <Text
-                    className="text-stone-900 font-bold"
-                    style={{ fontSize: getResponsiveSize(28) }}
-                  >
-                   {reviewCount || "0"}
-                  </Text>
-                  <Text
-                    className="text-stone-600"
-                    style={{ fontSize: getResponsiveSize(12) }}
-                  >
-                    đánh giá
-                  </Text>
-                </View>
-              </View>
-
-              {/* Owner Info - Now with avatar from User API */}
-              <View
-                className="flex-row items-center pb-6 border-b border-stone-200"
-                style={{ marginBottom: getResponsiveSize(24) }}
-              >
-                {/* Owner Avatar */}
-                {locationDetail?.ownerAvatar ? (
-                  <Image
-                    source={{ uri: locationDetail.ownerAvatar }}
-                    style={{
-                      width: getResponsiveSize(56),
-                      height: getResponsiveSize(56),
-                      borderRadius: getResponsiveSize(28),
-                      marginRight: getResponsiveSize(16)
-                    }}
-                  />
                 ) : (
-                  <View
-                    style={{
-                      width: getResponsiveSize(56),
-                      height: getResponsiveSize(56),
-                      borderRadius: getResponsiveSize(28),
-                      backgroundColor: '#f5f5f4',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: getResponsiveSize(16)
-                    }}
-                  >
-                    <Ionicons name="business-outline" size={getResponsiveSize(28)} color="#10b981" />
-                  </View>
-                )}
-
-                <View className="flex-1">
                   <Text
-                    className="text-stone-900 font-semibold"
-                    style={{ fontSize: getResponsiveSize(18) }}
-                  >
-                    {locationDetail?.locationOwner?.businessName ||
-                      locationDetail?.ownerProfile?.fullName ||
-                      'Professional Studio'}
-                  </Text>
-                  <Text
-                    className="text-stone-600"
+                    className="text-stone-600 text-center"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
-                    {locationDetail?.availabilityStatus || 'Available'} • {locationDetail?.locationOwner?.verificationStatus || 'Verified'}
+                    Sức chứa {locationDetail?.capacity || 0} người • {getAmenities().join(' • ')}
                   </Text>
-                </View>
+                )}
+              </View>
 
-                {(locationDetail?.verificationStatus === 'Verified' ||
-                  locationDetail?.locationOwner?.verificationStatus === 'Verified') && (
-                    <View className="ml-2">
-                      <Ionicons name="checkmark-circle" size={getResponsiveSize(20)} color="#10b981" />
+              {/* Rating Section - Only for internal locations */}
+              {!isExternalLocation && (
+                <View
+                  className="flex-row items-center justify-between pb-6 border-b border-stone-200"
+                  style={{ marginBottom: getResponsiveSize(24) }}
+                >
+                  <View className="items-center">
+                    <Text
+                      className="text-stone-900 font-bold"
+                      style={{ fontSize: getResponsiveSize(28) }}
+                    >
+                      {averageRating > 0
+                        ? averageRating.toFixed(2).replace(".", ",")
+                        : "0"
+                      }
+                    </Text>
+                    <View className="flex-row mt-1">
+                      {renderStars(averageRating || 0)}
+                    </View>
+                  </View>
+
+                  <View className="items-center">
+                    <Ionicons name="location" size={getResponsiveSize(32)} color="#10b981" />
+                    <Text
+                      className="text-stone-700 font-medium mt-1"
+                      style={{ fontSize: getResponsiveSize(12) }}
+                    >
+                      Địa điểm ưa thích
+                    </Text>
+                  </View>
+
+                  <View className="items-center">
+                    <Text
+                      className="text-stone-900 font-bold"
+                      style={{ fontSize: getResponsiveSize(28) }}
+                    >
+                      {reviewCount || "0"}
+                    </Text>
+                    <Text
+                      className="text-stone-600"
+                      style={{ fontSize: getResponsiveSize(12) }}
+                    >
+                      đánh giá
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* External Location Info Section */}
+              {isExternalLocation && (
+                <View
+                  className="pb-6 border-b border-stone-200"
+                  style={{ marginBottom: getResponsiveSize(24) }}
+                >
+                  <View className="flex-row items-center mb-4">
+                    <Ionicons name="information-circle-outline" size={getResponsiveSize(24)} color="#57534e" />
+                    <Text
+                      className="text-stone-900 font-semibold ml-4"
+                      style={{ fontSize: getResponsiveSize(18) }}
+                    >
+                      Thông tin địa điểm
+                    </Text>
+                  </View>
+
+                  {displayData.rating > 0 && (
+                    <View className="flex-row items-center mb-3">
+                      <Ionicons name="star" size={getResponsiveSize(20)} color="#d97706" />
+                      <Text
+                        className="text-stone-700 ml-3"
+                        style={{ fontSize: getResponsiveSize(16) }}
+                      >
+                        {displayData.rating.toFixed(1)} sao trên Google
+                      </Text>
                     </View>
                   )}
-              </View>
+
+                  <View className="flex-row items-center mb-3">
+                    <Ionicons name="business-outline" size={getResponsiveSize(20)} color="#57534e" />
+                    <Text
+                      className="text-stone-700 ml-3"
+                      style={{ fontSize: getResponsiveSize(16) }}
+                    >
+                      Loại: {displayData.types.slice(0, 3).join(', ')}
+                    </Text>
+                  </View>
+
+                  <View className="flex-row items-center">
+                    <Ionicons name="location" size={getResponsiveSize(20)} color="#57534e" />
+                    <Text
+                      className="text-stone-700 ml-3"
+                      style={{ fontSize: getResponsiveSize(16) }}
+                    >
+                      Từ Google Places • Địa điểm công cộng
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Owner Info - Only for internal locations */}
+              {!isExternalLocation && (
+                <View
+                  className="flex-row items-center pb-6 border-b border-stone-200"
+                  style={{ marginBottom: getResponsiveSize(24) }}
+                >
+                  {/* Owner Avatar */}
+                  {locationDetail?.ownerAvatar ? (
+                    <Image
+                      source={{ uri: locationDetail.ownerAvatar }}
+                      style={{
+                        width: getResponsiveSize(56),
+                        height: getResponsiveSize(56),
+                        borderRadius: getResponsiveSize(28),
+                        marginRight: getResponsiveSize(16)
+                      }}
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: getResponsiveSize(56),
+                        height: getResponsiveSize(56),
+                        borderRadius: getResponsiveSize(28),
+                        backgroundColor: '#f5f5f4',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: getResponsiveSize(16)
+                      }}
+                    >
+                      <Ionicons name="business-outline" size={getResponsiveSize(28)} color="#10b981" />
+                    </View>
+                  )}
+
+                  <View className="flex-1">
+                    <Text
+                      className="text-stone-900 font-semibold"
+                      style={{ fontSize: getResponsiveSize(18) }}
+                    >
+                      {locationDetail?.locationOwner?.businessName ||
+                        locationDetail?.ownerProfile?.fullName ||
+                        'Professional Studio'}
+                    </Text>
+                    <Text
+                      className="text-stone-600"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      {locationDetail?.availabilityStatus || 'Available'} • {locationDetail?.locationOwner?.verificationStatus || 'Verified'}
+                    </Text>
+                  </View>
+
+                  {(locationDetail?.verificationStatus === 'Verified' ||
+                    locationDetail?.locationOwner?.verificationStatus === 'Verified') && (
+                      <View className="ml-2">
+                        <Ionicons name="checkmark-circle" size={getResponsiveSize(20)} color="#10b981" />
+                      </View>
+                    )}
+                </View>
+              )}
 
               {/* Location Features Section */}
               <View
                 className="pb-6 border-b border-stone-200"
                 style={{ marginBottom: getResponsiveSize(24) }}
               >
-                {/* Description */}
-                {locationDetail?.description && (
+                {/* Description - Only for internal locations */}
+                {!isExternalLocation && locationDetail?.description && (
                   <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
                     <Ionicons name="document-text-outline" size={getResponsiveSize(24)} color="#57534e" />
                     <View className="ml-4 flex-1">
@@ -825,7 +994,7 @@ export default function LocationCardDetail() {
                   </View>
                 )}
 
-                {/* Amenities */}
+                {/* Amenities/Types */}
                 <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
                   <Ionicons name="checkmark-circle-outline" size={getResponsiveSize(24)} color="#57534e" />
                   <View className="ml-4 flex-1">
@@ -833,7 +1002,7 @@ export default function LocationCardDetail() {
                       className="text-stone-900 font-semibold"
                       style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
                     >
-                      Tiện nghi
+                      {isExternalLocation ? 'Loại hình' : 'Tiện nghi'}
                     </Text>
                     <Text
                       className="text-stone-600 leading-6"
@@ -844,51 +1013,55 @@ export default function LocationCardDetail() {
                   </View>
                 </View>
 
-                {/* Space Type */}
-                <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
-                  <Ionicons name="business-outline" size={getResponsiveSize(24)} color="#57534e" />
-                  <View className="ml-4 flex-1">
-                    <Text
-                      className="text-stone-900 font-semibold"
-                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
-                    >
-                      Loại không gian
-                    </Text>
-                    <Text
-                      className="text-stone-600 leading-6"
-                      style={{ fontSize: getResponsiveSize(14) }}
-                    >
-                      {locationDetail?.indoor && locationDetail?.outdoor
-                        ? 'Cả trong nhà và ngoài trời'
-                        : locationDetail?.indoor
-                          ? 'Trong nhà'
-                          : locationDetail?.outdoor
-                            ? 'Ngoài trời'
-                            : 'Studio chuyên nghiệp'}
-                    </Text>
+                {/* Space Type - Only for internal locations */}
+                {!isExternalLocation && (
+                  <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
+                    <Ionicons name="business-outline" size={getResponsiveSize(24)} color="#57534e" />
+                    <View className="ml-4 flex-1">
+                      <Text
+                        className="text-stone-900 font-semibold"
+                        style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                      >
+                        Loại không gian
+                      </Text>
+                      <Text
+                        className="text-stone-600 leading-6"
+                        style={{ fontSize: getResponsiveSize(14) }}
+                      >
+                        {locationDetail?.indoor && locationDetail?.outdoor
+                          ? 'Cả trong nhà và ngoài trời'
+                          : locationDetail?.indoor
+                            ? 'Trong nhà'
+                            : locationDetail?.outdoor
+                              ? 'Ngoài trời'
+                              : 'Studio chuyên nghiệp'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
+                )}
 
-                {/* Capacity */}
-                <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
-                  <Ionicons name="people-outline" size={getResponsiveSize(24)} color="#57534e" />
-                  <View className="ml-4 flex-1">
-                    <Text
-                      className="text-stone-900 font-semibold"
-                      style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
-                    >
-                      Sức chứa
-                    </Text>
-                    <Text
-                      className="text-stone-600 leading-6"
-                      style={{ fontSize: getResponsiveSize(14) }}
-                    >
-                      Tối đa {locationDetail?.capacity || 0} người cùng lúc.
-                    </Text>
+                {/* Capacity - Only for internal locations */}
+                {!isExternalLocation && (
+                  <View className="flex-row" style={{ marginBottom: getResponsiveSize(20) }}>
+                    <Ionicons name="people-outline" size={getResponsiveSize(24)} color="#57534e" />
+                    <View className="ml-4 flex-1">
+                      <Text
+                        className="text-stone-900 font-semibold"
+                        style={{ fontSize: getResponsiveSize(16), marginBottom: getResponsiveSize(4) }}
+                      >
+                        Sức chứa
+                      </Text>
+                      <Text
+                        className="text-stone-600 leading-6"
+                        style={{ fontSize: getResponsiveSize(14) }}
+                      >
+                        Tối đa {locationDetail?.capacity || 0} người cùng lúc.
+                      </Text>
+                    </View>
                   </View>
-                </View>
+                )}
 
-                {/* Images from Image API */}
+                {/* Photos Info */}
                 <View className="flex-row">
                   <Ionicons name="images-outline" size={getResponsiveSize(24)} color="#57534e" />
                   <View className="ml-4 flex-1">
@@ -902,9 +1075,13 @@ export default function LocationCardDetail() {
                       className="text-stone-600 leading-6"
                       style={{ fontSize: getResponsiveSize(14) }}
                     >
-                      {galleryImages && galleryImages.length > 0
-                        ? `${galleryImages.length} ảnh được upload cho địa điểm này.`
-                        : 'Đang cập nhật ảnh mới nhất từ Image API.'
+                      {isExternalLocation 
+                        ? externalPhotos.urls.length > 0
+                          ? `${externalPhotos.urls.length} ảnh từ Google Places.`
+                          : 'Đang cập nhật ảnh mới nhất từ Google Places.'
+                        : galleryImages && galleryImages.length > 0
+                          ? `${galleryImages.length} ảnh được upload cho địa điểm này.`
+                          : 'Đang cập nhật ảnh mới nhất từ Image API.'
                       }
                     </Text>
                   </View>
@@ -943,7 +1120,9 @@ export default function LocationCardDetail() {
                               text: 'Mở',
                               onPress: () => {
                                 const { lat, lng } = addressValidation.coordinates!;
-                                const address = locationDetail?.address || 'Location';
+                                const address = isExternalLocation 
+                                  ? externalLocationData?.address || 'Location'
+                                  : locationDetail?.address || 'Location';
                                 openMapsApp(lat, lng, address);
                               }
                             }
@@ -1036,9 +1215,9 @@ export default function LocationCardDetail() {
                         <ActivityIndicator size="small" color="#10b981" style={{ marginTop: 8 }} />
                       )}
 
-                      {locationDetail?.address && (
+                      {(isExternalLocation ? externalLocationData?.address : locationDetail?.address) && (
                         <Text className="text-stone-400 mt-2 text-center text-xs">
-                          {locationDetail.address}
+                          {isExternalLocation ? externalLocationData?.address : locationDetail?.address}
                         </Text>
                       )}
                     </View>
@@ -1053,7 +1232,7 @@ export default function LocationCardDetail() {
                         className="text-stone-900 font-medium"
                         style={{ fontSize: getResponsiveSize(14) }}
                       >
-                        📍 {locationDetail?.address || 'Chưa có địa chỉ cụ thể'}
+                        📍 {(isExternalLocation ? externalLocationData?.address : locationDetail?.address) || 'Chưa có địa chỉ cụ thể'}
                       </Text>
                       {addressValidation?.displayName && (
                         <Text
@@ -1068,7 +1247,7 @@ export default function LocationCardDetail() {
                           className="text-stone-500 mt-1"
                           style={{ fontSize: getResponsiveSize(11) }}
                         >
-                          📍 {addressValidation.coordinates.lat.toFixed(6)}, {addressValidation.coordinates.lng.toFixed(6)}
+                          🌐 {addressValidation.coordinates.lat.toFixed(6)}, {addressValidation.coordinates.lng.toFixed(6)}
                         </Text>
                       )}
                     </View>
@@ -1123,12 +1302,14 @@ export default function LocationCardDetail() {
             </View>
           </View>
 
-          {/* 🆕 Reviews Section */}
-          <LocationReviews 
-            locationId={safeLocationId}
-            currentRating={locationDetail?.rating}
-            totalReviews={locationDetail?.ratingCount}
-          />
+          {/* 🆕 Reviews Section - Only for internal locations */}
+          {!isExternalLocation && (
+            <LocationReviews 
+              locationId={safeLocationId}
+              currentRating={locationDetail?.rating}
+              totalReviews={locationDetail?.ratingCount}
+            />
+          )}
 
           <View style={{ height: getResponsiveSize(32) }} />
         </Animated.ScrollView>
@@ -1150,7 +1331,7 @@ export default function LocationCardDetail() {
                   className="text-white font-bold"
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
-                  Đặt lịch tại đây
+                  {isExternalLocation ? 'Đặt lịch tại đây' : 'Đặt lịch tại đây'}
                 </Text>
               </TouchableOpacity>
             </View>

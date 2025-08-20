@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -25,8 +24,6 @@ import { useAuth } from "../../hooks/useAuth";
 import { photographerStyleRecommendations } from "../../hooks/useStyleRecommendations";
 import { useCurrentUserId } from "../../hooks/useAuth";
 
-import * as Location from "expo-location";
-import { useNearbyLocations } from "../../hooks/useNearbyLocations";
 import LocationModal from "../../components/Location/LocationModal";
 
 // Route params interface - UPDATED
@@ -1559,7 +1556,13 @@ export default function BookingScreen() {
                 )}
 
                 {selectedLocation && (
-                  <View style={{ marginLeft: getResponsiveSize(10) }}>
+                  <View
+                    style={{
+                      marginTop: getResponsiveSize(10),
+                      flex: 1,
+                      alignItems: 'flex-start',
+                    }}
+                  >
                     {selectedLocation.hourlyRate && selectedLocation.hourlyRate > 0 ? (
                       <Text
                         style={{
@@ -1574,17 +1577,21 @@ export default function BookingScreen() {
                       <View
                         style={{
                           backgroundColor: "#4CAF50",
-                          paddingHorizontal: getResponsiveSize(8),
-                          paddingVertical: getResponsiveSize(4),
-                          borderRadius: getResponsiveSize(12),
+                          paddingHorizontal: getResponsiveSize(6),
+                          paddingVertical: getResponsiveSize(3),
+                          borderRadius: getResponsiveSize(8),
+                          alignSelf: 'flex-start',
+                          maxWidth: getResponsiveSize(60),
                         }}
                       >
                         <Text
                           style={{
-                            fontSize: getResponsiveSize(10),
+                            fontSize: getResponsiveSize(10), 
                             color: "#fff",
                             fontWeight: "bold",
+                            textAlign: 'center', 
                           }}
+                          numberOfLines={1} 
                         >
                           Miễn phí
                         </Text>

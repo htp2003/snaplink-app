@@ -63,6 +63,7 @@ import EventDetailScreen from "../screens/customer/EventDetailScreen";
 import BookingEventScreen from "../screens/customer/BookingEventScreen";
 import OrderEventDetailScreen from "../screens/customer/OrderEventDetailScreen";
 
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator = () => {
@@ -132,6 +133,8 @@ const AppNavigator = () => {
       <Stack.Screen name="EventDetailScreen" component={EventDetailScreen} />
       <Stack.Screen name="BookingEvent" component={BookingEventScreen}/>
       <Stack.Screen name="OrderEventDetail" component={OrderEventDetailScreen}/>
+      {/* Test */}
+
 
       {/* Các màn hình dành riêng cho Photographer */}
       <Stack.Screen

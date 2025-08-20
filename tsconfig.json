@@ -4,12 +4,17 @@
     "strict": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@env": ["./src/@types/@env"]
+    }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
-    "nativewind-env.d.ts"
+    "nativewind-env.d.ts",
+    "src/types/env.d.ts"
   ],
   "exclude": [
     "node_modules"

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,13 +18,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../../navigation/types';
+import { RootStackParamList, GooglePlaceDisplay } from '../../navigation/types';
 import { getResponsiveSize } from '../../utils/responsive';
 import { useFavorites, FavoriteItem } from '../../hooks/useFavorites';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 import { useLocationDetail } from '../../hooks/useLocationDetail';
 import LocationReviews from '../../components/Location/LocationReviews';
 import { useLocationReviews } from '../../hooks/useLocationReviews';
+import { directGooglePlaces } from '../../services/directGooglePlacesService';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type LocationCardDetailRouteProp = RouteProp<RootStackParamList, 'LocationCardDetail'>;
@@ -34,14 +35,21 @@ const { width, height } = Dimensions.get('window');
 export default function LocationCardDetail() {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<LocationCardDetailRouteProp>();
-  const { locationId } = route.params;
+  const { locationId, externalLocation } = route.params;
 
+  // ✅ FIXED: Use useMemo to avoid hook conflicts
+  const isExternalLocation = useMemo(() => !!externalLocation, []);
+  const externalLocationData = useMemo(() => externalLocation || null, []);
+
+  // State
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [externalImages, setExternalImages] = useState<string[]>([]);
   const [addressValidation, setAddressValidation] = useState<{
     isValid: boolean;
     coordinates?: { lat: number; lng: number };
     displayName?: string;
   } | null>(null);
+  const [hasTrackedView, setHasTrackedView] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -49,18 +57,13 @@ export default function LocationCardDetail() {
   const { isFavorite, addFavorite, removeFavorite } = useFavorites();
   const { trackView } = useRecentlyViewed();
 
-  const [calculatedRating, setCalculatedRating] = useState<number | null>(null);
-  const [calculatedReviewCount, setCalculatedReviewCount] = useState<number | null>(null);
-
-  // Use updated hook with Image API integration
+  // Hooks for app locations only
   const {
     locationDetail,
     loading,
     error,
     fetchLocationById,
-    // Gallery images from Image API
-    galleryImages, // This is now string[] from imageUrls
-    imageResponses, // This is ImageResponse[] from images
+    galleryImages,
     loadingImages,
     imageError
   } = useLocationDetail();
@@ -68,138 +71,95 @@ export default function LocationCardDetail() {
   const {
     averageRating,
     totalReviews: reviewCount,
-    loading: reviewsLoading
   } = useLocationReviews(
-    locationDetail?.locationId || parseInt(locationId),
-    locationDetail?.rating,
-    locationDetail?.ratingCount
+    isExternalLocation ? 0 : (locationDetail?.locationId || parseInt(locationId || '0')),
+    isExternalLocation ? externalLocationData?.rating : locationDetail?.rating,
+    isExternalLocation ? 0 : locationDetail?.ratingCount
   );
 
-  // Move getAmenities up before it's used
-  const getAmenities = useCallback((): string[] => {
-    if (locationDetail?.amenities) {
-      return locationDetail.amenities.split(',').map(a => a.trim());
-    }
-    const amenities = [];
-    if (locationDetail?.indoor) amenities.push('Indoor');
-    if (locationDetail?.outdoor) amenities.push('Outdoor');
-    return amenities.length > 0 ? amenities : ['Studio Space'];
-  }, [locationDetail?.amenities, locationDetail?.indoor, locationDetail?.outdoor]);
-
+  // ✅ FIXED: Single initialization useEffect
   useEffect(() => {
-    if (locationId) {
-      console.log('🎯 LocationCardDetail: Starting fetch for locationId:', locationId);
-      fetchLocationById(locationId);
-    }
-  }, [locationId]);
+    let isMounted = true;
 
-  // Debug images data - only log once when data changes significantly
-  useEffect(() => {
-    if (galleryImages?.length > 0) {
-      console.log('✅ Location images loaded:', galleryImages.length, 'images');
-    }
-  }, [galleryImages?.length]); // Only log when count changes
-
-  // Helper function to open maps
-  const openMapsApp = async (lat: number, lng: number, address: string) => {
-    const encodedAddress = encodeURIComponent(address);
-
-    const urls = {
-      googleMaps: `https://maps.google.com/maps?q=${lat},${lng}`,
-      appleMaps: `http://maps.apple.com/?ll=${lat},${lng}&q=${encodedAddress}`,
-      universal: `geo:${lat},${lng}?q=${lat},${lng}(${encodedAddress})`
-    };
-
-    try {
-      let urlToOpen = urls.googleMaps;
-
-      if (Platform.OS === 'ios') {
-        const canOpenAppleMaps = await Linking.canOpenURL(urls.appleMaps);
-        if (canOpenAppleMaps) {
-          urlToOpen = urls.appleMaps;
-        }
-      }
-
-      const canOpen = await Linking.canOpenURL(urlToOpen);
-      if (canOpen) {
-        await Linking.openURL(urlToOpen);
-      } else {
-        await Linking.openURL(urls.universal);
-      }
-    } catch (error) {
-      console.error('Error opening maps:', error);
-      Alert.alert(
-        'Không thể mở bản đồ',
-        'Vui lòng cài đặt ứng dụng bản đồ trên thiết bị của bạn.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  // Validate address using Nominatim
-  useEffect(() => {
-    const validateAddress = async () => {
-      if (!locationDetail?.address) return;
-
-      try {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationDetail.address)}&limit=1&countrycodes=vn&addressdetails=1`,
-          {
-            headers: {
-              'User-Agent': 'SnapLinkApp/1.0'
-            }
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          setAddressValidation({ isValid: false });
-          return;
-        }
-
-        const data = await response.json();
-
-        if (data && Array.isArray(data) && data.length > 0) {
-          const result = data[0];
+    const initialize = async () => {
+      if (isExternalLocation && externalLocationData) {
+        console.log('🌍 External location mode:', externalLocationData.name);
+        
+        // Set coordinates for external location
+        if (externalLocationData.latitude && externalLocationData.longitude && isMounted) {
           setAddressValidation({
             isValid: true,
             coordinates: {
-              lat: parseFloat(result.lat),
-              lng: parseFloat(result.lon)
+              lat: externalLocationData.latitude,
+              lng: externalLocationData.longitude
             },
+            displayName: externalLocationData.address
+          });
+        }
+
+        // Load external images
+        if (externalLocationData.photoReference && isMounted) {
+          try {
+            const photoUrl = directGooglePlaces.getPhotoUrl(externalLocationData.photoReference, 600);
+            if (photoUrl && isMounted) {
+              setExternalImages([photoUrl]);
+            }
+          } catch (error) {
+            console.error('Failed to load external images:', error);
+          }
+        }
+      } else if (!isExternalLocation && locationId && isMounted) {
+        console.log('🏢 App location mode:', locationId);
+        fetchLocationById(locationId);
+      }
+    };
+
+    initialize();
+    return () => { isMounted = false; };
+  }, []);
+
+  // Address validation for app locations
+  useEffect(() => {
+    if (isExternalLocation || !locationDetail?.address) return;
+    
+    let isMounted = true;
+    
+    const validateAddress = async () => {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const address = locationDetail.address || '';
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1&countrycodes=vn&addressdetails=1`,
+          { headers: { 'User-Agent': 'SnapLinkApp/1.0' } }
+        );
+
+        if (!response.ok || !isMounted) return;
+
+        const data = await response.json();
+        if (data && Array.isArray(data) && data.length > 0 && isMounted) {
+          const result = data[0];
+          setAddressValidation({
+            isValid: true,
+            coordinates: { lat: parseFloat(result.lat), lng: parseFloat(result.lon) },
             displayName: result.display_name
           });
-        } else {
+        } else if (isMounted) {
           setAddressValidation({ isValid: false });
         }
       } catch (error) {
         console.error('Address validation failed:', error);
-        setAddressValidation({ isValid: false });
+        if (isMounted) setAddressValidation({ isValid: false });
       }
     };
 
     const timer = setTimeout(validateAddress, 500);
-    return () => clearTimeout(timer);
-  }, [locationDetail?.address]);
+    return () => { isMounted = false; clearTimeout(timer); };
+  }, [isExternalLocation, locationDetail?.address]);
 
-  // Generate static map URL
-  const getStaticMapUrl = (lat: number, lng: number, zoom: number = 15) => {
-    const x = Math.floor((lng + 180) / 360 * Math.pow(2, zoom));
-    const y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
-    return `https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/${zoom}/${x}/${y}@2x.png`;
-  };
-
-  // Track recently viewed - only once when locationDetail is loaded
-  const [hasTrackedView, setHasTrackedView] = useState(false);
-
+  // Track view for app locations
   useEffect(() => {
-    if (locationDetail && !hasTrackedView) {
+    if (!isExternalLocation && locationDetail && !hasTrackedView) {
       const trackData = {
         id: locationDetail.locationId.toString(),
         type: 'location' as const,
@@ -214,66 +174,121 @@ export default function LocationCardDetail() {
           hourlyRate: locationDetail.hourlyRate,
           capacity: locationDetail.capacity,
           availabilityStatus: locationDetail.availabilityStatus
-        }
+        } 
       };
-
-      console.log('Tracked view:', trackData.type, trackData.id);
       trackView(trackData);
       setHasTrackedView(true);
     }
-  }, [locationDetail?.locationId, hasTrackedView]); // Only depend on locationId and hasTrackedView flag
+  }, [isExternalLocation, locationDetail?.locationId, hasTrackedView]);
 
+  // Error handling
   useEffect(() => {
-    if (error) {
-      Alert.alert(
-        'Lỗi',
-        `Không thể tải thông tin địa điểm: ${error}`,
-        [
-          { text: 'Thử lại', onPress: () => fetchLocationById(locationId) },
-          { text: 'Quay lại', onPress: () => navigation.goBack() }
-        ]
-      );
+    if (error && !isExternalLocation) {
+      Alert.alert('Lỗi', `Không thể tải thông tin địa điểm: ${error}`, [
+        { text: 'Thử lại', onPress: () => fetchLocationById(locationId!) },
+        { text: 'Quay lại', onPress: () => navigation.goBack() }
+      ]);
     }
-  }, [error]);
+  }, [error, isExternalLocation]);
 
-  const handleToggleFavorite = useCallback(() => {
-    if (!locationDetail) return;
+  // Status bar
+  useEffect(() => {
+    const listener = scrollY.addListener(({ value }) => {
+      StatusBar.setBarStyle(value > getResponsiveSize(160) ? 'dark-content' : 'light-content');
+    });
+    return () => scrollY.removeListener(listener);
+  }, [scrollY]);
 
-    const favoriteItem: FavoriteItem = {
-      id: locationDetail.locationId.toString(),
-      type: 'location',
-      data: {
-        id: locationDetail.locationId.toString(),
-        locationId: locationDetail.locationId,
-        name: locationDetail.name || 'Unknown Location',
-        avatar: locationDetail.ownerAvatar || '',
-        images: galleryImages || [],
-        styles: getAmenities(),
-        address: locationDetail.address,
-        hourlyRate: locationDetail.hourlyRate,
-        availabilityStatus: locationDetail.availabilityStatus
-      }
+  // Helper functions
+  const getAmenities = useCallback((): string[] => {
+    if (isExternalLocation) {
+      return externalLocationData?.types || ['External Location'];
+    }
+    if (locationDetail?.amenities) {
+      return locationDetail.amenities.split(',').map(a => a.trim());
+    }
+    const amenities = [];
+    if (locationDetail?.indoor) amenities.push('Indoor');
+    if (locationDetail?.outdoor) amenities.push('Outdoor');
+    return amenities.length > 0 ? amenities : ['Studio Space'];
+  }, [isExternalLocation, externalLocationData?.types, locationDetail]);
+
+  const openMapsApp = async (lat: number, lng: number, address: string) => {
+    const encodedAddress = encodeURIComponent(address);
+    const urls = {
+      googleMaps: `https://maps.google.com/maps?q=${lat},${lng}`,
+      appleMaps: `http://maps.apple.com/?ll=${lat},${lng}&q=${encodedAddress}`,
+      universal: `geo:${lat},${lng}?q=${lat},${lng}(${encodedAddress})`
     };
 
-    if (isFavorite(locationDetail.locationId.toString(), 'location')) {
-      removeFavorite(locationDetail.locationId.toString(), 'location');
-    } else {
-      addFavorite(favoriteItem);
+    try {
+      let urlToOpen = urls.googleMaps;
+      if (Platform.OS === 'ios') {
+        const canOpenAppleMaps = await Linking.canOpenURL(urls.appleMaps);
+        if (canOpenAppleMaps) urlToOpen = urls.appleMaps;
+      }
+      const canOpen = await Linking.canOpenURL(urlToOpen);
+      await Linking.openURL(canOpen ? urlToOpen : urls.universal);
+    } catch (error) {
+      Alert.alert('Không thể mở bản đồ', 'Vui lòng cài đặt ứng dụng bản đồ trên thiết bị của bạn.');
     }
-  }, [
-    locationDetail?.locationId,
-    locationDetail?.name,
-    locationDetail?.ownerAvatar,
-    locationDetail?.address,
-    locationDetail?.hourlyRate,
-    locationDetail?.availabilityStatus,
-    galleryImages?.length, // Only depend on length
-    isFavorite,
-    addFavorite,
-    removeFavorite
-  ]);
+  };
 
-  const renderStars = (rating: number = 4.8) => {
+  const getStaticMapUrl = (lat: number, lng: number, zoom: number = 15) => {
+    const x = Math.floor((lng + 180) / 360 * Math.pow(2, zoom));
+    const y = Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom));
+    return `https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/${zoom}/${x}/${y}@2x.png`;
+  };
+
+  const handleToggleFavorite = useCallback(() => {
+    if (isExternalLocation) {
+      const favoriteItem: FavoriteItem = {
+        id: externalLocationData!.placeId,
+        type: 'location',
+        data: {
+          id: externalLocationData!.placeId,
+          locationId: 0,
+          name: externalLocationData!.name,
+          avatar: '',
+          images: externalImages,
+          styles: externalLocationData!.types || [],
+          address: externalLocationData!.address,
+          hourlyRate: 0,
+          availabilityStatus: 'external'
+        }
+      };
+      
+      if (isFavorite(externalLocationData!.placeId, 'location')) {
+        removeFavorite(externalLocationData!.placeId, 'location');
+      } else {
+        addFavorite(favoriteItem);
+      }
+    } else if (locationDetail) {
+      const favoriteItem: FavoriteItem = {
+        id: locationDetail.locationId.toString(),
+        type: 'location',
+        data: {
+          id: locationDetail.locationId.toString(),
+          locationId: locationDetail.locationId,
+          name: locationDetail.name || 'Unknown Location',
+          avatar: locationDetail.ownerAvatar || '',
+          images: galleryImages || [],
+          styles: getAmenities(),
+          address: locationDetail.address,
+          hourlyRate: locationDetail.hourlyRate,
+          availabilityStatus: locationDetail.availabilityStatus
+        }
+      };
+
+      if (isFavorite(locationDetail.locationId.toString(), 'location')) {
+        removeFavorite(locationDetail.locationId.toString(), 'location');
+      } else {
+        addFavorite(favoriteItem);
+      }
+    }
+  }, [isExternalLocation, externalLocationData, externalImages, locationDetail, galleryImages, getAmenities, isFavorite, addFavorite, removeFavorite]);
+
+  const renderStars = (rating: number = 0) => {
     const stars = [];
     const fullStars = Math.floor(rating);
     const hasHalfStar = rating % 1 !== 0;
@@ -301,56 +316,74 @@ export default function LocationCardDetail() {
     <View style={{ width }}>
       <Image
         source={{ uri: item }}
-        style={{
-          width,
-          height: height * 0.6 + 50,
-          marginTop: -50
-        }}
+        style={{ width, height: height * 0.6 + 50, marginTop: -50 }}
         resizeMode="cover"
-        onError={() => {
-          console.log('Failed to load image:', item);
-        }}
+        onError={() => console.log('Failed to load image:', item)}
       />
     </View>
   );
 
-  useEffect(() => {
-    const listener = scrollY.addListener(({ value }) => {
-      if (value > getResponsiveSize(160)) {
-        StatusBar.setBarStyle('dark-content');
-      } else {
-        StatusBar.setBarStyle('light-content');
-      }
-    });
-    return () => scrollY.removeListener(listener);
-  }, [scrollY]);
-  // Sửa function handleBookLocation
   const handleBookLocation = () => {
-    if (!locationDetail?.locationId) {
-      Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
+    console.log("🔍 External Location Data Debug:", {
+      externalLocationData,
+      types: externalLocationData?.types,
+      typesIsArray: Array.isArray(externalLocationData?.types),
+      typesType: typeof externalLocationData?.types
+    });
+    if (externalLocationData && (!externalLocationData.latitude || !externalLocationData.longitude)) {
+      Alert.alert(
+        'Địa điểm không hợp lệ',
+        'Địa điểm này thiếu thông tin tọa độ. Vui lòng chọn một địa điểm cụ thể khác.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
       return;
     }
-
-    // ✅ Cast as any to bypass type check
-    const locationData: any = {
-      locationId: locationDetail.locationId,
-      name: locationDetail.name || 'Unknown Location',
-      address: locationDetail.address || '',
-      hourlyRate: locationDetail.hourlyRate || 0,
-      imageUrl: galleryImages?.[0] || '',
-      capacity: locationDetail.capacity || 0,
-      styles: getAmenities(),
-      indoor: locationDetail.indoor || false,
-      outdoor: locationDetail.outdoor || false,
-    };
-
-    // ✅ Cast navigation as any
-    (navigation as any).navigate('Booking', {
-      location: locationData,
-    });
+    if (isExternalLocation) {
+      if (!externalLocationData) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
+        return;
+      }
+  
+      // ✅ FIXED: Safe handling của types
+      const locationData = {
+        placeId: externalLocationData.placeId,
+        name: externalLocationData.name || 'Unknown Location',
+        address: externalLocationData.address || '',
+        description: '',
+        latitude: Number(externalLocationData.latitude), 
+        longitude: Number(externalLocationData.longitude), 
+        // ✅ Fix này - đảm bảo types được xử lý an toàn
+        types: Array.isArray(externalLocationData.types) 
+        ? externalLocationData.types.join(',')
+        : (externalLocationData.types || ''), 
+      hourlyRate: 0,
+      };
+      
+      (navigation as any).navigate('Booking', { location: locationData });
+      
+    } else {
+      // App location logic giữ nguyên
+      if (!locationDetail?.locationId) {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin địa điểm');
+        return;
+      }
+      const locationData = {
+        locationId: locationDetail.locationId,
+        name: locationDetail.name || 'Unknown Location',
+        address: locationDetail.address || '',
+        hourlyRate: locationDetail.hourlyRate || 0,
+        imageUrl: galleryImages?.[0] || '',
+        capacity: locationDetail.capacity || 0,
+        styles: getAmenities(),
+        indoor: locationDetail.indoor || false,
+        outdoor: locationDetail.outdoor || false,
+      };
+      (navigation as any).navigate('Booking', { location: locationData });
+    }
   };
 
-  if (loading) {
+  // Loading state
+  if (!isExternalLocation && loading) {
     return (
       <View className="flex-1 bg-white justify-center items-center">
         <ActivityIndicator size="large" color="#10b981" />
@@ -359,22 +392,37 @@ export default function LocationCardDetail() {
     );
   }
 
-  if (!locationDetail) {
+  // No data state
+  if (!isExternalLocation && !locationDetail) {
     return (
       <View className="flex-1 bg-white justify-center items-center px-6">
         <Ionicons name="location-outline" size={80} color="#9ca3af" />
-        <Text className="text-stone-900 text-2xl font-bold mt-6 text-center">
-          Không tìm thấy địa điểm
-        </Text>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          className="mt-8 px-8 py-4 bg-emerald-500 rounded-2xl"
-        >
+        <Text className="text-stone-900 text-2xl font-bold mt-6 text-center">Không tìm thấy địa điểm</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} className="mt-8 px-8 py-4 bg-emerald-500 rounded-2xl">
           <Text className="text-white font-bold text-lg">Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
   }
+
+  // Display data
+  const displayData = isExternalLocation ? {
+    name: externalLocationData?.name || 'External Location',
+    address: externalLocationData?.address || '',
+    images: externalImages,
+    rating: externalLocationData?.rating || 0,
+    types: externalLocationData?.types || [],
+  } : {
+    name: locationDetail?.name || 'Studio Location',
+    address: locationDetail?.address || '',
+    images: galleryImages || [],
+    rating: averageRating,
+    types: getAmenities(),
+  };
+
+  const itemId = isExternalLocation ? externalLocationData!.placeId : locationDetail!.locationId.toString();
+  const currentImages = displayData.images;
+  const safeLocationId = locationDetail?.locationId || (locationId ? parseInt(locationId) : 0);
 
   return (
     <View className="flex-1 bg-white">
@@ -447,9 +495,9 @@ export default function LocationCardDetail() {
                   }}
                 >
                   <Ionicons
-                    name={isFavorite(locationDetail.locationId.toString()) ? 'heart' : 'heart-outline'}
+                    name={isFavorite(itemId) ? 'heart' : 'heart-outline'}
                     size={getResponsiveSize(22)}
-                    color={isFavorite(locationDetail.locationId.toString()) ? '#ef4444' : 'white'}
+                    color={isFavorite(itemId) ? '#ef4444' : 'white'}
                   />
                 </TouchableOpacity>
               </View>
@@ -529,9 +577,9 @@ export default function LocationCardDetail() {
                   }}
                 >
                   <Ionicons
-                    name={isFavorite(locationDetail.locationId.toString()) ? 'heart' : 'heart-outline'}
+                    name={isFavorite(itemId) ? 'heart' : 'heart-outline'}
                     size={getResponsiveSize(22)}
-                    color={isFavorite(locationDetail.locationId.toString()) ? '#ef4444' : '#222'}
+                    color={isFavorite(itemId) ? '#ef4444' : '#222'}
                   />
                 </TouchableOpacity>
               </View>
@@ -1076,8 +1124,8 @@ export default function LocationCardDetail() {
           </View>
 
           {/* 🆕 Reviews Section */}
-          <LocationReviews
-            locationId={locationDetail?.locationId || parseInt(locationId)}
+          <LocationReviews 
+            locationId={safeLocationId}
             currentRating={locationDetail?.rating}
             totalReviews={locationDetail?.ratingCount}
           />

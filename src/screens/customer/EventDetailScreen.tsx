@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,12 @@ import {
   Dimensions,
   Linking,
   StatusBar,
+  ActivityIndicator,
+  FlatList,
+  Animated,
+  Platform
 } from "react-native";
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import {
@@ -29,15 +34,17 @@ import {
   useEventBooking,
 } from "../../hooks/usePhotographerEvent";
 import { useAuth } from "../../hooks/useAuth";
+import { getResponsiveSize } from '../../utils/responsive';
+import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
 
-const { width: screenWidth } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 type EventDetailScreenRouteProp = RouteProp<
   RootStackParamList,
   "EventDetailScreen"
 >;
 
-interface EventDetailScreenProps {}
+interface EventDetailScreenProps { }
 
 const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
@@ -53,8 +60,14 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPhotographer, setSelectedPhotographer] = useState<any>(null);
-  const [isLiked, setIsLiked] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [hasTrackedView, setHasTrackedView] = useState(false);
 
+  const flatListRef = useRef<FlatList>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // Get images from API - handle empty array
+  const eventImages = event?.images || [];
   // Refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
@@ -62,19 +75,18 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
     setRefreshing(false);
   };
 
-  // ✅ FIXED: Format price function with better handling
+
+
+  // Format functions
   const formatPrice = (price: number | undefined | null): string => {
-    // Handle undefined, null, or NaN
     if (price === undefined || price === null || isNaN(price)) {
       return "Liên hệ";
     }
-    
-    // ✅ Handle free events FIRST before trying to format
+
     if (price === 0) {
       return "Miễn phí";
     }
-    
-    // Format normal prices only for non-zero values
+
     try {
       return new Intl.NumberFormat("vi-VN", {
         style: "currency",
@@ -83,8 +95,6 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
         maximumFractionDigits: 0,
       }).format(price);
     } catch (error) {
-      console.error("Error formatting price:", error, "Price value:", price);
-      // Fallback formatting without currency formatting
       return `${price.toLocaleString('vi-VN')}₫`;
     }
   };
@@ -125,15 +135,14 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
 
   const calculateDiscount = (): number => {
     if (!event?.originalPrice || !event?.discountedPrice) return 0;
-    
+
     const original = event.originalPrice;
     const discounted = event.discountedPrice;
-    
-    // ✅ Handle edge cases
+
     if (typeof original !== 'number' || typeof discounted !== 'number') return 0;
-    if (original <= 0 || discounted < 0) return 0; // Avoid division by zero
-    if (discounted >= original) return 0; // No discount if discounted >= original
-    
+    if (original <= 0 || discounted < 0) return 0;
+    if (discounted >= original) return 0;
+
     return Math.round(((original - discounted) / original) * 100);
   };
 
@@ -160,56 +169,49 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
     );
   };
 
-  // ✅ FIXED: Better price display helper
   const getCurrentPrice = (): number | null => {
     if (!event) return null;
-    
-    // ✅ Ensure we return valid numbers or null
+
     const discounted = event.discountedPrice;
     const original = event.originalPrice;
-    
+
     if (typeof discounted === 'number' && !isNaN(discounted)) {
       return discounted;
     }
-    
+
     if (typeof original === 'number' && !isNaN(original)) {
       return original;
     }
-    
+
     return null;
   };
 
   const getOriginalPrice = (): number | null => {
     if (!event) return null;
-    
+
     const original = event.originalPrice;
     if (typeof original === 'number' && !isNaN(original)) {
       return original;
     }
-    
+
     return null;
   };
 
   const hasDiscount = (): boolean => {
     const current = getCurrentPrice();
     const original = getOriginalPrice();
-    
-    // ✅ Check for valid numbers and meaningful discount
+
     return (
-      typeof current === 'number' && 
-      typeof original === 'number' && 
-      original > current && 
+      typeof current === 'number' &&
+      typeof original === 'number' &&
+      original > current &&
       original > 0
     );
   };
 
+
   // Handle booking
   const handleJoinEvent = async () => {
-    console.log("🚀 Button clicked!"); // Debug
-    console.log("User:", user);
-    console.log("Selected photographer:", selectedPhotographer);
-    console.log("Event:", event);
-    
     if (!user) {
       Alert.alert(
         'Yêu cầu đăng nhập',
@@ -229,7 +231,6 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
 
     if (!event) return;
 
-    // ✅ Navigate to BookingEvent screen (đã có trong navigator)
     navigation.navigate('BookingEvent', {
       event: {
         eventId: event.eventId,
@@ -260,28 +261,60 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
     Linking.openURL(url);
   };
 
+  // Image gallery handlers
+  const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) {
+      setCurrentImageIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const renderImageItem = ({ item }: { item: string }) => (
+    <View style={{ width }}>
+      <Image
+        source={{ uri: item }}
+        style={{
+          width,
+          height: height * 0.6 + 50,
+          marginTop: -50
+        }}
+        resizeMode="cover"
+      />
+    </View>
+  );
+
+  // Status bar effect
+  useEffect(() => {
+    const listener = scrollY.addListener(({ value }) => {
+      if (value > getResponsiveSize(160)) {
+        StatusBar.setBarStyle('dark-content');
+      } else {
+        StatusBar.setBarStyle('light-content');
+      }
+    });
+    return () => scrollY.removeListener(listener);
+  }, [scrollY]);
+
   if (loading) {
     return (
-      <View className="flex-1 bg-gray-50 justify-center items-center">
-        <Text className="text-gray-600">Đang tải...</Text>
+      <View className="flex-1 bg-white justify-center items-center">
+        <ActivityIndicator size="large" color="#f59e0b" />
+        <Text className="text-stone-600 mt-4 text-lg">Đang tải...</Text>
       </View>
     );
   }
 
   if (error || !event) {
     return (
-      <View className="flex-1 bg-gray-50 justify-center items-center px-5">
-        <Text className="text-red-500 text-lg font-bold text-center mb-2">
-          Lỗi tải thông tin sự kiện
-        </Text>
-        <Text className="text-gray-600 text-center mb-5">
-          {error || "Không tìm thấy sự kiện"}
+      <View className="flex-1 bg-white justify-center items-center px-6">
+        <Ionicons name="calendar-outline" size={80} color="#9ca3af" />
+        <Text className="text-stone-900 text-2xl font-bold mt-6 text-center">
+          Không tìm thấy sự kiện
         </Text>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          className="bg-pink-500 px-6 py-3 rounded-lg"
+          className="mt-8 px-8 py-4 bg-amber-500 rounded-2xl"
         >
-          <Text className="text-white font-bold">← Quay lại</Text>
+          <Text className="text-white font-bold text-lg">Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
@@ -295,383 +328,730 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
   const showDiscount = hasDiscount();
 
   return (
-    <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="light-content" />
+    <View className="flex-1 bg-white">
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
 
-      {/* Header */}
-      <View className="absolute top-0 left-0 right-0 z-20 pt-12 px-5 pb-5">
-        <View className="flex-row items-center justify-between">
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            className="w-10 h-10 bg-black/20 rounded-full items-center justify-center backdrop-blur-md"
-          >
-            <AntDesign name="arrowleft" size={20} color="white" />
-          </TouchableOpacity>
-
-          <View className="flex-row gap-3">
-            <TouchableOpacity
-              onPress={() => setIsLiked(!isLiked)}
-              className="w-10 h-10 bg-black/20 rounded-full items-center justify-center backdrop-blur-md"
+      <View className="flex-1">
+        {/* Fixed Header Controls */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            backgroundColor: 'rgba(255,255,255,0)',
+            opacity: scrollY.interpolate({
+              inputRange: [0, getResponsiveSize(120), getResponsiveSize(180)],
+              outputRange: [1, 0.5, 0],
+              extrapolate: 'clamp',
+            }),
+          }}
+        >
+          <SafeAreaView>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                height: getResponsiveSize(56),
+                paddingHorizontal: getResponsiveSize(16),
+              }}
             >
-              <AntDesign
-                name={isLiked ? "heart" : "hearto"}
-                size={20}
-                color={isLiked ? "#ff6b6b" : "white"}
-              />
-            </TouchableOpacity>
-            <TouchableOpacity className="w-10 h-10 bg-black/20 rounded-full items-center justify-center backdrop-blur-md">
-              <Feather name="more-horizontal" size={20} color="white" />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-
-      <ScrollView
-        className="flex-1"
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Hero Image */}
-        <View className="relative h-72">
-          <LinearGradient
-            colors={["#667eea", "#764ba2"]}
-            style={{ width: "100%", height: "100%" }}
-            className="justify-center items-center"
-          >
-          </LinearGradient>
-        </View>
-
-        {/* Content */}
-        <View className="px-6 pt-6">
-          {/* Event Header */}
-          <View className="mb-6">
-            <Text className="text-amber-500 text-xs font-semibold uppercase tracking-wide mb-2">
-              {formatDate(event.startDate)} • {formatTimeRange()}
-            </Text>
-            <Text className="text-gray-900 text-2xl font-bold mb-2 leading-tight">
-              {event.name}
-            </Text>
-            <TouchableOpacity
-              onPress={openMap}
-              className="flex-row items-center gap-2 mb-4"
-            >
-              <Feather name="map-pin" size={16} color="#6b7280" />
-              <Text className="text-gray-500 text-sm flex-1">
-                {event.location?.name || "Địa điểm sẽ được thông báo"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* ✅ FIXED: Price Section */}
-          <View className="bg-gray-50 rounded-2xl p-5 mb-6">
-            <View className="flex-row items-center justify-between mb-3">
-              <View className="flex-row items-center gap-3">
-                <Text className="text-gray-900 text-2xl font-bold">
-                  {formatPrice(currentPrice)}
-                </Text>
-                {showDiscount && (
-                  <Text className="text-gray-400 text-lg line-through">
-                    {formatPrice(originalPrice)}
-                  </Text>
-                )}
-              </View>
-              {showDiscount && (
-                <View className="bg-green-100 px-2 py-1 rounded-lg">
-                  <Text className="text-green-600 text-xs font-semibold">
-                    Tiết kiệm {discount}%
-                  </Text>
-                </View>
-              )}
-            </View>
-            <Text className="text-gray-500 text-sm">
-              {currentPrice === 0 ? "Sự kiện miễn phí" : "Giá đã bao gồm tài liệu và chứng chỉ"}
-            </Text>
-          </View>
-
-          {/* Stats Grid */}
-          <View className="flex-row gap-4 mb-6">
-            <View className="flex-1 bg-gray-50 rounded-xl p-4 items-center">
-              <View className="w-8 h-8 bg-gray-200 rounded-full mb-2 items-center justify-center">
-                <Text>👥</Text>
-              </View>
-              <Text className="text-gray-900 text-lg font-bold">
-                {event.totalBookingsCount}/{event.maxBookingsPerSlot}
-              </Text>
-              <Text className="text-gray-500 text-xs">Đã đăng ký</Text>
-            </View>
-
-            <View className="flex-1 bg-gray-50 rounded-xl p-4 items-center">
-              <View className="w-8 h-8 bg-gray-200 rounded-full mb-2 items-center justify-center">
-                <Text>📷</Text>
-              </View>
-              <Text className="text-gray-900 text-lg font-bold">
-                {event.approvedPhotographersCount || photographers.length}
-              </Text>
-              <Text className="text-gray-500 text-xs">Thợ ảnh</Text>
-            </View>
-
-            <View className="flex-1 bg-gray-50 rounded-xl p-4 items-center">
-              <View className="w-8 h-8 bg-gray-200 rounded-full mb-2 items-center justify-center">
-                <Text>⭐</Text>
-              </View>
-              <Text className="text-gray-900 text-lg font-bold">4.9</Text>
-              <Text className="text-gray-500 text-xs">Đánh giá</Text>
-            </View>
-          </View>
-
-          {/* Urgency Bar */}
-          {timeUntil.includes("giờ") && (
-            <View className="bg-amber-100 border border-amber-200 rounded-xl p-3 mb-6 flex-row items-center gap-2">
-              <Text>⚡</Text>
-              <Text className="text-amber-800 text-sm font-semibold">
-                {timeUntil}
-              </Text>
-            </View>
-          )}
-
-          {/* About Section */}
-          <View className="mb-8">
-            <Text className="text-gray-900 text-lg font-bold mb-3">
-              Về sự kiện này
-            </Text>
-            <Text className="text-gray-700 leading-relaxed">
-              {event.description ||
-                "Tham gia workshop chụp ảnh cưới chuyên nghiệp với các nhiếp ảnh gia hàng đầu. Học cách bắt trọn những khoảnh khắc đẹp nhất trong ngày trọng đại. Bao gồm lý thuyết, thực hành và tips từ các chuyên gia."}
-            </Text>
-          </View>
-
-          {/* Location Section */}
-          {event.location && (
-            <View className="mb-8">
-              <Text className="text-gray-900 text-lg font-bold mb-3">
-                Địa điểm
-              </Text>
               <TouchableOpacity
-                onPress={openMap}
-                className="bg-gray-50 rounded-xl p-4 flex-row items-center gap-3"
+                onPress={() => navigation.goBack()}
+                style={{
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.3)',
+                  borderRadius: getResponsiveSize(20),
+                }}
               >
-                <View className="w-15 h-15 bg-gray-200 rounded-lg" />
-                <View className="flex-1">
-                  <Text className="text-gray-900 font-semibold mb-1">
-                    {event.location.name}
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    {event.location.address}
+                <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="white" />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }} />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: 'rgba(0,0,0,0.3)',
+                    borderRadius: getResponsiveSize(20),
+                    marginRight: getResponsiveSize(8),
+                  }}
+                >
+                  <Ionicons name="share-outline" size={getResponsiveSize(22)} color="white" />
+                </TouchableOpacity>
+
+              </View>
+            </View>
+          </SafeAreaView>
+        </Animated.View>
+
+        {/* Dynamic Header */}
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 101,
+            backgroundColor: 'white',
+            borderBottomWidth: 1,
+            borderBottomColor: '#eee',
+            opacity: scrollY.interpolate({
+              inputRange: [getResponsiveSize(300), getResponsiveSize(340)],
+              outputRange: [0, 1],
+              extrapolate: 'clamp',
+            }),
+          }}
+        >
+          <SafeAreaView>
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                height: getResponsiveSize(56),
+                paddingHorizontal: getResponsiveSize(16),
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                style={{
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons name="arrow-back" size={getResponsiveSize(24)} color="#222" />
+              </TouchableOpacity>
+              <View style={{ flex: 1, alignItems: 'center' }}>
+                <Text
+                  style={{
+                    fontWeight: 'bold',
+                    fontSize: getResponsiveSize(16),
+                    color: '#222',
+                  }}
+                  numberOfLines={1}
+                >
+                  {event?.name || 'Event Detail'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{
+                    width: getResponsiveSize(40),
+                    height: getResponsiveSize(40),
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="share-outline" size={getResponsiveSize(22)} color="#222" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </SafeAreaView>
+        </Animated.View>
+
+        {/* Scrollable Content */}
+        <Animated.ScrollView
+          className="flex-1"
+          showsVerticalScrollIndicator={false}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false }
+          )}
+          scrollEventThrottle={1}
+          contentContainerStyle={{ paddingTop: 0 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {/* Event Images Gallery */}
+          <View style={{
+            height: height * 0.6,
+            overflow: 'hidden',
+            marginTop: -50,
+            zIndex: 1,
+            backgroundColor: '#eee',
+          }}>
+            {eventImages.length > 0 ? (
+              <>
+                <FlatList
+                  ref={flatListRef}
+                  data={eventImages.map(img => img.url).filter(Boolean)}
+                  renderItem={renderImageItem}
+                  keyExtractor={(item, index) => `${item}-${index}`}
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onViewableItemsChanged={onViewableItemsChanged}
+                  viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+                />
+                <View
+                  className="absolute bg-black/50 backdrop-blur-sm rounded-full"
+                  style={{
+                    bottom: getResponsiveSize(90),
+                    right: getResponsiveSize(16),
+                    paddingHorizontal: getResponsiveSize(12),
+                    paddingVertical: getResponsiveSize(4),
+                    zIndex: 50,
+                  }}
+                >
+                  <Text
+                    className="text-white font-medium"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {currentImageIndex + 1} / {eventImages.length}
                   </Text>
                 </View>
-                <Text className="text-blue-500 text-sm font-semibold">
-                  Xem bản đồ
+              </>
+            ) : (
+              <View className="flex-1 justify-center items-center">
+                <Ionicons name="images-outline" size={getResponsiveSize(60)} color="#9ca3af" />
+                <Text className="text-stone-600 mt-4 text-center">
+                  Chưa có ảnh sự kiện
                 </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Timeline */}
-          <View className="mb-8">
-            <Text className="text-gray-900 text-lg font-bold mb-3">
-              Lịch trình
-            </Text>
-            <View className="relative pl-6">
-              <View className="absolute left-2 top-0 bottom-0 w-0.5 bg-gray-200" />
-
-              <View className="relative mb-5">
-                <View className="absolute -left-8 top-1 w-4 h-4 bg-green-500 rounded-full border-3 border-white shadow-sm" />
-                <Text className="text-green-500 text-xs font-semibold mb-1">
-                  {formatTime(event.startDate)} -{" "}
-                  {new Date(
-                    new Date(event.startDate).getTime() + 15 * 60000
-                  ).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-                <Text className="text-gray-700 text-sm">
-                  Check-in và giới thiệu
+                <Text className="text-stone-400 mt-2 text-center text-sm">
+                  Ảnh sẽ được cập nhật sớm
                 </Text>
               </View>
-
-              <View className="relative mb-5">
-                <View className="absolute -left-8 top-1 w-4 h-4 bg-green-500 rounded-full border-3 border-white shadow-sm" />
-                <Text className="text-green-500 text-xs font-semibold mb-1">
-                  {new Date(
-                    new Date(event.startDate).getTime() + 15 * 60000
-                  ).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}{" "}
-                  -{" "}
-                  {new Date(
-                    new Date(event.endDate).getTime() - 15 * 60000
-                  ).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
-                <Text className="text-gray-700 text-sm">
-                  Nội dung chính của workshop
-                </Text>
-              </View>
-
-              <View className="relative">
-                <View className="absolute -left-8 top-1 w-4 h-4 bg-green-500 rounded-full border-3 border-white shadow-sm" />
-                <Text className="text-green-500 text-xs font-semibold mb-1">
-                  {new Date(
-                    new Date(event.endDate).getTime() - 15 * 60000
-                  ).toLocaleTimeString("vi-VN", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}{" "}
-                  - {formatTime(event.endDate)}
-                </Text>
-                <Text className="text-gray-700 text-sm">Thực hành và Q&A</Text>
-              </View>
-            </View>
+            )}
           </View>
 
-          {/* Photographers */}
-          {photographers.length > 0 && (
-            <View className="mb-8">
-              <View className="flex-row items-center justify-between mb-4">
-                <Text className="text-gray-900 text-lg font-bold">
-                  Thợ ảnh tham gia ({photographers.length})
+          {/* Content Section */}
+          <View
+            className="bg-white relative"
+            style={{
+              borderTopLeftRadius: getResponsiveSize(32),
+              borderTopRightRadius: getResponsiveSize(32),
+              marginTop: -getResponsiveSize(80),
+              zIndex: 10,
+            }}
+          >
+            <View style={{ paddingHorizontal: getResponsiveSize(24), paddingTop: getResponsiveSize(24) }}>
+
+              {/* Event Header */}
+              <View className="items-center mb-6">
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="calendar-outline" size={getResponsiveSize(20)} color="#666" />
+                  <Text
+                    className="text-stone-900 font-bold ml-2"
+                    style={{ fontSize: getResponsiveSize(24) }}
+                  >
+                    {event?.name || 'Workshop Event'}
+                  </Text>
+                </View>
+
+                <Text
+                  className="text-amber-500 font-semibold text-center mb-2"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  {formatDate(event.startDate)} • {formatTimeRange()}
                 </Text>
-                <TouchableOpacity>
-                  <Text className="text-blue-500 text-sm font-semibold">
-                    Xem tất cả
+
+                <TouchableOpacity
+                  onPress={openMap}
+                  className="flex-row items-center"
+                >
+                  <Ionicons name="location-outline" size={getResponsiveSize(16)} color="#666" />
+                  <Text
+                    className="text-stone-600 text-center ml-1"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {event.location?.name || "Địa điểm sẽ được thông báo"}
                   </Text>
                 </TouchableOpacity>
               </View>
 
-              <View className="flex-row flex-wrap gap-3">
-                {photographers.slice(0, 4).map((photographer) => (
-                  <TouchableOpacity
-                    key={photographer.eventPhotographerId}
-                    onPress={() => setSelectedPhotographer(photographer)}
-                    className={`bg-white border rounded-xl p-3 items-center flex-1 min-w-[45%] ${
-                      selectedPhotographer?.eventPhotographerId ===
-                      photographer.eventPhotographerId
-                        ? "border-pink-500 bg-pink-50"
-                        : "border-gray-200"
-                    }`}
-                  >
-                    <View className="w-12 h-12 bg-gray-200 rounded-full mb-2" />
-                    <Text className="text-gray-900 font-semibold text-sm text-center mb-1">
-                      {photographer.photographer?.fullName}
+              {/* Price & Discount Section */}
+              <View
+                className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 mb-6"
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#fef3c7',
+                }}
+              >
+                <View className="flex-row items-center justify-between mb-3">
+                  <View className="flex-row items-center gap-3">
+                    <Text
+                      className="text-stone-900 font-bold"
+                      style={{ fontSize: getResponsiveSize(28) }}
+                    >
+                      {formatPrice(currentPrice)}
                     </Text>
-                    <View className="flex-row items-center gap-1">
-                      <Text className="text-amber-500 text-xs">⭐</Text>
-                      <Text className="text-gray-600 text-xs">
-                        {photographer.photographer?.rating}
+                    {showDiscount && (
+                      <Text
+                        className="text-stone-400 line-through"
+                        style={{ fontSize: getResponsiveSize(18) }}
+                      >
+                        {formatPrice(originalPrice)}
+                      </Text>
+                    )}
+                  </View>
+                  {showDiscount && (
+                    <View className="bg-emerald-100 px-3 py-2 rounded-full">
+                      <Text className="text-emerald-600 text-sm font-semibold">
+                        Tiết kiệm {discount}%
                       </Text>
                     </View>
-                  </TouchableOpacity>
-                ))}
+                  )}
+                </View>
+                <Text className="text-stone-600" style={{ fontSize: getResponsiveSize(14) }}>
+                  {currentPrice === 0 ? "Sự kiện miễn phí cho tất cả thành viên" : "Giá đã bao gồm tài liệu và chứng chỉ"}
+                </Text>
               </View>
 
-              {!selectedPhotographer && (
-                <Text className="text-amber-600 text-sm mt-2">
-                  💡 Chọn một photographer để tiếp tục đăng ký
+              {/* Stats Grid */}
+              <View
+                className="flex-row gap-4 pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                <View className="flex-1 bg-stone-50 rounded-xl p-4 items-center">
+                  <View
+                    className="bg-amber-100 rounded-full items-center justify-center mb-2"
+                    style={{
+                      width: getResponsiveSize(40),
+                      height: getResponsiveSize(40),
+                    }}
+                  >
+                    <Ionicons name="people" size={getResponsiveSize(20)} color="#f59e0b" />
+                  </View>
+                  <Text
+                    className="text-stone-900 font-bold"
+                    style={{ fontSize: getResponsiveSize(18) }}
+                  >
+                    {event.totalBookingsCount}/{event.maxBookingsPerSlot}
+                  </Text>
+                  <Text
+                    className="text-stone-600"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    Đã đăng ký
+                  </Text>
+                </View>
+
+                <View className="flex-1 bg-stone-50 rounded-xl p-4 items-center">
+                  <View
+                    className="bg-blue-100 rounded-full items-center justify-center mb-2"
+                    style={{
+                      width: getResponsiveSize(40),
+                      height: getResponsiveSize(40),
+                    }}
+                  >
+                    <Ionicons name="camera" size={getResponsiveSize(20)} color="#3b82f6" />
+                  </View>
+                  <Text
+                    className="text-stone-900 font-bold"
+                    style={{ fontSize: getResponsiveSize(18) }}
+                  >
+                    {event.approvedPhotographersCount || photographers.length}
+                  </Text>
+                  <Text
+                    className="text-stone-600"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    Thợ ảnh
+                  </Text>
+                </View>
+
+                <View className="flex-1 bg-stone-50 rounded-xl p-4 items-center">
+                  <View
+                    className="bg-red-100 rounded-full items-center justify-center mb-2"
+                    style={{
+                      width: getResponsiveSize(40),
+                      height: getResponsiveSize(40),
+                    }}
+                  >
+                    <Ionicons name="time" size={getResponsiveSize(20)} color="#ef4444" />
+                  </View>
+                  <Text
+                    className="text-stone-900 font-bold"
+                    style={{ fontSize: getResponsiveSize(18) }}
+                  >
+                    {slotsRemaining}
+                  </Text>
+                  <Text
+                    className="text-stone-600"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    Chỗ còn lại
+                  </Text>
+                </View>
+              </View>
+
+              {/* Urgency Banner */}
+              {timeUntil.includes("giờ") && (
+                <View
+                  className="bg-amber-100 border border-amber-200 rounded-xl p-4 mb-6 flex-row items-center"
+                  style={{
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
+                    elevation: 3,
+                  }}
+                >
+                  <View
+                    className="bg-amber-500 rounded-full items-center justify-center mr-3"
+                    style={{
+                      width: getResponsiveSize(32),
+                      height: getResponsiveSize(32),
+                    }}
+                  >
+                    <Ionicons name="flash" size={getResponsiveSize(18)} color="white" />
+                  </View>
+                  <Text className="text-amber-800 font-semibold flex-1" style={{ fontSize: getResponsiveSize(14) }}>
+                    ⚡ {timeUntil}
+                  </Text>
+                </View>
+              )}
+
+              {/* About Section */}
+              <View
+                className="pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                <View className="flex-row items-center mb-4">
+                  <Ionicons name="document-text-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <Text
+                    className="text-stone-900 font-semibold ml-4"
+                    style={{ fontSize: getResponsiveSize(20) }}
+                  >
+                    Về sự kiện này
+                  </Text>
+                </View>
+                <Text
+                  className="text-stone-700 leading-6"
+                  style={{ fontSize: getResponsiveSize(15) }}
+                >
+                  {event.description ||
+                    "Tham gia workshop chụp ảnh cưới chuyên nghiệp với các nhiếp ảnh gia hàng đầu. Học cách bắt trọn những khoảnh khắc đẹp nhất trong ngày trọng đại. Bao gồm lý thuyết, thực hành và tips từ các chuyên gia."}
                 </Text>
+              </View>
+
+              {/* Location Section */}
+              {event.location && (
+                <View
+                  className="pb-6 border-b border-stone-200"
+                  style={{ marginBottom: getResponsiveSize(24) }}
+                >
+                  <View className="flex-row items-center mb-4">
+                    <Ionicons name="location-outline" size={getResponsiveSize(24)} color="#57534e" />
+                    <Text
+                      className="text-stone-900 font-semibold ml-4"
+                      style={{ fontSize: getResponsiveSize(20) }}
+                    >
+                      Địa điểm
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={openMap}
+                    className="bg-stone-50 rounded-xl p-4"
+                  >
+                    <View className="flex-row items-center">
+                      <View
+                        className="bg-emerald-100 rounded-lg items-center justify-center mr-4"
+                        style={{
+                          width: getResponsiveSize(48),
+                          height: getResponsiveSize(48),
+                        }}
+                      >
+                        <Ionicons name="business" size={getResponsiveSize(24)} color="#10b981" />
+                      </View>
+                      <View className="flex-1">
+                        <Text
+                          className="text-stone-900 font-semibold mb-1"
+                          style={{ fontSize: getResponsiveSize(16) }}
+                        >
+                          {event.location.name}
+                        </Text>
+                        <Text
+                          className="text-stone-600"
+                          style={{ fontSize: getResponsiveSize(14) }}
+                        >
+                          {event.location.address}
+                        </Text>
+                      </View>
+                      <View className="bg-blue-100 px-3 py-2 rounded-lg">
+                        <Text className="text-blue-600 text-sm font-semibold">
+                          Xem bản đồ
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Timeline */}
+              <View
+                className="pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                <View className="flex-row items-center mb-4">
+                  <Ionicons name="time-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <Text
+                    className="text-stone-900 font-semibold ml-4"
+                    style={{ fontSize: getResponsiveSize(20) }}
+                  >
+                    Lịch trình
+                  </Text>
+                </View>
+                <View className="relative pl-6">
+                  <View className="absolute left-2 top-0 bottom-0 w-0.5 bg-stone-200" />
+
+                  <View className="relative mb-5">
+                    <View className="absolute -left-8 top-1 w-4 h-4 bg-emerald-500 rounded-full border-3 border-white shadow-sm" />
+                    <Text className="text-emerald-500 text-sm font-semibold mb-1">
+                      {formatTime(event.startDate)} -{" "}
+                      {new Date(
+                        new Date(event.startDate).getTime() + 15 * 60000
+                      ).toLocaleTimeString("vi-VN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                    <Text
+                      className="text-stone-700"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      Check-in và giới thiệu
+                    </Text>
+                  </View>
+
+                  <View className="relative mb-5">
+                    <View className="absolute -left-8 top-1 w-4 h-4 bg-emerald-500 rounded-full border-3 border-white shadow-sm" />
+                    <Text className="text-emerald-500 text-sm font-semibold mb-1">
+                      {new Date(
+                        new Date(event.startDate).getTime() + 15 * 60000
+                      ).toLocaleTimeString("vi-VN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      -{" "}
+                      {new Date(
+                        new Date(event.endDate).getTime() - 15 * 60000
+                      ).toLocaleTimeString("vi-VN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                    <Text
+                      className="text-stone-700"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      Nội dung chính của workshop
+                    </Text>
+                  </View>
+
+                  <View className="relative">
+                    <View className="absolute -left-8 top-1 w-4 h-4 bg-emerald-500 rounded-full border-3 border-white shadow-sm" />
+                    <Text className="text-emerald-500 text-sm font-semibold mb-1">
+                      {new Date(
+                        new Date(event.endDate).getTime() - 15 * 60000
+                      ).toLocaleTimeString("vi-VN", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      - {formatTime(event.endDate)}
+                    </Text>
+                    <Text
+                      className="text-stone-700"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      Thực hành và Q&A
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Photographers Section */}
+              {photographers.length > 0 && (
+                <View
+                  className="pb-6 border-b border-stone-200"
+                  style={{ marginBottom: getResponsiveSize(24) }}
+                >
+                  <View className="flex-row items-center justify-between mb-4">
+                    <View className="flex-row items-center">
+                      <Ionicons name="camera-outline" size={getResponsiveSize(24)} color="#57534e" />
+                      <Text
+                        className="text-stone-900 font-semibold ml-4"
+                        style={{ fontSize: getResponsiveSize(20) }}
+                      >
+                        Thợ ảnh tham gia ({photographers.length})
+                      </Text>
+                    </View>
+                    <TouchableOpacity>
+                      <Text className="text-blue-500 text-sm font-semibold">
+                        Xem tất cả
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  <View className="flex-row flex-wrap gap-3">
+                    {photographers.slice(0, 4).map((photographer) => (
+                      <TouchableOpacity
+                        key={photographer.eventPhotographerId}
+                        onPress={() => setSelectedPhotographer(photographer)}
+                        className={`bg-white border rounded-xl p-4 items-center flex-1 min-w-[45%] ${selectedPhotographer?.eventPhotographerId ===
+                            photographer.eventPhotographerId
+                            ? "border-amber-500 bg-amber-50"
+                            : "border-stone-200"
+                          }`}
+                        style={{
+                          shadowColor: '#000',
+                          shadowOffset: { width: 0, height: 1 },
+                          shadowOpacity: 0.1,
+                          shadowRadius: 2,
+                          elevation: 2,
+                        }}
+                      >
+                        {photographer.photographer?.profileImage ? (
+                          <Image
+                            source={{ uri: photographer.photographer.profileImage }}
+                            style={{
+                              width: getResponsiveSize(48),
+                              height: getResponsiveSize(48),
+                              borderRadius: getResponsiveSize(24),
+                              marginBottom: getResponsiveSize(8)
+                            }}
+                          />
+                        ) : (
+                          <View
+                            className="bg-stone-200 rounded-full items-center justify-center mb-2"
+                            style={{
+                              width: getResponsiveSize(48),
+                              height: getResponsiveSize(48),
+                            }}
+                          >
+                            <Ionicons name="person" size={getResponsiveSize(24)} color="#9ca3af" />
+                          </View>
+                        )}
+                        <Text
+                          className="text-stone-900 font-semibold text-center mb-1"
+                          style={{ fontSize: getResponsiveSize(13) }}
+                          numberOfLines={2}
+                        >
+                          {photographer.photographer?.fullName}
+                        </Text>
+                        <View className="flex-row items-center">
+                          <Ionicons name="star" size={getResponsiveSize(12)} color="#f59e0b" />
+                          <Text
+                            className="text-stone-600 ml-1"
+                            style={{ fontSize: getResponsiveSize(11) }}
+                          >
+                            {photographer.photographer?.rating || "4.8"}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {!selectedPhotographer && (
+                    <View className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
+                      <Text className="text-amber-700 text-sm text-center">
+                        💡 Chọn một photographer để tiếp tục đăng ký
+                      </Text>
+                    </View>
+                  )}
+                </View>
               )}
             </View>
-          )}
+          </View>
 
-          {/* Reviews Preview */}
-          <View className="mb-32">
-            <Text className="text-gray-900 text-lg font-bold mb-3">
-              Đánh giá (156)
-            </Text>
-            <View className="bg-gray-50 rounded-xl p-4">
-              <View className="mb-4 pb-4 border-b border-gray-200">
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-gray-900 font-semibold text-sm">
-                    Nguyễn Thị Lan
-                  </Text>
-                  <View className="flex-row">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Text key={star} className="text-amber-500 text-xs">
-                        ⭐
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-                <Text className="text-gray-700 text-sm leading-relaxed">
-                  Workshop rất bổ ích, học được nhiều tip hay từ các thợ ảnh
-                  chuyên nghiệp!
-                </Text>
-              </View>
+          <View style={{ height: getResponsiveSize(120) }} />
+        </Animated.ScrollView>
 
+        {/* Bottom CTA Section */}
+        <SafeAreaView style={{ backgroundColor: 'white' }}>
+          <View
+            className="bg-white px-6 border-t border-stone-200"
+            style={{ paddingVertical: getResponsiveSize(16) }}
+          >
+            <View className="flex-row items-center justify-between mb-4">
               <View>
-                <View className="flex-row items-center justify-between mb-2">
-                  <Text className="text-gray-900 font-semibold text-sm">
-                    Trần Văn Nam
-                  </Text>
-                  <View className="flex-row">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Text key={star} className="text-amber-500 text-xs">
-                        ⭐
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-                <Text className="text-gray-700 text-sm leading-relaxed">
-                  Chất lượng tuyệt vời, đáng đồng tiền bát gạo. Sẽ tham gia thêm
-                  các workshop khác.
+                <Text
+                  className="text-stone-900 font-bold"
+                  style={{ fontSize: getResponsiveSize(20) }}
+                >
+                  {formatPrice(currentPrice)}
                 </Text>
+                {showDiscount && (
+                  <Text
+                    className="text-stone-400 line-through"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {formatPrice(originalPrice)}
+                  </Text>
+                )}
+              </View>
+              <View className="items-end">
+                <Text
+                  className="text-red-500 font-semibold"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Chỉ còn {slotsRemaining} chỗ!
+                </Text>
+                {timeUntil.includes("giờ") && (
+                  <Text
+                    className="text-amber-600"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    {timeUntil}
+                  </Text>
+                )}
               </View>
             </View>
+
+            <TouchableOpacity
+              onPress={handleJoinEvent}
+              disabled={
+                bookingLoading || slotsRemaining === 0 || !selectedPhotographer
+              }
+              className={`rounded-2xl items-center justify-center ${bookingLoading || slotsRemaining === 0 || !selectedPhotographer
+                  ? "bg-stone-300"
+                  : "bg-amber-500"
+                }`}
+              style={{
+                paddingVertical: getResponsiveSize(16),
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                elevation: 3,
+              }}
+            >
+              <View className="flex-row items-center">
+                {bookingLoading ? (
+                  <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
+                ) : (
+                  <Ionicons
+                    name="calendar"
+                    size={getResponsiveSize(20)}
+                    color="white"
+                    style={{ marginRight: 8 }}
+                  />
+                )}
+                <Text
+                  className="text-white font-bold"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  {bookingLoading
+                    ? "Đang đăng ký..."
+                    : slotsRemaining === 0
+                      ? "Hết chỗ"
+                      : "Tham gia ngay"}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
-        </View>
-      </ScrollView>
-
-      {/* ✅ FIXED: CTA Section */}
-      <View className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-6 py-5">
-        <View className="flex-row items-center justify-between mb-4">
-          <Text className="text-gray-900 text-xl font-bold">
-            {formatPrice(currentPrice)}
-          </Text>
-          <Text className="text-red-500 text-sm font-semibold">
-            Chỉ còn {slotsRemaining} chỗ!
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={handleJoinEvent}
-          disabled={
-            bookingLoading || slotsRemaining === 0 || !selectedPhotographer
-          }
-          style={{
-            backgroundColor:
-              bookingLoading || slotsRemaining === 0 || !selectedPhotographer
-                ? "#d1d5db"
-                : "#f59e0b",
-            borderRadius: 12,
-            paddingVertical: 16,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-          }}
-        >
-          <Text
-            style={{
-              color: "white",
-              fontSize: 16,
-              fontWeight: "bold",
-            }}
-          >
-            {bookingLoading
-              ? "Đang đăng ký..."
-              : slotsRemaining === 0
-              ? "Hết chỗ"
-              : "Tham gia ngay"}
-          </Text>
-          {!bookingLoading && slotsRemaining > 0 && (
-            <Text style={{ color: "white", fontSize: 16 }}>🚀</Text>
-          )}
-        </TouchableOpacity>
+        </SafeAreaView>
       </View>
     </View>
   );

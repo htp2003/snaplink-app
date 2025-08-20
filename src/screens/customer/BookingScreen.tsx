@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -110,7 +111,7 @@ export default function BookingScreen() {
 
     const result = `${year}-${month}-${day}T${hoursStr}:${minutesStr}:00.000Z`;
 
-    console.log("🕐 Fixed Unified DateTime:", {
+    console.log("🕕 Fixed Unified DateTime:", {
       input: {
         originalDate: date.toISOString(),
         localDateComponents: `${day}/${month}/${year}`,
@@ -389,8 +390,9 @@ export default function BookingScreen() {
     }
   };
 
-  const formatPrice = (price: number | undefined): string => {
-    if (price === undefined || isNaN(price)) return "Liên hệ";
+  // ✅ FIXED: Better handling for undefined/null values
+  const formatPrice = (price: number | undefined | null): string => {
+    if (price === undefined || price === null || isNaN(price)) return "Liên hệ";
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
@@ -445,7 +447,7 @@ export default function BookingScreen() {
 
   // NEW: Handle photographer selection (for location-first mode)
   const handlePhotographerSelect = (photographer: any) => {
-    console.log("🔸 Photographer selected DETAILED:", {
+    console.log("📸 Photographer selected DETAILED:", {
       photographer: photographer,
       photographerId: photographer.photographerId,
       id: photographer.id,
@@ -484,7 +486,7 @@ export default function BookingScreen() {
     });
   }, [photographerRate, selectedLocation?.hourlyRate, location, selectedPhotographer]);
 
-  // Price calculation
+  // ✅ FIXED: Price calculation with better external location handling
   useEffect(() => {
     const calculateAndSetPrice = async () => {
       console.log("💰 PRICE CALCULATION START:", {
@@ -494,25 +496,25 @@ export default function BookingScreen() {
         isAuthenticated,
         hasUser: !!user,
       });
-  
+
       if (!isAuthenticated || !user) {
         console.warn("⚠️ Not authenticated, skipping price calculation");
         return;
       }
-  
+
       if (!selectedStartTime || !selectedEndTime || !currentPhotographerId) {
         console.log("⚠️ Missing required data for price calculation");
         return;
       }
-  
+
       // 🔍 CHECK TOKEN BEFORE API CALL
       const storedToken = await AsyncStorage.getItem("token");
-      console.log("🔐 Pre-API token check:", {
+      console.log("🔍 Pre-API token check:", {
         hasStoredToken: !!storedToken,
         tokenLength: storedToken?.length,
         isValidJWT: storedToken ? storedToken.split('.').length === 3 : false,
       });
-  
+
       if (!storedToken) {
         console.error("🚨 NO TOKEN FOUND - Redirecting to login");
         Alert.alert(
@@ -528,35 +530,40 @@ export default function BookingScreen() {
         );
         return;
       }
-  
+
       const [startHour, startMinute] = selectedStartTime.split(':').map(Number);
       const [endHour, endMinute] = selectedEndTime.split(':').map(Number);
       const startTotalMinutes = startHour * 60 + startMinute;
       const endTotalMinutes = endHour * 60 + endMinute;
       const duration = (endTotalMinutes - startTotalMinutes) / 60;
-  
-      const photographerFee = photographerRate * duration;
-      const locationFee = selectedLocation?.hourlyRate ? selectedLocation.hourlyRate * duration : 0;
+
+      const photographerFee = (photographerRate || 0) * duration;
+
+      // ✅ FIX: Safely handle location fee - external locations are free
+      const isExternalLocation = selectedLocation && selectedLocation.placeId && !selectedLocation.id && !selectedLocation.locationId;
+      const locationFee = isExternalLocation ? 0 : ((selectedLocation?.hourlyRate || 0) * duration);
+
       const manualTotalPrice = photographerFee + locationFee;
-  
+
       try {
         const startDateTimeString = createUnifiedDateTime(selectedDate, selectedStartTime);
         const endDateTimeString = createUnifiedDateTime(selectedDate, selectedEndTime);
-  
+
         const locationId = selectedLocation?.id || selectedLocation?.locationId;
         const isValidLocationId = locationId && typeof locationId === "number" && locationId > 0;
-  
+
         console.log("💰 CALLING CALCULATE PRICE API:", {
           photographerId: currentPhotographerId,
           startDateTime: startDateTimeString,
           endDateTime: endDateTimeString,
           locationId: isValidLocationId ? locationId : "none",
+          isExternalLocation,
           hasToken: !!storedToken,
           apiUrl: "calculate-price"
         });
-  
+
         let calculatePriceResult;
-        if (isValidLocationId) {
+        if (isValidLocationId && !isExternalLocation) {
           calculatePriceResult = await calculatePrice(
             currentPhotographerId,
             startDateTimeString,
@@ -564,15 +571,16 @@ export default function BookingScreen() {
             locationId
           );
         } else {
+          // For external locations or no location, don't pass locationId
           calculatePriceResult = await calculatePrice(
             currentPhotographerId,
             startDateTimeString,
             endDateTimeString
           );
         }
-  
+
         console.log("✅ Price calculation API success:", calculatePriceResult);
-  
+
         const finalPriceCalculation = {
           totalPrice: calculatePriceResult?.totalPrice ?? manualTotalPrice,
           photographerFee: calculatePriceResult?.photographerFee ?? photographerFee,
@@ -585,22 +593,22 @@ export default function BookingScreen() {
           },
         };
         setPriceCalculation(finalPriceCalculation);
-  
+
       } catch (error) {
         console.error("❌ DETAILED ERROR in price calculation:", {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           errorType: error?.constructor?.name,
         });
-        
+
         // 🔍 SPECIFIC 401 HANDLING
         if (error instanceof Error) {
           if (error.message.includes("401") || error.message.includes("Unauthorized")) {
             console.error("🚨 401 UNAUTHORIZED - Token is invalid/expired");
-            
+
             // Clear all auth data
             await AsyncStorage.multiRemove(["token", "user", "currentUserId"]);
-            
+
             Alert.alert(
               "Phiên đăng nhập hết hạn",
               "Token xác thực đã hết hạn. Vui lòng đăng nhập lại.",
@@ -616,12 +624,12 @@ export default function BookingScreen() {
             );
             return;
           }
-          
+
           if (error.message.includes("Network") || error.message.includes("fetch")) {
             console.warn("🌐 Network error in price calculation, using fallback");
           }
         }
-  
+
         // ✅ ALWAYS USE FALLBACK CALCULATION
         const fallbackCalculation = {
           totalPrice: manualTotalPrice,
@@ -634,12 +642,12 @@ export default function BookingScreen() {
             additionalFees: [],
           },
         };
-  
+
         console.log("💰 USING FALLBACK CALCULATION:", fallbackCalculation);
         setPriceCalculation(fallbackCalculation);
       }
     };
-  
+
     calculateAndSetPrice();
   }, [
     selectedStartTime,
@@ -735,21 +743,17 @@ export default function BookingScreen() {
             // Internal location từ database
             bookingData.locationId = selectedLocation.id || selectedLocation.locationId;
           } else if (selectedLocation.placeId) {
-            // External location từ Google Maps
+
+            // External location
             bookingData.externalLocation = {
               placeId: selectedLocation.placeId,
               name: selectedLocation.name,
               address: selectedLocation.address || selectedLocation.formatted_address || "",
-              description: selectedLocation.description,
-              latitude: selectedLocation.latitude || selectedLocation.geometry?.location?.lat,
-              longitude: selectedLocation.longitude || selectedLocation.geometry?.location?.lng,
-              photoReference: selectedLocation.photoReference || selectedLocation.photos?.[0]?.photo_reference,
-              types: selectedLocation.types ? selectedLocation.types.join(',') : undefined,
             };
           }
         }
-        
-        console.log("🏗️ Final booking data:", {
+
+        console.log("🗓️ Final booking data:", {
           bookingData,
           selectedLocation,
           hasInternalId: !!(selectedLocation?.id || selectedLocation?.locationId),
@@ -1058,7 +1062,7 @@ export default function BookingScreen() {
                 {location.address || 'Địa chỉ'}
               </Text>
             </View>
-            {location.hourlyRate && (
+            {location.hourlyRate && location.hourlyRate > 0 ? (
               <Text
                 style={{
                   fontSize: getResponsiveSize(14),
@@ -1068,6 +1072,25 @@ export default function BookingScreen() {
               >
                 {formatPrice(location.hourlyRate)}/h
               </Text>
+            ) : (
+              <View
+                style={{
+                  backgroundColor: "#4CAF50",
+                  paddingHorizontal: getResponsiveSize(8),
+                  paddingVertical: getResponsiveSize(4),
+                  borderRadius: getResponsiveSize(12),
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(10),
+                    color: "#fff",
+                    fontWeight: "bold",
+                  }}
+                >
+                  Miễn phí
+                </Text>
+              </View>
             )}
           </View>
         )}
@@ -1533,6 +1556,41 @@ export default function BookingScreen() {
                   >
                     Địa điểm đã được chọn trước
                   </Text>
+                )}
+
+                {selectedLocation && (
+                  <View style={{ marginLeft: getResponsiveSize(10) }}>
+                    {selectedLocation.hourlyRate && selectedLocation.hourlyRate > 0 ? (
+                      <Text
+                        style={{
+                          fontSize: getResponsiveSize(12),
+                          color: "#E91E63",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        {formatPrice(selectedLocation.hourlyRate)}/h
+                      </Text>
+                    ) : (
+                      <View
+                        style={{
+                          backgroundColor: "#4CAF50",
+                          paddingHorizontal: getResponsiveSize(8),
+                          paddingVertical: getResponsiveSize(4),
+                          borderRadius: getResponsiveSize(12),
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: getResponsiveSize(10),
+                            color: "#fff",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          Miễn phí
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                 )}
               </TouchableOpacity>
             </View>

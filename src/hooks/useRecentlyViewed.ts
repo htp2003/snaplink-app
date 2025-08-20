@@ -4,11 +4,11 @@ import { PhotographerData } from "./usePhotographers";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const RECENTLY_VIEWED_STORAGE_KEY = "snaplink_recently_viewed";
-const MAX_RECENT_ITEMS = 20; // Giới hạn số lượng items lưu
+const MAX_RECENT_ITEMS = 20; 
 
 export interface RecentlyViewedItem {
   id: string;
-  type: "photographer" | "location";
+  type: "photographer" | "location" | "event";
   data: PhotographerData | LocationData;
   viewedAt: string;
 }

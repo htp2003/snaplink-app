@@ -18,6 +18,10 @@ type LocationCardProps = {
     onBooking?: () => void;
     onFavoriteToggle: () => void;
     isFavorite: boolean;
+    // 🆕 Thêm props mới
+    distance?: number;
+    rating?: number;
+    source?: string;
 }
 
 const LocationCard: React.FC<LocationCardProps> = ({
@@ -32,7 +36,11 @@ const LocationCard: React.FC<LocationCardProps> = ({
     availabilityStatus,
     onBooking,
     onFavoriteToggle,
-    isFavorite
+    isFavorite,
+    // 🆕 Destructure props mới
+    distance,
+    rating,
+    source
 }) => {
     const navigation = useNavigation<RootStackNavigationProp>();
     const [imageError, setImageError] = useState(false);
@@ -47,6 +55,11 @@ const LocationCard: React.FC<LocationCardProps> = ({
         return `${price.toLocaleString()}đ`;
     };
 
+    // 🆕 Helper function để format distance
+    const formatDistance = (dist?: number) => {
+        if (!dist) return null;
+        return dist < 1 ? `${(dist * 1000).toFixed(0)}m` : `${dist.toFixed(1)}km`;
+    };
 
     // Lấy ảnh đã được validate
     const mainImage = images[0];
@@ -84,10 +97,10 @@ const LocationCard: React.FC<LocationCardProps> = ({
             location: locationData,
         });
     };
+
     return (
         <View className="bg-white rounded-2xl overflow-hidden shadow-sm border border-stone-100"
             style={{ height: getResponsiveSize(380) }}
-
         >
             {/* Header với Main Image */}
             <TouchableOpacity onPress={handlePress} className="relative">
@@ -115,8 +128,44 @@ const LocationCard: React.FC<LocationCardProps> = ({
                     />
                 </TouchableOpacity>
 
+                {/* 🆕 Distance Badge */}
+                {distance !== undefined && (
+                    <View
+                        className="absolute top-3 left-3 bg-blue-500/90 rounded-full"
+                        style={{
+                            paddingHorizontal: getResponsiveSize(8),
+                            paddingVertical: getResponsiveSize(4)
+                        }}
+                    >
+                        <Text
+                            className="text-white font-medium"
+                            style={{ fontSize: getResponsiveSize(10) }}
+                        >
+                            📍 {formatDistance(distance)}
+                        </Text>
+                    </View>
+                )}
+
+                {/* 🆕 Source Badge (for external locations) */}
+                {source === 'external' && (
+                    <View
+                        className="absolute bottom-3 left-3 bg-purple-500/90 rounded-full"
+                        style={{
+                            paddingHorizontal: getResponsiveSize(8),
+                            paddingVertical: getResponsiveSize(4)
+                        }}
+                    >
+                        <Text
+                            className="text-white font-medium"
+                            style={{ fontSize: getResponsiveSize(10) }}
+                        >
+                            🌍 Google
+                        </Text>
+                    </View>
+                )}
+
                 {/* Availability Badge */}
-                {availabilityStatus && availabilityStatus.toLowerCase() === 'available' && (
+                {availabilityStatus && availabilityStatus.toLowerCase() === 'available' && !distance && (
                     <View
                         className="absolute top-3 left-3 bg-emerald-500 rounded-full"
                         style={{
@@ -169,14 +218,14 @@ const LocationCard: React.FC<LocationCardProps> = ({
                         </View>
                     )}
 
-                    {/* Rating placeholder */}
+                    {/* 🆕 Rating - Sử dụng prop rating thay vì hardcode */}
                     <View className="flex-row items-center bg-stone-50 rounded-full px-3 py-1">
                         <Ionicons name="star" size={getResponsiveSize(14)} color="#d97706" />
                         <Text
                             className="text-stone-700 font-medium ml-1"
                             style={{ fontSize: getResponsiveSize(12) }}
                         >
-                            4.5
+                            {rating ? rating.toFixed(1) : '4.5'}
                         </Text>
                     </View>
 

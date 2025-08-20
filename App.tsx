@@ -18,6 +18,8 @@ LogBox.ignoreLogs([
   'Error fetching location images', 
   'Error fetching event images',
   'Failed to fetch images',
+    'Warning: useInsertionEffect must not schedule updates',
+  'useInsertionEffect must not schedule updates',
   
   // Network and 404 errors
   'Network request failed',

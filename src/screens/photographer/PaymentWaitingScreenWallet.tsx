@@ -121,13 +121,13 @@ export default function PaymentWaitingScreenWallet() {
     stopCountdown();
     stopPolling();
     
-    console.log("🏠 Navigating to PhotographerHomeScreen...");
+    console.log("🏠 Navigating to CustomerHomeScreen...");
     navigation.reset({
       index: 0,
       routes: [
         {
-          name: "PhotographerMain",
-          params: { screen: "PhotographerHomeScreen" },
+          name: "CustomerMain",
+          params: { screen: "CustomerHomeScreen" },
         },
       ],
     });

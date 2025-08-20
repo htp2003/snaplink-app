@@ -5,14 +5,15 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  Alert,
+  SafeAreaView,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../navigation/types";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { RootStackParamList, GooglePlaceDisplay } from "../../navigation/types";
 import { Ionicons } from "@expo/vector-icons";
 import { getResponsiveSize } from "../../utils/responsive";
 
-// Hook and Component
+// Hooks and Components
 import {
   usePhotographers,
   PhotographerData,
@@ -34,7 +35,7 @@ import { LocationEvent } from "../../types/event";
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// ✅ Event utility functions
+// Event utility functions
 const isEventExpired = (endDate: string): boolean => {
   const now = new Date();
   const eventEnd = new Date(endDate);
@@ -45,16 +46,12 @@ const isEventUpcoming = (startDate: string): boolean => {
   const now = new Date();
   const eventStart = new Date(startDate);
   const hoursUntilEvent = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
-  
-  // Sự kiện sắp diễn ra trong vòng 7 ngày và chưa bắt đầu
   return hoursUntilEvent > 0 && hoursUntilEvent <= (7 * 24);
 };
 
 const isEventFeatured = (event: LocationEvent): boolean => {
   const bookingRate = event.totalBookingsCount / event.maxBookingsPerSlot;
   const hasDiscount = event.discountedPrice && event.originalPrice && event.discountedPrice < event.originalPrice;
-  
-  // Sự kiện nổi bật: có tỷ lệ đặt cao hoặc có giảm giá
   return bookingRate > 0.5 || hasDiscount || false;
 };
 
@@ -69,38 +66,21 @@ const removeDuplicateEvents = (events: LocationEvent[]): LocationEvent[] => {
   });
 };
 
-// 🔧 Define proper types for API responses
-interface ApiPhotographerResponse {
-  photographerId?: number;
-  id?: number;
-  fullName?: string;
-  profileImage?: string;
-  styles?: string[] | any[];
-  rating?: number;
-  hourlyRate?: number;
-  availabilityStatus?: string;
-  yearsExperience?: number;
-  equipment?: string;
-  verificationStatus?: string;
-  specialty?: string;
-  user?: {
-    fullName?: string;
-    profileImage?: string;
-  };
-}
-
-interface ApiResponse {
-  $values?: ApiPhotographerResponse[];
-  [key: string]: any;
-}
-
 export default function CustomerHomeScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const [selectedCategory, setSelectedCategory] = useState("photographers");
-
+  const [selectedCategory, setSelectedCategory] = useState<string>("locations");
   const currentUserId = useCurrentUserId();
 
-  // 🌟 SECTION 1: FEATURED PHOTOGRAPHERS - stable instance
+  // 📍 Enhanced Locations Hook with GPS
+  const {
+    locations,
+    loading: locationsLoading,
+    error: locationsError,
+    nearbyAppLocations,
+    refreshLocations,
+  } = useLocations();
+
+  // Photographers hooks
   const featuredPhotographersHook = usePhotographers();
   const {
     photographers: featuredPhotographers,
@@ -109,17 +89,12 @@ export default function CustomerHomeScreen() {
     fetchFeaturedPhotographers,
   } = featuredPhotographersHook;
 
-  // 📷 SECTION 2: ALL PHOTOGRAPHERS - sử dụng state riêng để tránh conflict
-  const [allPhotographers, setAllPhotographers] = useState<PhotographerData[]>(
-    []
-  );
-  const [allLoading, setAllLoading] = useState(false);
+  const [allPhotographers, setAllPhotographers] = useState<PhotographerData[]>([]);
+  const [allLoading, setAllLoading] = useState<boolean>(false);
   const [allError, setAllError] = useState<string | null>(null);
 
-  // 🎨 SECTION 3: STYLE RECOMMENDATIONS - only if user logged in
-  const styleRecommendationsHook = photographerStyleRecommendations(
-    currentUserId || 0
-  );
+  // Style recommendations
+  const styleRecommendationsHook = photographerStyleRecommendations(currentUserId || 0);
   const {
     recommendedPhotographers,
     loading: recommendationsLoading,
@@ -127,115 +102,20 @@ export default function CustomerHomeScreen() {
     refreshRecommendations,
   } = styleRecommendationsHook;
 
-  // 📍 LOCATIONS
-  const {
-    locations,
-    loading: locationsLoading,
-    error: locationsError,
-    refreshLocations,
-  } = useLocations();
-
   const { isFavorite, toggleFavorite } = useFavorites();
 
-  // 🔧 Helper functions - định nghĩa lại để không bị memoize issues
-  const processApiResponse = (apiResponse: any): ApiPhotographerResponse[] => {
-    if (Array.isArray(apiResponse)) {
-      return apiResponse as ApiPhotographerResponse[];
-    }
-
-    if (apiResponse && Array.isArray((apiResponse as ApiResponse).$values)) {
-      return (apiResponse as ApiResponse).$values!;
-    }
-
-    if (apiResponse && typeof apiResponse === "object") {
-      return [apiResponse as ApiPhotographerResponse];
-    }
-
-    console.warn("Unexpected API response format:", apiResponse);
-    return [];
-  };
-
-  const transformPhotographerData = (
-    photographer: ApiPhotographerResponse
-  ): PhotographerData => {
-    const photographerId = photographer.photographerId || photographer.id;
-    const userInfo = photographer.user || photographer;
-
-    return {
-      id: photographerId ? photographerId.toString() : "unknown",
-      fullName:
-        userInfo.fullName || photographer.fullName || "Unknown Photographer",
-      avatar: userInfo.profileImage || photographer.profileImage || "",
-      styles: Array.isArray(photographer.styles)
-        ? photographer.styles
-        : ["Professional Photography"],
-      rating: photographer.rating,
-      hourlyRate: photographer.hourlyRate,
-      availabilityStatus: photographer.availabilityStatus || "available",
-      yearsExperience: photographer.yearsExperience,
-      equipment: photographer.equipment,
-      verificationStatus: photographer.verificationStatus,
-      specialty: photographer.specialty || "Professional Photographer",
-    };
-  };
-
-  // 🔄 Fetch ALL photographers separately - simplified
-  const fetchAllPhotographersSeparately = useCallback(async () => {
-    if (allLoading) return;
-
-    try {
-      setAllLoading(true);
-      setAllError(null);
-
-      const { photographerService } = await import(
-        "../../services/photographerService"
-      );
-      const response = await photographerService.getAll();
-
-      const photographersArray = processApiResponse(response);
-
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (
-          photographer &&
-          (photographer.photographerId !== undefined ||
-            photographer.id !== undefined)
-        ) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (error) {
-            console.error("Error transforming photographer:", error);
-          }
-        }
-      }
-
-      setAllPhotographers(transformedData);
-    } catch (err) {
-      console.error("Error fetching all photographers:", err);
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : "Failed to fetch all photographers";
-      setAllError(errorMessage);
-      setAllPhotographers([]);
-    } finally {
-      setAllLoading(false);
-    }
-  }, [allLoading]);
-
-  // ✅ Event Section - FIXED LOGIC
+  // Events hooks
   const { hotEvents, loading: hotLoading } = useHotEvents();
   const {
-    allEvents,      
-    featuredEvents, 
-    upcomingEvents, 
+    allEvents,
+    featuredEvents,
+    upcomingEvents,
     loading: eventsLoading,
     error: eventsError,
     refetch: refetchEvents
   } = useCustomerEventDiscovery();
 
-  // ✅ Processed events with proper filtering
+  // Processed events memo
   const processedEvents = useMemo(() => {
     if (!allEvents || allEvents.length === 0) {
       return {
@@ -246,26 +126,19 @@ export default function CustomerHomeScreen() {
       };
     }
 
-    // 1. Lọc bỏ các sự kiện đã hết hạn
     const validEvents = allEvents.filter(event => !isEventExpired(event.endDate));
-    
-    // 2. Lọc hot events
     const hotEventsFiltered = hotEvents.filter(event => !isEventExpired(event.endDate));
-    
-    // 3. Lọc featured events (loại trừ hot events)
     const hotEventIds = new Set(hotEventsFiltered.map(e => e.eventId));
     const featuredEventsFiltered = removeDuplicateEvents(
-      validEvents.filter(event => 
+      validEvents.filter(event =>
         isEventFeatured(event) && !hotEventIds.has(event.eventId)
       )
     );
-    
-    // 4. Lọc upcoming events (loại trừ hot events và featured events)
     const featuredEventIds = new Set(featuredEventsFiltered.map(e => e.eventId));
     const upcomingEventsFiltered = removeDuplicateEvents(
-      validEvents.filter(event => 
-        isEventUpcoming(event.startDate) && 
-        !hotEventIds.has(event.eventId) && 
+      validEvents.filter(event =>
+        isEventUpcoming(event.startDate) &&
+        !hotEventIds.has(event.eventId) &&
         !featuredEventIds.has(event.eventId)
       )
     );
@@ -278,7 +151,7 @@ export default function CustomerHomeScreen() {
     };
   }, [allEvents, hotEvents]);
 
-  // Categories - memoized để tránh re-create
+  // Categories memo
   const categories = useMemo(
     (): CategoryItem[] => [
       { id: "locations", icon: "location", label: "Địa điểm" },
@@ -288,31 +161,106 @@ export default function CustomerHomeScreen() {
     []
   );
 
-  // Handle category press - stable reference
+  // 🆕 Handle nearby results from SearchBar
+  const handleNearbyResults = useCallback((results: { appLocations: any[]; googlePlaces: any[] }) => {
+    console.log('📍 Received nearby results from SearchBar:', {
+      appLocations: results.appLocations.length,
+      googlePlaces: results.googlePlaces.length
+    });
+
+  }, []);
+
+  // Category press handler
   const handleCategoryPress = useCallback(
     (categoryId: string) => {
       setSelectedCategory(categoryId);
-      if (categoryId === "locations" && locations.length === 0) {
-        refreshLocations();
-      }
     },
-    [locations.length, refreshLocations]
+    []
   );
 
-   // ✅ FIXED: Event navigation handlers
+  // Event handlers
   const handleEventPress = useCallback((event: any) => {
-    navigation.navigate("EventDetailScreen", { 
-      eventId: event.eventId.toString() 
+    navigation.navigate("EventDetailScreen", {
+      eventId: event.eventId.toString()
     });
   }, [navigation]);
 
   const handleEventSeeAll = useCallback(() => {
-    // Navigate to events list screen if you have one
-    // navigation.navigate("EventListScreen");
     console.log("Navigate to events list");
   }, []);
 
-  // Render functions - memoized để tránh re-render
+  // API response processing
+  const processApiResponse = (apiResponse: any): any[] => {
+    if (Array.isArray(apiResponse)) {
+      return apiResponse;
+    }
+    if (apiResponse && Array.isArray((apiResponse as any).$values)) {
+      return (apiResponse as any).$values;
+    }
+    if (apiResponse && typeof apiResponse === "object") {
+      return [apiResponse];
+    }
+    console.warn("Unexpected API response format:", apiResponse);
+    return [];
+  };
+
+  // Transform photographer data
+  const transformPhotographerData = (photographer: any): PhotographerData => {
+    const photographerId = photographer.photographerId || photographer.id;
+    const userInfo = photographer.user || photographer;
+
+    return {
+      id: photographerId ? photographerId.toString() : "unknown",
+      fullName: userInfo.fullName || photographer.fullName || "Unknown Photographer",
+      avatar: userInfo.profileImage || photographer.profileImage || "",
+      styles: Array.isArray(photographer.styles) ? photographer.styles : ["Professional Photography"],
+      rating: photographer.rating,
+      hourlyRate: photographer.hourlyRate,
+      availabilityStatus: photographer.availabilityStatus || "available",
+      yearsExperience: photographer.yearsExperience,
+      equipment: photographer.equipment,
+      verificationStatus: photographer.verificationStatus,
+      specialty: photographer.specialty || "Professional Photographer",
+    };
+  };
+
+  // Fetch all photographers
+  const fetchAllPhotographersSeparately = useCallback(async () => {
+    if (allLoading) return;
+
+    try {
+      setAllLoading(true);
+      setAllError(null);
+
+      const { photographerService } = await import("../../services/photographerService");
+      const response = await photographerService.getAll();
+
+      const photographersArray = processApiResponse(response);
+      const transformedData: PhotographerData[] = [];
+
+      for (const photographer of photographersArray) {
+        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
+          try {
+            const transformed = transformPhotographerData(photographer);
+            transformedData.push(transformed);
+          } catch (error) {
+            console.error("Error transforming photographer:", error);
+          }
+        }
+      }
+
+      setAllPhotographers(transformedData);
+    } catch (err) {
+      console.error("Error fetching all photographers:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to fetch all photographers";
+      setAllError(errorMessage);
+      setAllPhotographers([]);
+    } finally {
+      setAllLoading(false);
+    }
+  }, [allLoading]);
+
+  // Render photographer card
   const renderPhotographerCard = useCallback(
     (photographer: PhotographerData) => (
       <View
@@ -335,7 +283,6 @@ export default function CustomerHomeScreen() {
               console.error("Photographer ID is undefined");
               return;
             }
-
             navigation.navigate("Booking", {
               photographer: {
                 photographerId: Number(photographer.id),
@@ -352,7 +299,6 @@ export default function CustomerHomeScreen() {
               type: "photographer" as const,
               data: photographer,
             };
-
             toggleFavorite(favoriteItem);
           }}
         />
@@ -361,6 +307,40 @@ export default function CustomerHomeScreen() {
     [navigation, isFavorite, toggleFavorite]
   );
 
+  // Render location card
+  const renderLocationCard = useCallback(
+    (location: any, showDistance: boolean = false) => (
+      <View
+        key={location.id || location.locationId || Math.random()}
+        style={{ width: getResponsiveSize(260), marginRight: 12 }}
+      >
+        <LocationCard
+          locationId={location.locationId}
+          name={location.name || "Địa điểm chưa có tên"}
+          images={location.images || []}
+          address={location.address || ""}
+          hourlyRate={location.hourlyRate}
+          capacity={location.capacity}
+          availabilityStatus={location.availabilityStatus || "unknown"}
+          styles={location.styles || []}
+          isFavorite={isFavorite(location.id || location.locationId, "location")}
+          onFavoriteToggle={() =>
+            toggleFavorite({
+              id: location.id || location.locationId,
+              type: "location",
+              data: location,
+            })
+          }
+          distance={showDistance && location.distance ? Number(location.distance) : undefined}
+          rating={location.rating ? Number(location.rating) : undefined}
+          source={location.source || "internal"}
+        />
+      </View>
+    ),
+    [isFavorite, toggleFavorite]
+  );
+
+  // Render loading skeleton
   const renderLoadingSkeleton = useCallback(
     () =>
       [1, 2, 3].map((_, index) => (
@@ -372,10 +352,13 @@ export default function CustomerHomeScreen() {
     []
   );
 
+  // Render error state
   const renderErrorState = useCallback(
     (error: string, retryFunction: () => void) => (
       <View className="flex-1 items-center justify-center py-8">
-        <Text className="text-red-500 text-center">⌧ {error}</Text>
+        <Text className="text-red-500 text-center">
+          {`⚠️ ${error}`}
+        </Text>
         <TouchableOpacity
           onPress={retryFunction}
           className="mt-2 bg-red-500 px-4 py-2 rounded"
@@ -387,26 +370,54 @@ export default function CustomerHomeScreen() {
     []
   );
 
-  // 🚀 Load data only once on mount - STABLE REFERENCE
+  // Initialize data on mount
   useEffect(() => {
     fetchFeaturedPhotographers();
     fetchAllPhotographersSeparately();
-  }, []); // EMPTY array để chỉ chạy 1 lần
+  }, []); 
 
   return (
-    <View className="flex-1 bg-white">
+    <SafeAreaView className="flex-1 bg-white">
       <StatusBar backgroundColor="white" barStyle="dark-content" />
-
-      {/* Search Bar */}
-      <SearchBar />
-
+  
+      {/* Enhanced Search Bar */}
+      <View className="bg-white border-b border-gray-100">
+        <View className="pt-2 pb-4">
+          <SearchBar
+            onLocationSelect={(result) => {
+              if (result.type === 'app_location') {
+                navigation.navigate('LocationCardDetail', {
+                  locationId: result.data.locationId.toString(),
+                });
+              } else if (result.type === 'google_place') {
+                navigation.navigate('LocationCardDetail', {
+                  locationId: undefined,
+                  externalLocation: {
+                    placeId: result.data.placeId,
+                    name: result.data.name,
+                    address: result.data.address,
+                    latitude: result.data.latitude,
+                    longitude: result.data.longitude,
+                    rating: result.data.rating,
+                    types: result.data.types || [],
+                    photoReference: undefined,
+                  } as GooglePlaceDisplay,
+                });
+              }
+            }}
+            onNearbyResults={handleNearbyResults}
+            showGPSOptions={true}
+          />
+        </View>
+      </View>
+  
       {/* Category Tabs */}
       <CategoryTabs
         categories={categories}
         selectedCategory={selectedCategory}
         onCategoryPress={handleCategoryPress}
       />
-
+  
       {/* Main Content */}
       <ScrollView
         className="flex-1 bg-white"
@@ -416,7 +427,7 @@ export default function CustomerHomeScreen() {
         {/* PHOTOGRAPHERS SECTIONS */}
         {selectedCategory === "photographers" && (
           <>
-            {/* 🌟 SECTION 1: FEATURED PHOTOGRAPHERS */}
+            {/* Featured Photographers */}
             <View className="px-6 py-4">
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-xl font-semibold text-stone-900">
@@ -434,7 +445,7 @@ export default function CustomerHomeScreen() {
                   <Ionicons name="chevron-forward" size={20} color="#57534e" />
                 </TouchableOpacity>
               </View>
-
+  
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -455,8 +466,8 @@ export default function CustomerHomeScreen() {
                 )}
               </ScrollView>
             </View>
-
-            {/* 📷 SECTION 2: ALL PHOTOGRAPHERS */}
+  
+            {/* All Photographers */}
             <View className="px-6 py-4">
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-xl font-semibold text-stone-900">
@@ -474,7 +485,7 @@ export default function CustomerHomeScreen() {
                   <Ionicons name="chevron-forward" size={20} color="#57534e" />
                 </TouchableOpacity>
               </View>
-
+  
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -495,8 +506,8 @@ export default function CustomerHomeScreen() {
                 )}
               </ScrollView>
             </View>
-
-            {/* 🎨 SECTION 3: STYLE RECOMMENDATIONS */}
+  
+            {/* Style Recommendations */}
             <View className="px-6 py-4">
               <View className="flex-row items-center justify-between mb-3">
                 <Text className="text-xl font-semibold text-stone-900">
@@ -515,7 +526,7 @@ export default function CustomerHomeScreen() {
                   <Ionicons name="chevron-forward" size={20} color="#57534e" />
                 </TouchableOpacity>
               </View>
-
+  
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -526,7 +537,7 @@ export default function CustomerHomeScreen() {
                 ) : recommendationsError ? (
                   <View className="flex-1 items-center justify-center py-8">
                     <Text className="text-red-500 text-center">
-                      ⌧ Không thể tải gợi ý theo style
+                      ⚠️ Không thể tải gợi ý theo style
                     </Text>
                     {currentUserId && (
                       <TouchableOpacity
@@ -552,83 +563,80 @@ export default function CustomerHomeScreen() {
             </View>
           </>
         )}
-
-        {/* LOCATIONS SECTION */}
+  
+        {/* LOCATIONS SECTIONS */}
         {selectedCategory === "locations" && (
-          <View className="px-6 py-4">
-            <View className="flex-row items-center justify-between mb-3">
-              <Text className="text-xl font-semibold text-stone-900">
-                Địa điểm được yêu thích
-              </Text>
-              <TouchableOpacity
-                className="flex-row items-center"
-                onPress={() => navigation.navigate("ViewAllLocations")}
+          <>
+            {/* Favorite Locations */}
+            <View className="px-6 py-4">
+              <View className="flex-row items-center justify-between mb-3">
+                <Text className="text-xl font-semibold text-stone-900">
+                  Địa điểm được yêu thích
+                </Text>
+                <TouchableOpacity
+                  className="flex-row items-center"
+                  onPress={() => navigation.navigate("ViewAllLocations")}
+                >
+                  <Ionicons name="chevron-forward" size={20} color="#57534e" />
+                </TouchableOpacity>
+              </View>
+  
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: 16 }}
               >
-                <Ionicons name="chevron-forward" size={20} color="#57534e" />
-              </TouchableOpacity>
+                {locationsLoading ? (
+                  renderLoadingSkeleton()
+                ) : locations.length > 0 ? (
+                  locations
+                    .filter(location => location.locationId !== undefined && location.locationId !== null)
+                    .map(location => renderLocationCard(location, false))
+                ) : (
+                  <View className="flex-1 items-center justify-center py-8">
+                    <Text className="text-stone-500 text-center">
+                      Không có địa điểm nào
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
             </View>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingRight: 16 }}
-            >
-              {locationsLoading ? (
-                renderLoadingSkeleton()
-              ) : locations.length > 0 ? (
-                locations
-                  .filter(
-                    (location) =>
-                      location.locationId !== undefined &&
-                      location.locationId !== null
-                  )
-                  .map((location) => (
-                    <View
-                      key={location.locationId}
-                      style={{ width: getResponsiveSize(260), marginRight: 12 }}
-                    >
-                      <LocationCard
-                        locationId={location.locationId}
-                        name={location.name}
-                        images={location.images}
-                        address={location.address}
-                        hourlyRate={location.hourlyRate}
-                        capacity={location.capacity}
-                        availabilityStatus={location.availabilityStatus}
-                        styles={location.styles}
-                        isFavorite={isFavorite(location.id, "location")}
-                        onFavoriteToggle={() =>
-                          toggleFavorite({
-                            id: location.id,
-                            type: "location",
-                            data: location,
-                          })
-                        }
-                      />
-                    </View>
-                  ))
-              ) : (
-                <View className="flex-1 items-center justify-center py-8">
-                  <Text className="text-stone-500 text-center">
-                    Không có địa điểm nào
-                  </Text>
+  
+            {/* Nearby App Locations */}
+            {nearbyAppLocations.length > 0 && (
+              <View className="px-6 py-4">
+                <View className="flex-row items-center justify-between mb-3">
+                  <View className="flex-row items-center">
+                    <Ionicons name="navigate" size={20} color="#10B981" />
+                    <Text className="ml-2 text-xl font-semibold text-stone-900">
+                      Địa điểm gần bạn
+                    </Text>
+                  </View>
                 </View>
-              )}
-            </ScrollView>
-          </View>
+  
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingRight: 16 }}
+                >
+                  {nearbyAppLocations
+                    .filter(location => location && (location.id || location.locationId))
+                    .map(location => renderLocationCard(location, true))}
+                </ScrollView>
+              </View>
+            )}
+          </>
         )}
-
-        {/* ✅ FIXED EVENTS SECTION */}
+  
+        {/* EVENTS SECTIONS */}
         {selectedCategory === "events" && (
           <>
-            {/* Hot Event Banner - chỉ hiển thị sự kiện chưa hết hạn */}
-            <HotEventBanner 
+            <HotEventBanner
               event={processedEvents.hotEventsFiltered[0] || null}
               loading={hotLoading}
               onPress={processedEvents.hotEventsFiltered[0] ? () => handleEventPress(processedEvents.hotEventsFiltered[0]) : undefined}
             />
-    
-            {/* Featured Events - đã loại trừ hot events */}
+  
             <EventSection
               title="Sự kiện nổi bật"
               subtitle="Những workshop được yêu thích nhất"
@@ -640,11 +648,10 @@ export default function CustomerHomeScreen() {
               onRetry={refetchEvents}
               emptyMessage="Hiện tại chưa có sự kiện nổi bật nào"
             />
-    
-            {/* Upcoming Events - đã loại trừ hot events và featured events */}
+  
             <EventSection
               title="Sự kiện sắp diễn ra"
-              subtitle="Đăng ký ngay để không bỏ lỡ"
+              subtitle="Đăng ký ngay để không bị lỡ"
               events={processedEvents.upcomingEventsFiltered}
               loading={eventsLoading}
               error={eventsError}
@@ -653,8 +660,7 @@ export default function CustomerHomeScreen() {
               onRetry={refetchEvents}
               emptyMessage="Hiện tại chưa có sự kiện sắp diễn ra"
             />
-
-            {/* All Events - tất cả sự kiện còn hiệu lực */}
+  
             <EventSection
               title="Tất cả sự kiện"
               subtitle="Khám phá thêm nhiều workshop thú vị"
@@ -669,6 +675,6 @@ export default function CustomerHomeScreen() {
           </>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
-}
+  }

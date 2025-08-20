@@ -16,15 +16,12 @@ export interface UpdateBookingRequest {
   status?: string;
 }
 
+
 export interface ExternalLocationRequest {
   placeId: string;
   name: string;
   address: string;
-  description?: string;
-  latitude?: number;
-  longitude?: number;
-  photoReference?: string;
-  types?: string;
+
 }
 
 export interface ExternalLocationResponse extends ExternalLocationRequest {
@@ -64,10 +61,6 @@ export interface BookingResponse {
   };
 }
 
-export interface ExternalLocationResponse extends ExternalLocationRequest {
-  id: number;
-}
-
 // Simple response for API that only returns boolean
 export interface SimpleAvailabilityResponse {
   available: boolean;
@@ -90,67 +83,66 @@ export interface PriceCalculationResponse {
   };
 }
   
-  export interface BookingListResponse {
-    bookings: BookingResponse[];
-    totalCount: number;
-    page: number;
-    pageSize: number;
-    totalPages: number;
-  }
-  
-  export enum BookingStatus {
-    PENDING = 'Pending',
-    CONFIRMED = 'Confirmed',
-    IN_PROGRESS = 'In Progress',
-    COMPLETED = 'Completed',
-    CANCELLED = 'Cancelled',
-    EXPIRED = 'Expired'
-  }
-  
-  export interface BookingFilters {
-    status?: BookingStatus;
-    startDate?: string;
-    endDate?: string;
-    photographerId?: number;
-    userId?: number;
-    page?: number;
-    pageSize?: number;
-  }
-  
-  // Hook interfaces
-  export interface UseBookingOptions {
-    userId?: number;
-    photographerId?: number;
-    autoFetch?: boolean;
-  }
-  
-  export interface BookingFormData {
-    photographerId: number;
-    selectedDate: Date;
-    selectedStartTime: string;
-    selectedEndTime: string;
-    selectedLocation?: any; // From useLocations
-    specialRequests: string;
-    useExternalLocation: boolean;
-    externalLocation?: ExternalLocationRequest;
-  }
-  
-  export interface BookingValidationErrors {
-    photographer?: string;
-    date?: string;
-    startTime?: string;
-    endTime?: string;
-    location?: string;
-    general?: string;
-  }
+export interface BookingListResponse {
+  bookings: BookingResponse[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
 
-  export interface CheckAvailabilityResponse {
-    available: boolean;
-    conflictingBookings?: any[];
-    suggestedTimes?: string[];
-    message?: string;
-  }
+export enum BookingStatus {
+  PENDING = 'Pending',
+  CONFIRMED = 'Confirmed',
+  IN_PROGRESS = 'In Progress',
+  COMPLETED = 'Completed',
+  CANCELLED = 'Cancelled',
+  EXPIRED = 'Expired'
+}
 
+export interface BookingFilters {
+  status?: BookingStatus;
+  startDate?: string;
+  endDate?: string;
+  photographerId?: number;
+  userId?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+// Hook interfaces
+export interface UseBookingOptions {
+  userId?: number;
+  photographerId?: number;
+  autoFetch?: boolean;
+}
+
+export interface BookingFormData {
+  photographerId: number;
+  selectedDate: Date;
+  selectedStartTime: string;
+  selectedEndTime: string;
+  selectedLocation?: any; // From useLocations
+  specialRequests: string;
+  useExternalLocation: boolean;
+  externalLocation?: ExternalLocationRequest;
+}
+
+export interface BookingValidationErrors {
+  photographer?: string;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  general?: string;
+}
+
+export interface CheckAvailabilityResponse {
+  available: boolean;
+  conflictingBookings?: any[];
+  suggestedTimes?: string[];
+  message?: string;
+}
 
 export interface Booking {
   bookingId: number;
@@ -184,43 +176,10 @@ export type BookingStatusPhotographer =
   | 'Completed' 
   | 'InProgress';
 
-export interface BookingListResponse {
-  error: number;
-  message: string;
-  data: {
-    bookings: Booking[];
-    totalCount: number;
-    page: number;
-    pageSize: number;
-    totalPages: number;
-  };
-}
-
 export interface BookingQueryParams {
   page?: number;
   pageSize?: number;
 }
-
-
-export interface BookingListResponse {
-  bookings: BookingResponse[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-
-export interface BookingFilters {
-  status?: BookingStatus;
-  startDate?: string;
-  endDate?: string;
-  photographerId?: number;
-  userId?: number;
-  page?: number;
-  pageSize?: number;
-}
-
 
 export interface UpdateBookingStatusRequest {
   bookingId: number;
@@ -256,33 +215,6 @@ export interface BookingCardData {
   pricePerHour: number;
 }
 
-// Hook interfaces
-export interface UseBookingOptions {
-  userId?: number;
-  photographerId?: number;
-  autoFetch?: boolean;
-}
-
-export interface BookingFormData {
-  photographerId: number;
-  selectedDate: Date;
-  selectedStartTime: string;
-  selectedEndTime: string;
-  selectedLocation?: any; // From useLocations
-  specialRequests: string;
-  useExternalLocation: boolean;
-  externalLocation?: ExternalLocationRequest;
-}
-
-export interface BookingValidationErrors {
-  photographer?: string;
-  date?: string;
-  startTime?: string;
-  endTime?: string;
-  location?: string;
-  general?: string;
-}
-
 // ===== TRANSACTION & WALLET TYPES =====
 export interface TransactionResponse {
   id: number;
@@ -303,4 +235,3 @@ export interface WalletBalanceResponse {
 
 // ===== RE-EXPORT PAYMENT TYPES for backward compatibility =====
 export type { PaymentResponse, CreatePaymentLinkRequest };
-

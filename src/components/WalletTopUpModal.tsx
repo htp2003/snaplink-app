@@ -161,14 +161,6 @@ export default function WalletTopUpModal({ visible, onClose, onSuccess }: Wallet
           },
         };
 
-        console.log('🚀 Navigating to PaymentWaiting with data:', {
-          bookingId: paymentFlowData.booking.id,
-          paymentId: paymentFlowData.payment.id,
-          amount: paymentFlowData.payment.amount,
-          hasQrCode: !!paymentFlowData.payment.qrCode,
-          qrCodeLength: paymentFlowData.payment.qrCode?.length,
-        });
-
         navigation.navigate('PaymentWaitingScreenWallet', paymentFlowData);
         
     

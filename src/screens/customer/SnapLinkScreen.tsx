@@ -10,15 +10,31 @@ import {
   ActivityIndicator,
   Dimensions,
   StyleSheet,
-  ImageSourcePropType
+  ImageSourcePropType,
+  Modal,
+  StatusBar
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as FileSystem from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
+import { 
+  GestureHandlerRootView, 
+  PinchGestureHandler, 
+  PanGestureHandler,
+  State
+} from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedGestureHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 interface EditImageResponse {
   success: boolean;
@@ -27,25 +43,247 @@ interface EditImageResponse {
   textResponse?: string;
   error?: string;
 }
+
+interface ZoomImageModalProps {
+  visible: boolean;
+  imageUri: string;
+  title: string;
+  onClose: () => void;
+}
+
+// Cấu hình resize
+const RESIZE_CONFIG = {
+  maxWidth: 1024,
+  maxHeight: 1024,
+  quality: 0.8,
+  format: ImageManipulator.SaveFormat.PNG
+};
+
 const BASE_URL = "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
+
+// Component Modal zoom ảnh
+function ZoomImageModal({ visible, imageUri, title, onClose }: ZoomImageModalProps): JSX.Element {
+  const scale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedScale = useSharedValue(1);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+
+  const resetTransform = () => {
+    scale.value = withTiming(1);
+    translateX.value = withTiming(0);
+    translateY.value = withTiming(0);
+    savedScale.value = 1;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+  };
+
+  const pinchHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      savedScale.value = scale.value;
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    },
+    onActive: (event) => {
+      scale.value = Math.max(0.5, Math.min(savedScale.value, 3));
+    },
+    onEnd: () => {
+      if (scale.value < 1) {
+        scale.value = withTiming(1);
+        translateX.value = withTiming(0);
+        translateY.value = withTiming(0);
+      }
+    },
+  });
+
+  const panHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      savedTranslateX.value = translateX.value;
+      savedTranslateY.value = translateY.value;
+    },
+    onActive: (event) => {
+      if (scale.value > 1) {
+        const maxTranslateX = (width * (scale.value - 1)) / 2;
+        const maxTranslateY = (height * (scale.value - 1)) / 2;
+        
+        translateX.value = Math.max(
+          -maxTranslateX,
+          Math.min(maxTranslateX, savedTranslateX.value + event.translationX)
+        );
+        translateY.value = Math.max(
+          -maxTranslateY,
+          Math.min(maxTranslateY, savedTranslateY.value + event.translationY)
+        );
+      }
+    },
+  });
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: scale.value },
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+    ],
+  }));
+
+  const handleClose = () => {
+    resetTransform();
+    onClose();
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={handleClose}
+    >
+      <StatusBar backgroundColor="rgba(0,0,0,0.9)" barStyle="light-content" />
+      <View style={styles.modalContainer}>
+        {/* Header */}
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{title}</Text>
+          <TouchableOpacity style={styles.modalCloseButton} onPress={handleClose}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Zoom controls */}
+        <View style={styles.zoomControls}>
+          <TouchableOpacity 
+            style={styles.zoomButton}
+            onPress={() => {
+              scale.value = withTiming(Math.min(scale.value + 0.5, 3));
+            }}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.zoomButton}
+            onPress={() => {
+              scale.value = withTiming(Math.max(scale.value - 0.5, 0.5));
+              if (scale.value <= 1) {
+                translateX.value = withTiming(0);
+                translateY.value = withTiming(0);
+              }
+            }}
+          >
+            <Ionicons name="remove" size={20} color="#fff" />
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.resetButton}
+            onPress={resetTransform}
+          >
+            <Ionicons name="refresh" size={16} color="#fff" />
+            <Text style={styles.resetButtonText}>Reset</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Image container */}
+        <GestureHandlerRootView style={styles.gestureContainer}>
+          <PanGestureHandler onGestureEvent={panHandler}>
+            <Animated.View style={styles.imageWrapper}>
+              <PinchGestureHandler onGestureEvent={pinchHandler}>
+                <Animated.View style={animatedStyle}>
+                  <Image
+                    source={{ uri: imageUri } as ImageSourcePropType}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
+                </Animated.View>
+              </PinchGestureHandler>
+            </Animated.View>
+          </PanGestureHandler>
+        </GestureHandlerRootView>
+
+        {/* Instructions */}
+        <View style={styles.instructionsContainer}>
+          <Text style={styles.instructionsText}>
+            Pinch để zoom • Kéo để di chuyển • Tap để đóng
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function SnapLinkAIEditor(): JSX.Element {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [originalImageSize, setOriginalImageSize] = useState<{width: number, height: number} | null>(null);
+  const [resizedImageSize, setResizedImageSize] = useState<{width: number, height: number} | null>(null);
   const [prompt, setPrompt] = useState<string>('');
   const [editedImage, setEditedImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isResizing, setIsResizing] = useState<boolean>(false);
   const [textResponse, setTextResponse] = useState<string>('');
+  
+  // Zoom modal states
+  const [showZoomModal, setShowZoomModal] = useState<boolean>(false);
+  const [zoomImageUri, setZoomImageUri] = useState<string>('');
+  const [zoomImageTitle, setZoomImageTitle] = useState<string>('');
+
+  // Hàm mở modal zoom
+  const openZoomModal = (imageUri: string, title: string) => {
+    setZoomImageUri(imageUri);
+    setZoomImageTitle(title);
+    setShowZoomModal(true);
+  };
+
+  // Hàm resize ảnh
+  const resizeImage = async (imageUri: string): Promise<string> => {
+    try {
+      setIsResizing(true);
+      
+      const imageInfo = await FileSystem.getInfoAsync(imageUri);
+      if (imageInfo.exists) {
+        console.log('Original file size:', (imageInfo.size! / 1024 / 1024).toFixed(2), 'MB');
+      }
+
+      const manipulatedImage = await ImageManipulator.manipulateAsync(
+        imageUri,
+        [
+          {
+            resize: {
+              width: RESIZE_CONFIG.maxWidth,
+              height: RESIZE_CONFIG.maxHeight,
+            }
+          }
+        ],
+        {
+          compress: RESIZE_CONFIG.quality,
+          format: RESIZE_CONFIG.format,
+          base64: false,
+        }
+      );
+
+      const resizedInfo = await FileSystem.getInfoAsync(manipulatedImage.uri);
+      if (resizedInfo.exists) {
+        console.log('Resized file size:', (resizedInfo.size! / 1024 / 1024).toFixed(2), 'MB');
+      }
+
+      setOriginalImageSize({width: manipulatedImage.width, height: manipulatedImage.height});
+      setResizedImageSize({width: manipulatedImage.width, height: manipulatedImage.height});
+
+      return manipulatedImage.uri;
+    } catch (error) {
+      console.error('Error resizing image:', error);
+      throw new Error('Không thể resize ảnh');
+    } finally {
+      setIsResizing(false);
+    }
+  };
 
   const pickImage = async (): Promise<void> => {
     try {
-      // Request permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Lỗi', 'Cần quyền truy cập thư viện ảnh để tiếp tục');
         return;
       }
 
-      // Launch image picker
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -56,14 +294,9 @@ export default function SnapLinkAIEditor(): JSX.Element {
 
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        
-        // Check if it's PNG format
-        if (!asset.uri.toLowerCase().includes('.png') && asset.type !== 'image') {
-          Alert.alert('Lỗi', 'Chỉ hỗ trợ định dạng PNG. Vui lòng chọn ảnh PNG khác.');
-          return;
-        }
-
-        setSelectedImage(asset.uri);
+        setOriginalImageSize({width: asset.width || 0, height: asset.height || 0});
+        const resizedUri = await resizeImage(asset.uri);
+        setSelectedImage(resizedUri);
         setEditedImage(null);
         setTextResponse('');
       }
@@ -88,7 +321,10 @@ export default function SnapLinkAIEditor(): JSX.Element {
       });
 
       if (!result.canceled && result.assets[0]) {
-        setSelectedImage(result.assets[0].uri);
+        const asset = result.assets[0];
+        setOriginalImageSize({width: asset.width || 0, height: asset.height || 0});
+        const resizedUri = await resizeImage(asset.uri);
+        setSelectedImage(resizedUri);
         setEditedImage(null);
         setTextResponse('');
       }
@@ -163,7 +399,6 @@ export default function SnapLinkAIEditor(): JSX.Element {
         return;
       }
 
-      // Convert base64 to file
       const base64Data = editedImage.replace('data:image/png;base64,', '');
       const filename = `snaplink_edited_${Date.now()}.png`;
       const fileUri = `${FileSystem.documentDirectory}${filename}`;
@@ -172,7 +407,6 @@ export default function SnapLinkAIEditor(): JSX.Element {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Save to media library
       const asset = await MediaLibrary.createAssetAsync(fileUri);
       await MediaLibrary.createAlbumAsync('SnapLink', asset, false);
 
@@ -235,6 +469,8 @@ export default function SnapLinkAIEditor(): JSX.Element {
             setPrompt('');
             setEditedImage(null);
             setTextResponse('');
+            setOriginalImageSize(null);
+            setResizedImageSize(null);
           }
         }
       ]
@@ -268,22 +504,53 @@ export default function SnapLinkAIEditor(): JSX.Element {
           <Text style={styles.sectionTitle}>Chọn ảnh để chỉnh sửa</Text>
           <TouchableOpacity style={styles.imagePickerButton} onPress={showImagePickerOptions}>
             {selectedImage ? (
-              <Image 
-                source={{ uri: selectedImage } as ImageSourcePropType} 
-                style={styles.selectedImage} 
-              />
+              <>
+                <Image 
+                  source={{ uri: selectedImage } as ImageSourcePropType} 
+                  style={styles.selectedImage} 
+                />
+                {resizedImageSize && (
+                  <View style={styles.imageInfoOverlay}>
+                    <Text style={styles.imageInfoText}>
+                      {resizedImageSize.width} × {resizedImageSize.height}px
+                    </Text>
+                  </View>
+                )}
+              </>
             ) : (
               <View style={styles.placeholderContainer}>
                 <Ionicons name="camera" size={40} color="#666" />
-                <Text style={styles.placeholderText}>Chọn ảnh PNG</Text>
+                <Text style={styles.placeholderText}>Chọn ảnh</Text>
                 <Text style={styles.placeholderSubText}>Từ thư viện hoặc chụp mới</Text>
+                <Text style={styles.placeholderSubText}>
+                  (Ảnh sẽ được tối ưu về {RESIZE_CONFIG.maxWidth}×{RESIZE_CONFIG.maxHeight}px)
+                </Text>
               </View>
             )}
           </TouchableOpacity>
+
+          {isResizing && (
+            <View style={styles.resizeStatus}>
+              <ActivityIndicator size="small" color="#007AFF" />
+              <Text style={styles.resizeStatusText}>Đang tối ưu ảnh...</Text>
+            </View>
+          )}
+
+          {originalImageSize && resizedImageSize && (
+            <View style={styles.imageSizeInfo}>
+              <Text style={styles.imageSizeTitle}>Thông tin ảnh:</Text>
+              <Text style={styles.imageSizeText}>
+                Kích thước hiện tại: {resizedImageSize.width} × {resizedImageSize.height}px
+              </Text>
+              <Text style={styles.imageSizeText}>
+                Chất lượng: {Math.round(RESIZE_CONFIG.quality * 100)}%
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Prompt Input */}
-        {selectedImage && (
+        {selectedImage && !isResizing && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Mô tả cách bạn muốn chỉnh sửa</Text>
             <TextInput
@@ -333,19 +600,40 @@ export default function SnapLinkAIEditor(): JSX.Element {
             <View style={styles.comparisonContainer}>
               <View style={styles.imageContainer}>
                 <Text style={styles.imageLabel}>Trước</Text>
-                <Image 
-                  source={{ uri: selectedImage } as ImageSourcePropType} 
-                  style={styles.comparisonImage} 
-                />
+                <TouchableOpacity 
+                  onPress={() => openZoomModal(selectedImage!, 'Ảnh gốc')}
+                  style={styles.zoomableImageContainer}
+                >
+                  <Image 
+                    source={{ uri: selectedImage } as ImageSourcePropType} 
+                    style={styles.comparisonImage} 
+                  />
+                  <View style={styles.zoomIndicator}>
+                    <Ionicons name="expand" size={16} color="#fff" />
+                  </View>
+                </TouchableOpacity>
               </View>
               <View style={styles.imageContainer}>
                 <Text style={styles.imageLabel}>Sau</Text>
-                <Image 
-                  source={{ uri: editedImage } as ImageSourcePropType} 
-                  style={styles.comparisonImage} 
-                />
+                <TouchableOpacity 
+                  onPress={() => openZoomModal(editedImage, 'Ảnh đã chỉnh sửa')}
+                  style={styles.zoomableImageContainer}
+                >
+                  <Image 
+                    source={{ uri: editedImage } as ImageSourcePropType} 
+                    style={styles.comparisonImage} 
+                  />
+                  <View style={styles.zoomIndicator}>
+                    <Ionicons name="expand" size={16} color="#fff" />
+                  </View>
+                </TouchableOpacity>
               </View>
             </View>
+
+            {/* Zoom instruction */}
+            <Text style={styles.zoomInstruction}>
+              💡 Nhấn vào ảnh để zoom và xem chi tiết
+            </Text>
 
             {/* AI Response */}
             {textResponse && (
@@ -381,6 +669,14 @@ export default function SnapLinkAIEditor(): JSX.Element {
           </View>
         )}
       </ScrollView>
+
+      {/* Zoom Modal */}
+      <ZoomImageModal
+        visible={showZoomModal}
+        imageUri={zoomImageUri}
+        title={zoomImageTitle}
+        onClose={() => setShowZoomModal(false)}
+      />
     </View>
   );
 }
@@ -394,7 +690,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 120, // Tăng padding bottom để scroll được hết
+    paddingBottom: 120,
     flexGrow: 1,
   },
   header: {
@@ -457,12 +753,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8f9fa',
+    position: 'relative',
   },
   selectedImage: {
     width: '100%',
     height: '100%',
     borderRadius: 10,
     resizeMode: 'cover',
+  },
+  imageInfoOverlay: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  imageInfoText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
   },
   placeholderContainer: {
     alignItems: 'center',
@@ -476,7 +787,40 @@ const styles = StyleSheet.create({
   placeholderSubText: {
     marginTop: 4,
     color: '#999',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  resizeStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: '#f0f8ff',
+    borderRadius: 8,
+  },
+  resizeStatusText: {
+    marginLeft: 8,
+    color: '#007AFF',
     fontSize: 14,
+    fontWeight: '500',
+  },
+  imageSizeInfo: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 8,
+  },
+  imageSizeTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  imageSizeText: {
+    fontSize: 12,
+    color: '#666',
+    marginBottom: 2,
   },
   promptInput: {
     borderWidth: 1,
@@ -539,11 +883,32 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
+  zoomableImageContainer: {
+    position: 'relative',
+  },
   comparisonImage: {
     width: '100%',
     height: 150,
     borderRadius: 8,
     resizeMode: 'cover',
+  },
+  zoomIndicator: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  zoomInstruction: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
   responseContainer: {
     backgroundColor: '#f8f9fa',
@@ -632,5 +997,93 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginLeft: 4,
+  },
+  
+  // Zoom Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  modalCloseButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  zoomControls: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 15,
+    gap: 15,
+  },
+  zoomButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  resetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  resetButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  gestureContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalImage: {
+    width: width,
+    height: height * 0.6,
+    maxWidth: width,
+    maxHeight: height * 0.6,
+  },
+  instructionsContainer: {
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  instructionsText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

@@ -9,6 +9,8 @@ import { PortalProvider } from '@gorhom/portal';
 import { NavigationContainer } from '@react-navigation/native'; 
 import { AuthProvider } from './src/hooks/useAuth';
 import { handleDeepLink} from './src/config/deepLinks';
+// 🔥 IMPORT CHO EXPO NOTIFICATIONS
+import NotificationProvider from './src/components/NotificationProvider';
 
 // 🎯 SUPPRESS IMAGE-RELATED ERRORS - Add this at the top
 LogBox.ignoreLogs([
@@ -18,7 +20,7 @@ LogBox.ignoreLogs([
   'Error fetching location images', 
   'Error fetching event images',
   'Failed to fetch images',
-    'Warning: useInsertionEffect must not schedule updates',
+  'Warning: useInsertionEffect must not schedule updates',
   'useInsertionEffect must not schedule updates',
   
   // Network and 404 errors
@@ -40,6 +42,11 @@ LogBox.ignoreLogs([
   // Other common non-critical warnings
   'Require cycle',
   'Remote debugger',
+  
+  // 🔥 EXPO NOTIFICATIONS WARNINGS
+  'Expo push token',
+  'Notification',
+  'Constants.expoConfig',
 ]);
 
 // 🎯 ADDITIONAL: Override console.error for image-related errors in development
@@ -63,7 +70,7 @@ if (__DEV__) {
       originalConsoleError.apply(console, args);
     } else {
       // Silent log for debugging if needed
-      console.log('📷 [Suppressed Error]:', args[0]);
+      console.log('🖼️ [Suppressed Error]:', args[0]);
     }
   };
   
@@ -103,7 +110,9 @@ export default function App() {
     const subscription = Linking.addEventListener('url', handleURL);
     
     // 🎯 Log that error suppression is active
-    console.log('📷 Image error suppression configured');
+    console.log('🖼️ Image error suppression configured');
+    // 🔥 Log Expo Notifications initialization
+    console.log('🔔 Expo Notification system starting...');
     
     return () => subscription?.remove();
   }, []);
@@ -115,7 +124,9 @@ export default function App() {
           <SafeAreaProvider>
             <ProfileProvider>
               <NavigationContainer>
-                <AppNavigator />
+                {/* <NotificationProvider> */}
+                  <AppNavigator />
+                {/* </NotificationProvider> */}
               </NavigationContainer>
             </ProfileProvider>
           </SafeAreaProvider>

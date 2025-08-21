@@ -28,53 +28,54 @@ class SignalRManager {
    * Initialize SignalR connection
    */
   async initialize(userId: number, eventHandlers: SignalREventHandlers = {}): Promise<boolean> {
-    try {
-      
-      
-      this.currentUserId = userId;
-      this.eventHandlers = eventHandlers;
-      
-      // Get auth token
-      const token = await this.getAuthToken();
-      if (!token) {
-        console.error('❌ No auth token available');
-        return false;
-      }
-
-      // Create connection
-      this.hubConnection = new signalR.HubConnectionBuilder()
-        .withUrl(SIGNALR_HUB_URL, {
-          accessTokenFactory: () => token,
-          transport: signalR.HttpTransportType.WebSockets,
-        })
-        .withAutomaticReconnect([0, 2000, 10000, 30000])
-        .configureLogging(signalR.LogLevel.Information)
-        .build();
-
-      // Setup event handlers
-      this.setupEventHandlers();
-
-      // Start connection
-      await this.hubConnection.start();
-      this.isConnected = true;
-      this.reconnectAttempts = 0;
-
-      
-
-      // Register user with hub
-      await this.registerUser(userId);
-
-      // Notify connection status
-      this.eventHandlers.onConnectionStatusChanged?.(true);
-      return true;
-
-    } catch (error) {
-      console.error('❌ SignalR initialization failed:', error);
-      this.isConnected = false;
-      this.eventHandlers.onConnectionStatusChanged?.(false);
+  try {
+    console.log('🚀 SignalR Initialize START', { userId });
+    
+    this.currentUserId = userId;
+    this.eventHandlers = eventHandlers;
+    
+    const token = await this.getAuthToken();
+    console.log('🔑 Token status:', token ? 'Found' : 'Missing');
+    
+    if (!token) {
+      console.error('❌ No auth token available');
       return false;
     }
+
+    // Stop existing connection
+    if (this.hubConnection) {
+      await this.hubConnection.stop();
+    }
+
+    this.hubConnection = new signalR.HubConnectionBuilder()
+      .withUrl(SIGNALR_HUB_URL, {
+        accessTokenFactory: () => token,
+        transport: signalR.HttpTransportType.WebSockets,
+      })
+      .withAutomaticReconnect([0, 2000, 10000, 30000])
+      .configureLogging(signalR.LogLevel.Information)
+      .build();
+
+    this.setupEventHandlers();
+
+    console.log('🔌 Starting SignalR connection...');
+    await this.hubConnection.start();
+    
+    console.log('✅ SignalR connected, state:', this.hubConnection.state);
+    this.isConnected = true;
+    this.reconnectAttempts = 0;
+
+    await this.registerUser(userId);
+    this.eventHandlers.onConnectionStatusChanged?.(true);
+    return true;
+
+  } catch (error) {
+    console.error('❌ SignalR initialization failed:', error);
+    this.isConnected = false;
+    this.eventHandlers.onConnectionStatusChanged?.(false);
+    return false;
   }
+}
 
   /**
    * Setup SignalR event handlers
@@ -84,9 +85,14 @@ class SignalRManager {
 
     // Receive new message - QUAN TRỌNG NHẤT!
     this.hubConnection.on('ReceiveMessage', (message: MessageResponse) => {
-      
-      this.eventHandlers.onMessageReceived?.(message);
-    });
+  console.log('📨 RECEIVED MESSAGE:', {
+    messageId: message.messageId,
+    content: message.content,
+    senderId: message.senderId,
+    conversationId: message.conversationId
+  });
+  this.eventHandlers.onMessageReceived?.(message);
+});
 
     // User registered
     this.hubConnection.on('UserRegistered', (userId: number) => {

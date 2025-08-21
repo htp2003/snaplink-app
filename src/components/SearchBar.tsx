@@ -1,4 +1,3 @@
-// components/SearchBar.tsx - FIXED VERSION with Direct Google Places API
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
@@ -13,10 +12,12 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../navigation/types";
+// 🆕 Import đúng types
+import { RootStackParamList, GooglePlaceDisplay } from "../navigation/types";
 import { getResponsiveSize } from "../utils/responsive";
 import { locationService } from "../services/locationService";
 import { searchPlacesForSearchBar, searchNearbyPlaces, directGooglePlaces } from "../services/directGooglePlacesService";
+
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -36,11 +37,9 @@ interface SearchBarProps {
   placeholder?: string;
   autoFocus?: boolean;
   style?: any;
-  // 🆕 GPS related props
   onNearbyResults?: (results: { appLocations: any[]; googlePlaces: any[] }) => void;
   showGPSOptions?: boolean;
 }
-
 export const SearchBar: React.FC<SearchBarProps> = ({
   onLocationSelect,
   placeholder = "Tìm kiếm địa điểm...",
@@ -84,13 +83,10 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   const initializeGPS = async () => {
     try {
       setGpsStatus('loading');
-      
-      // Check and request permission
       const hasPermission = await locationService.gps.requestPermission();
       setHasLocationPermission(hasPermission);
-      
+
       if (hasPermission) {
-        // Get current location
         const location = await locationService.gps.getCurrentLocation();
         if (location) {
           setCurrentLocation(location);
@@ -128,7 +124,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
       if (gpsStatus === 'available') {
         defaultResults.push({
           id: "nearby_places",
-          type: "nearby_places", 
+          type: "nearby_places",
           name: "🔍 Địa điểm gần bạn",
           address: "Tìm kiếm các địa điểm xung quanh vị trí hiện tại",
           data: { action: 'search_nearby' },
@@ -179,7 +175,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         // Show default results when query is empty
         const defaultResults = getDefaultResults();
         setResults(defaultResults);
-        
+
         // Batch state updates to avoid useInsertionEffect warning
         setTimeout(() => {
           if (defaultResults.length > 0) {
@@ -248,7 +244,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
         const limitedResults = formattedResults.slice(0, 8);
         setResults(limitedResults);
-        
+
         // Batch state updates to avoid useInsertionEffect warning
         setTimeout(() => {
           setShowResults(true);
@@ -280,65 +276,54 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     }, 300);
   };
 
-  // 🆕 FIXED: Handle nearby search using direct Google Places API
+
+  // 🔧 FIXED: handleNearbySearch - CHỈ DÙNG GOOGLE PLACES
   const handleNearbySearch = async () => {
     try {
       setIsLoading(true);
-      console.log('🔍 Searching nearby locations using direct Google Places API...');
-      
+      console.log('🔍 Searching nearby Google Places only...');
+
       if (!currentLocation) {
         Alert.alert('Lỗi', 'Không thể xác định vị trí hiện tại. Vui lòng thử lại.');
         return;
       }
 
-      // 🆕 Use direct Google Places API for nearby search
-      const [appLocationsResult, googlePlacesResult] = await Promise.allSettled([
-        // Search app locations
-        locationService.getNearbyAppLocations(5),
-        // Search Google Places using direct API
-        searchNearbyPlaces(currentLocation, {
-          radius: 5000, // 5km
-          maxResults: 15,
+      // 🎯 CHỈ TÌM KIẾM GOOGLE PLACES - BỎ APP LOCATIONS
+      console.log('🌍 Searching Google Places near you...');
+
+      try {
+        const googlePlaces = await searchNearbyPlaces(currentLocation, {
+          radius: 5000, 
+          maxResults: 20,
           includedTypes: [
-            'tourist_attraction',
-            'park',
-            'museum',
-            'cafe',
-            'restaurant',
-            'art_gallery',
-            'church',
-            'shopping_mall',
-            'amusement_park'
+            'cafe',                
+            'restaurant',      
+            'park',               
+            'tourist_attraction', 
+            'art_gallery'        
           ]
-        })
-      ]);
-
-      const formattedResults: SearchResult[] = [];
-
-      // Process app locations
-      if (appLocationsResult.status === 'fulfilled' && appLocationsResult.value.appLocations) {
-        appLocationsResult.value.appLocations.forEach((location, index) => {
-          formattedResults.push({
-            id: `nearby_app_${location.locationId || index}`,
-            type: "app_location",
-            name: `🏢 ${location.name}`,
-            address: location.address || "",
-            distance: location.distanceInKm,
-            data: location,
-          });
         });
-      }
 
-      // Process Google Places
-      if (googlePlacesResult.status === 'fulfilled' && googlePlacesResult.value) {
-        googlePlacesResult.value.forEach((place, index) => {
+        console.log('🌍 Google Places found:', googlePlaces.length);
+
+        const formattedResults: SearchResult[] = [];
+
+        // 🌍 CHỈ XỬ LÝ GOOGLE PLACES
+        googlePlaces.forEach((place, index) => {
+          console.log(`🌍 Google place ${index}:`, {
+            placeId: place.placeId,
+            name: place.name,
+            hasCoordinates: !!(place.latitude && place.longitude),
+            distance: place.distance
+          });
+
           formattedResults.push({
             id: `nearby_google_${place.placeId}`,
-            type: "google_place", 
-            name: `🌍 ${place.name}`,
+            type: "google_place",
+            name: place.name, // 🆕 Bỏ icon 🌍 để clean hơn
             address: place.address,
             rating: place.rating,
-            distance: place.distance, // Distance already calculated by direct API
+            distance: place.distance,
             data: {
               placeId: place.placeId,
               name: place.name,
@@ -351,36 +336,46 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             },
           });
         });
-      }
 
-      // Sort by distance
-      formattedResults.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+        // Sort by distance
+        formattedResults.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+        const limitedResults = formattedResults.slice(0, 15);
 
-      const limitedResults = formattedResults.slice(0, 12);
-      
-      // ✅ Batch state updates to avoid useInsertionEffect warning
-      setResults(limitedResults);
-      setQuery("Địa điểm gần bạn");
-      
-      setTimeout(() => {
-        setShowResults(true);
-        expandResults();
-      }, 0);
-
-      console.log('✅ Nearby search completed:', {
-        appLocations: appLocationsResult.status === 'fulfilled' ? appLocationsResult.value.appLocations.length : 0,
-        googlePlaces: googlePlacesResult.status === 'fulfilled' ? googlePlacesResult.value.length : 0,
-        totalResults: formattedResults.length
-      });
-
-      // Call callback if provided
-      if (onNearbyResults) {
-        onNearbyResults({
-          appLocations: appLocationsResult.status === 'fulfilled' ? appLocationsResult.value.appLocations : [],
-          googlePlaces: googlePlacesResult.status === 'fulfilled' ? googlePlacesResult.value : []
+        console.log('📊 Final nearby results:', {
+          googlePlaces: limitedResults.length,
+          firstFew: limitedResults.slice(0, 3).map(r => ({
+            name: r.name,
+            distance: r.distance,
+            type: r.type
+          }))
         });
+
+        // Update UI
+        setResults(limitedResults);
+        setQuery("Địa điểm gần bạn");
+
+        setTimeout(() => {
+          setShowResults(true);
+          expandResults();
+        }, 0);
+
+        // Call callback if provided  
+        if (onNearbyResults) {
+          onNearbyResults({
+            appLocations: [], // 🚫 Không có app locations
+            googlePlaces: googlePlaces
+          });
+        }
+
+      } catch (googleError) {
+        console.error('❌ Google Places search failed:', googleError);
+        Alert.alert(
+          'Lỗi tìm kiếm',
+          'Không thể tìm kiếm địa điểm từ Google Maps. Vui lòng thử lại.',
+          [{ text: 'OK' }]
+        );
       }
-      
+
     } catch (error) {
       console.error('❌ Nearby search error:', error);
       Alert.alert('Lỗi', 'Không thể tìm kiếm địa điểm gần bạn. Vui lòng thử lại.');
@@ -391,8 +386,15 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
   // 🔍 Handle location selection
   const handleLocationSelect = useCallback(async (result: SearchResult) => {
-    console.log('🔍 HandleLocationSelect called:', result.type);
-    
+    console.log('📍 HandleLocationSelect called:', result.type);
+    console.log('📊 Full result data:', {
+      type: result.type,
+      id: result.id,
+      name: result.name,
+      dataKeys: Object.keys(result.data),
+      hasLocationId: result.type === 'app_location' ? !!result.data.locationId : 'N/A'
+    });
+
     // Handle special GPS actions
     if (result.type === 'current_location' || result.type === 'nearby_places') {
       if (result.data.action === 'search_nearby') {
@@ -405,68 +407,160 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         await initializeGPS();
         return;
       } else if (result.data.action === 'loading') {
-        return; // Do nothing for loading state
+        return;
       }
     }
 
-    // Handle normal location selection
+    // Handle callback
     if (onLocationSelect) {
+      console.log('🔄 Using onLocationSelect callback');
       onLocationSelect(result);
       return;
     }
 
-    // Direct navigation without state changes
-    switch (result.type) {
-      case "app_location":
-        navigation.navigate("LocationCardDetail", {
-          locationId: result.data.locationId.toString(),
-        });
-        break;
+    // 🔧 FIXED: Direct navigation với proper error handling
+    try {
+      switch (result.type) {
+        case "app_location":
+          console.log('🏢 Processing app_location...');
 
-      case "google_place":
-        if (!result.data.latitude || !result.data.longitude) {
-          Alert.alert(
-            'Địa điểm không hợp lệ',
-            'Địa điểm này thiếu thông tin tọa độ. Vui lòng chọn địa điểm khác.',
-            [{ text: 'OK' }]
-          );
-          return;
-        }
-        navigation.navigate("LocationCardDetail", {
-          locationId: undefined,
-          externalLocation: {
+          // 🔍 Kiểm tra locationId
+          const locationId = result.data.locationId;
+          console.log('🔍 LocationId check:', {
+            exists: !!locationId,
+            type: typeof locationId,
+            value: locationId
+          });
+
+          if (!locationId) {
+            console.error('❌ Missing locationId for app_location');
+            console.log('📊 Available data:', result.data);
+
+            Alert.alert(
+              'Lỗi dữ liệu',
+              'Địa điểm này thiếu thông tin ID. Vui lòng thử địa điểm khác.',
+              [{ text: 'OK' }]
+            );
+            return;
+          }
+
+          console.log('🚀 Navigating to app location...');
+          navigation.navigate("LocationCardDetail", {
+            locationId: locationId.toString(),
+            // 🚫 Không truyền externalLocation cho app location
+          });
+          console.log('✅ App location navigation successful');
+          break;
+
+        case "google_place":
+          console.log('🌍 Processing Google place...');
+
+          // 🔧 FIXED: Tạo GooglePlaceDisplay object đúng format
+          const externalLocation: GooglePlaceDisplay = {
             placeId: result.data.placeId,
             name: result.data.name,
             address: result.data.address,
-            latitude: result.data.latitude, 
-            longitude: result.data.longitude, 
+            latitude: result.data.latitude,
+            longitude: result.data.longitude,
             rating: result.data.rating,
             types: result.data.types || [],
             photoReference: result.data.photoReference,
-          },
-        });
-        break;
+          };
 
-      case "current_location":
-        Alert.alert(
-          "Vị trí hiện tại", 
-          "Tìm kiếm địa điểm gần bạn?",
-          [
-            { text: "Hủy", style: "cancel" },
-            { text: "Tìm kiếm", onPress: handleNearbySearch }
-          ]
-        );
-        return; // Don't clear for this case
+          console.log('🔍 External location data:', {
+            placeId: externalLocation.placeId,
+            hasCoordinates: !!(externalLocation.latitude && externalLocation.longitude),
+            name: externalLocation.name
+          });
+
+          // Nếu thiếu tọa độ, thử fetch
+          if (!externalLocation.latitude || !externalLocation.longitude) {
+            console.warn('⚠️ Missing coordinates, trying to fetch details...');
+            setIsLoading(true);
+
+            try {
+              const details = await directGooglePlaces.getPlaceDetails(externalLocation.placeId);
+
+              if (details && details.latitude && details.longitude) {
+                console.log('✅ Successfully fetched missing coordinates:', details);
+
+                // Cập nhật coordinates
+                externalLocation.latitude = details.latitude;
+                externalLocation.longitude = details.longitude;
+
+                navigation.navigate("LocationCardDetail", {
+                  // 🚫 Không truyền locationId cho external location
+                  externalLocation: externalLocation,
+                });
+                console.log('✅ Google place navigation with fetched coordinates');
+              } else {
+                console.error('❌ Could not fetch coordinates');
+                Alert.alert(
+                  'Địa điểm không khả dụng',
+                  'Không thể xác định vị trí chính xác của địa điểm này. Vui lòng thử địa điểm khác.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+            } catch (error) {
+              console.error('❌ Failed to fetch place details:', error);
+              Alert.alert(
+                'Lỗi kết nối',
+                'Không thể tải thông tin địa điểm. Vui lòng kiểm tra kết nối mạng và thử lại.',
+                [{ text: 'OK' }]
+              );
+              return;
+            } finally {
+              setIsLoading(false);
+            }
+          } else {
+            // ✅ Có đầy đủ coordinates
+            console.log('🚀 Navigating to Google place with full data...');
+            navigation.navigate("LocationCardDetail", {
+              // 🚫 Không truyền locationId cho external location
+              externalLocation: externalLocation,
+            });
+            console.log('✅ Google place navigation successful');
+          }
+          break;
+
+        case "current_location":
+          console.log('📍 Handling current location selection');
+          Alert.alert(
+            "Vị trí hiện tại",
+            "Tìm kiếm địa điểm gần bạn?",
+            [
+              { text: "Hủy", style: "cancel" },
+              { text: "Tìm kiếm", onPress: handleNearbySearch }
+            ]
+          );
+          return; // Don't clean up for this case
+
+        default:
+          console.warn('❓ Unknown result type:', result.type);
+          Alert.alert('Lỗi', 'Loại địa điểm không được hỗ trợ.');
+          return;
+      }
+
+      // ✅ Clean up AFTER successful navigation
+      console.log('🧹 Cleaning up search state...');
+      setTimeout(() => {
+        setQuery("");
+        setShowResults(false);
+        collapseResults();
+        inputRef.current?.blur();
+        console.log('✅ Search state cleaned up');
+      }, 500);
+
+    } catch (navigationError: any) {
+      console.error('❌ Navigation failed:', navigationError);
+      Alert.alert(
+        'Lỗi điều hướng',
+        `Không thể mở trang chi tiết. Lỗi: ${navigationError.message}`,
+        [{ text: 'OK' }]
+      );
     }
-
-    // Clean up AFTER navigation
-    setTimeout(() => {
-      setQuery("");
-      setShowResults(false);
-      collapseResults();
-      inputRef.current?.blur();
-    }, 500);
-  }, [navigation, onLocationSelect, initializeGPS]);
+  }, [navigation, onLocationSelect, initializeGPS, handleNearbySearch]);
 
   // 🎨 Animation functions
   const expandResults = () => {
@@ -523,9 +617,20 @@ export const SearchBar: React.FC<SearchBarProps> = ({
     const isGPSAction = item.type === 'current_location' || item.type === 'nearby_places';
     const isDisabled = item.data.action === 'loading';
 
+    // 🆕 Kiểm tra địa điểm có đầy đủ thông tin không
+    const hasCompleteInfo = item.type === 'app_location' ||
+      (item.type === 'google_place' && item.data.latitude && item.data.longitude);
+
+    // 🆕 Địa điểm thiếu thông tin nhưng vẫn có thể thử fetch
+    const canTryFetch = item.type === 'google_place' &&
+      (!item.data.latitude || !item.data.longitude) &&
+      item.data.placeId;
+
     return (
       <TouchableOpacity
-        className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDisabled ? 'opacity-50' : ''}`}
+        className={`flex-row items-center px-4 py-3 border-b border-gray-100 ${isDisabled ? 'opacity-50' :
+            !hasCompleteInfo && !canTryFetch ? 'opacity-60' : ''
+          }`}
         onPress={() => !isDisabled && handleLocationSelect(item)}
         activeOpacity={isDisabled ? 1 : 0.7}
         disabled={isDisabled}
@@ -535,13 +640,13 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           <Ionicons
             name={
               item.type === "current_location" || item.type === "nearby_places"
-                ? item.data.action === 'loading' 
+                ? item.data.action === 'loading'
                   ? "radio-outline"
                   : item.data.action === 'search_nearby'
                     ? "search"
                     : "navigate"
                 : item.type === "google_place"
-                  ? "location"
+                  ? hasCompleteInfo ? "location" : "location-outline"
                   : "business"
             }
             size={20}
@@ -553,7 +658,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                     ? "#EF4444"
                     : "#10B981"
                 : item.type === "google_place"
-                  ? "#4285F4"
+                  ? hasCompleteInfo ? "#4285F4" : "#F59E0B" // 🆕 Màu cam cho địa điểm thiếu thông tin
                   : "#10B981"
             }
           />
@@ -561,9 +666,20 @@ export const SearchBar: React.FC<SearchBarProps> = ({
 
         {/* Content */}
         <View className="flex-1">
-          <Text className="font-medium text-gray-900" numberOfLines={1}>
-            {item.name}
-          </Text>
+          <View className="flex-row items-center">
+            <Text className="font-medium text-gray-900 flex-1" numberOfLines={1}>
+              {item.name}
+            </Text>
+            {/* 🆕 Badge cho địa điểm thiếu thông tin */}
+            {!hasCompleteInfo && canTryFetch && (
+              <View className="ml-2 px-2 py-1 bg-orange-100 rounded-full">
+                <Text className="text-xs text-orange-600 font-medium">
+                  Tải thêm
+                </Text>
+              </View>
+            )}
+          </View>
+
           <Text className="text-sm text-gray-500" numberOfLines={2}>
             {item.address}
           </Text>
@@ -586,6 +702,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                   </Text>
                 </View>
               )}
+              {/* 🆕 Hiển thị trạng thái */}
+              {!hasCompleteInfo && canTryFetch && (
+                <Text className="text-xs text-orange-500 ml-2">
+                  • Nhấn để tải vị trí
+                </Text>
+              )}
             </View>
           )}
         </View>
@@ -594,6 +716,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         <View className="ml-2">
           {item.data.action === 'loading' ? (
             <ActivityIndicator size="small" color="#9CA3AF" />
+          ) : !hasCompleteInfo && canTryFetch ? (
+            <Ionicons name="download-outline" size={16} color="#F59E0B" />
           ) : (
             <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
           )}
@@ -636,35 +760,34 @@ export const SearchBar: React.FC<SearchBarProps> = ({
         {/* GPS Status Button */}
         {showGPSOptions && (
           <TouchableOpacity
-            className={`p-2 mr-2 rounded-lg ${
-              gpsStatus === 'available' 
-                ? 'bg-green-50' 
+            className={`p-2 mr-2 rounded-lg ${gpsStatus === 'available'
+                ? 'bg-green-50'
                 : gpsStatus === 'loading'
                   ? 'bg-blue-50'
                   : 'bg-gray-50'
-            }`}
+              }`}
             onPress={handleCurrentLocationPress}
             activeOpacity={0.7}
           >
             {gpsStatus === 'loading' ? (
               <ActivityIndicator size={20} color="#4285F4" />
             ) : (
-              <Ionicons 
+              <Ionicons
                 name={
-                  gpsStatus === 'available' 
-                    ? "navigate" 
+                  gpsStatus === 'available'
+                    ? "navigate"
                     : gpsStatus === 'denied' || gpsStatus === 'error'
                       ? "navigate-outline"
                       : "radio-outline"
-                } 
-                size={20} 
+                }
+                size={20}
                 color={
-                  gpsStatus === 'available' 
-                    ? "#10B981" 
+                  gpsStatus === 'available'
+                    ? "#10B981"
                     : gpsStatus === 'denied' || gpsStatus === 'error'
                       ? "#EF4444"
                       : "#9CA3AF"
-                } 
+                }
               />
             )}
           </TouchableOpacity>

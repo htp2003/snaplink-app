@@ -19,11 +19,11 @@ export interface SearchPlacesResult {
 interface PhotoCache {
   url: string;
   timestamp: number;
-  expires: number; // Cache for 24 hours
+  expires: number; 
 }
 
 const GOOGLE_API_KEY = 'AIzaSyBvciLV21VOf-c-x9un3DCxY--_UKvqw6Q';
-const PHOTO_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours
+const PHOTO_CACHE_DURATION = 24 * 60 * 60 * 1000; 
 
 class DirectGooglePlacesService {
   private apiKey: string;

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
-import { useAvailability } from "../../hooks/useAvailability"; 
+import { useAvailability } from "../../hooks/useAvailability";
 import { getResponsiveSize } from "../../utils/responsive";
 import { AntDesign, Feather } from "@expo/vector-icons";
 import { useApprovedPhotographers, useEventBooking } from "../../hooks/useEvent";
@@ -37,9 +37,10 @@ export default function BookingEventScreen() {
   // Auth hook
   const { user, isAuthenticated } = useAuth();
 
-  // ✅ ADD: Availability hook for API calls
+  // Availability hook for API calls
   const {
     getAvailableTimesForDate,
+    getEndTimesForStartTime, // ✅ ADD: Method to get end times
     loadingSlots,
     error: availabilityError,
   } = useAvailability();
@@ -54,8 +55,10 @@ export default function BookingEventScreen() {
   const [selectedPhotographer, setSelectedPhotographer] = useState<any>(preSelectedPhotographer || null);
   const [specialRequests, setSpecialRequests] = useState<string>("");
 
-  // ✅ UPDATED: Available times from API instead of generated
+  // ✅ UPDATED: Available times from API
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+  const [eventFilteredTimes, setEventFilteredTimes] = useState<string[]>([]);
+  const [endTimeOptions, setEndTimeOptions] = useState<string[]>([]);
 
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
@@ -81,11 +84,12 @@ export default function BookingEventScreen() {
     }
   }, [isAuthenticated, navigation]);
 
-  // ✅ NEW: Load available times from API when photographer is selected
+  // ✅ FIXED: Load available times and filter by event time range
   useEffect(() => {
     const loadAvailableTimesForEvent = async () => {
       if (!selectedPhotographer?.photographerId || !event) {
         setAvailableTimes([]);
+        setEventFilteredTimes([]);
         return;
       }
 
@@ -103,31 +107,69 @@ export default function BookingEventScreen() {
         const day = String(eventDate.getDate()).padStart(2, '0');
         const dateString = `${year}-${month}-${day}`;
 
-        // ✅ Call API to get available times for photographer
+        console.log("📅 Event date string:", dateString);
+
+        // ✅ Call API to get ALL available times for photographer
         const allAvailableTimes = await getAvailableTimesForDate(
           selectedPhotographer.photographerId, 
           dateString
         );
 
-        // 🎯 FILTER: Only get times within event time range
-        const eventStartTime = formatTime(event.startDate); // "10:00"
-        const eventEndTime = formatTime(event.endDate);     // "16:00"
+        console.log("📋 All available times from API:", allAvailableTimes);
+
+        // ✅ FIXED: Parse event time range correctly
+        const eventStartTime = formatTime(event.startDate); // "07:30"
+        const eventEndTime = formatTime(event.endDate);     // "23:50"
         
+        console.log("🎯 Event time boundaries:", {
+          eventStartTime,
+          eventEndTime,
+          eventStartHour: parseInt(eventStartTime.split(':')[0]),
+          eventEndHour: parseInt(eventEndTime.split(':')[0])
+        });
+
+        // ✅ FIXED: Filter times that fall within event time range
+        const eventStartHour = parseInt(eventStartTime.split(':')[0]);
+        const eventStartMinute = parseInt(eventStartTime.split(':')[1]);
+        const eventEndHour = parseInt(eventEndTime.split(':')[0]);
+        const eventEndMinute = parseInt(eventEndTime.split(':')[1]);
+
         const eventAvailableTimes = allAvailableTimes.filter(time => {
-          return time >= eventStartTime && time < eventEndTime;
+          const timeHour = parseInt(time.split(':')[0]);
+          const timeMinute = parseInt(time.split(':')[1]);
+          
+          // Convert to minutes for easier comparison
+          const timeInMinutes = timeHour * 60 + timeMinute;
+          const eventStartInMinutes = eventStartHour * 60 + eventStartMinute;
+          const eventEndInMinutes = eventEndHour * 60 + eventEndMinute;
+          
+          // ✅ Time must be >= event start and < event end
+          const isWithinEventTime = timeInMinutes >= eventStartInMinutes && timeInMinutes < eventEndInMinutes;
+          
+          console.log(`⏰ Checking time ${time}:`, {
+            timeInMinutes,
+            eventStartInMinutes,
+            eventEndInMinutes,
+            isWithinEventTime
+          });
+          
+          return isWithinEventTime;
         });
 
         console.log("✅ Filtered available times for event:", {
           allTimes: allAvailableTimes,
           eventTimeRange: `${eventStartTime} - ${eventEndTime}`,
           filteredTimes: eventAvailableTimes,
+          removedTimes: allAvailableTimes.filter(t => !eventAvailableTimes.includes(t)),
           isEmpty: eventAvailableTimes.length === 0
         });
 
-        setAvailableTimes(eventAvailableTimes);
+        setAvailableTimes(allAvailableTimes);
+        setEventFilteredTimes(eventAvailableTimes);
 
-        // Reset selected times if they're no longer available
+        // ✅ Reset selected times if they're no longer available
         if (selectedStartTime && !eventAvailableTimes.includes(selectedStartTime)) {
+          console.log("🔄 Resetting selected start time - no longer available");
           setSelectedStartTime("");
           setSelectedEndTime("");
         }
@@ -135,14 +177,12 @@ export default function BookingEventScreen() {
       } catch (error) {
         console.error("❌ Error loading event available times:", error);
         setAvailableTimes([]);
+        setEventFilteredTimes([]);
       }
     };
 
     loadAvailableTimesForEvent();
   }, [selectedPhotographer?.photographerId, event, getAvailableTimesForDate]);
-
-  // ✅ REMOVED: generateTimeSlots function (no longer needed)
-  // Now using availableTimes from API directly
 
   // Helper functions
   const formatDate = (dateString: string) => {
@@ -174,12 +214,80 @@ export default function BookingEventScreen() {
     }).format(amount);
   };
 
-  // ✅ UPDATED: Use API times instead of generated times
+  // ✅ UPDATED: Use event filtered times instead of all available times
   const getEndTimeOptions = () => {
-    if (!selectedStartTime) return [];
-    const startIndex = availableTimes.indexOf(selectedStartTime);
-    return availableTimes.slice(startIndex + 1);
+    return endTimeOptions;
   };
+
+  // ✅ NEW: Load end times when start time is selected
+  useEffect(() => {
+    const loadEndTimes = async () => {
+      if (!selectedStartTime || !selectedPhotographer?.photographerId || !event) {
+        setEndTimeOptions([]);
+        return;
+      }
+
+      try {
+        console.log("🕒 Loading end times for selected start time:", selectedStartTime);
+
+        // Get event date
+        const eventDate = new Date(event.startDate);
+        const year = eventDate.getFullYear();
+        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
+        const day = String(eventDate.getDate()).padStart(2, '0');
+        const dateString = `${year}-${month}-${day}`;
+
+        // ✅ Get end times from API (this will respect booked slots)
+        const apiEndTimes = await getEndTimesForStartTime(
+          selectedPhotographer.photographerId,
+          dateString,
+          selectedStartTime
+        );
+
+        console.log("📋 End times from API:", apiEndTimes);
+
+        // ✅ Filter by event time range
+        const eventEndTime = formatTime(event.endDate);
+        const eventEndHour = parseInt(eventEndTime.split(':')[0]);
+        const eventEndMinute = parseInt(eventEndTime.split(':')[1]);
+        const eventEndInMinutes = eventEndHour * 60 + eventEndMinute;
+
+        const eventFilteredEndTimes = apiEndTimes.filter(time => {
+          const timeHour = parseInt(time.split(':')[0]);
+          const timeMinute = parseInt(time.split(':')[1]);
+          const timeInMinutes = timeHour * 60 + timeMinute;
+          
+          // ✅ End time must be <= event end time
+          return timeInMinutes <= eventEndInMinutes;
+        });
+
+        console.log("✅ Filtered end times for event:", {
+          selectedStartTime,
+          apiEndTimes,
+          eventEndTime,
+          eventFilteredEndTimes,
+          finalEndTimeOptions: eventFilteredEndTimes,
+        });
+
+        setEndTimeOptions(eventFilteredEndTimes);
+
+        // ✅ Reset selected end time if it's no longer valid
+        if (selectedEndTime && !eventFilteredEndTimes.includes(selectedEndTime)) {
+          console.log("🔄 Resetting selected end time - no longer valid:", {
+            selectedEndTime,
+            availableOptions: eventFilteredEndTimes,
+          });
+          setSelectedEndTime("");
+        }
+
+      } catch (error) {
+        console.error("❌ Error loading end times:", error);
+        setEndTimeOptions([]);
+      }
+    };
+
+    loadEndTimes();
+  }, [selectedStartTime, selectedPhotographer?.photographerId, event, getEndTimesForStartTime]);
 
   const calculateDuration = () => {
     if (!selectedStartTime || !selectedEndTime) return 0;
@@ -248,10 +356,36 @@ export default function BookingEventScreen() {
     if (!selectedStartTime) errors.push("Start time is required");
     if (!selectedEndTime) errors.push("End time is required");
 
-    // Validate time logic
-    const startIdx = availableTimes.indexOf(selectedStartTime);
-    const endIdx = availableTimes.indexOf(selectedEndTime);
-    if (endIdx <= startIdx) errors.push("End time must be after start time");
+    // ✅ FIXED: Validate time logic properly
+    if (selectedStartTime && selectedEndTime) {
+      const [startHour, startMinute] = selectedStartTime.split(":").map(Number);
+      const [endHour, endMinute] = selectedEndTime.split(":").map(Number);
+      
+      const startTimeInMinutes = startHour * 60 + startMinute;
+      const endTimeInMinutes = endHour * 60 + endMinute;
+      
+      console.log("🔍 Time validation:", {
+        selectedStartTime,
+        selectedEndTime,
+        startTimeInMinutes,
+        endTimeInMinutes,
+        isValid: endTimeInMinutes > startTimeInMinutes,
+      });
+      
+      if (endTimeInMinutes <= startTimeInMinutes) {
+        errors.push("End time must be after start time");
+      }
+      
+      // ✅ Additional validation: Check if end time is in valid options
+      if (!endTimeOptions.includes(selectedEndTime)) {
+        errors.push("Selected end time is not available");
+      }
+    }
+
+    console.log("✅ Validation result:", {
+      errors,
+      hasErrors: errors.length > 0,
+    });
 
     return errors;
   };
@@ -259,9 +393,8 @@ export default function BookingEventScreen() {
   // Event handlers
   const handleStartTimeSelect = (time: string) => {
     setSelectedStartTime(time);
-    if (selectedEndTime && availableTimes.indexOf(selectedEndTime) <= availableTimes.indexOf(time)) {
-      setSelectedEndTime("");
-    }
+    // ✅ End times will be loaded automatically by useEffect
+    setSelectedEndTime("");
   };
 
   const handleEndTimeSelect = (time: string) => {
@@ -273,6 +406,7 @@ export default function BookingEventScreen() {
     // Reset times when photographer changes (will reload via useEffect)
     setSelectedStartTime("");
     setSelectedEndTime("");
+    setEndTimeOptions([]);
   };
 
   // Handle booking submission  
@@ -399,14 +533,16 @@ export default function BookingEventScreen() {
     }
   };
 
-  // Validate form
+  // ✅ UPDATED: Validate form using proper state
   const isFormValid =
     selectedStartTime &&
     selectedEndTime &&
     selectedPhotographer &&
     !isProcessing &&
     !bookingLoading &&
-    availableTimes.length > 0; 
+    eventFilteredTimes.length > 0 &&
+    endTimeOptions.includes(selectedEndTime); // ✅ Check end time is valid 
+
 
   return (
     <View style={{ flex: 1, backgroundColor: "#f8f9fa" }}>
@@ -792,7 +928,7 @@ export default function BookingEventScreen() {
 
               {/* Photographer available time info */}
               <View
-                key="photographer-available-time-info"
+                key="event-time-range-info"
                 style={{
                   backgroundColor: "#E8F5E8",
                   borderRadius: getResponsiveSize(8),
@@ -807,7 +943,16 @@ export default function BookingEventScreen() {
                     fontWeight: "600",
                   }}
                 >
-                  📅 {selectedPhotographer.photographer?.fullName} có lịch làm: {formatTime(event.startDate)} - {formatTime(event.endDate)}
+                  🎪 Sự kiện diễn ra: {formatTime(event.startDate)} - {formatTime(event.endDate)}
+                </Text>
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(12),
+                    color: "#666",
+                    marginTop: getResponsiveSize(4),
+                  }}
+                >
+                  📸 {selectedPhotographer.photographer?.fullName} có {eventFilteredTimes.length} khung giờ rảnh trong thời gian sự kiện
                 </Text>
               </View>
               {!loadingSlots && availableTimes.length === 0 && (

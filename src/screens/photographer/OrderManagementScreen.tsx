@@ -916,7 +916,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                             letterSpacing: 0.5,
                           }}
                         >
-                          DETAILS
+                          CHI TIẾT
                         </Text>
                       </TouchableOpacity>
 
@@ -944,7 +944,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                                   letterSpacing: 0.5,
                                 }}
                               >
-                                CONTACT
+                                NHẮN TIN
                               </Text>
                             )}
                           </TouchableOpacity>
@@ -1022,8 +1022,8 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                                   return "DELIVERED";
                                 }
                                 return hasPhotoDelivery(bookingId)
-                                  ? "UPDATE"
-                                  : "DELIVER";
+                                  ? "CẬP NHẬT ẢNH"
+                                  : "GIAO ẢNH";
                               })()}
                             </Text>
                           </TouchableOpacity>
@@ -1054,7 +1054,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                                 letterSpacing: 0.5,
                               }}
                             >
-                              CONTACT CLIENT
+                              NHẮN TIN 
                             </Text>
                           )}
                         </TouchableOpacity>

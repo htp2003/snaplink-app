@@ -23,11 +23,13 @@ import {
   CreatePhotographerRequest,
   UpdatePhotographerRequest,
 } from "../../services/photographerService";
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { userService } from "../../services/userService";
 import { getResponsiveSize } from "../../utils/responsive";
+import LocationPickerModal from "../../components/LocationPickerModal";
+import { PlaceDetails } from "../../types/locationTypes";
 
 interface ProfileField {
   id: string;
@@ -44,10 +46,12 @@ interface ProfileField {
 
 const EditProfilePhotographerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
-  const { user,getCurrentUserId } = useAuth();
+  const { user, getCurrentUserId } = useAuth();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
-
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedLocationData, setSelectedLocationData] =
+    useState<PlaceDetails | null>(null);
   // Sử dụng hook thay vì state và API calls trực tiếp
   const {
     photographer,
@@ -124,6 +128,17 @@ const EditProfilePhotographerScreen = () => {
       fieldType: "select",
       options: ["Available", "Busy", "Offline"],
     },
+    {
+      id: "location",
+      icon: "location-outline",
+      title: "Vị trí làm việc",
+      value: "",
+      placeholder: "Chọn khu vực làm việc",
+      question: "Bạn làm việc ở khu vực nào?",
+      description: "Chọn khu vực chính mà bạn có thể nhận việc chụp ảnh.",
+      maxLength: 200,
+      fieldType: "select",
+    },
   ]);
 
   useEffect(() => {
@@ -145,7 +160,6 @@ const EditProfilePhotographerScreen = () => {
       console.error("Error initializing data:", error);
     }
   };
-  
 
   const loadStyles = async () => {
     try {
@@ -175,25 +189,24 @@ const EditProfilePhotographerScreen = () => {
     return user.email?.[0]?.toUpperCase() || "U";
   };
 
-    const handleImagePress = () => {
-        Alert.alert("Chọn ảnh đại diện", "Bạn muốn chọn ảnh từ đâu?", [
-          {
-            text: "Hủy",
-            style: "cancel",
-          },
-          {
-            text: "Thư viện ảnh",
-            onPress: () => pickImageFromLibrary(),
-          },
-          {
-            text: "Chụp ảnh mới",
-            onPress: () => takePhoto(),
-          },
-        ]);
-      };
+  const handleImagePress = () => {
+    Alert.alert("Chọn ảnh đại diện", "Bạn muốn chọn ảnh từ đâu?", [
+      {
+        text: "Hủy",
+        style: "cancel",
+      },
+      {
+        text: "Thư viện ảnh",
+        onPress: () => pickImageFromLibrary(),
+      },
+      {
+        text: "Chụp ảnh mới",
+        onPress: () => takePhoto(),
+      },
+    ]);
+  };
 
-
-const pickImageFromLibrary = async () => {
+  const pickImageFromLibrary = async () => {
     try {
       const permissionResult =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -252,74 +265,73 @@ const pickImageFromLibrary = async () => {
   };
 
   const uploadImageToServer = async (imageUri: string) => {
-  try {
-    setIsUploadingImage(true);
+    try {
+      setIsUploadingImage(true);
 
-    // Get token for authorization
-    const token = await AsyncStorage.getItem("token");
-    const userId = getCurrentUserId();
-    if (!token) {
-      throw new Error("No authentication token found");
-    }
-
-    if (!userId) {
-      throw new Error("Không tìm thấy thông tin user");
-    }
-    
-    const formData = new FormData();
-    // Add the image file
-    formData.append("File", {
-      uri: imageUri,
-      type: "image/jpeg", 
-      name: "profile_image.jpg",
-    } as any);
-    formData.append("UserId", userId.toString());
-    formData.append("IsPrimary", "true");
-
-    // Call the API endpoint
-    const response = await fetch(
-      `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/Image`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          // Don't set Content-Type for FormData
-        },
-        body: formData,
+      // Get token for authorization
+      const token = await AsyncStorage.getItem("token");
+      const userId = getCurrentUserId();
+      if (!token) {
+        throw new Error("No authentication token found");
       }
-    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("❌ Upload failed:", errorText);
-      throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+      if (!userId) {
+        throw new Error("Không tìm thấy thông tin user");
+      }
+
+      const formData = new FormData();
+      // Add the image file
+      formData.append("File", {
+        uri: imageUri,
+        type: "image/jpeg",
+        name: "profile_image.jpg",
+      } as any);
+      formData.append("UserId", userId.toString());
+      formData.append("IsPrimary", "true");
+
+      // Call the API endpoint
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_BASE_URL}/api/Image`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            // Don't set Content-Type for FormData
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("❌ Upload failed:", errorText);
+        throw new Error(`Upload failed: ${response.status} - ${errorText}`);
+      }
+
+      // Parse the response to get the image data
+      const imageResponse = await response.json();
+      console.log("✅ Image upload response:", imageResponse); // Debug log
+
+      // Extract the URL from the response
+      const imageUrl = imageResponse.url;
+      if (!imageUrl) {
+        throw new Error("No URL returned from image upload");
+      }
+
+      // Set the profile image to the URL returned from server
+      setProfileImage(imageUrl);
+
+      Alert.alert("Thành công", "Ảnh đại diện đã được cập nhật");
+
+      setIsUploadingImage(false);
+      return imageUrl;
+    } catch (error) {
+      console.error("❌ Error uploading image:", error);
+      setIsUploadingImage(false);
+      Alert.alert("Lỗi", "Không thể tải ảnh lên server. Vui lòng thử lại.");
+      throw error;
     }
-    
-    // Parse the response to get the image data
-    const imageResponse = await response.json();
-    console.log("✅ Image upload response:", imageResponse); // Debug log
-
-    // Extract the URL from the response
-    const imageUrl = imageResponse.url;
-    if (!imageUrl) {
-      throw new Error("No URL returned from image upload");
-    }
-
-    // Set the profile image to the URL returned from server
-    setProfileImage(imageUrl);
-    
-    Alert.alert("Thành công", "Ảnh đại diện đã được cập nhật");
-    
-    setIsUploadingImage(false);
-    return imageUrl;
-    
-  } catch (error) {
-    console.error("❌ Error uploading image:", error);
-    setIsUploadingImage(false);
-    Alert.alert("Lỗi", "Không thể tải ảnh lên server. Vui lòng thử lại.");
-    throw error;
-  }
-};
+  };
   // Populate form khi có data từ hook
   useEffect(() => {
     if (photographer) {
@@ -331,10 +343,10 @@ const pickImageFromLibrary = async () => {
   }, [photographer]);
 
   useEffect(() => {
-  if (user?.profileImage && !profileImage) {
-    setProfileImage(user.profileImage);
-  }
-}, [user, profileImage]);
+    if (user?.profileImage && !profileImage) {
+      setProfileImage(user.profileImage);
+    }
+  }, [user, profileImage]);
 
   // Populate styles khi có data - FIX HERE
   useEffect(() => {
@@ -362,64 +374,96 @@ const pickImageFromLibrary = async () => {
   }, [photographerStyles, allStyles]);
 
   const populateFormData = () => {
-  if (!photographer) return;
+    if (!photographer) return;
 
-  setProfileData((prev) =>
-    prev.map((field) => {
-      switch (field.id) {
-        case "yearsExperience":
-          return {
-            ...field,
-            value: photographer.yearsExperience?.toString() || "",
-          };
-        case "equipment":
-          return { ...field, value: photographer.equipment || "" };
-        case "hourlyRate":
-          return {
-            ...field,
-            value: photographer.hourlyRate?.toString() || "",
-          };
-        case "availabilityStatus":
-          return {
-            ...field,
-            value: photographer.availabilityStatus || "Available",
-          };
-        default:
-          return field;
-      }
-    })
-  );
-  
-  // Sửa lại logic này để ưu tiên user profileImage trước
-  setProfileImage(
-    photographer.user?.profileImage || 
-    photographer.profileImage || 
-    user?.profileImage || 
-    null
-  );
-};
+    setProfileData((prev) =>
+      prev.map((field) => {
+        switch (field.id) {
+          case "yearsExperience":
+            return {
+              ...field,
+              value: photographer.yearsExperience?.toString() || "",
+            };
+          case "equipment":
+            return { ...field, value: photographer.equipment || "" };
+          case "hourlyRate":
+            return {
+              ...field,
+              value: photographer.hourlyRate?.toString() || "",
+            };
+          case "availabilityStatus":
+            return {
+              ...field,
+              value: photographer.availabilityStatus || "Available",
+            };
+          case "location":
+            const locationDisplay =
+              photographer.address || photographer.googleMapsAddress || "";
+
+            // Nếu có coordinates, tạo PlaceDetails object
+            if (
+              photographer.latitude &&
+              photographer.longitude &&
+              locationDisplay
+            ) {
+              setSelectedLocationData({
+                placeId: "existing_location",
+                name: locationDisplay,
+                address:
+                  photographer.address || photographer.googleMapsAddress || "",
+                coordinates: {
+                  latitude: photographer.latitude,
+                  longitude: photographer.longitude,
+                },
+              });
+            }
+
+            return {
+              ...field,
+              value: locationDisplay,
+            };
+          default:
+            return field;
+        }
+      })
+    );
+
+    // Sửa lại logic này để ưu tiên user profileImage trước
+    setProfileImage(
+      photographer.user?.profileImage ||
+        photographer.profileImage ||
+        user?.profileImage ||
+        null
+    );
+  };
 
   const requestImagePickerPermissions = async () => {
-  try {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      console.warn('Media library permission not granted');
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        console.warn("Media library permission not granted");
+      }
+
+      const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
+      if (cameraStatus.status !== "granted") {
+        console.warn("Camera permission not granted");
+      }
+    } catch (error) {
+      console.error("Error requesting permissions:", error);
     }
-    
-    const cameraStatus = await ImagePicker.requestCameraPermissionsAsync();
-    if (cameraStatus.status !== 'granted') {
-      console.warn('Camera permission not granted');
-    }
-  } catch (error) {
-    console.error('Error requesting permissions:', error);
-  }
-};
+  };
 
   const handleClose = () => {
     navigation.goBack();
   };
 
   const handleFieldPress = (field: ProfileField) => {
+    if (field.id === "location") {
+      setShowLocationModal(true);
+      return;
+    }
+
     setSelectedField(field);
     setIsFieldModalVisible(true);
   };
@@ -453,6 +497,21 @@ const pickImageFromLibrary = async () => {
       }
     });
   };
+  const handleLocationSelect = async (location: PlaceDetails) => {
+    try {
+      // Cập nhật field value cho display
+      setProfileData((prev) =>
+        prev.map((item) =>
+          item.id === "location" ? { ...item, value: location.name } : item
+        )
+      );
+
+      // Lưu location data đầy đủ
+      setSelectedLocationData(location);
+    } catch (error) {
+      console.error("Error selecting location:", error);
+    }
+  };
 
   const handleSaveProfile = async () => {
     try {
@@ -476,7 +535,8 @@ const pickImageFromLibrary = async () => {
       const availabilityValue =
         profileData.find((f) => f.id === "availabilityStatus")?.value ||
         "Available";
-
+      const locationValue =
+        profileData.find((f) => f.id === "location")?.value || "";
       if (yearsExperienceValue <= 0) {
         Alert.alert("Lỗi", "Vui lòng nhập số năm kinh nghiệm hợp lệ");
         setIsSaving(false);
@@ -508,9 +568,15 @@ const pickImageFromLibrary = async () => {
           equipment: equipmentValue,
           hourlyRate: hourlyRateValue,
           availabilityStatus: availabilityValue,
-          profileImage: profileImage || photographer.profileImage, // Preserve existing image if not updated 
-          // Remove styleIds from here - handle separately
+          profileImage: profileImage || photographer.profileImage,
         };
+        if (selectedLocationData) {
+          updateData.address = selectedLocationData.address;
+          updateData.googleMapsAddress = selectedLocationData.address;
+          updateData.latitude = selectedLocationData.coordinates.latitude;
+          updateData.longitude = selectedLocationData.coordinates.longitude;
+        } // Preserve existing image if not updated
+        // Remove styleIds from here - handle separately
 
         await updatePhotographer(updateData);
 
@@ -529,7 +595,13 @@ const pickImageFromLibrary = async () => {
           hourlyRate: hourlyRateValue,
           availabilityStatus: availabilityValue,
           styleIds: selectedStyleIds,
-          profileImage: profileImage || undefined,  // Preserve existing image if not updated
+          profileImage: profileImage || undefined,
+          ...(selectedLocationData && {
+            address: selectedLocationData.address,
+            googleMapsAddress: selectedLocationData.address,
+            latitude: selectedLocationData.coordinates.latitude,
+            longitude: selectedLocationData.coordinates.longitude,
+          }), // Preserve existing image if not updated
         };
 
         await createProfile(createData);
@@ -704,105 +776,103 @@ const pickImageFromLibrary = async () => {
         <View style={{ width: 24 }} />
       </View>
 
-      
-
       <ScrollView style={{ flex: 1 }}>
         {/* Profile Image Section */}
-                <View
+        <View
+          style={{
+            alignItems: "center",
+            paddingTop: getResponsiveSize(40),
+            paddingBottom: getResponsiveSize(30),
+            backgroundColor: "#FFFFFF",
+            marginHorizontal: getResponsiveSize(16),
+            marginTop: getResponsiveSize(16),
+            borderRadius: getResponsiveSize(12),
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 4,
+            elevation: 3,
+          }}
+        >
+          <TouchableOpacity
+            onPress={handleImagePress}
+            disabled={isUploadingImage}
+            style={{
+              position: "relative",
+              marginBottom: getResponsiveSize(20),
+            }}
+          >
+            <View
+              style={{
+                width: getResponsiveSize(120),
+                height: getResponsiveSize(120),
+                borderRadius: getResponsiveSize(60),
+                backgroundColor: "#333333",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              {profileImage ? (
+                <Image
+                  source={{ uri: profileImage }}
                   style={{
-                    alignItems: "center",
-                    paddingTop: getResponsiveSize(40),
-                    paddingBottom: getResponsiveSize(30),
-                    backgroundColor: "#FFFFFF",
-                    marginHorizontal: getResponsiveSize(16),
-                    marginTop: getResponsiveSize(16),
-                    borderRadius: getResponsiveSize(12),
-                    shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 4,
-                    elevation: 3,
+                    width: getResponsiveSize(120),
+                    height: getResponsiveSize(120),
+                    borderRadius: getResponsiveSize(60),
+                  }}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text
+                  style={{
+                    color: "#FFFFFF",
+                    fontSize: getResponsiveSize(48),
+                    fontWeight: "bold",
                   }}
                 >
-                  <TouchableOpacity
-                    onPress={handleImagePress}
-                    disabled={isUploadingImage}
-                    style={{
-                      position: "relative",
-                      marginBottom: getResponsiveSize(20),
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: getResponsiveSize(120),
-                        height: getResponsiveSize(120),
-                        borderRadius: getResponsiveSize(60),
-                        backgroundColor: "#333333",
-                        justifyContent: "center",
-                        alignItems: "center",
-                      }}
-                    >
-                      {profileImage ? (
-                        <Image
-                          source={{ uri: profileImage }}
-                          style={{
-                            width: getResponsiveSize(120),
-                            height: getResponsiveSize(120),
-                            borderRadius: getResponsiveSize(60),
-                          }}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <Text
-                          style={{
-                            color: "#FFFFFF",
-                            fontSize: getResponsiveSize(48),
-                            fontWeight: "bold",
-                          }}
-                        >
-                          {getUserInitials()}
-                        </Text>
-                      )}
-                    </View>
-        
-                    {/* Upload indicator or camera icon */}
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 0,
-                        right: 0,
-                        width: getResponsiveSize(36),
-                        height: getResponsiveSize(36),
-                        borderRadius: getResponsiveSize(18),
-                        backgroundColor: "#E91E63",
-                        justifyContent: "center",
-                        alignItems: "center",
-                        borderWidth: 3,
-                        borderColor: "#FFFFFF",
-                      }}
-                    >
-                      {isUploadingImage ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Ionicons
-                          name="camera"
-                          size={getResponsiveSize(18)}
-                          color="#FFFFFF"
-                        />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-        
-                  <Text
-                    style={{
-                      fontSize: getResponsiveSize(14),
-                      color: "#666666",
-                      textAlign: "center",
-                    }}
-                  >
-                    Nhấn để thay đổi ảnh đại diện
-                  </Text>
-                </View>
+                  {getUserInitials()}
+                </Text>
+              )}
+            </View>
+
+            {/* Upload indicator or camera icon */}
+            <View
+              style={{
+                position: "absolute",
+                bottom: 0,
+                right: 0,
+                width: getResponsiveSize(36),
+                height: getResponsiveSize(36),
+                borderRadius: getResponsiveSize(18),
+                backgroundColor: "#E91E63",
+                justifyContent: "center",
+                alignItems: "center",
+                borderWidth: 3,
+                borderColor: "#FFFFFF",
+              }}
+            >
+              {isUploadingImage ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons
+                  name="camera"
+                  size={getResponsiveSize(18)}
+                  color="#FFFFFF"
+                />
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <Text
+            style={{
+              fontSize: getResponsiveSize(14),
+              color: "#666666",
+              textAlign: "center",
+            }}
+          >
+            Nhấn để thay đổi ảnh đại diện
+          </Text>
+        </View>
         {/* Photographer Fields */}
         <View style={{ marginTop: 20 }}>
           <Text
@@ -1131,11 +1201,20 @@ const pickImageFromLibrary = async () => {
               >
                 Lưu
               </Text>
+              
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+          </SafeAreaView>
       </Modal>
+      <LocationPickerModal
+            visible={showLocationModal}
+            onClose={() => setShowLocationModal(false)}
+            onLocationSelect={handleLocationSelect}
+            initialLocation={selectedLocationData} // Truyền location hiện tại
+            title="Chọn khu vực làm việc"
+          />
     </SafeAreaView>
+    
   );
 };
 

@@ -1,4 +1,4 @@
-// hooks/usePhotographerProfile.ts
+// hooks/usePhotographerProfile.ts - Updated with location functionality
 import { useState, useCallback } from 'react';
 import { 
   photographerService, 
@@ -7,6 +7,7 @@ import {
   UpdatePhotographerRequest,
   PhotographerStyle
 } from '../services/photographerService';
+import { LocationUpdateRequest, PlaceDetails } from '../types/locationTypes';
 
 interface UsePhotographerProfileReturn {
   // State
@@ -19,6 +20,8 @@ interface UsePhotographerProfileReturn {
   findByUserId: (userId: number) => Promise<void>;
   createProfile: (data: CreatePhotographerRequest) => Promise<void>;
   updatePhotographer: (data: UpdatePhotographerRequest) => Promise<void>;
+  updateLocation: (locationData: LocationUpdateRequest) => Promise<void>;
+  updateLocationFromPlace: (place: PlaceDetails) => Promise<void>;
   addStyle: (styleId: number) => Promise<void>;
   removeStyle: (styleId: number) => Promise<void>;
   clearError: () => void;
@@ -29,6 +32,9 @@ interface UsePhotographerProfileReturn {
   yearsExperience: string;
   equipment: string;
   isAvailable: boolean;
+  hasLocation: boolean;
+  locationDisplay: string;
+  coordinates: { latitude: number; longitude: number } | null;
 }
 
 export const usePhotographerProfile = (): UsePhotographerProfileReturn => {
@@ -79,14 +85,12 @@ export const usePhotographerProfile = (): UsePhotographerProfileReturn => {
     }
   }, []);
 
-  
-
   const createProfile = useCallback(async (data: CreatePhotographerRequest) => {
     try {
       setLoading(true);
       setError(null);
       
-      console.log('📝 Creating photographer profile:', data);
+      console.log('🆕 Creating photographer profile:', data);
       
       const newProfile = await photographerService.create(data);
       console.log('✅ Created photographer profile:', newProfile);
@@ -142,6 +146,52 @@ export const usePhotographerProfile = (): UsePhotographerProfileReturn => {
       setLoading(false);
     }
   }, [photographer]);
+
+  // NEW: Update location functionality
+  const updateLocation = useCallback(async (locationData: LocationUpdateRequest) => {
+    if (!photographer) {
+      throw new Error('No photographer profile found');
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('📍 Updating photographer location:', locationData);
+      
+      await photographerService.updateLocation(photographer.photographerId, locationData);
+      
+      // Update local state with new location data
+      setPhotographer(prev => prev ? {
+        ...prev,
+        address: locationData.address || prev.address,
+        googleMapsAddress: locationData.googleMapsAddress || prev.googleMapsAddress,
+        latitude: locationData.latitude ?? prev.latitude,
+        longitude: locationData.longitude ?? prev.longitude,
+      } : null);
+      
+      console.log('✅ Location updated successfully');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update location';
+      console.error('❌ Error updating location:', errorMessage);
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [photographer]);
+
+  // NEW: Update location from PlaceDetails
+  const updateLocationFromPlace = useCallback(async (place: PlaceDetails) => {
+    const locationData: LocationUpdateRequest = {
+      address: place.address,
+      googleMapsAddress: place.address,
+      latitude: place.coordinates.latitude,
+      longitude: place.coordinates.longitude,
+    };
+    
+    await updateLocation(locationData);
+  }, [updateLocation]);
 
   const addStyle = useCallback(async (styleId: number) => {
     if (!photographer) {
@@ -202,6 +252,17 @@ export const usePhotographerProfile = (): UsePhotographerProfileReturn => {
   
   const isAvailable = photographer?.availabilityStatus === 'Available';
 
+  // NEW: Location computed values
+  const hasLocation = Boolean(photographer?.latitude && photographer?.longitude);
+  
+  const locationDisplay = photographer?.address || 
+    (hasLocation ? `${photographer!.latitude!.toFixed(6)}, ${photographer!.longitude!.toFixed(6)}` : 'Chưa thiết lập vị trí');
+
+  const coordinates = hasLocation ? {
+    latitude: photographer!.latitude!,
+    longitude: photographer!.longitude!
+  } : null;
+
   return {
     // State
     photographer,
@@ -213,6 +274,8 @@ export const usePhotographerProfile = (): UsePhotographerProfileReturn => {
     findByUserId,
     createProfile,
     updatePhotographer,
+    updateLocation,
+    updateLocationFromPlace,
     addStyle,
     removeStyle,
     clearError,
@@ -223,6 +286,8 @@ export const usePhotographerProfile = (): UsePhotographerProfileReturn => {
     yearsExperience,
     equipment,
     isAvailable,
-
+    hasLocation,
+    locationDisplay,
+    coordinates,
   };
 };

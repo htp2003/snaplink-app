@@ -14,8 +14,10 @@ import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../hooks/useAuth";
 import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
 import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
-import { useVenueWallet } from "../../hooks/useVenueWallet"; // 🏢 Updated import
-import VenueWalletTopUpModal from "../../components/VenueWalletTopUpModal"; // 🏢 Updated import
+import { useVenueWallet } from "../../hooks/useVenueWallet";
+import { useWithdrawalRequests } from "../../hooks/useWithdrawal"; // 🆕 NEW IMPORT
+import VenueWalletTopUpModal from "../../components/VenueWalletTopUpModal";
+import VenueWithdrawalRequestCard from "../../components/VenueWithdrawalRequestCard"; // 🆕 NEW IMPORT
 import { RootStackNavigationProp } from "../../navigation/types";
 
 export default function VenueOwnerHomeScreen() {
@@ -28,7 +30,7 @@ export default function VenueOwnerHomeScreen() {
     loading: locationsLoading,
   } = useVenueOwnerLocation();
 
-  // 🏢 VENUE WALLET INTEGRATION
+  // 🟢 VENUE WALLET INTEGRATION
   const {
     walletBalance,
     loading: walletLoading,
@@ -40,12 +42,20 @@ export default function VenueOwnerHomeScreen() {
     hasCriticalBalance,
   } = useVenueWallet();
 
+  // 🆕 WITHDRAWAL REQUESTS INTEGRATION
+  const {
+    requests: withdrawalRequests,
+    loading: withdrawalLoading,
+    error: withdrawalError,
+    refreshRequests,
+  } = useWithdrawalRequests(!!user?.id);
+
   // States
   const [locationOwnerId, setLocationOwnerId] = useState<number | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 🏢 VENUE WALLET TOP-UP STATES
+  // 🟢 VENUE WALLET TOP-UP STATES
   const [showTopUpModal, setShowTopUpModal] = useState(false);
 
   // Fetch venue owner profile
@@ -72,7 +82,8 @@ export default function VenueOwnerHomeScreen() {
   const loadData = useCallback(async () => {
     await Promise.all([
       fetchVenueOwnerProfile(),
-      fetchWalletBalance(), // 🏢 FETCH VENUE WALLET BALANCE
+      fetchWalletBalance(),
+      refreshRequests(), // 🆕 FETCH WITHDRAWAL REQUESTS
     ]);
 
     if (locationOwnerId) {
@@ -81,6 +92,7 @@ export default function VenueOwnerHomeScreen() {
   }, [
     fetchVenueOwnerProfile,
     fetchWalletBalance,
+    refreshRequests,
     locationOwnerId,
     getAllLocations,
   ]);
@@ -95,9 +107,8 @@ export default function VenueOwnerHomeScreen() {
     setRefreshing(false);
   };
 
-  // 🏢 VENUE WALLET TOP-UP HANDLERS
+  // 🟢 VENUE WALLET TOP-UP HANDLERS
   const handleTopUpSuccess = () => {
-    // Refresh balance after successful top-up
     fetchWalletBalance();
     Alert.alert(
       "Nạp tiền thành công",
@@ -113,6 +124,25 @@ export default function VenueOwnerHomeScreen() {
   // Navigate to transaction history
   const handleViewTransactionHistory = () => {
     navigation.navigate("VenueOwnerTransaction");
+  };
+
+  // 🆕 WITHDRAWAL HANDLERS
+  const handleCreateWithdrawal = () => {
+    navigation.navigate("WithdrawalScreen");
+  };
+
+  const handleViewAllWithdrawals = () => {
+    navigation.navigate("VenueOwnerTransaction");
+  };
+
+  const handleWithdrawalPress = (request: any) => {
+    Alert.alert(
+      "Chi tiết yêu cầu rút tiền",
+      `Số tiền: ${formatCurrency(request.amount)}\nNgân hàng: ${
+        request.bankName
+      }\nTrạng thái: ${request.requestStatus}`,
+      [{ text: "Đóng" }]
+    );
   };
 
   // Filter locations by actual locationOwnerId
@@ -160,11 +190,11 @@ export default function VenueOwnerHomeScreen() {
           </View>
         </View>
 
-        {/* 🏢 VENUE WALLET SECTION - PURPLE THEMED */}
+        {/* 🟢 VENUE WALLET SECTION - PURPLE THEMED */}
         <View style={{ marginHorizontal: 16, marginTop: 16 }}>
           <View
             style={{
-              backgroundColor: "#8B5CF6", // Purple gradient for venue
+              backgroundColor: "#8B5CF6",
               borderRadius: 12,
               padding: 20,
               shadowColor: "#000",
@@ -218,7 +248,6 @@ export default function VenueOwnerHomeScreen() {
                         ? formatCurrency(walletBalance.balance)
                         : "0 VND"}
                     </Text>
-                    {/* 🏢 Balance Status for Venue */}
                     {balanceStatus && (
                       <Text
                         style={{
@@ -276,7 +305,7 @@ export default function VenueOwnerHomeScreen() {
             <View
               style={{ flexDirection: "row", justifyContent: "space-between" }}
             >
-              {/* 🏢 VENUE TOP-UP BUTTON */}
+              {/* 🟢 VENUE TOP-UP BUTTON */}
               <TouchableOpacity
                 style={{
                   backgroundColor: hasCriticalBalance ? "#EF4444" : "#10B981",
@@ -304,7 +333,7 @@ export default function VenueOwnerHomeScreen() {
                 </Text>
               </TouchableOpacity>
 
-              {/* Transaction History Button */}
+              {/* 🆕 WITHDRAWAL BUTTON */}
               <TouchableOpacity
                 style={{
                   backgroundColor: "rgba(255, 255, 255, 0.2)",
@@ -316,9 +345,13 @@ export default function VenueOwnerHomeScreen() {
                   alignItems: "center",
                   justifyContent: "center",
                 }}
-                onPress={handleViewTransactionHistory}
+                onPress={handleCreateWithdrawal}
               >
-                <Ionicons name="receipt-outline" size={20} color="#FFFFFF" />
+                <Ionicons
+                  name="arrow-up-circle-outline"
+                  size={20}
+                  color="#FFFFFF"
+                />
                 <Text
                   style={{
                     color: "#FFFFFF",
@@ -327,7 +360,7 @@ export default function VenueOwnerHomeScreen() {
                     marginLeft: 8,
                   }}
                 >
-                  Lịch sử
+                  Rút tiền
                 </Text>
               </TouchableOpacity>
             </View>
@@ -397,6 +430,17 @@ export default function VenueOwnerHomeScreen() {
             )}
           </View>
         </View>
+
+        {/* 🆕 WITHDRAWAL REQUESTS CARD */}
+        <VenueWithdrawalRequestCard
+          requests={withdrawalRequests}
+          loading={withdrawalLoading}
+          error={withdrawalError}
+          onRefresh={refreshRequests}
+          onViewAll={handleViewAllWithdrawals}
+          onRequestPress={handleWithdrawalPress}
+          onCreateWithdrawal={handleCreateWithdrawal}
+        />
 
         {/* Quick Stats */}
         <View className="mx-4 mt-6">
@@ -476,7 +520,7 @@ export default function VenueOwnerHomeScreen() {
               <Ionicons name="chevron-forward" size={20} color="#6B7280" />
             </TouchableOpacity>
 
-            {/* 🏢 Enhanced Transaction History Quick Action */}
+            {/* 🟢 Enhanced Transaction History Quick Action */}
             <TouchableOpacity
               className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex-row items-center justify-between"
               onPress={handleViewTransactionHistory}
@@ -489,9 +533,15 @@ export default function VenueOwnerHomeScreen() {
                   <Text className="text-gray-900 font-medium">
                     Lịch sử giao dịch
                   </Text>
-                  {hasLowBalance && (
-                    <Text className="text-red-500 text-xs mt-1">
-                      Kiểm tra số dư và nạp tiền
+                  {withdrawalRequests.length > 0 && (
+                    <Text className="text-green-600 text-xs mt-1">
+                      Bao gồm{" "}
+                      {
+                        withdrawalRequests.filter(
+                          (r) => r.requestStatus === "Pending"
+                        ).length
+                      }{" "}
+                      yêu cầu rút tiền
                     </Text>
                   )}
                 </View>
@@ -577,7 +627,7 @@ export default function VenueOwnerHomeScreen() {
         <View className="h-6" />
       </ScrollView>
 
-      {/* 🏢 VENUE WALLET TOP-UP MODAL */}
+      {/* 🟢 VENUE WALLET TOP-UP MODAL */}
       <VenueWalletTopUpModal
         visible={showTopUpModal}
         onClose={() => setShowTopUpModal(false)}

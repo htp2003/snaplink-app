@@ -42,15 +42,14 @@ const AVAILABILITY_ENDPOINTS = {
   // Search & filters
   GET_AVAILABLE_PHOTOGRAPHERS: "/api/Availability/available-photographers",
   CHECK_AVAILABILITY: "/api/Availability/check",
-  
+
   // Available slots endpoint
-GET_AVAILABLE_SLOTS: (photographerId: number, date: string) =>
-    `/api/Availability/photographer/${photographerId}/available-slots?date=${date}`
+  GET_AVAILABLE_SLOTS: (photographerId: number, date: string) =>
+    `/api/Availability/photographer/${photographerId}/available-slots?date=${date}`,
 };
 
 export class AvailabilityService {
-
-    // ===== NEW: MAIN METHOD FOR GETTING AVAILABLE SLOTS =====
+  // ===== NEW: MAIN METHOD FOR GETTING AVAILABLE SLOTS =====
 
   /**
    * Get available time slots for a photographer on a specific date
@@ -58,7 +57,7 @@ export class AvailabilityService {
    */
   async getAvailableSlots(
     photographerId: number,
-    date: string 
+    date: string
   ): Promise<DayAvailabilityInfo | null> {
     try {
       console.log("🔍 Getting available slots:", { photographerId, date });
@@ -69,12 +68,16 @@ export class AvailabilityService {
 
       console.log("📅 Available slots API response:", response);
 
-      if (response.error !== 0 || !response.data || response.data.length === 0) {
+      if (
+        response.error !== 0 ||
+        !response.data ||
+        response.data.length === 0
+      ) {
         console.warn("⚠️ No available slots found or API error");
         return null;
       }
 
-      const dayData = response.data[0]; 
+      const dayData = response.data[0];
       const processedSlots = this.processTimeSlots(dayData);
 
       const dayInfo: DayAvailabilityInfo = {
@@ -82,7 +85,8 @@ export class AvailabilityService {
         dayOfWeek: dayData.dayOfWeek,
         photographerId: dayData.photographerId,
         availableSlots: processedSlots,
-        totalAvailableHours: processedSlots.filter(slot => slot.isAvailable).length,
+        totalAvailableHours: processedSlots.filter((slot) => slot.isAvailable)
+          .length,
         availabilityRange: this.getAvailabilityRange(dayData.availableSlots),
       };
 
@@ -99,50 +103,45 @@ export class AvailabilityService {
    */
   private processTimeSlots(dayData: any): ProcessedTimeSlot[] {
     const processedSlots: ProcessedTimeSlot[] = [];
-    
-    // Extract available range
+
     const availableSlots = dayData.availableSlots || [];
     const bookedSlots = dayData.bookedSlots || [];
-    
+
     if (availableSlots.length === 0) {
-      console.log("📭 No available slots for this day");
       return [];
     }
 
-    // Assume one main availability range (like 9:00-17:00)
-    const mainSlot = availableSlots[0];
-    if (!mainSlot) return [];
+    // Create detailed slot info for each available range
+    availableSlots.forEach((slot: any) => {
+      const startHour = parseInt(slot.startTime.split(":")[0]);
+      const endHour = parseInt(slot.endTime.split(":")[0]);
 
-    const startHour = parseInt(mainSlot.startTime.split(':')[0]);
-    const endHour = parseInt(mainSlot.endTime.split(':')[0]);
+      for (let hour = startHour; hour < endHour; hour++) {
+        const timeStr = hour.toString().padStart(2, "0") + ":00";
 
-    console.log("⏰ Processing time range:", { startHour, endHour, bookedSlots });
+        const isBooked = bookedSlots.some((bookedSlot: any) => {
+          const bookedStartHour = parseInt(bookedSlot.startTime.split(":")[0]);
+          const bookedEndHour = parseInt(bookedSlot.endTime.split(":")[0]);
+          return hour >= bookedStartHour && hour < bookedEndHour;
+        });
 
-    // Generate hourly slots from start to end
-    for (let hour = startHour; hour < endHour; hour++) {
-      const timeStr = hour.toString().padStart(2, '0') + ':00';
-      const fullTimeStr = timeStr + ':00';
+        const existingSlot = processedSlots.find((s) => s.time === timeStr);
+        if (!existingSlot) {
+          processedSlots.push({
+            time: timeStr,
+            hour: hour,
+            isAvailable: !isBooked,
+            isBooked: isBooked,
+            status: isBooked ? "booked" : "available",
+            bookingInfo: isBooked
+              ? this.getBookingInfo(bookedSlots, hour)
+              : null,
+          });
+        }
+      }
+    });
 
-      // Check if this hour is booked
-      const isBooked = bookedSlots.some((bookedSlot: TimeSlotInfo) => {
-        const bookedStartHour = parseInt(bookedSlot.startTime.split(':')[0]);
-        const bookedEndHour = parseInt(bookedSlot.endTime.split(':')[0]);
-        return hour >= bookedStartHour && hour < bookedEndHour;
-      });
-
-      const slot: ProcessedTimeSlot = {
-        time: timeStr,
-        hour: hour,
-        isAvailable: !isBooked,
-        isBooked: isBooked,
-        status: isBooked ? 'booked' : 'available',
-        bookingInfo: isBooked ? this.getBookingInfo(bookedSlots, hour) : null,
-      };
-
-      processedSlots.push(slot);
-    }
-
-    console.log("✅ Generated processed slots:", processedSlots);
+    processedSlots.sort((a, b) => a.hour - b.hour);
     return processedSlots;
   }
 
@@ -151,8 +150,8 @@ export class AvailabilityService {
    */
   private getBookingInfo(bookedSlots: TimeSlotInfo[], hour: number): any {
     const relevantBooking = bookedSlots.find((bookedSlot: TimeSlotInfo) => {
-      const bookedStartHour = parseInt(bookedSlot.startTime.split(':')[0]);
-      const bookedEndHour = parseInt(bookedSlot.endTime.split(':')[0]);
+      const bookedStartHour = parseInt(bookedSlot.startTime.split(":")[0]);
+      const bookedEndHour = parseInt(bookedSlot.endTime.split(":")[0]);
       return hour >= bookedStartHour && hour < bookedEndHour;
     });
 
@@ -162,13 +161,15 @@ export class AvailabilityService {
   /**
    * Get availability range (start and end time) from available slots
    */
-  private getAvailabilityRange(availableSlots: TimeSlotInfo[]): { start: string; end: string } | null {
+  private getAvailabilityRange(
+    availableSlots: TimeSlotInfo[]
+  ): { start: string; end: string } | null {
     if (availableSlots.length === 0) return null;
 
     const slot = availableSlots[0];
     return {
       start: slot.startTime.substring(0, 5), // "09:00:00" -> "09:00"
-      end: slot.endTime.substring(0, 5),     // "17:00:00" -> "17:00"
+      end: slot.endTime.substring(0, 5), // "17:00:00" -> "17:00"
     };
   }
 
@@ -180,16 +181,67 @@ export class AvailabilityService {
     date: string
   ): Promise<string[]> {
     try {
-      const dayInfo = await this.getAvailableSlots(photographerId, date);
-      
-      if (!dayInfo) return [];
+      console.log("🕐 Getting available times for UI:", {
+        photographerId,
+        date,
+      });
 
-      const availableTimes = dayInfo.availableSlots
-        .filter(slot => slot.isAvailable)
-        .map(slot => slot.time);
+      const response = await apiClient.get<AvailableSlotsResponse>(
+        AVAILABILITY_ENDPOINTS.GET_AVAILABLE_SLOTS(photographerId, date)
+      );
 
-      console.log("🕐 Available times for UI:", availableTimes);
-      return availableTimes;
+      console.log("📅 Available slots API response:", response);
+
+      if (
+        response.error !== 0 ||
+        !response.data ||
+        response.data.length === 0
+      ) {
+        console.warn("⚠️ No available slots found or API error");
+        return [];
+      }
+
+      const dayData = response.data[0];
+      const availableSlots = dayData.availableSlots || [];
+
+      if (availableSlots.length === 0) {
+        console.log("🔭 No available slots for this day");
+        return [];
+      }
+
+      console.log("⏰ Processing available ranges:", availableSlots);
+
+      // ✅ CORRECT LOGIC: Only return possible START times
+      const startTimes: string[] = [];
+
+      availableSlots.forEach((slot: any) => {
+        const startHour = parseInt(slot.startTime.split(":")[0]);
+        const endHour = parseInt(slot.endTime.split(":")[0]);
+
+        console.log(`📅 Available range: ${startHour}:00 - ${endHour}:00`);
+
+        // Add all possible start times within this range (except the last hour)
+        for (let hour = startHour; hour < endHour; hour++) {
+          const timeStr = hour.toString().padStart(2, "0") + ":00";
+          if (!startTimes.includes(timeStr)) {
+            startTimes.push(timeStr);
+          }
+        }
+      });
+
+      // Sort by hour
+      startTimes.sort((a, b) => {
+        const hourA = parseInt(a.split(":")[0]);
+        const hourB = parseInt(b.split(":")[0]);
+        return hourA - hourB;
+      });
+
+      console.log("✅ Available START times for UI:", {
+        startTimes,
+        example: "Can start at these times, end times calculated separately",
+      });
+
+      return startTimes;
     } catch (error) {
       console.error("❌ Error getting available times:", error);
       return [];
@@ -197,11 +249,76 @@ export class AvailabilityService {
   }
 
   async getAvailableSlotsForDate(
-  photographerId: number,
-  date: string
-): Promise<DayAvailabilityInfo | null> {
-  return await this.getAvailableSlots(photographerId, date);
-}
+    photographerId: number,
+    date: string
+  ): Promise<DayAvailabilityInfo | null> {
+    return await this.getAvailableSlots(photographerId, date);
+  }
+
+  async getEndTimesForStartTime(
+    photographerId: number,
+    date: string,
+    startTime: string
+  ): Promise<string[]> {
+    try {
+      console.log("🕐 Getting end times for start time:", {
+        photographerId,
+        date,
+        startTime,
+      });
+
+      const response = await apiClient.get<AvailableSlotsResponse>(
+        AVAILABILITY_ENDPOINTS.GET_AVAILABLE_SLOTS(photographerId, date)
+      );
+
+      if (
+        response.error !== 0 ||
+        !response.data ||
+        response.data.length === 0
+      ) {
+        return [];
+      }
+
+      const dayData = response.data[0];
+      const availableSlots = dayData.availableSlots || [];
+      const startHour = parseInt(startTime.split(":")[0]);
+
+      console.log("🔍 Finding end times for start hour:", startHour);
+
+      // Find which available range contains this start time
+      const containingSlot = availableSlots.find((slot: any) => {
+        const slotStartHour = parseInt(slot.startTime.split(":")[0]);
+        const slotEndHour = parseInt(slot.endTime.split(":")[0]);
+        return startHour >= slotStartHour && startHour < slotEndHour;
+      });
+
+      if (!containingSlot) {
+        console.warn("⚠️ Start time not found in any available slot");
+        return [];
+      }
+
+      const rangeEndHour = parseInt(containingSlot.endTime.split(":")[0]);
+      const endTimes: string[] = [];
+
+      // Generate end times from (startHour + 1) to rangeEndHour
+      for (let hour = startHour + 1; hour <= rangeEndHour; hour++) {
+        const timeStr = hour.toString().padStart(2, "0") + ":00";
+        endTimes.push(timeStr);
+      }
+
+      console.log("✅ End times for start time:", {
+        startTime,
+        containingRange: `${containingSlot.startTime}-${containingSlot.endTime}`,
+        endTimes,
+        example: `${startTime} can end at: ${endTimes.join(", ")}`,
+      });
+
+      return endTimes;
+    } catch (error) {
+      console.error("❌ Error getting end times:", error);
+      return [];
+    }
+  }
 
   /**
    * Check if a specific time slot is available
@@ -209,20 +326,20 @@ export class AvailabilityService {
   async isTimeSlotAvailable(
     photographerId: number,
     date: string,
-    startTime: string, 
-    endTime: string    
+    startTime: string,
+    endTime: string
   ): Promise<boolean> {
     try {
       const dayInfo = await this.getAvailableSlots(photographerId, date);
-      
+
       if (!dayInfo) return false;
 
-      const startHour = parseInt(startTime.split(':')[0]);
-      const endHour = parseInt(endTime.split(':')[0]);
+      const startHour = parseInt(startTime.split(":")[0]);
+      const endHour = parseInt(endTime.split(":")[0]);
 
       // Check all hours in the range
       for (let hour = startHour; hour < endHour; hour++) {
-        const slot = dayInfo.availableSlots.find(s => s.hour === hour);
+        const slot = dayInfo.availableSlots.find((s) => s.hour === hour);
         if (!slot || !slot.isAvailable) {
           return false;
         }
@@ -234,9 +351,6 @@ export class AvailabilityService {
       return false;
     }
   }
-
-
-
 
   // ===== CRUD OPERATIONS =====
 

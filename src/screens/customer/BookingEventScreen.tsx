@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
-import { useAvailability } from "../../hooks/useAvailability"; // ✅ Add this import
+import { useAvailability } from "../../hooks/useAvailability"; 
 import { getResponsiveSize } from "../../utils/responsive";
 import { AntDesign, Feather } from "@expo/vector-icons";
 import { useApprovedPhotographers, useEventBooking } from "../../hooks/useEvent";

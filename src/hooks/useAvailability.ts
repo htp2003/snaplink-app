@@ -109,6 +109,35 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
     []
   );
 
+  const getEndTimesForStartTime = useCallback(
+    async (
+      photographerIdParam: number,
+      date: string,
+      startTime: string
+    ): Promise<string[]> => {
+      try {
+        console.log("🕒 Hook: Getting end times for start time:", {
+          photographerIdParam,
+          date,
+          startTime,
+        });
+
+        const endTimes = await availabilityService.getEndTimesForStartTime(
+          photographerIdParam,
+          date,
+          startTime
+        );
+
+        console.log("✅ Hook: End times result:", endTimes);
+        return endTimes;
+      } catch (err) {
+        console.error("❌ Hook: Error getting end times:", err);
+        return [];
+      }
+    },
+    []
+  );
+
   const isTimeSlotAvailable = useCallback(
     async (
       photographerIdParam: number,
@@ -792,6 +821,7 @@ export const useAvailability = (options: UseAvailabilityOptions = {}) => {
     getAvailableSlotsForDate,
     getAvailableTimesForDate,
     isTimeSlotAvailable,
+    getEndTimesForStartTime,
 
     // ===== UTILITY METHODS =====
     clearAvailabilityData,

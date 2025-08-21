@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -23,6 +24,8 @@ import type { CreateBookingRequest } from "../../types/booking";
 import { useAuth } from "../../hooks/useAuth";
 import { photographerStyleRecommendations } from "../../hooks/useStyleRecommendations";
 import { useCurrentUserId } from "../../hooks/useAuth";
+// ✅ ADD: Import availabilityService directly for end times
+import { availabilityService } from "../../services/availabilityService";
 
 import LocationModal from "../../components/Location/LocationModal";
 
@@ -135,6 +138,10 @@ export default function BookingScreen() {
   const [selectedPhotographer, setSelectedPhotographer] = useState<any>(
     existingBookingData?.selectedPhotographer || photographer || null
   );
+
+  // ✅ FIXED: End time state management
+  const [endTimeOptions, setEndTimeOptions] = useState<string[]>([]);
+  const [loadingEndTimes, setLoadingEndTimes] = useState(false);
 
   // Form State
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
@@ -279,7 +286,6 @@ export default function BookingScreen() {
   // Load available times when date changes
   useEffect(() => {
     const loadAvailableTimes = async () => {
-
       console.log("🔍 PHOTOGRAPHER ID DEBUG:", {
         selectedPhotographer: selectedPhotographer,
         selectedPhotographer_photographerId: selectedPhotographer?.photographerId,
@@ -290,7 +296,7 @@ export default function BookingScreen() {
       });
 
       if (!currentPhotographerId || !selectedDate) {
-        console.log("⏭️ Skipping loadAvailableTimes:", {
+        console.log("⭐️ Skipping loadAvailableTimes:", {
           hasPhotographerId: !!currentPhotographerId,
           hasSelectedDate: !!selectedDate,
           currentPhotographerId,
@@ -347,6 +353,58 @@ export default function BookingScreen() {
 
     loadAvailableTimes();
   }, [currentPhotographerId, selectedDate, getAvailableTimesForDate]);
+
+  // ✅ FIXED: Load end times when start time changes using service directly
+  useEffect(() => {
+    const loadEndTimes = async () => {
+      if (!selectedStartTime || !currentPhotographerId || !selectedDate) {
+        setEndTimeOptions([]);
+        return;
+      }
+
+      setLoadingEndTimes(true);
+      try {
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const dateString = `${year}-${month}-${day}`;
+
+        console.log("🕒 Loading end times for:", {
+          photographerId: currentPhotographerId,
+          date: dateString,
+          startTime: selectedStartTime
+        });
+
+        // ✅ USE SERVICE DIRECTLY - Not hook inside useEffect
+        const endTimes = await availabilityService.getEndTimesForStartTime(
+          currentPhotographerId,
+          dateString,
+          selectedStartTime
+        );
+
+        setEndTimeOptions(endTimes);
+        
+        // Clear selected end time if it's no longer valid
+        if (selectedEndTime && !endTimes.includes(selectedEndTime)) {
+          setSelectedEndTime("");
+        }
+
+        console.log("✅ End times loaded:", {
+          startTime: selectedStartTime,
+          endTimes,
+          example: `${selectedStartTime} → [${endTimes.join(', ')}]`
+        });
+
+      } catch (error) {
+        console.error("❌ Error loading end times:", error);
+        setEndTimeOptions([]);
+      } finally {
+        setLoadingEndTimes(false);
+      }
+    };
+
+    loadEndTimes();
+  }, [selectedStartTime, currentPhotographerId, selectedDate]);
 
   // Safe data extraction
   const photographerName = selectedPhotographer?.fullName ||
@@ -413,11 +471,9 @@ export default function BookingScreen() {
     return availableTimes;
   };
 
+  // ✅ SIMPLIFIED: Just return loaded end time options
   const getEndTimeOptions = () => {
-    if (!selectedStartTime) return [];
-    const availableTimesFiltered = getFilteredTimes();
-    const startIndex = availableTimesFiltered.indexOf(selectedStartTime);
-    return availableTimesFiltered.slice(startIndex + 1);
+    return endTimeOptions;
   };
 
   // Event handlers
@@ -425,6 +481,7 @@ export default function BookingScreen() {
     setSelectedDate(date);
     setSelectedStartTime("");
     setSelectedEndTime("");
+    setEndTimeOptions([]); // ✅ Clear end time options when date changes
     setShowDatePicker(false);
   };
 
@@ -457,17 +514,14 @@ export default function BookingScreen() {
     setSelectedStartTime("");
     setSelectedEndTime("");
     setAvailableTimes([]);
+    setEndTimeOptions([]); // ✅ Clear end time options when photographer changes
   };
 
   const handleStartTimeSelect = (time: string) => {
     setSelectedStartTime(time);
-    const availableTimesFiltered = getFilteredTimes();
-    if (
-      selectedEndTime &&
-      availableTimesFiltered.indexOf(selectedEndTime) <= availableTimesFiltered.indexOf(time)
-    ) {
-      setSelectedEndTime("");
-    }
+    // ✅ Clear end time when start time changes - it will reload via useEffect
+    setSelectedEndTime("");
+    setEndTimeOptions([]);
   };
 
   const handleEndTimeSelect = (time: string) => {
@@ -504,9 +558,9 @@ export default function BookingScreen() {
         return;
       }
 
-      // 🔍 CHECK TOKEN BEFORE API CALL
+      // 🔐 CHECK TOKEN BEFORE API CALL
       const storedToken = await AsyncStorage.getItem("token");
-      console.log("🔍 Pre-API token check:", {
+      console.log("🔐 Pre-API token check:", {
         hasStoredToken: !!storedToken,
         tokenLength: storedToken?.length,
         isValidJWT: storedToken ? storedToken.split('.').length === 3 : false,
@@ -598,7 +652,7 @@ export default function BookingScreen() {
           errorType: error?.constructor?.name,
         });
 
-        // 🔍 SPECIFIC 401 HANDLING
+        // 🔐 SPECIFIC 401 HANDLING
         if (error instanceof Error) {
           if (error.message.includes("401") || error.message.includes("Unauthorized")) {
             console.error("🚨 401 UNAUTHORIZED - Token is invalid/expired");

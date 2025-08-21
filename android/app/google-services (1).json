@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "260753244576",
+    "project_id": "snaplink-7b647",
+    "storage_bucket": "snaplink-7b647.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:260753244576:android:2ec1f7a9505465334524c5",
+        "android_client_info": {
+          "package_name": "com.anonymous.snaplinkapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDPB6xA00p4pRurXmG8ZAuDeDZEjAVVYkg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

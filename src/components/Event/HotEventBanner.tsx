@@ -89,13 +89,13 @@ const HotEventBanner: React.FC<HotEventBannerProps> = ({
     if (event.discountedPrice && event.originalPrice) {
       const discountPercent = Math.round(((event.originalPrice - event.discountedPrice) / event.originalPrice) * 100);
       return {
-        current: `₫${event.discountedPrice.toLocaleString()}`,
-        original: `₫${event.originalPrice.toLocaleString()}`,
+        current: `${event.discountedPrice.toLocaleString()}₫`,
+        original: `${event.originalPrice.toLocaleString()}₫`,
         discount: discountPercent
       };
     } else if (event.originalPrice) {
       return {
-        current: `₫${event.originalPrice.toLocaleString()}`,
+        current: `${event.originalPrice.toLocaleString()}₫`,
         original: null,
         discount: 0
       };

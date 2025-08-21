@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NotificationApiResponse } from '../../types';
 import NotificationItem from './NotificationItem';
 import { getResponsiveSize } from '../../utils/responsive';
-import { useNotifications } from '../../hooks/useNotifications';
+import { useNotifications } from '../../hooks/useNotification';
 import { Ionicons } from '@expo/vector-icons';
 
 type NotificationModalProps = {

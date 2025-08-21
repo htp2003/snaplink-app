@@ -2,7 +2,7 @@
 import React from 'react';
 import { TouchableOpacity, View, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNotifications } from '../../hooks/useNotifications';
+import { useNotifications } from '../../hooks/useNotification';
 
 interface NotificationBellProps {
   onPress: () => void;

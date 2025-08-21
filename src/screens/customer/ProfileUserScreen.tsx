@@ -18,12 +18,12 @@ import { getResponsiveSize } from "../../utils/responsive";
 import { useProfile } from "../../context/ProfileContext";
 import FavoritedModal from "../../components/FavoritedModal";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import NotificationBell from "../../components/Notification/NotificationBell";
-import NotificationModal from "../../components/Notification/NotificationModal";
+// import NotificationBell from "../../components/Notification/NotificationBell";
+// import NotificationModal from "../../components/Notification/NotificationModal";
 import { userService } from "../../services/userService";
 import { UserProfile } from "../../types/userProfile";
 import { useAuth, User as AuthUser } from "../../hooks/useAuth";
-import AntDesign from '@expo/vector-icons/AntDesign';
+
 
 const { width } = Dimensions.get("window");
 const HEADER_HEIGHT = 60;
@@ -351,15 +351,16 @@ const ProfileUserScreen = () => {
     }
 
     return (
-      <NotificationBell
-        onPress={handleNotificationPress}
-        userId={currentUserId}
-        size={24}
-        color="#000000"
-        style={{
-          opacity: isSticky ? 1 : 1,
-        }}
-      />
+      // <NotificationBell
+      //   onPress={handleNotificationPress}
+      //   userId={currentUserId}
+      //   size={24}
+      //   color="#000000"
+      //   style={{
+      //     opacity: isSticky ? 1 : 1,
+      //   }}
+      // />
+      <Ionicons name="notifications-outline" size={24} color="#000000" />
     );
   };
 
@@ -872,7 +873,7 @@ const ProfileUserScreen = () => {
       />
 
       {/* Notification Modal - Only render if userId is valid */}
-      {currentUserId &&
+      {/* {currentUserId &&
         typeof currentUserId === "number" &&
         currentUserId > 0 && (
           <NotificationModal
@@ -880,7 +881,7 @@ const ProfileUserScreen = () => {
             onClose={handleNotificationModalClose}
             userId={currentUserId}
           />
-        )}
+        )} */}
     </View>
   );
 };

@@ -329,15 +329,22 @@ const ChatScreen = () => {
   setMessageText("");
 
   try {
-    // ✅ Chỉ gọi API, để backend tự động broadcast
+    // Gọi API trước
     const sentMessage = await sendMessage(textToSend, MessageType.TEXT);
 
     if (sentMessage) {
       console.log("✅ Message sent successfully:", sentMessage.messageId);
       
-      // ❌ REMOVE MANUAL SIGNALR BROADCAST
-      // Backend should automatically broadcast the message
-      // No need for manual broadcast here
+      // ⚠️ THÊM MANUAL BROADCAST (không khuyến khích)
+      if (otherUser?.userId && isSignalRConnected) {
+        try {
+          await signalRManager.sendMessageToUser(otherUser.userId, sentMessage);
+          console.log("📤 Manual broadcast sent");
+        } catch (broadcastError) {
+          console.warn("⚠️ Manual broadcast failed:", broadcastError);
+          // Không throw error vì message đã được gửi thành công
+        }
+      }
       
     } else {
       console.error("❌ Failed to send message via API");
@@ -349,12 +356,7 @@ const ChatScreen = () => {
     setMessageText(textToSend);
     Alert.alert("Error", "Failed to send message. Please try again.");
   }
-}, [
-  messageText,
-  sendingMessage,
-  sendMessage,
-  // ❌ Remove SignalR dependencies
-]);
+}, [messageText, sendingMessage, sendMessage, otherUser, isSignalRConnected]);
 
   // ===== REST OF HANDLERS (unchanged) =====
 

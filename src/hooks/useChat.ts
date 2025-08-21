@@ -34,9 +34,10 @@ export const useChat = (options: UseChatOptions = {}) => {
     userId,
     autoRefresh = false,
     refreshInterval = 30000, // 30 seconds
-    enableRealtime = false,
+    enableRealtime = true,
     maxConversations = 100,
     maxMessagesPerConversation = 500,
+    
   } = options;
 
   // ===== STATES =====
@@ -626,6 +627,7 @@ export const useConversation = (options: UseConversationOptions) => {
     loadHistoryOnMount = true,
     maxMessages = 500,
     enableTypingIndicator = true,
+    enableRealtime = true,
   } = options;
   const { getCurrentUserId } = useAuth();
 
@@ -999,6 +1001,8 @@ export const useConversation = (options: UseConversationOptions) => {
       loadMessages();
     }
   }, [conversationId, loadHistoryOnMount, loadConversation, loadMessages]);
+
+  
 
   // Mark messages as read when messages change
   useEffect(() => {

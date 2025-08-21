@@ -109,6 +109,7 @@ export type RootStackParamList = {
   };
   ChangePasswordScreen: undefined;
   ForgotPassword: undefined;
+  WithdrawalScreen: undefined;
   
   // Photographer screens
   EditProfilePhotographer: undefined;

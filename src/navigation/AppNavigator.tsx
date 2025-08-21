@@ -40,7 +40,7 @@ import PortfolioScreen from "../screens/photographer/PortfolioScreen";
 import PaymentWaitingScreen from "../screens/customer/PaymentWaitingScreen ";
 import PaymentWaitingScreenWallet from "../screens/photographer/PaymentWaitingScreenWallet";
 import BookingDetailScreen from "../screens/customer/BookingDetailScreen";
-
+import WithdrawalScreen from "src/screens/WithdrawalScreen";
 import PhotoDeliveryScreen from "../screens/photographer/PhotoDeliveryScreen";
 import ChatScreen from "../screens/customer/ChatScreen";
 import MessagesScreen from "../screens/customer/MessagesScreen";
@@ -63,10 +63,8 @@ import EventDetailScreen from "../screens/customer/EventDetailScreen";
 import BookingEventScreen from "../screens/customer/BookingEventScreen";
 import OrderEventDetailScreen from "../screens/customer/OrderEventDetailScreen";
 
-
 // 🏢 VENUE OWNER PAYMENT SCREEN
 import VenuePaymentWaitingScreen from "../screens/venueOwner/VenuePaymentWaitingScreen";
-
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -99,6 +97,11 @@ const AppNavigator = () => {
       <Stack.Screen
         name="ChangePasswordScreen"
         component={ChangePasswordScreen}
+      />
+
+      <Stack.Screen
+        name="WithdrawalScreen"
+        component={WithdrawalScreen}
       />
 
       {/* Các màn hình dành riêng cho Customer */}
@@ -136,8 +139,11 @@ const AppNavigator = () => {
       <Stack.Screen name="NewChatScreen" component={MessagesScreen} />
       <Stack.Screen name="EventDetailScreen" component={EventDetailScreen} />
 
-      <Stack.Screen name="BookingEvent" component={BookingEventScreen}/>
-      <Stack.Screen name="OrderEventDetail" component={OrderEventDetailScreen}/>
+      <Stack.Screen name="BookingEvent" component={BookingEventScreen} />
+      <Stack.Screen
+        name="OrderEventDetail"
+        component={OrderEventDetailScreen}
+      />
       {/* Test */}
 
       {/* Các màn hình dành riêng cho Photographer */}

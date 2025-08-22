@@ -1,4 +1,3 @@
-// screens/venueOwner/VenueOwnerCreateEventScreen.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -15,278 +14,21 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePickerModal from "react-native-modal-datetime-picker";
-import * as ImagePicker from "expo-image-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useVenueOwnerEvent } from "../../hooks/useVenueOwnerEvent";
 import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
 import { venueOwnerImageService } from "../../services/venueOwnerImageService.ts";
-import { venueOwnerProfileService } from "../../services/venueOwnerProfileService";
 import { CreateEventRequest } from "../../types/VenueOwnerEvent";
-import { VenueLocation } from "../../types/venueLocation";
-
-// Subscription related interfaces
-interface PremiumSubscription {
-  premiumSubscriptionId: number;
-  userId: number;
-  packageId: number;
-  startDate: string;
-  endDate: string;
-  status: string;
-  paymentId?: number;
-  photographerId?: number;
-  locationId: number;
-  package: {
-    packageId: number;
-    name: string;
-    description: string;
-    price: number;
-    durationDays: number;
-    features: string;
-    applicableTo: string;
-  };
-}
-
-interface LocationWithSubscription extends VenueLocation {
-  premiumSubscriptions?: PremiumSubscription[];
-  hasActiveSubscription?: boolean;
-  canCreateEvent?: boolean;
-}
-
-interface FormData {
-  locationId: number | null;
-  name: string;
-  description: string;
-  startDate: Date;
-  endDate: Date;
-  discountedPrice: string;
-  originalPrice: string;
-  maxPhotographers: string;
-  maxBookingsPerSlot: string;
-}
-
-interface ImageItem {
-  uri: string;
-  id: string;
-  isPrimary: boolean;
-}
-
-// Subscription utility functions
-const hasActiveSubscription = (
-  subscriptions?: PremiumSubscription[]
-): boolean => {
-  console.log(
-    "🔍 [SUBSCRIPTION CHECK] Checking hasActiveSubscription with data:",
-    {
-      subscriptionsCount: subscriptions?.length || 0,
-      subscriptions:
-        subscriptions?.map((sub) => ({
-          id: sub.premiumSubscriptionId,
-          status: sub.status,
-          endDate: sub.endDate,
-          applicableTo: sub.package?.applicableTo,
-          packageName: sub.package?.name,
-          isExpired: new Date(sub.endDate) <= new Date(),
-        })) || [],
-    }
-  );
-
-  if (!subscriptions || subscriptions.length === 0) {
-    console.log("❌ [SUBSCRIPTION CHECK] No subscriptions found");
-    return false;
-  }
-
-  const activeSubscriptions = subscriptions.filter((subscription) => {
-    const isActive = subscription.status === "Active";
-    const isLocationSubscription =
-      subscription.package?.applicableTo === "location";
-    const isNotExpired = new Date(subscription.endDate) > new Date();
-
-    console.log(
-      `🔍 [SUBSCRIPTION CHECK] Subscription ${subscription.premiumSubscriptionId} analysis:`,
-      {
-        status: subscription.status,
-        isActive,
-        applicableTo: subscription.package?.applicableTo,
-        isLocationSubscription,
-        endDate: subscription.endDate,
-        isNotExpired,
-        currentTime: new Date().toISOString(),
-        passesAllChecks: isActive && isLocationSubscription && isNotExpired,
-      }
-    );
-
-    return isActive && isLocationSubscription && isNotExpired;
-  });
-
-  const hasActive = activeSubscriptions.length > 0;
-  console.log(
-    `📊 [SUBSCRIPTION CHECK] Final result: ${hasActive} (${activeSubscriptions.length}/${subscriptions.length} subscriptions are valid)`
-  );
-
-  return hasActive;
-};
-
-const getActiveSubscription = (
-  subscriptions?: PremiumSubscription[]
-): PremiumSubscription | null => {
-  console.log("🔍 [GET ACTIVE SUB] Getting active subscription from:", {
-    subscriptionsCount: subscriptions?.length || 0,
-  });
-
-  if (!subscriptions || subscriptions.length === 0) {
-    console.log("❌ [GET ACTIVE SUB] No subscriptions provided");
-    return null;
-  }
-
-  const activeSubscriptions = subscriptions.filter((subscription) => {
-    const isActive = subscription.status === "Active";
-    const isLocationSubscription =
-      subscription.package?.applicableTo === "location";
-    const isNotExpired = new Date(subscription.endDate) > new Date();
-
-    return isActive && isLocationSubscription && isNotExpired;
-  });
-
-  if (activeSubscriptions.length === 0) {
-    console.log("❌ [GET ACTIVE SUB] No active subscriptions found");
-    return null;
-  }
-
-  // Return the subscription with the latest end date
-  const selectedSubscription = activeSubscriptions.sort(
-    (a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime()
-  )[0];
-
-  console.log("✅ [GET ACTIVE SUB] Selected subscription:", {
-    id: selectedSubscription.premiumSubscriptionId,
-    packageName: selectedSubscription.package?.name,
-    endDate: selectedSubscription.endDate,
-    remainingDays: getSubscriptionRemainingDays(selectedSubscription.endDate),
-  });
-
-  return selectedSubscription;
-};
-
-const getSubscriptionRemainingDays = (endDate: string): number => {
-  const end = new Date(endDate);
-  const now = new Date();
-  const diffTime = end.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays > 0 ? diffDays : 0;
-};
-
-// Enhanced location service to get location with subscription details
-const getLocationWithSubscriptionDetails = async (
-  locationId: number
-): Promise<LocationWithSubscription | null> => {
-  try {
-    console.log(
-      `🔍 [LOCATION API] Getting location details for ID: ${locationId}`
-    );
-
-    const token = await AsyncStorage.getItem("token");
-    if (!token) {
-      console.log("❌ [LOCATION API] No token found");
-      return null;
-    }
-
-    const apiUrl = `https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net/api/Location/GetLocationById?id=${locationId}`;
-    console.log(`🌐 [LOCATION API] Making request to: ${apiUrl}`);
-
-    const response = await fetch(apiUrl, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    console.log(
-      `📡 [LOCATION API] Response status: ${response.status} ${response.statusText}`
-    );
-
-    if (!response.ok) {
-      console.error(`❌ [LOCATION API] HTTP error: ${response.status}`);
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const result = await response.json();
-    console.log(
-      `📦 [LOCATION API] Raw response for location ${locationId}:`,
-      JSON.stringify(result, null, 2)
-    );
-
-    // FIXED: Check if response is direct data or wrapped in {error, data} format
-    let location: LocationWithSubscription;
-
-    if (result.error !== undefined && result.data) {
-      // Wrapped format: {error: 0, data: {...}}
-      console.log(
-        `📋 [LOCATION API] Response format: WRAPPED (error: ${result.error})`
-      );
-      if (result.error === 0) {
-        location = result.data as LocationWithSubscription;
-      } else {
-        console.log(
-          `❌ [LOCATION API] API returned error: ${result.error}, message: ${result.message}`
-        );
-        return null;
-      }
-    } else if (result.locationId) {
-      // Direct format: {...location data...}
-      console.log(`📋 [LOCATION API] Response format: DIRECT`);
-      location = result as LocationWithSubscription;
-    } else {
-      console.log(
-        `⚠️ [LOCATION API] Invalid response format for location ${locationId}:`,
-        {
-          hasError: result.error !== undefined,
-          hasData: !!result.data,
-          hasLocationId: !!result.locationId,
-          keys: Object.keys(result),
-        }
-      );
-      return null;
-    }
-
-    console.log(`📋 [LOCATION API] Parsed location ${locationId} data:`, {
-      locationId: location.locationId,
-      name: location.name,
-      premiumSubscriptionsCount: location.premiumSubscriptions?.length || 0,
-      premiumSubscriptionsDetail:
-        location.premiumSubscriptions?.map((sub) => ({
-          id: sub.premiumSubscriptionId,
-          status: sub.status,
-          startDate: sub.startDate,
-          endDate: sub.endDate,
-          packageId: sub.packageId,
-          packageName: sub.package?.name,
-          applicableTo: sub.package?.applicableTo,
-        })) || [],
-    });
-
-    // Check subscription status with detailed logging
-    location.hasActiveSubscription = hasActiveSubscription(
-      location.premiumSubscriptions
-    );
-    location.canCreateEvent = location.hasActiveSubscription;
-
-    console.log(`✅ [LOCATION API] Location ${locationId} processed:`, {
-      hasActiveSubscription: location.hasActiveSubscription,
-      canCreateEvent: location.canCreateEvent,
-    });
-
-    return location;
-  } catch (error) {
-    console.error(
-      `❌ [LOCATION API] Error getting location ${locationId} with subscription details:`,
-      error
-    );
-    return null;
-  }
-};
+import { useVenueOwnerSubscription } from "../../hooks/useVenueOwnerSubscription";
+import { useVenueOwnerEventForm } from "../../hooks/useVenueOwnerEventForm";
+import { TimePickerModal } from "../../components/TimePickerModal";
+import {
+  formatDisplayDateTime,
+  formatDisplayDateOnly,
+  formatDisplayTimeOnly,
+  getTimeFromDate,
+} from "../../utils/dateUtils";
 
 const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
-  // Get locationId from navigation params if available
   const preselectedLocationId = route?.params?.locationId;
 
   // Hooks
@@ -294,134 +36,54 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
   const { getLocationsByOwnerId, loading: locationsLoading } =
     useVenueOwnerLocation();
 
-  // Form state
-  const [formData, setFormData] = useState<FormData>({
-    locationId: preselectedLocationId || null,
-    name: "",
-    description: "",
-    startDate: new Date(),
-    endDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // Tomorrow
-    discountedPrice: "",
-    originalPrice: "",
-    maxPhotographers: "5",
-    maxBookingsPerSlot: "3",
-  });
+  const {
+    userLocations,
+    loadingSubscriptions,
+    hasActiveSubscription,
+    getActiveSubscription,
+    getSubscriptionRemainingDays,
+    loadUserLocationsWithSubscriptions,
+  } = useVenueOwnerSubscription();
+
+  const {
+    formData,
+    images,
+    primaryImageIndex,
+    errors,
+    updateFormData,
+    updateDateTime,
+    validateForm,
+    getFormattedDatesForAPI,
+    showImageOptions,
+    removeImage,
+    setPrimaryImage,
+    setFormData,
+  } = useVenueOwnerEventForm(preselectedLocationId);
 
   // UI state
   const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [isStartDatePickerVisible, setStartDatePickerVisibility] =
     useState(false);
   const [isEndDatePickerVisible, setEndDatePickerVisibility] = useState(false);
-  const [images, setImages] = useState<ImageItem[]>([]);
-  const [primaryImageIndex, setPrimaryImageIndex] = useState<number | null>(
-    null
-  );
+  const [isStartTimePickerVisible, setStartTimePickerVisibility] =
+    useState(false);
+  const [isEndTimePickerVisible, setEndTimePickerVisibility] = useState(false);
   const [uploading, setUploading] = useState(false);
 
-  // Location state with subscription info
-  const [userLocations, setUserLocations] = useState<
-    LocationWithSubscription[]
-  >([]);
-  const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
-  // Helper function to get current user ID from JWT
-  const getCurrentUserId = async (): Promise<number | null> => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) {
-        console.log("ℹ️ No token found");
-        return null;
-      }
-
-      const parts = token.split(".");
-      if (parts.length !== 3) {
-        throw new Error("Invalid JWT format");
-      }
-
-      const payload = parts[1];
-      const paddedPayload =
-        payload + "=".repeat((4 - (payload.length % 4)) % 4);
-      const decodedPayload = atob(paddedPayload);
-      const payloadObj = JSON.parse(decodedPayload);
-
-      const userIdStr =
-        payloadObj[
-          "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
-        ];
-      const userId = parseInt(userIdStr, 10);
-
-      console.log("✅ Current user ID from JWT:", userId);
-      return userId;
-    } catch (error) {
-      console.error("❌ Error extracting user ID from JWT:", error);
-      return null;
-    }
-  };
-
-  // Load user locations with subscription details
-  const loadUserLocationsWithSubscriptions = async () => {
-    try {
-      console.log(
-        "🗃️ [CREATE EVENT] Starting to load user locations with subscription details..."
-      );
-      setLoadingSubscriptions(true);
-
-      const currentUserId = await getCurrentUserId();
-      if (!currentUserId) {
-        console.error(
-          "❌ [CREATE EVENT] Could not get current user ID from JWT"
-        );
-        Alert.alert("Lỗi", "Không thể xác thực người dùng");
-        return;
-      }
-
-      console.log("👤 [CREATE EVENT] Current user ID:", currentUserId);
-
-      const locationOwner =
-        await venueOwnerProfileService.getLocationOwnerByUserId(currentUserId);
-
-      if (!locationOwner) {
-        console.log(
-          "ℹ️ [CREATE EVENT] No LocationOwner record found for userId:",
-          currentUserId
-        );
-        Alert.alert("Thông báo", "Bạn chưa đăng ký làm chủ địa điểm");
-        return;
-      }
-
-      console.log("✅ [CREATE EVENT] LocationOwner found:", {
-        locationOwnerId: locationOwner.locationOwnerId,
-        userId: locationOwner.userId,
-        businessName: locationOwner.businessName,
-      });
-
-      // Get basic locations first
-      const basicLocations = await getLocationsByOwnerId(
-        locationOwner.locationOwnerId
-      );
-      console.log(
-        "📍 [CREATE EVENT] Basic locations loaded:",
-        basicLocations.length
-      );
-      console.log(
-        "📍 [CREATE EVENT] Basic locations detail:",
-        basicLocations.map((loc) => ({
-          id: loc.locationId,
-          name: loc.name,
-          address: loc.address?.substring(0, 30) + "...",
-        }))
+  // Load locations on mount (unchanged)
+  useEffect(() => {
+    const loadLocations = async () => {
+      const result = await loadUserLocationsWithSubscriptions(
+        getLocationsByOwnerId,
+        preselectedLocationId
       );
 
-      if (basicLocations.length === 0) {
-        console.log(
-          "⚠️ [CREATE EVENT] No basic locations found, showing alert"
-        );
+      if (result.error === "NO_LOCATIONS") {
         Alert.alert(
           "Chưa có địa điểm",
           "Bạn chưa tạo địa điểm nào. Vui lòng tạo địa điểm trước khi tạo sự kiện.",
           [
-            { text: "Huỷ", onPress: () => navigation.goBack() },
+            { text: "Hủy", onPress: () => navigation.goBack() },
             {
               text: "Tạo địa điểm",
               onPress: () => {
@@ -431,414 +93,60 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             },
           ]
         );
-        return;
-      }
-
-      // Enhanced with subscription details
-      const locationsWithSubscriptions: LocationWithSubscription[] = [];
-      let totalActiveSubscriptions = 0;
-
-      console.log(
-        "🔍 [CREATE EVENT] Starting to check subscriptions for each location..."
-      );
-
-      for (const location of basicLocations) {
-        try {
-          console.log(
-            `🔍 [CREATE EVENT] Checking subscription for location ${location.locationId}: "${location.name}"`
-          );
-
-          const locationWithSub = await getLocationWithSubscriptionDetails(
-            location.locationId
-          );
-
-          if (locationWithSub) {
-            console.log(
-              `📋 [CREATE EVENT] Location ${location.locationId} subscription data:`,
-              {
-                premiumSubscriptionsCount:
-                  locationWithSub.premiumSubscriptions?.length || 0,
-                premiumSubscriptions:
-                  locationWithSub.premiumSubscriptions?.map((sub) => ({
-                    id: sub.premiumSubscriptionId,
-                    status: sub.status,
-                    endDate: sub.endDate,
-                    packageName: sub.package.name,
-                    applicableTo: sub.package.applicableTo,
-                    isExpired: new Date(sub.endDate) <= new Date(),
-                    daysRemaining: getSubscriptionRemainingDays(sub.endDate),
-                  })) || [],
-              }
-            );
-
-            const activeSubscription = getActiveSubscription(
-              locationWithSub.premiumSubscriptions
-            );
-            const hasActive = hasActiveSubscription(
-              locationWithSub.premiumSubscriptions
-            );
-
-            console.log(
-              `📊 [CREATE EVENT] Location ${location.locationId} analysis:`,
-              {
-                hasActiveSubscription: hasActive,
-                activeSubscription: activeSubscription
-                  ? {
-                      id: activeSubscription.premiumSubscriptionId,
-                      packageName: activeSubscription.package.name,
-                      status: activeSubscription.status,
-                      endDate: activeSubscription.endDate,
-                      remainingDays: getSubscriptionRemainingDays(
-                        activeSubscription.endDate
-                      ),
-                      isLocationPackage:
-                        activeSubscription.package.applicableTo === "location",
-                    }
-                  : null,
-              }
-            );
-
-            if (hasActive) {
-              totalActiveSubscriptions++;
-              console.log(
-                `✅ [CREATE EVENT] Location ${location.locationId} CAN create events!`
-              );
-            } else {
-              console.log(
-                `❌ [CREATE EVENT] Location ${location.locationId} CANNOT create events`
-              );
-            }
-
-            const enhancedLocation: LocationWithSubscription = {
-              ...locationWithSub,
-              hasActiveSubscription: hasActive,
-              canCreateEvent: hasActive,
-            };
-
-            locationsWithSubscriptions.push(enhancedLocation);
-          } else {
-            console.log(
-              `⚠️ [CREATE EVENT] Could not get subscription details for location ${location.locationId}, treating as no subscription`
-            );
-            // Fallback to basic location without subscription
-            const basicLocationWithSub: LocationWithSubscription = {
-              ...location,
-              hasActiveSubscription: false,
-              canCreateEvent: false,
-            };
-            locationsWithSubscriptions.push(basicLocationWithSub);
-          }
-        } catch (error) {
-          console.error(
-            `❌ [CREATE EVENT] Error checking subscription for location ${location.locationId}:`,
-            error
-          );
-          // Fallback to basic location without subscription
-          const basicLocationWithSub: LocationWithSubscription = {
-            ...location,
-            hasActiveSubscription: false,
-            canCreateEvent: false,
-          };
-          locationsWithSubscriptions.push(basicLocationWithSub);
-        }
-      }
-
-      console.log(
-        `📊 [CREATE EVENT] FINAL SUMMARY: ${totalActiveSubscriptions}/${locationsWithSubscriptions.length} locations can create events`
-      );
-      console.log(
-        "📊 [CREATE EVENT] Locations with subscription status:",
-        locationsWithSubscriptions.map((loc) => ({
-          id: loc.locationId,
-          name: loc.name,
-          canCreateEvent: loc.canCreateEvent,
-          hasActiveSubscription: loc.hasActiveSubscription,
-        }))
-      );
-
-      setUserLocations(locationsWithSubscriptions);
-
-      // Auto-select preselected location if it has subscription
-      if (preselectedLocationId && locationsWithSubscriptions.length > 0) {
-        console.log(
-          `🎯 [CREATE EVENT] Processing preselected location ID: ${preselectedLocationId}`
-        );
-        const location = locationsWithSubscriptions.find(
-          (l) => l.locationId === preselectedLocationId
-        );
-        if (location) {
-          console.log(`🎯 [CREATE EVENT] Found preselected location:`, {
-            id: location.locationId,
-            name: location.name,
-            canCreateEvent: location.canCreateEvent,
-          });
-
-          if (location.canCreateEvent) {
-            setFormData((prev) => ({
-              ...prev,
-              locationId: preselectedLocationId,
-            }));
-            console.log(
-              "✅ [CREATE EVENT] Pre-selected location with subscription:",
-              location.name
-            );
-          } else {
-            console.log(
-              "⚠️ [CREATE EVENT] Pre-selected location has no active subscription:",
-              location.name
-            );
-            Alert.alert(
-              "Thông báo",
-              `Địa điểm "${location.name}" không có gói đăng ký active. Vui lòng chọn địa điểm khác hoặc đăng ký gói subscription.`
-            );
-          }
-        } else {
-          console.log(
-            "⚠️ [CREATE EVENT] Preselected location not found in loaded locations"
-          );
-        }
-      }
-
-      // DELAY the alert check to ensure state is updated
-      setTimeout(() => {
-        const locationsWithSubscription = locationsWithSubscriptions.filter(
-          (loc) => loc.canCreateEvent
-        );
-        console.log(
-          `⏰ [CREATE EVENT] DELAYED CHECK: ${locationsWithSubscription.length}/${locationsWithSubscriptions.length} locations can create events`
-        );
-
-        if (
-          locationsWithSubscription.length === 0 &&
-          locationsWithSubscriptions.length > 0
-        ) {
-          console.log(
-            "🚨 [CREATE EVENT] No locations with subscription found, showing alert"
-          );
+      } else if (result.error === "NO_SUBSCRIPTION") {
+        setTimeout(() => {
           Alert.alert(
             "Cần đăng ký gói",
             "Không có địa điểm nào có gói đăng ký active để tạo sự kiện. Vui lòng đăng ký gói subscription trước.",
             [
-              { text: "Huỷ", onPress: () => navigation.goBack() },
+              { text: "Hủy", onPress: () => navigation.goBack() },
               {
                 text: "Đăng ký gói",
                 onPress: () => {
                   navigation.goBack();
-                  // Navigate to subscription screen
                   navigation.navigate("VenueOwnerSubscription");
                 },
               },
             ]
           );
-        } else if (locationsWithSubscription.length > 0) {
-          console.log(
-            "✅ [CREATE EVENT] Found locations with subscription, user can proceed"
+        }, 500);
+      } else if (preselectedLocationId && result.locations.length > 0) {
+        const location = result.locations.find(
+          (l) => l.locationId === preselectedLocationId
+        );
+        if (location?.canCreateEvent) {
+          setFormData((prev) => ({
+            ...prev,
+            locationId: preselectedLocationId,
+          }));
+        } else if (location) {
+          Alert.alert(
+            "Thông báo",
+            `Địa điểm "${location.name}" không có gói đăng ký active. Vui lòng chọn địa điểm khác hoặc đăng ký gói subscription.`
           );
         }
-      }, 500);
-    } catch (error) {
-      console.error(
-        "❌ [CREATE EVENT] Error loading user locations with subscriptions:",
-        error
-      );
-      Alert.alert("Lỗi", "Không thể tải danh sách địa điểm");
-    } finally {
-      setLoadingSubscriptions(false);
-    }
-  };
+      }
+    };
 
-  useEffect(() => {
-    loadUserLocationsWithSubscriptions();
+    loadLocations();
   }, []);
 
-  // Form validation with subscription check
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!formData.locationId) {
-      newErrors.locationId = "Vui lòng chọn địa điểm";
-    } else {
-      // Check if selected location has active subscription
-      const selectedLocation = userLocations.find(
-        (loc) => loc.locationId === formData.locationId
-      );
-      if (selectedLocation && !selectedLocation.canCreateEvent) {
-        newErrors.locationId =
-          "Địa điểm này không có gói đăng ký active để tạo sự kiện";
-      }
-    }
-
-    if (!formData.name.trim()) {
-      newErrors.name = "Vui lòng nhập tên sự kiện";
-    } else if (formData.name.trim().length < 3) {
-      newErrors.name = "Tên sự kiện phải có ít nhất 3 ký tự";
-    } else if (formData.name.trim().length > 255) {
-      newErrors.name = "Tên sự kiện không được quá 255 ký tự";
-    }
-
-    if (formData.description.trim().length > 1000) {
-      newErrors.description = "Mô tả không được quá 1000 ký tự";
-    }
-
-    if (formData.startDate >= formData.endDate) {
-      newErrors.endDate = "Thời gian kết thúc phải sau thời gian bắt đầu";
-    }
-
-    if (formData.startDate < new Date()) {
-      newErrors.startDate = "Thời gian bắt đầu không thể trong quá khứ";
-    }
-
-    if (formData.discountedPrice) {
-      const discountedPrice = parseFloat(formData.discountedPrice);
-      if (isNaN(discountedPrice) || discountedPrice <= 0) {
-        newErrors.discountedPrice = "Giá khuyến mãi phải là số dương";
-      }
-    }
-
-    if (formData.originalPrice) {
-      const originalPrice = parseFloat(formData.originalPrice);
-      if (isNaN(originalPrice) || originalPrice <= 0) {
-        newErrors.originalPrice = "Giá gốc phải là số dương";
-      }
-
-      if (formData.discountedPrice) {
-        const discountedPrice = parseFloat(formData.discountedPrice);
-        if (
-          !isNaN(discountedPrice) &&
-          !isNaN(originalPrice) &&
-          discountedPrice >= originalPrice
-        ) {
-          newErrors.discountedPrice = "Giá khuyến mãi phải nhỏ hơn giá gốc";
-        }
-      }
-    }
-
-    const maxPhotographers = parseInt(formData.maxPhotographers);
-    if (
-      isNaN(maxPhotographers) ||
-      maxPhotographers < 1 ||
-      maxPhotographers > 100
-    ) {
-      newErrors.maxPhotographers = "Số nhiếp ảnh gia tối đa phải từ 1-100";
-    }
-
-    const maxBookingsPerSlot = parseInt(formData.maxBookingsPerSlot);
-    if (
-      isNaN(maxBookingsPerSlot) ||
-      maxBookingsPerSlot < 1 ||
-      maxBookingsPerSlot > 50
-    ) {
-      newErrors.maxBookingsPerSlot = "Số booking tối đa phải từ 1-50";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  // Helper functions
+  const getSelectedLocationName = () => {
+    if (!formData.locationId) return "Chọn địa điểm";
+    const location = userLocations.find(
+      (l) => l.locationId === formData.locationId
+    );
+    return location?.name || "Địa điểm không xác định";
   };
 
-  // Image picker functions (unchanged)
-  const requestPermission = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Quyền truy cập",
-        "Ứng dụng cần quyền truy cập thư viện ảnh để upload hình"
-      );
-      return false;
-    }
-    return true;
+  const getSelectedLocationInfo = () => {
+    if (!formData.locationId) return null;
+    return userLocations.find((l) => l.locationId === formData.locationId);
   };
 
-  const pickImages = async () => {
-    try {
-      const hasPermission = await requestPermission();
-      if (!hasPermission) return;
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsMultipleSelection: true,
-        quality: 0.8,
-        selectionLimit: 10 - images.length,
-      });
-
-      if (!result.canceled && result.assets) {
-        const newImages: ImageItem[] = result.assets.map((asset, index) => ({
-          uri: asset.uri,
-          id: `${Date.now()}_${index}`,
-          isPrimary: false,
-        }));
-
-        setImages((prev) => [...prev, ...newImages]);
-
-        if (primaryImageIndex === null && newImages.length > 0) {
-          setPrimaryImageIndex(images.length);
-        }
-      }
-    } catch (error) {
-      console.error("❌ Pick images error:", error);
-      Alert.alert("Lỗi", "Không thể chọn ảnh");
-    }
-  };
-
-  const takePhoto = async () => {
-    try {
-      const hasPermission = await requestPermission();
-      if (!hasPermission) return;
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets[0]) {
-        const newImage: ImageItem = {
-          uri: result.assets[0].uri,
-          id: `${Date.now()}`,
-          isPrimary: false,
-        };
-
-        setImages((prev) => [...prev, newImage]);
-
-        if (primaryImageIndex === null) {
-          setPrimaryImageIndex(images.length);
-        }
-      }
-    } catch (error) {
-      console.error("❌ Take photo error:", error);
-      Alert.alert("Lỗi", "Không thể chụp ảnh");
-    }
-  };
-
-  const showImageOptions = () => {
-    Alert.alert("Thêm ảnh", "Chọn cách thêm ảnh cho sự kiện", [
-      { text: "Huỷ", style: "cancel" },
-      { text: "Chọn từ thư viện", onPress: pickImages },
-      { text: "Chụp ảnh", onPress: takePhoto },
-    ]);
-  };
-
-  const removeImage = (index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-
-    if (primaryImageIndex === index) {
-      setPrimaryImageIndex(null);
-    } else if (primaryImageIndex !== null && primaryImageIndex > index) {
-      setPrimaryImageIndex(primaryImageIndex - 1);
-    }
-  };
-
-  const setPrimaryImage = (index: number) => {
-    setPrimaryImageIndex(index);
-  };
-
-  // Form handlers
-  const updateFormData = (field: keyof FormData, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
-    }
-  };
-
-  const handleLocationSelect = (location: LocationWithSubscription) => {
+  // Event handlers
+  const handleLocationSelect = (location: any) => {
     if (!location.canCreateEvent) {
       Alert.alert(
         "Không thể chọn địa điểm",
@@ -861,55 +169,84 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     setShowLocationPicker(false);
   };
 
-  // Date picker handlers (unchanged)
-  const showStartDatePicker = () => {
-    setStartDatePickerVisibility(true);
-  };
+  const handleStartDateConfirm = (date: Date) => {
+    const currentTime = getTimeFromDate(formData.startDate);
+    updateDateTime("startDate", date, currentTime.hour, currentTime.minute);
 
-  const hideStartDatePicker = () => {
+    // Nếu start date >= end date, tự động set end date về ngày hôm sau
+    const newStartDateTime = new Date(date);
+    newStartDateTime.setHours(currentTime.hour, currentTime.minute, 0, 0);
+
+    if (newStartDateTime >= formData.endDate) {
+      const newEndDate = new Date(date);
+      newEndDate.setDate(newEndDate.getDate() + 1);
+      const currentEndTime = getTimeFromDate(formData.endDate);
+      updateDateTime(
+        "endDate",
+        newEndDate,
+        currentEndTime.hour,
+        currentEndTime.minute
+      );
+    }
+
     setStartDatePickerVisibility(false);
   };
 
-  const handleStartDateConfirm = (date: Date) => {
-    updateFormData("startDate", date);
-
-    if (date >= formData.endDate) {
-      const newEndDate = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-      updateFormData("endDate", newEndDate);
-    }
-
-    hideStartDatePicker();
-  };
-
-  const showEndDatePicker = () => {
-    setEndDatePickerVisibility(true);
-  };
-
-  const hideEndDatePicker = () => {
+  const handleEndDateConfirm = (date: Date) => {
+    const currentTime = getTimeFromDate(formData.endDate);
+    updateDateTime("endDate", date, currentTime.hour, currentTime.minute);
     setEndDatePickerVisibility(false);
   };
 
-  const handleEndDateConfirm = (date: Date) => {
-    updateFormData("endDate", date);
-    hideEndDatePicker();
+  const handleStartTimeConfirm = (selectedTime: Date) => {
+    const currentDate = new Date(formData.startDate);
+    updateDateTime(
+      "startDate",
+      currentDate,
+      selectedTime.getHours(),
+      selectedTime.getMinutes()
+    );
+    setStartTimePickerVisibility(false);
   };
 
-  // Submit handlers (unchanged except for additional validation)
+  const handleEndTimeConfirm = (selectedTime: Date) => {
+    const currentDate = new Date(formData.endDate);
+    updateDateTime(
+      "endDate",
+      currentDate,
+      selectedTime.getHours(),
+      selectedTime.getMinutes()
+    );
+    setEndTimePickerVisibility(false);
+  };
+
   const handleCreateEvent = async () => {
     try {
-      if (!validateForm()) {
+      if (!validateForm(userLocations)) {
         Alert.alert("Lỗi", "Vui lòng kiểm tra lại thông tin");
         return;
       }
 
       setUploading(true);
 
+      const { startDate, endDate } = getFormattedDatesForAPI();
+
+      console.log("🕐 Original dates:", {
+        startDate: formData.startDate,
+        endDate: formData.endDate,
+      });
+
+      console.log("🕐 Formatted dates for API:", {
+        startDate,
+        endDate,
+      });
+
       const eventData: CreateEventRequest = {
         locationId: formData.locationId!,
         name: formData.name.trim(),
         description: formData.description.trim() || undefined,
-        startDate: formData.startDate.toISOString(),
-        endDate: formData.endDate.toISOString(),
+        startDate,
+        endDate,
         discountedPrice: formData.discountedPrice
           ? parseFloat(formData.discountedPrice)
           : undefined,
@@ -920,15 +257,14 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         maxBookingsPerSlot: parseInt(formData.maxBookingsPerSlot),
       };
 
-      console.log("🗃️ Creating event with data:", eventData);
+      console.log("📅 Event data being sent to API:", eventData);
 
       const createdEvent = await createEvent(eventData);
-      if (!createdEvent) {
-        throw new Error("Không thể tạo sự kiện");
-      }
+      if (!createdEvent) throw new Error("Không thể tạo sự kiện");
 
-      console.log("✅ Event created:", createdEvent.eventId);
+      console.log("✅ Event created successfully:", createdEvent);
 
+      // Upload images if any
       if (images.length > 0) {
         console.log("📸 Uploading", images.length, "images...");
 
@@ -952,8 +288,6 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         const uploadResults = await Promise.all(uploadPromises);
         const successCount = uploadResults.filter((r) => r !== null).length;
 
-        console.log(`📸 Uploaded ${successCount}/${images.length} images`);
-
         if (successCount < images.length) {
           Alert.alert(
             "Thông báo",
@@ -963,12 +297,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
       }
 
       Alert.alert("Thành công", "Sự kiện đã được tạo thành công!", [
-        {
-          text: "OK",
-          onPress: () => {
-            navigation.goBack();
-          },
-        },
+        { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
       console.error("❌ Create event error:", error);
@@ -983,45 +312,17 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
 
   const handleCancel = () => {
     Alert.alert(
-      "Huỷ tạo sự kiện",
-      "Bạn có chắc chắn muốn huỷ? Tất cả thông tin đã nhập sẽ bị mất.",
+      "Hủy tạo sự kiện",
+      "Bạn có chắc chắn muốn hủy? Tất cả thông tin đã nhập sẽ bị mất.",
       [
         { text: "Tiếp tục chỉnh sửa", style: "cancel" },
         {
-          text: "Huỷ",
+          text: "Hủy",
           style: "destructive",
           onPress: () => navigation.goBack(),
         },
       ]
     );
-  };
-
-  // Get selected location name with subscription info
-  const getSelectedLocationName = () => {
-    if (!formData.locationId) return "Chọn địa điểm";
-    const location = userLocations.find(
-      (l) => l.locationId === formData.locationId
-    );
-    return location?.name || "Địa điểm không xác định";
-  };
-
-  const getSelectedLocationInfo = () => {
-    if (!formData.locationId) return null;
-    const location = userLocations.find(
-      (l) => l.locationId === formData.locationId
-    );
-    return location;
-  };
-
-  // Format date for display
-  const formatDateTime = (date: Date) => {
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
   };
 
   const isLoading =
@@ -1201,28 +502,46 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
           </View>
         </View>
 
-        {/* Date & Time */}
+        {/* Date & Time - Updated với separate date and time pickers */}
         <View className="bg-white rounded-lg p-4 mb-4">
           <Text className="text-lg font-semibold text-gray-900 mb-4">
             Thời gian
           </Text>
 
-          {/* Start Date */}
+          {/* Start Date & Time */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
-              Ngày bắt đầu *
+              Ngày và giờ bắt đầu *
             </Text>
+
+            {/* Date Selection */}
             <TouchableOpacity
-              onPress={showStartDatePicker}
-              className={`border rounded-lg p-3 flex-row items-center ${
+              onPress={() => setStartDatePickerVisibility(true)}
+              className={`border rounded-lg p-3 flex-row items-center mb-2 ${
                 errors.startDate ? "border-red-300" : "border-gray-300"
               }`}
             >
               <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900">
-                {formatDateTime(formData.startDate)}
+              <Text className="ml-2 text-gray-900 flex-1">
+                {formatDisplayDateOnly(formData.startDate)}
               </Text>
+              <Ionicons name="chevron-down" size={16} color="#6B7280" />
             </TouchableOpacity>
+
+            {/* Time Selection */}
+            <TouchableOpacity
+              onPress={() => setStartTimePickerVisibility(true)}
+              className={`border rounded-lg p-3 flex-row items-center ${
+                errors.startDate ? "border-red-300" : "border-gray-300"
+              }`}
+            >
+              <Ionicons name="time-outline" size={20} color="#6B7280" />
+              <Text className="ml-2 text-gray-900 flex-1">
+                {formatDisplayTimeOnly(formData.startDate)}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#6B7280" />
+            </TouchableOpacity>
+
             {errors.startDate && (
               <Text className="text-red-500 text-sm mt-1">
                 {errors.startDate}
@@ -1230,27 +549,58 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             )}
           </View>
 
-          {/* End Date */}
+          {/* End Date & Time */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
-              Ngày kết thúc *
+              Ngày và giờ kết thúc *
             </Text>
+
+            {/* Date Selection */}
             <TouchableOpacity
-              onPress={showEndDatePicker}
-              className={`border rounded-lg p-3 flex-row items-center ${
+              onPress={() => setEndDatePickerVisibility(true)}
+              className={`border rounded-lg p-3 flex-row items-center mb-2 ${
                 errors.endDate ? "border-red-300" : "border-gray-300"
               }`}
             >
               <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900">
-                {formatDateTime(formData.endDate)}
+              <Text className="ml-2 text-gray-900 flex-1">
+                {formatDisplayDateOnly(formData.endDate)}
               </Text>
+              <Ionicons name="chevron-down" size={16} color="#6B7280" />
             </TouchableOpacity>
+
+            {/* Time Selection */}
+            <TouchableOpacity
+              onPress={() => setEndTimePickerVisibility(true)}
+              className={`border rounded-lg p-3 flex-row items-center ${
+                errors.endDate ? "border-red-300" : "border-gray-300"
+              }`}
+            >
+              <Ionicons name="time-outline" size={20} color="#6B7280" />
+              <Text className="ml-2 text-gray-900 flex-1">
+                {formatDisplayTimeOnly(formData.endDate)}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color="#6B7280" />
+            </TouchableOpacity>
+
             {errors.endDate && (
               <Text className="text-red-500 text-sm mt-1">
                 {errors.endDate}
               </Text>
             )}
+          </View>
+
+          {/* Summary */}
+          <View className="bg-gray-50 p-3 rounded-lg">
+            <Text className="text-sm text-gray-600 mb-1">
+              📅 Tóm tắt thời gian:
+            </Text>
+            <Text className="text-sm font-medium text-gray-800">
+              Từ {formatDisplayDateTime(formData.startDate)}
+            </Text>
+            <Text className="text-sm font-medium text-gray-800">
+              Đến {formatDisplayDateTime(formData.endDate)}
+            </Text>
           </View>
         </View>
 
@@ -1637,29 +987,46 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         </Pressable>
       </Modal>
 
-      {/* Date Time Pickers */}
+      {/* Date Pickers - Only for date selection */}
       <DateTimePickerModal
         isVisible={isStartDatePickerVisible}
-        mode="datetime"
+        mode="date"
         onConfirm={handleStartDateConfirm}
-        onCancel={hideStartDatePicker}
+        onCancel={() => setStartDatePickerVisibility(false)}
         minimumDate={new Date()}
         date={formData.startDate}
         locale="vi_VN"
         confirmTextIOS="Xác nhận"
-        cancelTextIOS="Huỷ"
+        cancelTextIOS="Hủy"
       />
 
       <DateTimePickerModal
         isVisible={isEndDatePickerVisible}
-        mode="datetime"
+        mode="date"
         onConfirm={handleEndDateConfirm}
-        onCancel={hideEndDatePicker}
+        onCancel={() => setEndDatePickerVisibility(false)}
         minimumDate={formData.startDate}
         date={formData.endDate}
         locale="vi_VN"
         confirmTextIOS="Xác nhận"
-        cancelTextIOS="Huỷ"
+        cancelTextIOS="Hủy"
+      />
+
+      {/* Time Pickers - Native time pickers */}
+      <TimePickerModal
+        isVisible={isStartTimePickerVisible}
+        onConfirm={handleStartTimeConfirm}
+        onCancel={() => setStartTimePickerVisibility(false)}
+        initialDate={formData.startDate}
+        title="Chọn giờ bắt đầu"
+      />
+
+      <TimePickerModal
+        isVisible={isEndTimePickerVisible}
+        onConfirm={handleEndTimeConfirm}
+        onCancel={() => setEndTimePickerVisibility(false)}
+        initialDate={formData.endDate}
+        title="Chọn giờ kết thúc"
       />
     </SafeAreaView>
   );

@@ -232,6 +232,15 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString("vi-VN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
     });
   };
 
@@ -240,6 +249,26 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
       style: "currency",
       currency: "VND",
     }).format(amount);
+  };
+
+  const getEventDuration = () => {
+    if (!selectedEvent) return "";
+
+    const startDate = new Date(selectedEvent.startDate);
+    const endDate = new Date(selectedEvent.endDate);
+
+    // Kiểm tra xem có cùng ngày không
+    const isSameDay = startDate.toDateString() === endDate.toDateString();
+
+    if (isSameDay) {
+      return `${formatDate(selectedEvent.startDate)} • ${formatTime(
+        selectedEvent.startDate
+      )} - ${formatTime(selectedEvent.endDate)}`;
+    } else {
+      return `${formatDateTime(selectedEvent.startDate)} - ${formatDateTime(
+        selectedEvent.endDate
+      )}`;
+    }
   };
 
   // Loading state
@@ -417,26 +446,56 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
         <View className="bg-white p-4 mb-4">
           <View className="flex-row justify-between items-start mb-4">
             <View className="flex-1 mr-4">
-              <Text className="text-2xl font-bold text-gray-900 mb-2">
+              <Text className="text-2xl font-bold text-gray-900 mb-3">
                 {selectedEvent.name}
               </Text>
 
               {/* Location */}
-              <View className="flex-row items-center mb-2">
-                <Ionicons name="location-outline" size={16} color="#6B7280" />
-                <Text className="ml-2 text-gray-600">
-                  {selectedEvent.location?.name || "Địa điểm không xác định"}
-                </Text>
+              <View className="flex-row items-center mb-3">
+                <View className="bg-blue-100 p-2 rounded-lg mr-3">
+                  <Ionicons name="location-outline" size={18} color="#3B82F6" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm text-gray-500">Địa điểm</Text>
+                  <Text className="text-gray-900 font-medium">
+                    {selectedEvent.location?.name || "Địa điểm không xác định"}
+                  </Text>
+                </View>
               </View>
 
-              {/* Date */}
-              <View className="flex-row items-center">
-                <Ionicons name="calendar-outline" size={16} color="#6B7280" />
-                <Text className="ml-2 text-gray-600">
-                  {formatDate(selectedEvent.startDate)} -{" "}
-                  {formatDate(selectedEvent.endDate)}
-                </Text>
+              {/* Date & Time */}
+              <View className="flex-row items-center mb-3">
+                <View className="bg-green-100 p-2 rounded-lg mr-3">
+                  <Ionicons name="time-outline" size={18} color="#10B981" />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-sm text-gray-500">Thời gian</Text>
+                  <Text className="text-gray-900 font-medium">
+                    {getEventDuration()}
+                  </Text>
+                </View>
               </View>
+
+              {/* Additional time info if multi-day event */}
+              {new Date(selectedEvent.startDate).toDateString() !==
+                new Date(selectedEvent.endDate).toDateString() && (
+                <View className="bg-blue-50 p-3 rounded-lg mb-3">
+                  <View className="space-y-2">
+                    <View className="flex-row justify-between">
+                      <Text className="text-sm text-blue-600">Bắt đầu:</Text>
+                      <Text className="text-sm font-medium text-blue-900">
+                        {formatDateTime(selectedEvent.startDate)}
+                      </Text>
+                    </View>
+                    <View className="flex-row justify-between">
+                      <Text className="text-sm text-blue-600">Kết thúc:</Text>
+                      <Text className="text-sm font-medium text-blue-900">
+                        {formatDateTime(selectedEvent.endDate)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
 
             {/* Status Badge */}
@@ -453,53 +512,61 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
 
           {/* Description */}
           {selectedEvent.description && (
-            <Text className="text-gray-700 mb-4">
-              {selectedEvent.description}
-            </Text>
+            <View className="mb-4">
+              <Text className="text-sm text-gray-500 mb-2">Mô tả sự kiện</Text>
+              <Text className="text-gray-700 leading-5">
+                {selectedEvent.description}
+              </Text>
+            </View>
           )}
 
           {/* Pricing */}
           {(selectedEvent.originalPrice || selectedEvent.discountedPrice) && (
-            <View className="flex-row items-center space-x-4 mb-4">
-              {selectedEvent.originalPrice && selectedEvent.discountedPrice && (
-                <>
-                  <Text className="text-gray-500 line-through">
-                    {formatCurrency(selectedEvent.originalPrice)}
-                  </Text>
-                  <Text className="text-red-600 font-semibold text-lg">
-                    {formatCurrency(selectedEvent.discountedPrice)}
-                  </Text>
-                  <View className="bg-red-100 px-2 py-1 rounded">
-                    <Text className="text-red-800 text-xs font-medium">
-                      Giảm{" "}
-                      {Math.round(
-                        ((selectedEvent.originalPrice -
-                          selectedEvent.discountedPrice) /
-                          selectedEvent.originalPrice) *
-                          100
-                      )}
-                      %
+            <View className="mb-4">
+              <Text className="text-sm text-gray-500 mb-2">Giá cả</Text>
+              <View className="flex-row items-center space-x-4">
+                {selectedEvent.originalPrice &&
+                  selectedEvent.discountedPrice && (
+                    <>
+                      <Text className="text-gray-500 line-through">
+                        {formatCurrency(selectedEvent.originalPrice)}
+                      </Text>
+                      <Text className="text-red-600 font-semibold text-lg">
+                        {formatCurrency(selectedEvent.discountedPrice)}
+                      </Text>
+                      <View className="bg-red-100 px-2 py-1 rounded">
+                        <Text className="text-red-800 text-xs font-medium">
+                          Giảm{" "}
+                          {Math.round(
+                            ((selectedEvent.originalPrice -
+                              selectedEvent.discountedPrice) /
+                              selectedEvent.originalPrice) *
+                              100
+                          )}
+                          %
+                        </Text>
+                      </View>
+                    </>
+                  )}
+                {selectedEvent.discountedPrice &&
+                  !selectedEvent.originalPrice && (
+                    <Text className="text-green-600 font-semibold text-lg">
+                      {formatCurrency(selectedEvent.discountedPrice)}
                     </Text>
-                  </View>
-                </>
-              )}
-              {selectedEvent.discountedPrice &&
-                !selectedEvent.originalPrice && (
-                  <Text className="text-green-600 font-semibold text-lg">
-                    {formatCurrency(selectedEvent.discountedPrice)}
-                  </Text>
-                )}
-              {selectedEvent.originalPrice &&
-                !selectedEvent.discountedPrice && (
-                  <Text className="text-gray-900 font-semibold text-lg">
-                    {formatCurrency(selectedEvent.originalPrice)}
-                  </Text>
-                )}
+                  )}
+                {selectedEvent.originalPrice &&
+                  !selectedEvent.discountedPrice && (
+                    <Text className="text-gray-900 font-semibold text-lg">
+                      {formatCurrency(selectedEvent.originalPrice)}
+                    </Text>
+                  )}
+              </View>
             </View>
           )}
 
           {/* Capacity Info */}
-          <View className="bg-gray-50 p-3 rounded-lg">
+          <View className="bg-gray-50 p-4 rounded-lg">
+            <Text className="text-sm text-gray-500 mb-3">Sức chứa</Text>
             <View className="flex-row justify-between items-center">
               <View className="flex-1">
                 <Text className="text-sm text-gray-500">

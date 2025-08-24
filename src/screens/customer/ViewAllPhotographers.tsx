@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StatusBar, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, StatusBar, FlatList } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,92 +8,170 @@ import PhotographerCard from '../../components/Photographer/PhotographerCard';
 import { getResponsiveSize } from '../../utils/responsive';
 import { usePhotographers } from '../../hooks/usePhotographers';
 import { useFavorites } from '../../hooks/useFavorites';
-import { photographerStyleRecommendations } from '../../hooks/useStyleRecommendations';
 import { useCurrentUserId } from '../../hooks/useAuth';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ViewAllPhotographers'>;
 
 export default function ViewAllPhotographers({ navigation, route }: Props) {
   const { 
-    type = 'featured', 
-    title = 'Tất cả thợ chụp ảnh',
-    userId 
+    type = 'recommended', 
+    title,
+    userId,
+    location
   } = route.params || {};
   
   const currentUserId = useCurrentUserId();
+  const latitude = location?.latitude;
+  const longitude = location?.longitude;
   
+  // 🎯 Use exact same hooks as PhotographersTab
   const {
-    photographers,
-    loading: photographersLoading,
-    error: photographersError,
-    fetchFeaturedPhotographers,
-    fetchAllPhotographers
-  } = usePhotographers();
-
-  const {
+    // Recommended photographers - exactly like PhotographersTab
     recommendedPhotographers,
-    loading: recommendationsLoading,
-    error: recommendationsError,
-    refreshRecommendations,
-  } = photographerStyleRecommendations(userId || currentUserId || 0);
+    recommendedLoading,
+    recommendedError,
+    fetchRecommendedPhotographers,
+    refreshRecommendedPhotographers,
+    
+    // Popular photographers - exactly like PhotographersTab
+    popularPhotographers,
+    popularLoading,
+    popularError,
+    fetchPopularPhotographers,
+    refreshPopularPhotographers,
+    
+    // User style photographers - exactly like PhotographersTab
+    userStylePhotographers,
+    userStyleLoading,
+    userStyleError,
+    fetchPhotographersByUserStyles,
+    refreshUserStylePhotographers,
+  } = usePhotographers();
 
   const { isFavorite, toggleFavorite } = useFavorites();
 
-  // Determine which data and loading state to use
+  // 📊 Get data based on type - EXACTLY like PhotographersTab logic
   const getCurrentData = () => {
     switch (type) {
-      case 'recommendations':
+      case 'recommended':
         return {
           data: recommendedPhotographers,
-          loading: recommendationsLoading,
-          error: recommendationsError,
-          refresh: refreshRecommendations
+          loading: recommendedLoading,
+          error: recommendedError,
+          refresh: () => refreshRecommendedPhotographers(
+            latitude || 0,
+            longitude || 0, 
+            50, 
+            20 
+          )
         };
-      case 'featured':
+      
+      case 'popular':
         return {
-          data: photographers,
-          loading: photographersLoading,
-          error: photographersError,
-          refresh: fetchFeaturedPhotographers
+          data: popularPhotographers,
+          loading: popularLoading,
+          error: popularError,
+          refresh: () => refreshPopularPhotographers(
+            latitude,
+            longitude,
+            1, // page - same as PhotographersTab
+            50 // larger pageSize for view all (PhotographersTab uses 10)
+          )
         };
-      case 'all':
+      
+      case 'user-styles':
         return {
-          data: photographers,
-          loading: photographersLoading,
-          error: photographersError,
-          refresh: fetchAllPhotographers
+          data: userStylePhotographers,
+          loading: userStyleLoading,
+          error: userStyleError,
+          refresh: () => refreshUserStylePhotographers(
+            latitude,
+            longitude
+          )
         };
+      
       default:
+        // Fallback to recommended
         return {
-          data: photographers,
-          loading: photographersLoading,
-          error: photographersError,
-          refresh: fetchFeaturedPhotographers
+          data: recommendedPhotographers,
+          loading: recommendedLoading,
+          error: recommendedError,
+          refresh: () => refreshRecommendedPhotographers(
+            latitude || 0,
+            longitude || 0,
+            50,
+            20
+          )
         };
     }
   };
 
   const { data, loading, error, refresh } = getCurrentData();
 
+  // 🎯 Initial fetch - EXACTLY like PhotographersTab
   useEffect(() => {
-    refresh();
-  }, [type, userId]);
-
-  // Get appropriate title
-  const getTitle = () => {
+    console.log('🔄 ViewAllPhotographers: Fetching data for type:', type);
+    console.log('📍 Location:', { latitude, longitude });
+    
     switch (type) {
-      case 'recommendations':
-        return 'Thợ chụp ảnh theo Style của bạn';
-      case 'featured':
-        return 'Thợ chụp ảnh được yêu thích';
-      case 'all':
-        return 'Tất cả thợ chụp ảnh';
+      case 'recommended':
+        console.log('⭐ Fetching RECOMMENDED photographers');
+        fetchRecommendedPhotographers(
+          latitude || 0,
+          longitude || 0,
+          50, // radiusKm
+          20  // maxResults
+        );
+        break;
+        
+      case 'popular':
+        console.log('🔥 Fetching POPULAR photographers');
+        fetchPopularPhotographers(
+          latitude,
+          longitude,
+          1, // page
+          50  // pageSize - more for view all
+        );
+        break;
+        
+      case 'user-styles':
+        if (userId || currentUserId) {
+          console.log('✨ Fetching photographers by USER STYLES');
+          fetchPhotographersByUserStyles(
+            latitude,
+            longitude
+          );
+        }
+        break;
+    }
+  }, [
+    type, 
+    userId, 
+    currentUserId,
+    latitude, 
+    longitude,
+    fetchRecommendedPhotographers,
+    fetchPopularPhotographers, 
+    fetchPhotographersByUserStyles
+  ]);
+
+  // 🏷️ Get title - exactly like PhotographersTab titles
+  const getTitle = () => {
+    if (title) return title;
+    
+    switch (type) {
+      case 'recommended':
+        return '⭐ Đề xuất dành cho bạn';
+      case 'popular':
+        return '🔥 Thợ chụp ảnh phổ biến';
+      case 'user-styles':
+        return '✨ Thợ chụp ảnh theo Style';
       default:
-        return title;
+        return 'Thợ chụp ảnh';
     }
   };
 
-  // Render loading skeleton
+  // 🎨 Render loading skeleton
   const renderLoadingItem = ({ index }: { index: number }) => (
     <View 
       key={`loading-${index}`}
@@ -112,7 +190,7 @@ export default function ViewAllPhotographers({ navigation, route }: Props) {
     </View>
   );
 
-  // Render photographer item
+  // 🎨 Render photographer - EXACTLY like PhotographersTab
   const renderPhotographerItem = ({ item: photographer }: { item: any }) => (
     <View className="px-4 mb-4">
       <PhotographerCard
@@ -124,93 +202,117 @@ export default function ViewAllPhotographers({ navigation, route }: Props) {
         hourlyRate={photographer.hourlyRate}
         availabilityStatus={photographer.availabilityStatus}
         yearsExperience={photographer.yearsExperience}
+        equipment={photographer.equipment}
+        verificationStatus={photographer.verificationStatus}
         onBooking={() => {
-          navigation.navigate('Booking', {
+          if (photographer.id === undefined) {
+            console.error("Photographer ID is undefined");
+            return;
+          }
+          // EXACTLY like PhotographersTab booking navigation
+          navigation.navigate("Booking", {
             photographer: {
-              photographerId: photographer.id?.toString(),
-              id: photographer.id?.toString(),
-              userId: photographer.userId?.toString(),
-              fullName: photographer.fullName || photographer.name || 'Unknown Photographer',
-              name: photographer.fullName || photographer.name,
-              profileImage: photographer.avatar || photographer.profileImage,
-              avatar: photographer.avatar || photographer.profileImage,
+              photographerId: Number(photographer.id),
+              fullName: photographer.fullName || "",
               hourlyRate: photographer.hourlyRate || 0,
-              specialty: photographer.specialty,
-              yearsExperience: photographer.yearsExperience,
-              equipment: photographer.equipment,
-              availabilityStatus: photographer.availabilityStatus,
-              rating: photographer.rating,
-              verificationStatus: photographer.verificationStatus,
-              email: photographer.email,
-              phoneNumber: photographer.phoneNumber,
-              bio: photographer.bio,
-              styles: photographer.styles || []
-            }
+              profileImage: photographer.avatar || "",
+            },
           });
         }}
-        isFavorite={isFavorite(photographer.id, 'photographer')}
-        onFavoriteToggle={() => toggleFavorite({
-          id: photographer.id,
-          type: 'photographer',
-          data: photographer
-        })}
+        isFavorite={isFavorite(photographer.id, "photographer")}
+        onFavoriteToggle={() => {
+          // EXACTLY like PhotographersTab favorite toggle
+          const favoriteItem = {
+            id: photographer.id,
+            type: "photographer" as const,
+            data: photographer,
+          };
+          toggleFavorite(favoriteItem);
+        }}
       />
     </View>
   );
 
-  // Render empty state
-  const renderEmptyState = () => (
-    <View className="flex-1 items-center justify-center px-6" style={{ marginTop: getResponsiveSize(100) }}>
-      <View className="items-center">
-        <View 
-          className="bg-stone-100 rounded-full items-center justify-center mb-4"
-          style={{ width: getResponsiveSize(80), height: getResponsiveSize(80) }}
-        >
-          <Ionicons name="camera-outline" size={getResponsiveSize(40)} color="#a8a29e" />
-        </View>
-        <Text 
-          className="text-stone-900 font-semibold text-center mb-2"
-          style={{ fontSize: getResponsiveSize(18) }}
-        >
-          {error ? 'Đã có lỗi xảy ra' : 'Không có thợ chụp ảnh'}
-        </Text>
-        <Text 
-          className="text-stone-500 text-center mb-6"
-          style={{ fontSize: getResponsiveSize(14), lineHeight: getResponsiveSize(20) }}
-        >
-          {error 
-            ? 'Vui lòng thử lại sau' 
-            : type === 'recommendations' 
-            ? !currentUserId 
-              ? 'Vui lòng đăng nhập để xem gợi ý theo style'
-              : 'Chưa có gợi ý theo style cho bạn'
-            : type === 'featured'
-            ? 'Hiện tại chưa có thợ chụp ảnh được yêu thích nào'
-            : 'Hiện tại chưa có thợ chụp ảnh nào'
-          }
-        </Text>
-        {error && (
-          <TouchableOpacity
-            className="bg-stone-900 rounded-xl px-6 py-3"
-            onPress={refresh}
+  // 🎨 Render empty state - similar to PhotographersTab logic
+  const renderEmptyState = () => {
+    const getEmptyMessage = () => {
+      if (error) return 'Không thể tải photographer';
+      
+      switch (type) {
+        case 'recommended':
+          return 'Chưa có đề xuất nào dành cho bạn';
+        case 'popular':
+          return 'Chưa có thợ chụp ảnh phổ biến';
+        case 'user-styles':
+          return !currentUserId && !userId 
+            ? 'Đăng nhập để xem gợi ý theo style'
+            : 'Chưa có gợi ý theo style cho bạn. Hãy cập nhật style yêu thích trong profile!';
+        default:
+          return 'Chưa có thợ chụp ảnh';
+      }
+    };
+
+    return (
+      <View className="flex-1 items-center justify-center px-6" style={{ marginTop: getResponsiveSize(100) }}>
+        <View className="items-center">
+          <View 
+            className="bg-stone-100 rounded-full items-center justify-center mb-4"
+            style={{ width: getResponsiveSize(80), height: getResponsiveSize(80) }}
           >
-            <Text 
-              className="text-white font-medium"
-              style={{ fontSize: getResponsiveSize(14) }}
+            <Ionicons 
+              name={error ? "alert-circle-outline" : "camera-outline"} 
+              size={getResponsiveSize(40)} 
+              color={error ? "#ef4444" : "#a8a29e"} 
+            />
+          </View>
+          <Text 
+            className={`font-semibold text-center mb-2 ${error ? 'text-red-600' : 'text-stone-900'}`}
+            style={{ fontSize: getResponsiveSize(18) }}
+          >
+            {getEmptyMessage()}
+          </Text>
+          <Text 
+            className="text-stone-500 text-center mb-6"
+            style={{ fontSize: getResponsiveSize(14), lineHeight: getResponsiveSize(20) }}
+          >
+            {error ? `${error}` : getEmptyMessage()}
+          </Text>
+          {error && (
+            <TouchableOpacity
+              className="bg-stone-900 rounded-xl px-6 py-3"
+              onPress={refresh}
             >
-              Thử lại
-            </Text>
-          </TouchableOpacity>
-        )}
+              <Text 
+                className="text-white font-medium"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
+                Thử lại
+              </Text>
+            </TouchableOpacity>
+          )}
+          {!error && (type === 'user-styles') && (!currentUserId && !userId) && (
+            <TouchableOpacity
+              className="bg-blue-500 rounded-xl px-6 py-3"
+              onPress={() => navigation.navigate('Login')}
+            >
+              <Text 
+                className="text-white font-medium"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
+                Đăng nhập ngay
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView className='flex-1 bg-white'>
       <StatusBar backgroundColor="white" barStyle="dark-content" />
       
-      {/* Header with back button and title */}
+      {/* Header */}
       <View className="flex-row items-center px-4 py-3 bg-white border-b border-stone-100">
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
@@ -226,7 +328,6 @@ export default function ViewAllPhotographers({ navigation, route }: Props) {
           {getTitle()}
         </Text>
         
-        {/* Optional filter/search button */}
         <TouchableOpacity className="ml-3">
           <Ionicons name="options-outline" size={getResponsiveSize(24)} color="#57534e" />
         </TouchableOpacity>
@@ -245,7 +346,7 @@ export default function ViewAllPhotographers({ navigation, route }: Props) {
         <FlatList
           data={data}
           renderItem={renderPhotographerItem}
-          keyExtractor={(item) => item.id.toString()}
+          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingTop: getResponsiveSize(16), paddingBottom: getResponsiveSize(20) }}
           onRefresh={refresh}

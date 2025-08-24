@@ -22,6 +22,8 @@ import { BookingResponse, BookingStatus } from '../../types/booking';
 import { PhotoDeliveryData } from '../../types/photoDelivery';
 import { getResponsiveSize } from '../../utils/responsive';
 import RatingModal from '../../components/RatingModel';
+import ComplaintModal from '../../components/ComplaintModal';
+import { photographerService } from '../../services/photographerService';
 import { useAuth } from '../../hooks/useAuth';
 
 interface RouteParams {
@@ -46,13 +48,51 @@ const BookingDetailScreen = () => {
   // ✅ Improved photo delivery states
   const [photoDelivery, setPhotoDelivery] = useState<PhotoDeliveryData | null>(null);
   const [deliveryLoading, setDeliveryLoading] = useState(true);
-  const [deliveryHasError, setDeliveryHasError] = useState(false); // ✅ Phân biệt error vs empty
+  const [deliveryHasError, setDeliveryHasError] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
 
   // Rating Modal State 
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [hasRated, setHasRated] = useState(false);
+
+  // 🆕 NEW: Complaint Modal State
+  const [showComplaintModal, setShowComplaintModal] = useState(false);
+
+  // 🆕 NEW: State for photographer details
+  const [photographerUserId, setPhotographerUserId] = useState<number | null>(null);
+  const [loadingPhotographerUserId, setLoadingPhotographerUserId] = useState(false);
+
+  // 🆕 NEW: Function to fetch photographer userId from photographerId
+  const fetchPhotographerUserId = async (photographerId: number) => {
+    try {
+      setLoadingPhotographerUserId(true);
+      console.log('🔍 Fetching photographer userId for photographerId:', photographerId);
+      
+      // ✅ Use getDetail method from photographerService
+      const photographerDetail = await photographerService.getDetail(photographerId);
+      console.log('📄 Photographer detail response:', photographerDetail);
+      
+      // ✅ PhotographerProfile interface has userId field
+      if (photographerDetail?.userId) {
+        setPhotographerUserId(photographerDetail.userId);
+        console.log('✅ Successfully fetched photographer userId:', {
+          photographerId,
+          userId: photographerDetail.userId,
+          name: photographerDetail.fullName || photographerDetail.user?.fullName
+        });
+      } else {
+        console.warn('⚠️ No userId found for photographer:', photographerId);
+        console.warn('📄 Full photographer detail response:', JSON.stringify(photographerDetail, null, 2));
+        setPhotographerUserId(null);
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching photographer userId:', error);
+      setPhotographerUserId(null);
+    } finally {
+      setLoadingPhotographerUserId(false);
+    }
+  };
 
   // Fetch booking details
   const fetchBookingDetails = async () => {
@@ -70,26 +110,35 @@ const BookingDetailScreen = () => {
   };
 
   // ✅ Improved photo delivery fetch with better error handling
-const fetchPhotoDelivery = async () => {
-  setDeliveryLoading(true);
-  setDeliveryError(null);
-  setDeliveryHasError(false);
-  
-  try {
-    const deliveryData = await photoDeliveryService.getPhotoDeliveryByBooking(bookingId);
-    setPhotoDelivery(deliveryData);
-  } catch {
-    // ✅ BỎ QUA MỌI LỖI - chỉ set null
-    setPhotoDelivery(null);
-  }
-  
-  setDeliveryLoading(false);
-};
+  const fetchPhotoDelivery = async () => {
+    setDeliveryLoading(true);
+    setDeliveryError(null);
+    setDeliveryHasError(false);
+    
+    try {
+      const deliveryData = await photoDeliveryService.getPhotoDeliveryByBooking(bookingId);
+      setPhotoDelivery(deliveryData);
+    } catch {
+      // ✅ Skip all errors - just set null
+      setPhotoDelivery(null);
+    }
+    
+    setDeliveryLoading(false);
+  };
 
+  // 🔄 UPDATED: Fix useEffect - remove booking dependency to avoid infinite loop
   useEffect(() => {
     fetchBookingDetails();
     fetchPhotoDelivery();
   }, [bookingId]);
+
+  // 🆕 NEW: Separate useEffect for photographer userId to avoid dependency issues
+  useEffect(() => {
+    if (booking?.photographer?.photographerId) {
+      console.log('🎯 Booking loaded, fetching photographer userId for:', booking.photographer.photographerId);
+      fetchPhotographerUserId(booking.photographer.photographerId);
+    }
+  }, [booking?.photographer?.photographerId]);
 
   // Handle refresh
   const handleRefresh = async () => {
@@ -177,6 +226,50 @@ const fetchPhotoDelivery = async () => {
     if (booking && (booking.status === BookingStatus.COMPLETED)) {
       setShowRatingModal(true);
     }
+  };
+
+  // 🆕 UPDATED: Complaint handlers with correct userId and enhanced debugging
+  const handleShowComplaint = () => {
+    console.log('🚩 Complaint button pressed');
+    console.log('📊 Current state:', {
+      booking: !!booking,
+      photographerUserId,
+      loadingPhotographerUserId,
+      photographerId: booking?.photographer?.photographerId
+    });
+
+    if (photographerUserId) {
+      console.log('✅ Opening complaint modal with photographer userId:', photographerUserId);
+      setShowComplaintModal(true);
+    } else {
+      console.log('❌ No photographer userId available, showing retry alert');
+      Alert.alert(
+        'Lỗi', 
+        'Không thể lấy thông tin photographer. Vui lòng thử lại sau.',
+        [
+          { 
+            text: 'Thử lại', 
+            onPress: () => {
+              if (booking?.photographer?.photographerId) {
+                console.log('🔄 Retrying fetchPhotographerUserId...');
+                fetchPhotographerUserId(booking.photographer.photographerId);
+              }
+            }
+          },
+          { text: 'Hủy', style: 'cancel' }
+        ]
+      );
+    }
+  };
+
+  const handleComplaintSubmitted = () => {
+    // Optionally refresh data or show success message
+    console.log('✅ Complaint submitted successfully');
+    Alert.alert(
+      'Thành công',
+      'Khiếu nại của bạn đã được gửi thành công. Chúng tôi sẽ xem xét và phản hồi sớm nhất có thể.',
+      [{ text: 'OK' }]
+    );
   };
 
   // Utility functions
@@ -270,13 +363,41 @@ const fetchPhotoDelivery = async () => {
     }).format(price);
   };
 
+  // 🆕 NEW: Check delivery method and show appropriate UI
+  const isPhotographerDevice = () => {
+    return photoDelivery?.deliveryMethod?.toLowerCase() === 'photographerdevice';
+  };
+
+  const isCustomerDevice = () => {
+    return photoDelivery?.deliveryMethod?.toLowerCase() === 'customerdevice';
+  };
+
   const canConfirmReceived = () => {
     return (
       booking &&
       photoDelivery &&
-      photoDelivery.driveLink &&
+      // 🆕 UPDATED: Different logic based on delivery method
+      (
+        // For PhotographerDevice: need drive link
+        (isPhotographerDevice() && photoDelivery.driveLink) ||
+        // For CustomerDevice: no drive link needed
+        isCustomerDevice()
+      ) &&
       photoDelivery.status.toLowerCase() !== 'delivered' &&
       (booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.IN_PROGRESS)
+    );
+  };
+
+  const canShowComplaint = () => {
+    return (
+      booking &&
+      photoDelivery &&
+      // 🆕 UPDATED: Only show complaint for active bookings, not completed
+      (booking.status === BookingStatus.CONFIRMED || 
+       booking.status === BookingStatus.IN_PROGRESS) 
+      // 🆕 TODO: Add check for existing complaints
+      // !booking.hasComplaint && // Add this field if available from API
+      // booking.status !== BookingStatus.COMPLETED // Don't allow complaint after completion
     );
   };
 
@@ -304,7 +425,7 @@ const fetchPhotoDelivery = async () => {
     return diffDays;
   };
 
-  // ✅ Render Photo Delivery Section with improved states
+  // ✅ Render Photo Delivery Section with improved states and delivery method logic
   const renderPhotoDeliverySection = () => {
     if (deliveryLoading) {
       return (
@@ -356,11 +477,12 @@ const fetchPhotoDelivery = async () => {
           </View>
         </View>
 
+        {/* 🆕 NEW: Delivery Method Display */}
         {photoDelivery.deliveryMethod && (
           <View className="flex-row items-center mb-2">
-            <Ionicons name="cloud-outline" size={20} color="#666666" />
+            <Ionicons name="swap-horizontal-outline" size={20} color="#666666" />
             <Text className="ml-2 text-sm text-gray-600">
-              Phương thức: {photoDelivery.deliveryMethod}
+              Phương thức: {isPhotographerDevice() ? 'Gửi link ảnh' : 'Chụp từ máy khách'}
             </Text>
           </View>
         )}
@@ -401,7 +523,7 @@ const fetchPhotoDelivery = async () => {
           </View>
         )}
 
-        {photoDelivery.expiresAt && (
+        {photoDelivery.expiresAt && isPhotographerDevice() && (
           <View className="flex-row items-center mb-2">
             <Ionicons 
               name="time-outline" 
@@ -417,8 +539,8 @@ const fetchPhotoDelivery = async () => {
           </View>
         )}
 
-        {/* Google Drive Link */}
-        {photoDelivery.driveLink && (
+        {/* 🆕 UPDATED: Google Drive Link - Only for PhotographerDevice */}
+        {photoDelivery.driveLink && isPhotographerDevice() && (
           <TouchableOpacity
             className="bg-blue-500 flex-row items-center justify-center py-3 rounded-lg mt-4"
             onPress={() => handleOpenDriveLink(photoDelivery.driveLink!)}
@@ -430,7 +552,20 @@ const fetchPhotoDelivery = async () => {
           </TouchableOpacity>
         )}
 
-        {/* Confirm Button */}
+        {/* 🆕 UPDATED: Complaint Button - Show for ALL delivery methods */}
+        {canShowComplaint() && (
+          <TouchableOpacity
+            className="bg-orange-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
+            onPress={handleShowComplaint}
+          >
+            <Ionicons name="flag-outline" size={24} color="#FFFFFF" />
+            <Text className="text-white text-base font-semibold ml-2">
+              {isCustomerDevice() ? 'Báo cáo sự cố dịch vụ' : 'Báo cáo sự cố với ảnh'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* 🆕 UPDATED: Confirm Button - Show AFTER complaint button */}
         {canConfirmReceived() && (
           <TouchableOpacity
             className={`bg-green-500 flex-row items-center justify-center py-3 rounded-lg mt-3 ${updating ? 'opacity-60' : ''}`}
@@ -443,7 +578,8 @@ const fetchPhotoDelivery = async () => {
               <Ionicons name="checkmark-circle-outline" size={24} color="#FFFFFF" />
             )}
             <Text className="text-white text-base font-semibold ml-2">
-              {updating ? 'Đang xử lý...' : 'Xác nhận đã nhận ảnh'}
+              {updating ? 'Đang xử lý...' : 
+               isPhotographerDevice() ? 'Xác nhận đã nhận ảnh' : 'Xác nhận hoàn thành chụp'}
             </Text>
           </TouchableOpacity>
         )}
@@ -477,7 +613,20 @@ const fetchPhotoDelivery = async () => {
           </View>
         )}
 
-        {isExpired() && (
+        {/* 🆕 UPDATED: CustomerDevice Info Message */}
+        {isCustomerDevice() && (
+          <View className="flex-row items-center bg-blue-50 p-3 rounded-lg mt-4">
+            <Ionicons name="camera" size={24} color="#3B82F6" />
+            <View className="flex-1 ml-2">
+              <Text className="text-blue-600 text-base font-medium">Chụp từ máy khách</Text>
+              <Text className="text-blue-600 text-xs mt-1">
+                Ảnh được chụp từ thiết bị của bạn. Không cần gửi link ảnh.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {isExpired() && isPhotographerDevice() && (
           <View className="flex-row items-center bg-red-50 p-3 rounded-lg mt-4">
             <Ionicons name="alert-circle" size={24} color="#F44336" />
             <View className="flex-1 ml-2">
@@ -493,9 +642,14 @@ const fetchPhotoDelivery = async () => {
           <View className="flex-row items-center bg-orange-50 p-3 rounded-lg mt-4">
             <Ionicons name="time-outline" size={24} color="#FF9800" />
             <View className="flex-1 ml-2">
-              <Text className="text-orange-600 text-base font-medium">Đang chuẩn bị ảnh</Text>
+              <Text className="text-orange-600 text-base font-medium">
+                {isPhotographerDevice() ? 'Đang chuẩn bị ảnh' : 'Đang chờ chụp ảnh'}
+              </Text>
               <Text className="text-orange-600 text-xs mt-1">
-                Photographer đang xử lý và sẽ upload ảnh sớm nhất có thể
+                {isPhotographerDevice() 
+                  ? 'Photographer đang xử lý và sẽ upload ảnh sớm nhất có thể'
+                  : 'Vui lòng chụp ảnh theo yêu cầu đã thỏa thuận'
+                }
               </Text>
             </View>
           </View>
@@ -661,6 +815,7 @@ const fetchPhotoDelivery = async () => {
         </View>
       </ScrollView>
 
+      {/* Modals */}
       {booking && userId !== undefined && (
         <RatingModal
           visible={showRatingModal}
@@ -668,6 +823,18 @@ const fetchPhotoDelivery = async () => {
           booking={booking}
           userId={userId}
           onComplete={handleRatingComplete}
+        />
+      )}
+
+      {/* 🆕 FIXED: Complaint Modal with correct reportedUserId and enhanced debugging */}
+      {booking?.photographer && photographerUserId && (
+        <ComplaintModal
+          visible={showComplaintModal}
+          onClose={() => setShowComplaintModal(false)}
+          bookingId={bookingId}
+          reportedUserId={photographerUserId} // 🎯 Now using correct userId (26) not photographerId (17)
+          reportedUserName={booking.photographer.fullName}
+          onComplaintSubmitted={handleComplaintSubmitted}
         />
       )}
     </View>

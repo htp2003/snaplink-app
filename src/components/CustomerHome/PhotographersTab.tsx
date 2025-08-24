@@ -266,6 +266,7 @@ const PhotographersTab: React.FC<PhotographersTabProps> = ({
                 title: "Đề xuất dành cho bạn",
                 latitude: effectiveLocation?.latitude,
                 longitude: effectiveLocation?.longitude,
+                location: effectiveLocation,
               })
             }
           >

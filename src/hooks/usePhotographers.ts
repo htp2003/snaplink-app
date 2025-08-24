@@ -1,6 +1,5 @@
-// hooks/usePhotographers.ts - Fixed version để tránh infinite render và syntax errors
-import { useState, useEffect, useCallback, useRef } from 'react';
-import type { Photographer } from '../types/photographer';
+// hooks/usePhotographers.ts - Complete Rewrite với API recommend chuẩn
+import { useState, useCallback } from 'react';
 import { photographerService } from '../services/photographerService';
 
 export interface PhotographerData {
@@ -19,56 +18,48 @@ export interface PhotographerData {
 }
 
 export const usePhotographers = () => {
-  // Original states
-  const [photographers, setPhotographers] = useState<PhotographerData[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Separate states cho từng loại photographer
+  // 🎯 Separate states cho từng loại photographer
   const [nearbyPhotographers, setNearbyPhotographers] = useState<PhotographerData[]>([]);
+  const [recommendedPhotographers, setRecommendedPhotographers] = useState<PhotographerData[]>([]);
   const [popularPhotographers, setPopularPhotographers] = useState<PhotographerData[]>([]);
   const [userStylePhotographers, setUserStylePhotographers] = useState<PhotographerData[]>([]);
+  const [photographers, setPhotographers] = useState<PhotographerData[]>([]);
   
   // Loading states
   const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [recommendedLoading, setRecommendedLoading] = useState(false);
   const [popularLoading, setPopularLoading] = useState(false);
   const [userStyleLoading, setUserStyleLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
   
   // Error states
   const [nearbyError, setNearbyError] = useState<string | null>(null);
+  const [recommendedError, setRecommendedError] = useState<string | null>(null);
   const [popularError, setPopularError] = useState<string | null>(null);
   const [userStyleError, setUserStyleError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Transform photographer data - stable function
+  // 🔧 Transform photographer data function
   const transformPhotographerData = useCallback((photographerApiData: any): PhotographerData => {
     console.log('=== Transforming photographer data ===');
     console.log('Raw photographer data:', JSON.stringify(photographerApiData, null, 2));
 
     const photographerId = photographerApiData.photographerId || photographerApiData.id;
-    const userId = photographerApiData.userId;
     
     if (!photographerId) {
-      console.warn('❌ No photographer ID found');
+      console.warn('⚠️ No photographer ID found');
       throw new Error('No photographer ID found');
     }
     
-    // 🔧 FIX: API response structure analysis
+    // Get user info
     const userInfo = photographerApiData.user || photographerApiData;
     const fullName = userInfo.fullName || photographerApiData.fullName || 'Unknown Photographer';
     
-    // 🔧 FIX: Check actual API response structure for profileImage
-    console.log('🔍 Profile image sources:');
-    console.log('  - photographerApiData.profileImage:', photographerApiData.profileImage);
-    console.log('  - userInfo.profileImage:', userInfo.profileImage);
-    console.log('  - photographerApiData.user?.profileImage:', photographerApiData.user?.profileImage);
-    
-    // Try multiple sources for profile image
+    // Get profile image from multiple sources
     const profileImage = photographerApiData.profileImage || 
                          userInfo.profileImage || 
                          photographerApiData.user?.profileImage ||
                          null;
-    
-    console.log('🖼️ Final profileImage value:', profileImage);
     
     const rating = photographerApiData.rating;
     const hourlyRate = photographerApiData.hourlyRate;
@@ -78,26 +69,22 @@ export const usePhotographers = () => {
     const verificationStatus = photographerApiData.verificationStatus;
     const portfolioUrl = photographerApiData.portfolioUrl;
     
+    // Extract styles
     let styles: string[] = [];
     if (photographerApiData.styles && Array.isArray(photographerApiData.styles)) {
       styles = photographerApiData.styles.map((style: any) => 
         typeof style === 'string' ? style : style.name || style.styleName || 'Photography'
       );
-      console.log('📝 Styles from styles array:', styles);
     } else if (photographerApiData.photographerStyles && Array.isArray(photographerApiData.photographerStyles)) {
       styles = photographerApiData.photographerStyles.map((ps: any) => 
         ps.style?.name || ps.styleName || 'Photography'
       );
-      console.log('📝 Styles from photographerStyles:', styles);
     } else if (equipment) {
       styles = [equipment];
-      console.log('📝 Styles from equipment:', styles);
     } else {
       styles = ['Professional Photography'];
-      console.log('📝 Default styles:', styles);
     }
 
-    // 🚀 BETTER AVATAR LOGIC: Always provide a fallback
     const avatar = profileImage && profileImage !== null && profileImage.trim() !== '' 
                    ? profileImage
                    : '';
@@ -121,7 +108,7 @@ export const usePhotographers = () => {
     return result;
   }, []);
 
-  // Helper function to create fallback photographer data
+  // 🔧 Create fallback photographer
   const createFallbackPhotographer = useCallback((photographer: any): PhotographerData => {
     const photographerId = photographer.photographerId || photographer.id;
     const fallbackAvatar = photographer.profileImage;
@@ -142,11 +129,10 @@ export const usePhotographers = () => {
     };
   }, []);
 
-  // Process API response data
+  // 🔧 Process API response
   const processApiResponse = useCallback((apiResponse: any): any[] => {
     console.log('🔍 Processing API response:', apiResponse);
     
-    // Check for nested data structure
     if (apiResponse && apiResponse.data && Array.isArray(apiResponse.data)) {
       console.log('✅ Found data array with length:', apiResponse.data.length);
       return apiResponse.data;
@@ -171,134 +157,78 @@ export const usePhotographers = () => {
     return [];
   }, []);
 
-  // STABLE fetch functions - NO DEPENDENCIES to prevent re-render
-  const fetchAllPhotographers = useCallback(async () => {
-    if (loading) return; // Prevent concurrent calls
+  // 🔧 Transform photographers array
+  const transformPhotographersArray = useCallback((photographersArray: any[]): PhotographerData[] => {
+    const transformedData: PhotographerData[] = [];
+    
+    for (const photographer of photographersArray) {
+      if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
+        try {
+          const transformed = transformPhotographerData(photographer);
+          transformedData.push(transformed);
+        } catch (error) {
+          console.error('Error transforming photographer:', photographer.photographerId || photographer.id, error);
+          transformedData.push(createFallbackPhotographer(photographer));
+        }
+      } else {
+        console.warn('Invalid photographer data:', photographer);
+      }
+    }
+    
+    return transformedData;
+  }, [transformPhotographerData, createFallbackPhotographer]);
+
+  // 🎯 MAIN: Fetch RECOMMENDED photographers cho màn hình chính (KHÔNG CẦN locationId)
+  const fetchRecommendedPhotographers = useCallback(async (
+    latitude?: number,   // 🔧 FIXED: Optional
+    longitude?: number,  // 🔧 FIXED: Optional
+    radiusKm: number = 50,
+    maxResults: number = 20
+  ) => {
+    if (recommendedLoading) return;
     
     try {
-      setLoading(true);
-      setError(null);
-      console.log('=== Fetching All Photographers ===');
+      setRecommendedLoading(true);
+      setRecommendedError(null);
+      console.log('=== 🎯 Fetching RECOMMENDED Photographers for HOME SCREEN ===');
+      console.log('📍 Parameters:', { 
+        latitude: latitude ?? 'undefined', 
+        longitude: longitude ?? 'undefined', 
+        radiusKm, 
+        maxResults,
+        locationId: 'undefined (HOME SCREEN - no locationId needed)' 
+      });
       
-      const photographersResponse = await photographerService.getAll();
-      console.log('Raw photographers API response:', photographersResponse);
+      // 🎯 Pass optional parameters to service
+      const photographersResponse = await photographerService.getRecommended(
+        latitude,   // can be undefined
+        longitude,  // can be undefined
+        undefined,  // locationId - always undefined for home screen
+        radiusKm, 
+        maxResults
+      );
+      
+      console.log('🔍 RAW API Response:', JSON.stringify(photographersResponse, null, 2));
       
       const photographersArray = processApiResponse(photographersResponse);
-      console.log('Processed photographers array:', photographersArray.length);
-
-      if (photographersArray.length === 0) {
-        console.warn('No photographers found in API response');
-        setPhotographers([]);
-        return;
-      }
+      console.log('🔍 Processed Array length:', photographersArray.length);
       
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (transformError) {
-            console.error('Error transforming photographer:', photographer.photographerId || photographer.id, transformError);
-            transformedData.push(createFallbackPhotographer(photographer));
-          }
-        } else {
-          console.warn('Invalid photographer data:', photographer);
-        }
-      }
+      const transformedData = transformPhotographersArray(photographersArray);
       
-      console.log('Final transformed photographers:', transformedData.length);
-      setPhotographers(transformedData);
-
+      console.log('🎯 Final RECOMMENDED photographers:', transformedData.length);
+      console.log('🎯 Final data preview:', transformedData.map(p => ({ id: p.id, name: p.fullName })));
+      setRecommendedPhotographers(transformedData);
+      
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch photographers';
-      setError(errorMessage);
-      console.error('Error fetching photographers:', err);
-      setPhotographers([]);
+      console.error('❌ Error fetching RECOMMENDED photographers:', err);
+      setRecommendedError(err instanceof Error ? err.message : 'Failed to fetch recommended photographers');
+      setRecommendedPhotographers([]);
     } finally {
-      setLoading(false);
+      setRecommendedLoading(false);
     }
-  }, []); // Empty dependency array
+  }, [processApiResponse, transformPhotographersArray]);
 
-  const fetchFeaturedPhotographers = useCallback(async () => {
-    if (loading) return; // Prevent concurrent calls
-    
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('=== Fetching Featured Photographers ===');
-      
-      const photographersResponse = await photographerService.getFeatured();
-      const photographersArray = processApiResponse(photographersResponse);
-      console.log('Featured photographers data received:', photographersArray.length);
-      
-      if (photographersArray.length === 0) {
-        console.warn('No featured photographers found');
-        setPhotographers([]);
-        return;
-      }
-      
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (error) {
-            console.error('Error transforming featured photographer:', photographer.photographerId, error);
-            transformedData.push(createFallbackPhotographer(photographer));
-          }
-        }
-      }
-      
-      console.log('Final transformed featured photographers:', transformedData);
-      setPhotographers(transformedData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch featured photographers');
-      console.error('Error fetching featured photographers:', err);
-      setPhotographers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []); // Empty dependency array
-
-  const fetchAvailablePhotographers = useCallback(async () => {
-    if (loading) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      console.log('=== Fetching Available Photographers ===');
-      
-      const photographersResponse = await photographerService.getAvailable();
-      const photographersArray = processApiResponse(photographersResponse);
-      console.log('Available photographers data received:', photographersArray.length);
-      
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (error) {
-            console.error('Error transforming available photographer:', photographer.photographerId, error);
-            transformedData.push(createFallbackPhotographer(photographer));
-          }
-        }
-      }
-      
-      console.log('Final transformed available photographers:', transformedData);
-      setPhotographers(transformedData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch available photographers');
-      console.error('Error fetching available photographers:', err);
-      setPhotographers([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []); // Empty dependency array
-
-  // NEW: Fetch nearby photographers - STABLE
+  // 🔍 Fetch NEARBY photographers
   const fetchNearbyPhotographers = useCallback(async (
     latitude: number,
     longitude: number,
@@ -309,27 +239,14 @@ export const usePhotographers = () => {
     try {
       setNearbyLoading(true);
       setNearbyError(null);
-      console.log('=== Fetching Nearby Photographers ===');
-      console.log(`Location: ${latitude}, ${longitude}, Radius: ${radiusKm}km`);
+      console.log('=== 🔍 Fetching NEARBY Photographers ===');
+      console.log(`📍 Location: ${latitude}, ${longitude}, Radius: ${radiusKm}km`);
       
       const photographersResponse = await photographerService.getNearby(latitude, longitude, radiusKm);
       const photographersArray = processApiResponse(photographersResponse);
-      console.log('Nearby photographers data received:', photographersArray.length);
+      const transformedData = transformPhotographersArray(photographersArray);
       
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (error) {
-            console.error('Error transforming nearby photographer:', photographer.photographerId, error);
-            transformedData.push(createFallbackPhotographer(photographer));
-          }
-        }
-      }
-      
-      console.log('Final transformed nearby photographers:', transformedData);
+      console.log('🔍 Final transformed NEARBY photographers:', transformedData.length);
       setNearbyPhotographers(transformedData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch nearby photographers';
@@ -339,9 +256,9 @@ export const usePhotographers = () => {
     } finally {
       setNearbyLoading(false);
     }
-  }, []); // Empty dependency array
+  }, [processApiResponse, transformPhotographersArray]);
 
-  // NEW: Fetch popular photographers - STABLE  
+  // 🔥 Fetch POPULAR photographers
   const fetchPopularPhotographers = useCallback(async (
     latitude?: number,
     longitude?: number,
@@ -353,30 +270,17 @@ export const usePhotographers = () => {
     try {
       setPopularLoading(true);
       setPopularError(null);
-      console.log('=== Fetching Popular Photographers ===');
-      console.log(`Page: ${page}, PageSize: ${pageSize}`);
+      console.log('=== 🔥 Fetching Popular Photographers ===');
+      console.log(`📍 Page: ${page}, PageSize: ${pageSize}`);
       if (latitude && longitude) {
-        console.log(`Location: ${latitude}, ${longitude}`);
+        console.log(`📍 Location: ${latitude}, ${longitude}`);
       }
       
       const photographersResponse = await photographerService.getPopular(latitude, longitude, page, pageSize);
       const photographersArray = processApiResponse(photographersResponse);
-      console.log('Popular photographers data received:', photographersArray.length);
+      const transformedData = transformPhotographersArray(photographersArray);
       
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (error) {
-            console.error('Error transforming popular photographer:', photographer.photographerId, error);
-            transformedData.push(createFallbackPhotographer(photographer));
-          }
-        }
-      }
-      
-      console.log('Final transformed popular photographers:', transformedData);
+      console.log('🔥 Final transformed popular photographers:', transformedData.length);
       setPopularPhotographers(transformedData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch popular photographers';
@@ -386,9 +290,9 @@ export const usePhotographers = () => {
     } finally {
       setPopularLoading(false);
     }
-  }, []); // Empty dependency array
+  }, [processApiResponse, transformPhotographersArray]);
 
-  // NEW: Fetch photographers by user styles - STABLE
+  // ✨ Fetch photographers by USER STYLES
   const fetchPhotographersByUserStyles = useCallback(async (
     latitude?: number,
     longitude?: number
@@ -398,29 +302,16 @@ export const usePhotographers = () => {
     try {
       setUserStyleLoading(true);
       setUserStyleError(null);
-      console.log('=== Fetching Photographers by User Styles ===');
+      console.log('=== ✨ Fetching Photographers by User Styles ===');
       if (latitude && longitude) {
-        console.log(`Location: ${latitude}, ${longitude}`);
+        console.log(`📍 Location: ${latitude}, ${longitude}`);
       }
       
       const photographersResponse = await photographerService.getByUserStyles(latitude, longitude);
       const photographersArray = processApiResponse(photographersResponse);
-      console.log('User style photographers data received:', photographersArray.length);
+      const transformedData = transformPhotographersArray(photographersArray);
       
-      const transformedData: PhotographerData[] = [];
-      for (const photographer of photographersArray) {
-        if (photographer && (photographer.photographerId !== undefined || photographer.id !== undefined)) {
-          try {
-            const transformed = transformPhotographerData(photographer);
-            transformedData.push(transformed);
-          } catch (error) {
-            console.error('Error transforming user style photographer:', photographer.photographerId, error);
-            transformedData.push(createFallbackPhotographer(photographer));
-          }
-        }
-      }
-      
-      console.log('Final transformed user style photographers:', transformedData);
+      console.log('✨ Final transformed user style photographers:', transformedData.length);
       setUserStylePhotographers(transformedData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch photographers by user styles';
@@ -430,9 +321,83 @@ export const usePhotographers = () => {
     } finally {
       setUserStyleLoading(false);
     }
-  }, []); // Empty dependency array
+  }, [processApiResponse, transformPhotographersArray]);
 
-  // Get photographer by ID
+  // 🔄 Fetch ALL photographers
+  const fetchAllPhotographers = useCallback(async () => {
+    if (loading) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('=== 📋 Fetching All Photographers ===');
+      
+      const photographersResponse = await photographerService.getAll();
+      const photographersArray = processApiResponse(photographersResponse);
+      const transformedData = transformPhotographersArray(photographersArray);
+      
+      console.log('📋 Final transformed photographers:', transformedData.length);
+      setPhotographers(transformedData);
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch photographers';
+      setError(errorMessage);
+      console.error('Error fetching photographers:', err);
+      setPhotographers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [processApiResponse, transformPhotographersArray]);
+
+  // 🔄 Fetch FEATURED photographers
+  const fetchFeaturedPhotographers = useCallback(async () => {
+    if (loading) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('=== ⭐ Fetching Featured Photographers ===');
+      
+      const photographersResponse = await photographerService.getFeatured();
+      const photographersArray = processApiResponse(photographersResponse);
+      const transformedData = transformPhotographersArray(photographersArray);
+      
+      console.log('⭐ Final transformed featured photographers:', transformedData.length);
+      setPhotographers(transformedData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch featured photographers');
+      console.error('Error fetching featured photographers:', err);
+      setPhotographers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [processApiResponse, transformPhotographersArray]);
+
+  // 🔄 Fetch AVAILABLE photographers
+  const fetchAvailablePhotographers = useCallback(async () => {
+    if (loading) return;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('=== ✅ Fetching Available Photographers ===');
+      
+      const photographersResponse = await photographerService.getAvailable();
+      const photographersArray = processApiResponse(photographersResponse);
+      const transformedData = transformPhotographersArray(photographersArray);
+      
+      console.log('✅ Final transformed available photographers:', transformedData.length);
+      setPhotographers(transformedData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch available photographers');
+      console.error('Error fetching available photographers:', err);
+      setPhotographers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [processApiResponse, transformPhotographersArray]);
+
+  // 🔍 Get photographer by ID
   const getPhotographerById = useCallback(async (id: number): Promise<PhotographerData | null> => {
     try {
       const photographerData = await photographerService.getById(id);
@@ -443,9 +408,10 @@ export const usePhotographers = () => {
     }
   }, [transformPhotographerData]);
 
+  // 🔍 Get photographer detail
   const getPhotographerDetail = useCallback(async (id: number): Promise<PhotographerData | null> => {
     try {
-      const photographerData = await photographerService.getById(id);
+      const photographerData = await photographerService.getDetail(id);
       return transformPhotographerData(photographerData);
     } catch (err) {
       console.error('Error fetching photographer detail:', err);
@@ -453,18 +419,25 @@ export const usePhotographers = () => {
     }
   }, [transformPhotographerData]);
 
-  // STABLE refresh functions - NO DEPENDENCIES
-  const refreshPhotographers = useCallback(() => {
-    fetchAllPhotographers();
-  }, []);
+  // 🔄 REFRESH functions
+  const refreshRecommendedPhotographers = useCallback((
+    latitude: number,
+    longitude: number,
+    radiusKm: number = 50,
+    maxResults: number = 20
+  ) => {
+    console.log('🔄 Refreshing RECOMMENDED photographers');
+    fetchRecommendedPhotographers(latitude, longitude, radiusKm, maxResults);
+  }, [fetchRecommendedPhotographers]);
 
   const refreshNearbyPhotographers = useCallback((
     latitude: number,
     longitude: number,
     radiusKm: number = 10
   ) => {
+    console.log('🔄 Refreshing NEARBY photographers');
     fetchNearbyPhotographers(latitude, longitude, radiusKm);
-  }, []);
+  }, [fetchNearbyPhotographers]);
 
   const refreshPopularPhotographers = useCallback((
     latitude?: number,
@@ -472,45 +445,70 @@ export const usePhotographers = () => {
     page: number = 1,
     pageSize: number = 10
   ) => {
+    console.log('🔄 Refreshing POPULAR photographers');
     fetchPopularPhotographers(latitude, longitude, page, pageSize);
-  }, []);
+  }, [fetchPopularPhotographers]);
 
   const refreshUserStylePhotographers = useCallback((
     latitude?: number,
     longitude?: number
   ) => {
+    console.log('🔄 Refreshing USER-STYLE photographers');
     fetchPhotographersByUserStyles(latitude, longitude);
-  }, []);
+  }, [fetchPhotographersByUserStyles]);
+
+  const refreshPhotographers = useCallback(() => {
+    fetchAllPhotographers();
+  }, [fetchAllPhotographers]);
+
+  // 🔍 Debug log
+  console.log('🔍 usePhotographers hook state:', {
+    recommendedCount: recommendedPhotographers?.length || 0,
+    nearbyCount: nearbyPhotographers?.length || 0,
+    popularCount: popularPhotographers?.length || 0,
+    userStyleCount: userStylePhotographers?.length || 0,
+    recommendedLoading,
+    nearbyLoading,
+    popularLoading,
+    userStyleLoading
+  });
 
   return {
-    // Original data
-    photographers,
-    profiles: photographers, // For backward compatibility
-    loading,
-    error,
+    // 🎯 Recommended photographers (API recommend cho màn hình chính)
+    recommendedPhotographers,
+    recommendedLoading,
+    recommendedError,
+    fetchRecommendedPhotographers,
+    refreshRecommendedPhotographers,
     
-    // NEW: Nearby photographers
+    // 🔍 Nearby photographers
     nearbyPhotographers,
     nearbyLoading,
     nearbyError,
     fetchNearbyPhotographers,
     refreshNearbyPhotographers,
     
-    // NEW: Popular photographers
+    // 🔥 Popular photographers
     popularPhotographers,
     popularLoading,
     popularError,
     fetchPopularPhotographers,
     refreshPopularPhotographers,
     
-    // NEW: User style photographers
+    // ✨ User style photographers
     userStylePhotographers,
     userStyleLoading,
     userStyleError,
     fetchPhotographersByUserStyles,
     refreshUserStylePhotographers,
     
-    // Original functions
+    // 📋 Original data
+    photographers,
+    profiles: photographers, // For backward compatibility
+    loading,
+    error,
+    
+    // 🔄 Original functions
     refreshPhotographers,
     fetchAllPhotographers,
     fetchFeaturedPhotographers,

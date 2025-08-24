@@ -290,40 +290,112 @@ class PhotographerService {
   async getRecommended(
     latitude?: number,
     longitude?: number,
-    locationId?: number,
-    radiusKm: number = 10,
+    locationId?: number, // 🔧 undefined cho màn hình chính, có giá trị cho PhotographerModal
+    radiusKm: number = 50,
     maxResults: number = 20
   ): Promise<PhotographerProfile[]> {
     try {
       const headers = await this.getHeaders();
-      
+  
+      // 🔧 Build URL correctly
       let url = `${API_BASE_URL}/api/Photographer/recommend?radiusKm=${radiusKm}&maxResults=${maxResults}`;
-      
-      if (latitude !== undefined && longitude !== undefined) {
+  
+      // 📍 Add lat/lng if provided and valid
+      if (latitude != null && longitude != null) {
         url += `&latitude=${latitude}&longitude=${longitude}`;
+        console.log(`📍 Added location: lat=${latitude}, lng=${longitude}`);
+      } else {
+        console.log(`⚠️ No location provided for recommend API`);
       }
-      
-      if (locationId !== undefined) {
+  
+      // 🏢 Only add locationId when provided (PhotographerModal case)
+      // 🎯 KHÔNG thêm locationId cho màn hình chính (để undefined)
+      if (locationId != null && locationId !== undefined) {
         url += `&locationId=${locationId}`;
+        console.log(`🏢 Added locationId: ${locationId} (PhotographerModal case)`);
+      } else {
+        console.log(`🏠 HOME SCREEN: No locationId provided (as expected for main screen)`);
       }
-      
-      console.log('Fetching recommended photographers:', url);
-      
-      const response = await fetch(url, {
-        method: "GET",
-        headers,
+  
+      console.log("🎯 Final recommend API URL:", url);
+  
+      const response = await fetch(url, { 
+        method: "GET", 
+        headers 
       });
-
+  
       if (!response.ok) {
+        console.error("❌ Recommend API Error:", response.status, response.statusText);
+        const errorText = await response.text();
+        console.error("❌ Error response body:", errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
-      return await response.json();
+  
+      const result = await response.json();
+      console.log("🔍 Raw recommend API response:", JSON.stringify(result, null, 2));
+  
+      // 🔧 Normalize response - đảm bảo luôn trả về array
+      let photographersArray: any[] = [];
+      
+      if (Array.isArray(result)) {
+        photographersArray = result;
+        console.log("✅ Direct array response, length:", result.length);
+      } else if (result?.data && Array.isArray(result.data)) {
+        photographersArray = result.data;
+        console.log("✅ Found data array in response, length:", result.data.length);
+      } else if (result?.$values && Array.isArray(result.$values)) {
+        photographersArray = result.$values;
+        console.log("✅ Found $values array in response, length:", result.$values.length);
+      } else if (result && typeof result === 'object' && Object.keys(result).length > 0) {
+        // Single photographer object
+        photographersArray = [result];
+        console.log("✅ Single photographer object, wrapped in array");
+      } else {
+        console.warn("⚠️ Unexpected recommend API response format:", result);
+        photographersArray = [];
+      }
+  
+      console.log("✅ Final processed recommend photographers array length:", photographersArray.length);
+  
+      // 🔍 DEBUG: Log first few photographers if exists
+      if (photographersArray.length > 0) {
+        console.log("🔍 First photographer in recommend response:", {
+          photographerId: photographersArray[0]?.photographerId,
+          id: photographersArray[0]?.id,
+          fullName: photographersArray[0]?.fullName || photographersArray[0]?.user?.fullName,
+          hasUser: !!photographersArray[0]?.user,
+          allKeys: Object.keys(photographersArray[0] || {})
+        });
+        
+        // Log first 3 photographers summary
+        photographersArray.slice(0, 3).forEach((photographer, index) => {
+          console.log(`🔍 Photographer ${index + 1}:`, {
+            id: photographer.photographerId || photographer.id,
+            name: photographer.fullName || photographer.user?.fullName || 'Unknown',
+            rating: photographer.rating,
+            hourlyRate: photographer.hourlyRate
+          });
+        });
+      }
+  
+      return photographersArray;
+  
     } catch (error) {
-      console.error("Error fetching recommended photographers:", error);
-      throw error;
+      console.error("❌ Error in getRecommended:", error);
+      
+      // 🔧 Log detailed error info
+      if (error instanceof Error) {
+        console.error("❌ Error message:", error.message);
+        console.error("❌ Error stack:", error.stack);
+      }
+      
+      // 🔧 Return empty array instead of throwing to prevent UI crashes
+      console.log("🔧 Returning empty array due to error");
+      return [];
     }
   }
+  
+  
 
   async create(data: CreatePhotographerRequest): Promise<PhotographerProfile> {
     try {

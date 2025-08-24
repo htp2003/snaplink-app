@@ -28,6 +28,7 @@ import { useCurrentUserId } from "../../hooks/useAuth";
 import { availabilityService } from "../../services/availabilityService";
 
 import LocationModal from "../../components/Location/LocationModal";
+import PhotographerModal from "src/components/Photographer/PhotographerModel";
 
 // Route params interface - UPDATED
 interface RouteParams {
@@ -383,7 +384,7 @@ export default function BookingScreen() {
         );
 
         setEndTimeOptions(endTimes);
-        
+
         // Clear selected end time if it's no longer valid
         if (selectedEndTime && !endTimes.includes(selectedEndTime)) {
           setSelectedEndTime("");
@@ -1640,12 +1641,12 @@ export default function BookingScreen() {
                       >
                         <Text
                           style={{
-                            fontSize: getResponsiveSize(10), 
+                            fontSize: getResponsiveSize(10),
                             color: "#fff",
                             fontWeight: "bold",
-                            textAlign: 'center', 
+                            textAlign: 'center',
                           }}
-                          numberOfLines={1} 
+                          numberOfLines={1}
                         >
                           Miễn phí
                         </Text>
@@ -1877,167 +1878,14 @@ export default function BookingScreen() {
       </ScrollView>
 
       {/* Photographer Selection Modal */}
-      <Modal
+      <PhotographerModal
         visible={showPhotographerSelection}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowPhotographerSelection(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: "#fff" }}>
-          {/* Header */}
-          <View
-            style={{
-              backgroundColor: "#fff",
-              paddingTop: getResponsiveSize(50),
-              paddingHorizontal: getResponsiveSize(20),
-              paddingBottom: getResponsiveSize(20),
-              borderBottomWidth: 1,
-              borderBottomColor: "#e0e0e0",
-              elevation: 2,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => setShowPhotographerSelection(false)}
-                style={{
-                  backgroundColor: "#f5f5f5",
-                  borderRadius: getResponsiveSize(12),
-                  padding: getResponsiveSize(10),
-                }}
-              >
-                <AntDesign
-                  name="close"
-                  size={getResponsiveSize(24)}
-                  color="#333"
-                />
-              </TouchableOpacity>
-
-              <Text
-                style={{
-                  fontSize: getResponsiveSize(18),
-                  fontWeight: "bold",
-                  color: "#333",
-                  textAlign: "center",
-                  flex: 1,
-                }}
-              >
-                Chọn Photographer
-              </Text>
-
-              <View style={{ width: getResponsiveSize(44) }} />
-            </View>
-
-            {/* Selected location info */}
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                marginTop: getResponsiveSize(15),
-                backgroundColor: "#f0f9ff",
-                borderRadius: getResponsiveSize(12),
-                padding: getResponsiveSize(12),
-              }}
-            >
-              <Feather name="map-pin" size={getResponsiveSize(16)} color="#0EA5E9" />
-              <Text
-                style={{
-                  fontSize: getResponsiveSize(14),
-                  color: "#333",
-                  marginLeft: getResponsiveSize(8),
-                  flex: 1,
-                }}
-                numberOfLines={1}
-              >
-                {String(location?.name || 'Location')}
-              </Text>
-            </View>
-          </View>
-
-          {/* Content */}
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: getResponsiveSize(20) }}
-            showsVerticalScrollIndicator={false}
-          >
-            {/* Search/Filter Section */}
-            <View
-              style={{
-                backgroundColor: "#f8f9fa",
-                borderRadius: getResponsiveSize(12),
-                padding: getResponsiveSize(15),
-                marginBottom: getResponsiveSize(20),
-              }}
-            >
-              <Text
-                style={{
-                  fontSize: getResponsiveSize(14),
-                  color: "#666",
-                  textAlign: "center",
-                }}
-              >
-                {recommendationsLoading
-                  ? "Đang tìm photographer phù hợp..."
-                  : `Tìm thấy ${recommendedPhotographers.length} photographer`}
-              </Text>
-            </View>
-
-            {/* Photographers List */}
-            {recommendationsLoading ? (
-              <View style={{ padding: getResponsiveSize(40), alignItems: "center" }}>
-                <ActivityIndicator size="large" color="#E91E63" />
-                <Text style={{ color: "#666", marginTop: 10 }}>
-                  Đang tải danh sách photographer...
-                </Text>
-              </View>
-            ) : recommendedPhotographers.length > 0 ? (
-              recommendedPhotographers.map(renderPhotographerCard)
-            ) : (
-              <View
-                style={{
-                  padding: getResponsiveSize(40),
-                  alignItems: "center",
-                  backgroundColor: "#f8f9fa",
-                  borderRadius: getResponsiveSize(16),
-                }}
-              >
-                <Feather name="camera" size={getResponsiveSize(48)} color="#ccc" />
-                <Text
-                  style={{
-                    fontSize: getResponsiveSize(16),
-                    color: "#666",
-                    marginTop: getResponsiveSize(12),
-                    textAlign: "center",
-                  }}
-                >
-                  {!currentUserId
-                    ? "Vui lòng đăng nhập để xem gợi ý theo style"
-                    : "Chưa có gợi ý theo style cho bạn"}
-                </Text>
-                <TouchableOpacity
-                  onPress={refreshRecommendations}
-                  style={{
-                    backgroundColor: "#E91E63",
-                    paddingHorizontal: getResponsiveSize(20),
-                    paddingVertical: getResponsiveSize(10),
-                    borderRadius: getResponsiveSize(20),
-                    marginTop: getResponsiveSize(12),
-                  }}
-                >
-                  <Text style={{ color: "#fff", fontWeight: "bold" }}>
-                    Tải lại
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </ScrollView>
-        </View>
-      </Modal>
+        onClose={() => setShowPhotographerSelection(false)}
+        onPhotographerSelect={handlePhotographerSelect}
+        selectedPhotographer={selectedPhotographer}
+        location={location}
+        formatPrice={formatPrice}
+      />
 
       {/* Modals */}
       <ModernCalendar

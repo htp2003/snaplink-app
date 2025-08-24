@@ -14,8 +14,9 @@ import { useNavigation } from "@react-navigation/native";
 import CategoryTabs, { CategoryItem } from "../../components/CategoryTabs";
 import { SearchBar } from "../../components/SearchBar";
 import LocationsTab from "src/components/CustomerHome/LocationsTab";
-import PhotographersTab from "src/components/CustomerHome/PhotographersTab";
+
 import EventsTab from "src/components/CustomerHome/EventsTab";
+import PhotographersTab from "src/components/CustomerHome/PhotographersTab";
 
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;

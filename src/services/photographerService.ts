@@ -67,7 +67,6 @@ export interface CreatePhotographerRequest {
   longitude?: number;
   styleIds?: number[];
   profileImage?: string; // Optional image URL
-  
 }
 
 export interface UpdatePhotographerRequest {
@@ -86,7 +85,6 @@ export interface UpdatePhotographerRequest {
   latitude?: number;
   longitude?: number;
   styleIds?: number[];
-
 }
 
 export interface Review {
@@ -194,6 +192,139 @@ class PhotographerService {
     }
   }
 
+  // NEW: Get nearby photographers
+  async getNearby(
+    latitude: number,
+    longitude: number,
+    radiusKm: number = 10
+  ): Promise<PhotographerProfile[]> {
+    try {
+      const headers = await this.getHeaders();
+      const url = `${API_BASE_URL}/api/Photographer/nearby?latitude=${latitude}&longitude=${longitude}&radiusKm=${radiusKm}`;
+      
+      console.log('Fetching nearby photographers:', url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching nearby photographers:", error);
+      throw error;
+    }
+  }
+
+  // NEW: Get popular photographers
+  async getPopular(
+    latitude?: number,
+    longitude?: number,
+    page: number = 1,
+    pageSize: number = 10
+  ): Promise<PhotographerProfile[]> {
+    try {
+      const headers = await this.getHeaders();
+      
+      let url = `${API_BASE_URL}/api/Photographer/popular?page=${page}&pageSize=${pageSize}`;
+      
+      if (latitude !== undefined && longitude !== undefined) {
+        url += `&latitude=${latitude}&longitude=${longitude}`;
+      }
+      
+      console.log('Fetching popular photographers:', url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching popular photographers:", error);
+      throw error;
+    }
+  }
+
+  // NEW: Get photographers by user styles (recommendations)
+  async getByUserStyles(
+    latitude?: number,
+    longitude?: number
+  ): Promise<PhotographerProfile[]> {
+    try {
+      const headers = await this.getHeaders();
+      
+      let url = `${API_BASE_URL}/api/Photographer/by-user-styles`;
+      
+      if (latitude !== undefined && longitude !== undefined) {
+        url += `?latitude=${latitude}&longitude=${longitude}`;
+      }
+      
+      console.log('Fetching photographers by user styles:', url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching photographers by user styles:", error);
+      throw error;
+    }
+  }
+
+  // NEW: Get recommended photographers (combination of location and user preferences)
+  async getRecommended(
+    latitude?: number,
+    longitude?: number,
+    locationId?: number,
+    radiusKm: number = 10,
+    maxResults: number = 20
+  ): Promise<PhotographerProfile[]> {
+    try {
+      const headers = await this.getHeaders();
+      
+      let url = `${API_BASE_URL}/api/Photographer/recommend?radiusKm=${radiusKm}&maxResults=${maxResults}`;
+      
+      if (latitude !== undefined && longitude !== undefined) {
+        url += `&latitude=${latitude}&longitude=${longitude}`;
+      }
+      
+      if (locationId !== undefined) {
+        url += `&locationId=${locationId}`;
+      }
+      
+      console.log('Fetching recommended photographers:', url);
+      
+      const response = await fetch(url, {
+        method: "GET",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error fetching recommended photographers:", error);
+      throw error;
+    }
+  }
+
   async create(data: CreatePhotographerRequest): Promise<PhotographerProfile> {
     try {
       const headers = await this.getHeaders();
@@ -266,7 +397,6 @@ class PhotographerService {
       const contentType = response.headers.get("content-type");
       if (contentType && contentType.includes("application/json")) {
         const result = await response.json();
-
         return result;
       } else {
         return { photographerId, ...cleanData } as PhotographerProfile;
@@ -311,7 +441,6 @@ class PhotographerService {
       }
 
       const styles = await response.json();
-
       return styles;
     } catch (error) {
       console.error("Error fetching styles:", error);
@@ -649,78 +778,6 @@ class PhotographerService {
     }
   }
 
-  // Geographic queries
-  async getNearby(
-    latitude: number,
-    longitude: number,
-    radiusKm: number = 10
-  ): Promise<PhotographerProfile[]> {
-    try {
-      const headers = await this.getHeaders();
-      const url = `${API_BASE_URL}/api/Photographer/nearby?latitude=${latitude}&longitude=${longitude}&radiusKm=${radiusKm}`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Error fetching nearby photographers:", error);
-      throw error;
-    }
-  }
-
-  async getByCity(city: string): Promise<PhotographerProfile[]> {
-    try {
-      const headers = await this.getHeaders();
-      const response = await fetch(
-        `${API_BASE_URL}/api/Photographer/city/${encodeURIComponent(city)}`,
-        {
-          method: "GET",
-          headers,
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Error fetching photographers by city:", error);
-      throw error;
-    }
-  }
-
-  async getDistance(
-    photographerId: number,
-    latitude: number,
-    longitude: number
-  ): Promise<{ distance: number }> {
-    try {
-      const headers = await this.getHeaders();
-      const url = `${API_BASE_URL}/api/Photographer/${photographerId}/distance?latitude=${latitude}&longitude=${longitude}`;
-      const response = await fetch(url, {
-        method: "GET",
-        headers,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error("Error fetching distance:", error);
-      throw error;
-    }
-  }
-
-  // Utility methods for AsyncStorage
   // Utility methods for AsyncStorage
   async storePhotographerId(
     userId: number,

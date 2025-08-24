@@ -1,14 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { locationService } from '../services/locationService';
+import { locationService, LocationCoords, RegisteredNearbyLocation } from '../services/locationService';
 import { imageService } from '../services/imageService';
 import type { Location, LocationImage } from '../types';
-
-// 📍 GPS related interfaces
-interface LocationCoords {
-  latitude: number;
-  longitude: number;
-  accuracy?: number;
-}
 
 // Transform API data to match component props
 export interface LocationData {
@@ -35,22 +28,32 @@ export interface LocationData {
 }
 
 interface UseLocationsReturn {
-  // 📍 Location data
+  // 📍 All locations data
   locations: LocationData[];
   loading: boolean;
   error: string | null;
 
-  // GPS & App locations only
+  // 🆕 MAIN CHANGE: Registered nearby locations (thay thế favorite locations)
+  registeredNearbyLocations: LocationData[];
+  nearbyLoading: boolean;
+  nearbyError: string | null;
+
+  // GPS related
   currentLocation: LocationCoords | null;
-  nearbyAppLocations: LocationData[];
   hasLocationPermission: boolean;
   gpsLoading: boolean;
   gpsError: string | null;
+
+  // Legacy nearby (giữ lại để tương thích)
+  nearbyAppLocations: LocationData[];
 
   // 📱 Methods
   refreshLocations: () => void;
   fetchAllLocations: () => void;
   getLocationById: (id: number) => Promise<LocationData | null>;
+  
+  // 🆕 MAIN METHOD: Fetch registered nearby
+  fetchRegisteredNearbyLocations: () => Promise<void>;
   
   // GPS Methods
   requestLocationPermission: () => Promise<boolean>;
@@ -58,28 +61,37 @@ interface UseLocationsReturn {
   searchNearbyAppLocations: (radiusKm?: number) => Promise<void>;
   searchAppLocationsByAddress: (address: string, radiusKm?: number) => Promise<void>;
   clearNearbyResults: () => void;
-
 }
 
 export const useLocations = (): UseLocationsReturn => {
-  // 📍 Location state
+  // 📍 All locations state
   const [locations, setLocations] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // GPS & App locations only
+  // 🆕 MAIN CHANGE: Registered nearby locations state
+  const [registeredNearbyLocations, setRegisteredNearbyLocations] = useState<LocationData[]>([]);
+  const [nearbyLoading, setNearbyLoading] = useState(false);
+  const [nearbyError, setNearbyError] = useState<string | null>(null);
+
+  // GPS state
   const [currentLocation, setCurrentLocation] = useState<LocationCoords | null>(null);
-  const [nearbyAppLocations, setNearbyAppLocations] = useState<LocationData[]>([]);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
 
-  // ❌ REMOVED: Google Places state
-  // const [nearbyGooglePlaces, setNearbyGooglePlaces] = useState<LocationData[]>([]);
+  // Legacy nearby locations (keep for compatibility)
+  const [nearbyAppLocations, setNearbyAppLocations] = useState<LocationData[]>([]);
 
   // 🖼️ Helper function to get main image for a location
   const getLocationMainImage = async (locationId: number): Promise<string> => {
     try {
+      // 🛡️ VALIDATE locationId first
+      if (!locationId || isNaN(locationId) || locationId <= 0) {
+        console.warn(`⚠️ Invalid locationId: ${locationId}`);
+        return '';
+      }
+
       console.log(`🔍 Getting image for location ${locationId}...`);
       
       const apiImages = await imageService.location.getImages(locationId);
@@ -87,7 +99,7 @@ export const useLocations = (): UseLocationsReturn => {
       if (apiImages && apiImages.length > 0) {
         const firstImageUrl = apiImages[0].url;
         console.log(`✅ Found image for location ${locationId}:`, firstImageUrl);
-        return firstImageUrl;
+        return firstImageUrl || '';
       } else {
         console.log(`⚠️ Location ${locationId} has no images`);
         return '';
@@ -98,9 +110,9 @@ export const useLocations = (): UseLocationsReturn => {
     }
   };
 
-  // 🔄 Transform location data
+  // 📄 Transform regular location data
   const transformLocationData = async (location: any): Promise<LocationData> => {
-    console.log('🔄 Transforming location data:', location.locationId);
+    console.log('📄 Transforming location data:', location.locationId);
     
     let styles: string[] = [];
     if (location.amenities) {
@@ -150,8 +162,66 @@ export const useLocations = (): UseLocationsReturn => {
     return transformedData;
   };
 
-  // ❌ REMOVED: Google Places transformation function
-  // const transformGooglePlaceData = (place: GooglePlaceData): LocationData => { ... }
+  // 🆕 Transform registered nearby location data
+  const transformRegisteredNearbyData = async (location: RegisteredNearbyLocation): Promise<LocationData> => {
+    // 🛡️ VALIDATE location data first
+    if (!location.locationId || isNaN(location.locationId)) {
+      throw new Error(`Invalid locationId: ${location.locationId}`);
+    }
+
+    console.log('📄 Transforming registered nearby location:', location.locationId);
+    
+    let styles: string[] = [];
+    if (location.amenities) {
+      styles = location.amenities.split(',').map((s: string) => s.trim());
+    } else {
+      // Determine styles based on capacity and other info
+      if (location.capacity && location.capacity > 20) {
+        styles = ['Event Space', 'Large Venue'];
+      } else if (location.capacity && location.capacity > 10) {
+        styles = ['Studio', 'Medium Space'];
+      } else if (location.indoor && location.outdoor) {
+        styles = ['Indoor', 'Outdoor'];
+      } else if (location.indoor) {
+        styles = ['Indoor', 'Studio'];
+      } else if (location.outdoor) {
+        styles = ['Outdoor', 'Garden'];
+      } else {
+        styles = ['Studio'];
+      }
+    }
+
+    const mainImageUrl = await getLocationMainImage(location.locationId);
+
+    const transformedData: LocationData = {
+      id: location.locationId.toString(),
+      locationId: location.locationId,
+      name: location.name || 'Địa điểm chưa có tên',
+      images: [mainImageUrl],
+      styles,
+      address: location.address,
+      description: location.description,
+      amenities: location.amenities,
+      hourlyRate: location.hourlyRate,
+      capacity: location.capacity,
+      indoor: location.indoor,
+      outdoor: location.outdoor,
+      availabilityStatus: location.availabilityStatus || 'available',
+      featuredStatus: location.featuredStatus,
+      verificationStatus: location.verificationStatus,
+      distance: location.distance, // 🎯 Distance từ API
+      source: 'app',
+      rating: 4.5, // Default rating - có thể lấy từ API nếu có
+    };
+
+    console.log('✅ Transformed registered nearby location:', {
+      locationId: transformedData.locationId,
+      name: transformedData.name,
+      distance: transformedData.distance,
+    });
+    
+    return transformedData;
+  };
 
   // 📍 Core location methods
   const fetchAllLocations = async () => {
@@ -159,7 +229,7 @@ export const useLocations = (): UseLocationsReturn => {
       setLoading(true);
       setError(null);
       
-      console.log('🢸 Fetching all locations...');
+      console.log('🏢 Fetching all locations...');
       
       const data = await locationService.getAll();
       console.log('📦 Raw data from Location API:', data);
@@ -187,7 +257,7 @@ export const useLocations = (): UseLocationsReturn => {
         return isValid;
       });
 
-      console.log('🢸 Location IDs from API:', validLocations.map(loc => loc.locationId));
+      console.log('🏢 Location IDs from API:', validLocations.map(loc => loc.locationId));
 
       const transformedData: LocationData[] = [];
       for (const location of validLocations) {
@@ -223,6 +293,116 @@ export const useLocations = (): UseLocationsReturn => {
       setLoading(false);
     }
   };
+
+  // 🆕 MAIN NEW METHOD: Fetch registered nearby locations
+  const fetchRegisteredNearbyLocations = useCallback(async (): Promise<void> => {
+    try {
+      setNearbyLoading(true);
+      setNearbyError(null);
+
+      // Get current location first
+      const currentLocation = await locationService.gps.getCurrentLocation();
+      if (!currentLocation) {
+        throw new Error('Không thể lấy vị trí hiện tại. Vui lòng bật GPS và cho phép truy cập vị trí.');
+      }
+
+      console.log('📍 Using current location for nearby search:', currentLocation);
+
+      // Fetch nearby locations from registered-nearby API
+      const nearbyLocations = await locationService.getRegisteredNearby(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        50 // 50km radius - có thể customize
+      );
+
+      console.log('📦 Raw nearby locations from API:', nearbyLocations);
+
+      // 🛡️ VALIDATE locations before transforming
+      const validNearbyLocations = nearbyLocations.filter(location => {
+        const isValid = location && 
+                       location.locationId !== undefined && 
+                       location.locationId !== null && 
+                       !isNaN(location.locationId);
+        
+        if (!isValid) {
+          console.warn('❌ Invalid nearby location data:', location);
+        }
+        return isValid;
+      });
+
+      console.log(`✅ Valid nearby locations: ${validNearbyLocations.length}/${nearbyLocations.length}`);
+
+      // 🎯 SOLUTION: Get full location details cho mỗi nearby location
+      const transformedData: LocationData[] = [];
+      for (const nearbyLocation of validNearbyLocations) {
+        try {
+          console.log(`🔍 Getting full details for location ${nearbyLocation.locationId}...`);
+          
+          // 1. Get full location data từ getById API
+          const fullLocationData = await locationService.getById(nearbyLocation.locationId);
+          
+          // 2. Transform full data
+          const transformed = await transformLocationData(fullLocationData);
+          
+          // 3. Override distance từ nearby API
+          transformed.distance = nearbyLocation.distance;
+          
+          console.log(`✅ Full location data for ${nearbyLocation.locationId}:`, {
+            name: transformed.name,
+            hourlyRate: transformed.hourlyRate,
+            capacity: transformed.capacity,
+            distance: transformed.distance
+          });
+          
+          transformedData.push(transformed);
+          
+        } catch (error) {
+          console.error(`❌ Error getting full details for location ${nearbyLocation.locationId}:`, error);
+          
+          // Fallback: Use basic data từ nearby API + default values
+          if (nearbyLocation.locationId && !isNaN(nearbyLocation.locationId)) {
+            transformedData.push({
+              id: nearbyLocation.locationId.toString(),
+              locationId: nearbyLocation.locationId,
+              name: nearbyLocation.name || 'Địa điểm chưa có tên',
+              images: [''], // No image available
+              styles: ['Studio'], // Default style
+              address: nearbyLocation.address,
+              hourlyRate: 0, // ⚠️ Default - không có data từ nearby API
+              capacity: 0,   // ⚠️ Default - không có data từ nearby API
+              availabilityStatus: 'available',
+              distance: nearbyLocation.distance,
+              source: 'app',
+              rating: 4.5,
+            });
+          }
+        }
+      }
+
+      // Sort by distance (nearest first)
+      transformedData.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+
+      setRegisteredNearbyLocations(transformedData);
+      setCurrentLocation(currentLocation);
+
+      console.log('✅ Registered nearby locations processed:', {
+        count: transformedData.length,
+        locations: transformedData.map(l => ({ 
+          name: l.name, 
+          distance: l.distance,
+          hourlyRate: l.hourlyRate,
+          capacity: l.capacity
+        }))
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Lỗi khi tải địa điểm gần bạn';
+      setNearbyError(errorMessage);
+      console.error('❌ Error fetching registered nearby locations:', error);
+    } finally {
+      setNearbyLoading(false);
+    }
+  }, []);
 
   const getLocationById = async (id: number): Promise<LocationData | null> => {
     try {
@@ -274,7 +454,7 @@ export const useLocations = (): UseLocationsReturn => {
     }
   }, []);
 
-  // 🆕 SIMPLIFIED: Search only app locations nearby
+  // Legacy methods (keep for backward compatibility)
   const searchNearbyAppLocations = useCallback(async (radiusKm: number = 5): Promise<void> => {
     try {
       setGpsLoading(true);
@@ -417,39 +597,51 @@ export const useLocations = (): UseLocationsReturn => {
 
   const clearNearbyResults = useCallback(() => {
     setNearbyAppLocations([]);
+    setRegisteredNearbyLocations([]);
     setGpsError(null);
+    setNearbyError(null);
   }, []);
 
   // 🚀 Initialize on mount
   useEffect(() => {
     fetchAllLocations();
     
-    // Auto-request location permission
+    // 🆕 MAIN CHANGE: Auto-fetch registered nearby locations
     requestLocationPermission().then(granted => {
       if (granted) {
-        console.log('✅ Location permission granted, getting current location...');
-        getCurrentLocation();
+        console.log('✅ Location permission granted, fetching registered nearby locations...');
+        fetchRegisteredNearbyLocations(); // 🎯 This is the main change
       }
     });
-  }, [requestLocationPermission, getCurrentLocation]);
+  }, [requestLocationPermission, fetchRegisteredNearbyLocations]);
 
   return {
-    // 📍 Location data
+    // 📍 All locations data
     locations,
     loading,
     error,
 
-    // GPS & App locations only
+    // 🆕 MAIN RETURN: Registered nearby locations
+    registeredNearbyLocations,
+    nearbyLoading,
+    nearbyError,
+
+    // GPS related
     currentLocation,
-    nearbyAppLocations,
     hasLocationPermission,
     gpsLoading,
     gpsError,
+
+    // Legacy (keep for compatibility)
+    nearbyAppLocations,
 
     // 📱 Methods
     refreshLocations,
     fetchAllLocations,
     getLocationById,
+    
+    // 🆕 MAIN METHOD: 
+    fetchRegisteredNearbyLocations,
     
     // GPS Methods
     requestLocationPermission,

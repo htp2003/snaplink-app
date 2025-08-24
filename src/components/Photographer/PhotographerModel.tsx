@@ -1,4 +1,4 @@
-// components/Photographer/PhotographerModal.tsx
+// components/Photographer/PhotographerModal.tsx - Updated UI
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -143,6 +143,15 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
     const isSelected = selectedPhotographer?.id === photographer.id || 
                       selectedPhotographer?.photographerId === photographer.photographerId;
     
+    // 🔧 NEW: Check isbookedhere status
+    const isBookedHere = photographer.isbookedhere === true;
+    
+    // 🎨 Keep original colors (red/pink theme)
+    const cardBorderColor = isSelected ? "#E91E63" : "#e0e0e0";
+    const cardBorderWidth = isSelected ? 2 : 1;
+    const cardElevation = isSelected ? 4 : 2;
+    const cardBackgroundColor = "#fff";
+    
     return (
       <TouchableOpacity
         key={photographer.id || photographer.photographerId || index}
@@ -151,13 +160,17 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
           onClose();
         }}
         style={{
-          backgroundColor: "#fff",
+          backgroundColor: cardBackgroundColor,
           borderRadius: getResponsiveSize(16),
           padding: getResponsiveSize(16),
           marginBottom: getResponsiveSize(12),
-          borderWidth: isSelected ? 2 : 1,
-          borderColor: isSelected ? "#E91E63" : "#e0e0e0",
-          elevation: isSelected ? 4 : 2,
+          borderWidth: cardBorderWidth,
+          borderColor: cardBorderColor,
+          elevation: cardElevation,
+          shadowColor: isSelected ? "#E91E63" : "#000",
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: isSelected ? 0.1 : 0.05,
+          shadowRadius: 2,
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -175,6 +188,8 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
               borderRadius: getResponsiveSize(12),
               marginRight: getResponsiveSize(16),
               backgroundColor: '#f0f0f0',
+              borderWidth: isSelected ? 2 : 0,
+              borderColor: "#E91E63",
             }}
           />
 
@@ -192,10 +207,12 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
               >
                 {photographer.fullName || photographer.user?.fullName || 'Unknown'}
               </Text>
-              {isSelected && (
+              
+              {/* 🔧 FIXED: Only show badge when isbookedhere is true */}
+              {isBookedHere && (
                 <View
                   style={{
-                    backgroundColor: "#E91E63",
+                    backgroundColor: "#fbbf24",  // Yellow-400
                     borderRadius: getResponsiveSize(10),
                     paddingHorizontal: getResponsiveSize(8),
                     paddingVertical: getResponsiveSize(2),
@@ -203,12 +220,12 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
                 >
                   <Text
                     style={{
-                      color: "#fff",
+                      color: "#92400e",  // Yellow-800
                       fontSize: getResponsiveSize(10),
                       fontWeight: "bold",
                     }}
                   >
-                    ✓ Đã chọn
+                    Đã đặt ở đây
                   </Text>
                 </View>
               )}
@@ -228,16 +245,16 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
               style={{
                 fontSize: getResponsiveSize(16),
                 fontWeight: "bold",
-                color: "#E91E63",
+                color: isSelected ? "#E91E63" : "#e11d48",
                 marginBottom: getResponsiveSize(4),
               }}
             >
               {formatPrice(photographer.hourlyRate)}/h
             </Text>
 
-            {/* Rating */}
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Feather name="star" size={getResponsiveSize(14)} color="#FFD700" />
+            {/* Rating & Experience */}
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 4 }}>
+              <Feather name="star" size={getResponsiveSize(14)} color="#fbbf24" />
               <Text
                 style={{
                   fontSize: getResponsiveSize(12),
@@ -248,6 +265,22 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
                 {photographer.rating || 4.8} • {photographer.yearsExperience || 5}+ năm
               </Text>
             </View>
+            
+            {/* 🔧 NEW: Distance info if available */}
+            {photographer.distanceKm && (
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Feather name="map-pin" size={getResponsiveSize(12)} color="#6b7280" />
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(11),
+                    color: "#6b7280",
+                    marginLeft: getResponsiveSize(4),
+                  }}
+                >
+                  Cách {photographer.distanceKm.toFixed(1)}km
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -257,7 +290,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
             marginTop: getResponsiveSize(12), 
             paddingTop: getResponsiveSize(12), 
             borderTopWidth: 1, 
-            borderTopColor: "#f0f0f0" 
+            borderTopColor: isSelected ? "#FFF0F5" : "#f0f0f0"
           }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {photographer.styles.map((style: string, styleIndex: number) => (
@@ -269,13 +302,15 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
                     paddingHorizontal: getResponsiveSize(8),
                     paddingVertical: getResponsiveSize(4),
                     marginRight: getResponsiveSize(6),
+                    borderWidth: isSelected ? 1 : 0,
+                    borderColor: "#FFC0CB",
                   }}
                 >
                   <Text
                     style={{
                       fontSize: getResponsiveSize(11),
                       color: isSelected ? "#E91E63" : "#666",
-                      fontWeight: isSelected ? "bold" : "normal",
+                      fontWeight: isSelected ? "600" : "normal",
                     }}
                   >
                     {style}
@@ -310,13 +345,13 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
         <View style={{ 
           padding: getResponsiveSize(40), 
           alignItems: "center",
-          backgroundColor: "#fff3f3",
+          backgroundColor: "#fef2f2",  // Red-50
           borderRadius: getResponsiveSize(12),
           margin: getResponsiveSize(20),
         }}>
-          <Feather name="alert-circle" size={getResponsiveSize(48)} color="#ff6b6b" />
+          <Feather name="alert-circle" size={getResponsiveSize(48)} color="#ef4444" />
           <Text style={{ 
-            color: "#ff6b6b", 
+            color: "#dc2626", 
             marginTop: 10,
             textAlign: 'center',
           }}>
@@ -398,7 +433,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
             paddingHorizontal: getResponsiveSize(20),
             paddingBottom: getResponsiveSize(20),
             borderBottomWidth: 1,
-            borderBottomColor: "#e0e0e0",
+            borderBottomColor: "#e5e7eb",
             elevation: 2,
           }}
         >
@@ -412,7 +447,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
             <TouchableOpacity
               onPress={onClose}
               style={{
-                backgroundColor: "#f5f5f5",
+                backgroundColor: "#f3f4f6",
                 borderRadius: getResponsiveSize(12),
                 padding: getResponsiveSize(10),
               }}
@@ -420,7 +455,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
               <AntDesign
                 name="close"
                 size={getResponsiveSize(24)}
-                color="#333"
+                color="#374151"
               />
             </TouchableOpacity>
 
@@ -428,7 +463,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
               style={{
                 fontSize: getResponsiveSize(18),
                 fontWeight: "bold",
-                color: "#333",
+                color: "#111827",
                 textAlign: "center",
                 flex: 1,
               }}
@@ -446,18 +481,19 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
                 flexDirection: "row",
                 alignItems: "center",
                 marginTop: getResponsiveSize(15),
-                backgroundColor: "#f0f9ff",
+                backgroundColor: "#eff6ff",
                 borderRadius: getResponsiveSize(12),
                 padding: getResponsiveSize(12),
               }}
             >
-              <Feather name="map-pin" size={getResponsiveSize(16)} color="#0EA5E9" />
+              <Feather name="map-pin" size={getResponsiveSize(16)} color="#3b82f6" />
               <Text
                 style={{
                   fontSize: getResponsiveSize(14),
-                  color: "#333",
+                  color: "#1e40af",
                   marginLeft: getResponsiveSize(8),
                   flex: 1,
+                  fontWeight: "500"
                 }}
                 numberOfLines={1}
               >
@@ -473,7 +509,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
             flexDirection: "row",
             backgroundColor: "#fff",
             borderBottomWidth: 1,
-            borderBottomColor: "#e0e0e0",
+            borderBottomColor: "#e5e7eb",
           }}
         >
           {tabs.map((tab) => (
@@ -486,17 +522,18 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
                 alignItems: "center",
                 borderBottomWidth: activeTab === tab.key ? 2 : 0,
                 borderBottomColor: "#E91E63",
+                backgroundColor: activeTab === tab.key ? "#FFF0F5" : "transparent"
               }}
             >
               <Feather
                 name={tab.icon as any}
                 size={getResponsiveSize(20)}
-                color={activeTab === tab.key ? "#E91E63" : "#999"}
+                color={activeTab === tab.key ? "#E91E63" : "#6b7280"}
               />
               <Text
                 style={{
                   fontSize: getResponsiveSize(12),
-                  color: activeTab === tab.key ? "#E91E63" : "#999",
+                  color: activeTab === tab.key ? "#E91E63" : "#6b7280",
                   fontWeight: activeTab === tab.key ? "bold" : "normal",
                   marginTop: getResponsiveSize(4),
                 }}

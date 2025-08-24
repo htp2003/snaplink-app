@@ -142,20 +142,24 @@ export type RootStackParamList = {
   // Customer screens
   PhotographerCardDetail: { photographerId: string };
   
-  // 🔧 FIXED: LocationCardDetail - Either app location OR external location
+ 
   LocationCardDetail: {
-    locationId?: string;           // App location (optional)
-    externalLocation?: GooglePlaceDisplay;  // OR External location (optional)
+    locationId?: string;         
+    externalLocation?: GooglePlaceDisplay;  
   };
 
-
-  
   ViewAllPhotographers: {
-    type?: "featured" | "recommendations" | "all";
+    type?: "recommended" | "popular" | "user-styles" | "all";
     title?: string;
     userId?: number | null;
+    location?: {  
+      latitude: number;
+      longitude: number;
+    };
   };
-  ViewAllLocations: undefined;
+  ViewAllLocations: {
+    type?: "nearby" | "all";
+  } | undefined;
   ProfileUserScreen: undefined;
   EditProfileUserScreen: undefined;
   OrderHistoryScreen: { userId: number };

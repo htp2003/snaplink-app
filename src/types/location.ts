@@ -57,6 +57,8 @@ export interface LocationOwner {
   };
 }
 
+
+
 export interface LocationOwnerDto {
   userId: number;
   businessName?: string;

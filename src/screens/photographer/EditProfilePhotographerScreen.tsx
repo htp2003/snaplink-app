@@ -46,7 +46,7 @@ interface ProfileField {
 
 const EditProfilePhotographerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
-  const { user, getCurrentUserId } = useAuth();
+  const { user, getCurrentUserId, updateProfile  } = useAuth();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -512,17 +512,16 @@ const EditProfilePhotographerScreen = () => {
       console.error("Error selecting location:", error);
     }
   };
-
   const handleSaveProfile = async () => {
     try {
       setIsSaving(true);
       const userId = getCurrentUserId();
-
+  
       if (!userId) {
         Alert.alert("Lỗi", "Không tìm thấy thông tin user");
         return;
       }
-
+  
       // Validate required fields
       const yearsExperienceValue = parseInt(
         profileData.find((f) => f.id === "yearsExperience")?.value || "0"
@@ -535,59 +534,91 @@ const EditProfilePhotographerScreen = () => {
       const availabilityValue =
         profileData.find((f) => f.id === "availabilityStatus")?.value ||
         "Available";
-      const locationValue =
-        profileData.find((f) => f.id === "location")?.value || "";
+  
+      // Validation checks...
       if (yearsExperienceValue <= 0) {
         Alert.alert("Lỗi", "Vui lòng nhập số năm kinh nghiệm hợp lệ");
         setIsSaving(false);
         return;
       }
-
+  
       if (!equipmentValue.trim()) {
         Alert.alert("Lỗi", "Vui lòng nhập thông tin thiết bị");
         setIsSaving(false);
         return;
       }
-
+  
       if (hourlyRateValue <= 0) {
         Alert.alert("Lỗi", "Vui lòng nhập giá dịch vụ hợp lệ");
         setIsSaving(false);
         return;
       }
-
+  
       if (selectedStyleIds.length === 0) {
         Alert.alert("Lỗi", "Vui lòng chọn ít nhất 1 concept chụp");
         setIsSaving(false);
         return;
       }
-
+  
       if (isEditMode && photographer) {
-        // Update existing profile - DON'T include styleIds in main update
+        // ✅ STEP 1: Update User Profile (for profile image)
+        if (profileImage && profileImage !== user?.profileImage) {
+          try {
+            console.log('🖼️ Updating user profile image:', profileImage);
+            await updateProfile(userId, {
+              profileImage: profileImage,
+            });
+            console.log('✅ User profile image updated successfully');
+          } catch (userUpdateError) {
+            console.error('❌ Error updating user profile image:', userUpdateError);
+            // Continue with photographer update even if user update fails
+          }
+        }
+  
+        // ✅ STEP 2: Update Photographer Profile
         const updateData: UpdatePhotographerRequest = {
           yearsExperience: yearsExperienceValue,
           equipment: equipmentValue,
           hourlyRate: hourlyRateValue,
           availabilityStatus: availabilityValue,
-          profileImage: profileImage || photographer.profileImage,
+          // Don't include profileImage in photographer update - it's handled in user profile
         };
+  
+        // Add location data if available
         if (selectedLocationData) {
           updateData.address = selectedLocationData.address;
           updateData.googleMapsAddress = selectedLocationData.address;
           updateData.latitude = selectedLocationData.coordinates.latitude;
           updateData.longitude = selectedLocationData.coordinates.longitude;
-        } // Preserve existing image if not updated
-        // Remove styleIds from here - handle separately
-
+        }
+  
         await updatePhotographer(updateData);
-
-        // Update styles separately using the hook methods
+  
+        // ✅ STEP 3: Update styles separately
         await updatePhotographerStyles();
-
+  
         Alert.alert("Thành công", "Hồ sơ nhiếp ảnh gia đã được cập nhật", [
           { text: "OK", onPress: () => navigation.goBack() },
         ]);
+  
       } else {
-        // Create new profile - include styleIds in creation
+        // ✅ CREATE MODE: Update user profile first, then create photographer
+        
+        // STEP 1: Update user profile image if changed
+        if (profileImage && profileImage !== user?.profileImage) {
+          try {
+            console.log('🖼️ Creating - updating user profile image:', profileImage);
+            await updateProfile(userId, {
+              profileImage: profileImage,
+            });
+            console.log('✅ User profile image updated successfully');
+          } catch (userUpdateError) {
+            console.error('❌ Error updating user profile image:', userUpdateError);
+            // Continue with photographer creation
+          }
+        }
+  
+        // STEP 2: Create photographer profile
         const createData: CreatePhotographerRequest = {
           userId: userId,
           yearsExperience: yearsExperienceValue,
@@ -595,24 +626,24 @@ const EditProfilePhotographerScreen = () => {
           hourlyRate: hourlyRateValue,
           availabilityStatus: availabilityValue,
           styleIds: selectedStyleIds,
-          profileImage: profileImage || undefined,
+          // Don't include profileImage - it's handled in user profile
           ...(selectedLocationData && {
             address: selectedLocationData.address,
             googleMapsAddress: selectedLocationData.address,
             latitude: selectedLocationData.coordinates.latitude,
             longitude: selectedLocationData.coordinates.longitude,
-          }), // Preserve existing image if not updated
+          }),
         };
-
+  
         await createProfile(createData);
-
+  
         Alert.alert(
           "Thành công",
           "Hồ sơ nhiếp ảnh gia đã được tạo thành công",
           [{ text: "OK", onPress: () => navigation.goBack() }]
         );
       }
-
+  
       setIsSaving(false);
     } catch (error) {
       console.error("Error saving profile:", error);

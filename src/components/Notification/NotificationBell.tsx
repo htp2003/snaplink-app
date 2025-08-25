@@ -1,96 +1,285 @@
-// components/NotificationBell.tsx
-import React from 'react';
-import { TouchableOpacity, View, Text } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNotifications } from '../../hooks/useNotification';
+// components/Notification/NotificationBadge.tsx - Badge hiển thị số thông báo chưa đọc
 
-interface NotificationBellProps {
-  onPress: () => void;
-  userId: number;
-  size?: number;
+import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+
+import { getResponsiveSize } from '../../utils/responsive';
+import { useNotificationContext } from 'src/context/NotificationProvider';
+
+interface NotificationBadgeProps {
+  size?: 'small' | 'medium' | 'large';
   color?: string;
-  backgroundColor?: string;
+  textColor?: string;
+  onPress?: () => void;
+  showZero?: boolean;
+  maxCount?: number;
   style?: any;
+  iconName?: keyof typeof Feather.glyphMap;
 }
 
-export const NotificationBell: React.FC<NotificationBellProps> = ({
+export const NotificationBadge: React.FC<NotificationBadgeProps> = ({
+  size = 'medium',
+  color = '#E91E63',
+  textColor = '#FFFFFF',
   onPress,
-  userId,
-  size = 24,
-  color = '#000000',
-  backgroundColor = '#F7F7F7',
-  style
+  showZero = false,
+  maxCount = 99,
+  style,
+  iconName = 'bell'
 }) => {
-  const { unreadCount, loading } = useNotifications(userId);
+  const { unreadCount = 0, isLoading } = useNotificationContext();
 
-  return (
-    <TouchableOpacity
-      style={[{
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: backgroundColor,
-        justifyContent: 'center',
-        alignItems: 'center',
-        position: 'relative'
-      }, style]}
-      onPress={onPress}
-      disabled={loading}
-    >
-      <Ionicons 
-        name="notifications-outline" 
-        size={size} 
-        color={color} 
+  // Size configuration
+  const sizeConfig = {
+    small: {
+      iconSize: 18,
+      badgeSize: 16,
+      fontSize: 10,
+      badgeOffset: { top: -6, right: -6 }
+    },
+    medium: {
+      iconSize: 24,
+      badgeSize: 20,
+      fontSize: 12,
+      badgeOffset: { top: -8, right: -8 }
+    },
+    large: {
+      iconSize: 28,
+      badgeSize: 24,
+      fontSize: 14,
+      badgeOffset: { top: -10, right: -10 }
+    }
+  };
+
+  const config = sizeConfig[size];
+  const shouldShowBadge = unreadCount > 0 || (showZero && unreadCount === 0);
+  const displayCount = unreadCount > maxCount ? `${maxCount}+` : unreadCount.toString();
+
+  const BadgeContent = () => (
+    <View style={[styles.container, style]}>
+      {/* Bell Icon */}
+      <Feather
+        name={iconName}
+        size={getResponsiveSize(config.iconSize)}
+        color={unreadCount > 0 ? color : '#666'}
       />
       
-      {/* Unread Count Badge */}
-      {unreadCount > 0 && (
-        <View style={{
-          position: 'absolute',
-          top: 6,
-          right: 6,
-          minWidth: 18,
-          height: 18,
-          borderRadius: 9,
-          backgroundColor: '#FF385C',
-          justifyContent: 'center',
-          alignItems: 'center',
-          paddingHorizontal: 4,
-          shadowColor: '#000',
-          shadowOffset: {
-            width: 0,
-            height: 1,
-          },
-          shadowOpacity: 0.3,
-          shadowRadius: 2,
-          elevation: 3,
-        }}>
-          <Text style={{
-            color: '#fff',
-            fontSize: 10,
-            fontWeight: '600',
-            textAlign: 'center',
-            lineHeight: 12
-          }}>
-            {unreadCount > 99 ? '99+' : unreadCount.toString()}
+      {/* Badge */}
+      {shouldShowBadge && (
+        <View
+          style={[
+            styles.badge,
+            {
+              backgroundColor: color,
+              minWidth: getResponsiveSize(config.badgeSize),
+              height: getResponsiveSize(config.badgeSize),
+              borderRadius: getResponsiveSize(config.badgeSize / 2),
+              top: getResponsiveSize(config.badgeOffset.top),
+              right: getResponsiveSize(config.badgeOffset.right),
+            }
+          ]}
+        >
+          <Text
+            style={[
+              styles.badgeText,
+              {
+                color: textColor,
+                fontSize: getResponsiveSize(config.fontSize),
+              }
+            ]}
+            numberOfLines={1}
+          >
+            {displayCount}
           </Text>
         </View>
       )}
-      
+
       {/* Loading indicator */}
-      {loading && (
-        <View style={{
-          position: 'absolute',
-          top: 8,
-          right: 8,
-          width: 8,
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: '#FFA500',
-        }} />
+      {isLoading && (
+        <View
+          style={[
+            styles.loadingIndicator,
+            {
+              top: getResponsiveSize(config.badgeOffset.top),
+              right: getResponsiveSize(config.badgeOffset.right),
+              width: getResponsiveSize(config.badgeSize),
+              height: getResponsiveSize(config.badgeSize),
+              borderRadius: getResponsiveSize(config.badgeSize / 2),
+            }
+          ]}
+        >
+          <View style={styles.pulse} />
+        </View>
       )}
-    </TouchableOpacity>
+    </View>
+  );
+
+  if (onPress) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        style={[styles.touchable, style]}
+        activeOpacity={0.7}
+      >
+        <BadgeContent />
+      </TouchableOpacity>
+    );
+  }
+
+  return <BadgeContent />;
+};
+
+// Animated Badge với hiệu ứng
+export const AnimatedNotificationBadge: React.FC<NotificationBadgeProps> = (props) => {
+  const { unreadCount } = useNotificationContext();
+  const [prevCount, setPrevCount] = React.useState(unreadCount);
+  const [isAnimating, setIsAnimating] = React.useState(false);
+
+  React.useEffect(() => {
+    if (unreadCount !== prevCount) {
+      setIsAnimating(true);
+      setTimeout(() => {
+        setIsAnimating(false);
+        setPrevCount(unreadCount);
+      }, 300);
+    }
+  }, [unreadCount, prevCount]);
+
+  return (
+    <View style={isAnimating && styles.animatingContainer}>
+      <NotificationBadge {...props} />
+    </View>
   );
 };
 
-export default NotificationBell;
+// Badge cho Tab Navigator
+export const TabNotificationBadge: React.FC<{
+  focused?: boolean;
+  onPress?: () => void;
+}> = ({ focused, onPress }) => {
+  const { unreadCount } = useNotificationContext();
+
+  return (
+    <NotificationBadge
+      size="small"
+      color={focused ? '#E91E63' : '#666'}
+      onPress={onPress}
+      iconName="bell"
+      style={{
+        opacity: focused ? 1 : 0.6,
+      }}
+    />
+  );
+};
+
+// Badge đơn giản chỉ hiển thị số
+export const SimpleNotificationBadge: React.FC<{
+  count?: number;
+  maxCount?: number;
+  size?: 'small' | 'medium' | 'large';
+  color?: string;
+  textColor?: string;
+}> = ({
+  count,
+  maxCount = 99,
+  size = 'medium',
+  color = '#E91E63',
+  textColor = '#FFFFFF'
+}) => {
+  const { unreadCount } = useNotificationContext();
+  const displayCount = (count ?? unreadCount) > maxCount ? `${maxCount}+` : (count ?? unreadCount).toString();
+  const shouldShow = (count ?? unreadCount) > 0;
+
+  const sizeConfig = {
+    small: { badgeSize: 16, fontSize: 10 },
+    medium: { badgeSize: 20, fontSize: 12 },
+    large: { badgeSize: 24, fontSize: 14 }
+  };
+
+  const config = sizeConfig[size];
+
+  if (!shouldShow) return null;
+
+  return (
+    <View
+      style={[
+        styles.simpleBadge,
+        {
+          backgroundColor: color,
+          minWidth: getResponsiveSize(config.badgeSize),
+          height: getResponsiveSize(config.badgeSize),
+          borderRadius: getResponsiveSize(config.badgeSize / 2),
+        }
+      ]}
+    >
+      <Text
+        style={[
+          styles.badgeText,
+          {
+            color: textColor,
+            fontSize: getResponsiveSize(config.fontSize),
+          }
+        ]}
+      >
+        {displayCount}
+      </Text>
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  touchable: {
+    padding: 4,
+  },
+  badge: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
+  badgeText: {
+    fontWeight: 'bold',
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
+  loadingIndicator: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(233, 30, 99, 0.3)',
+  },
+  pulse: {
+    width: '60%',
+    height: '60%',
+    backgroundColor: '#E91E63',
+    borderRadius: 50,
+    opacity: 0.6,
+  },
+  animatingContainer: {
+    transform: [{ scale: 1.1 }],
+  },
+  simpleBadge: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+  },
+});
+
+export default NotificationBadge;

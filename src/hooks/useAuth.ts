@@ -1,6 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+
 const API_BASE_URL =
   "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 
@@ -216,7 +217,6 @@ export function AuthProvider(props: { children: React.ReactNode }) {
       throw error;
     }
   };
-
   // ✅ NEW: Send Reset Code
   const sendResetCode = async (email: string): Promise<ForgotPasswordResponse> => {
     try {

@@ -1,4 +1,4 @@
-// types/notification.ts - COMPLETE PUSH NOTIFICATION TYPES
+// types/notification.ts - COMPLETE NOTIFICATION TYPES (API-based)
 
 export enum NotificationType {
   NEW_BOOKING = 'NEW_BOOKING',
@@ -13,53 +13,50 @@ export enum NotificationType {
   WITHDRAWAL_UPDATE = 'WITHDRAWAL_UPDATE'
 }
 
-export enum DeviceType {
-  IOS = 'ios',
-  ANDROID = 'android'
+export enum NotificationStatus {
+  UNREAD = 'UNREAD',
+  READ = 'READ',
+  DELETED = 'DELETED'
 }
 
 export enum NotificationPriority {
-  LOW = 'low',
-  NORMAL = 'normal', 
-  HIGH = 'high'
+  LOW = 'LOW',
+  NORMAL = 'NORMAL', 
+  HIGH = 'HIGH'
 }
 
-// ===== DEVICE MANAGEMENT TYPES =====
+// ===== API REQUEST/RESPONSE TYPES =====
 
-export interface RegisterDeviceRequest {
+export interface CreateNotificationRequest {
+  userId: number;         
+  title: string;          
+  content: string;          
+  notificationType: string; 
+  readStatus?: boolean;     
+  referenceId?: number;     
+}
+
+export interface UpdateNotificationRequest {
+  userId?: number;
+  title?: string;
+  content?: string;
+  notificationType?: NotificationType;
+  referenceId?: number;
+  readStatus?: boolean;
+}
+
+export interface NotificationResponse {
+  motificationId: number;
   userId: number;
-  expoPushToken: string;
-  deviceType: DeviceType;
-  deviceId?: string;
-  deviceName?: string;
-  appVersion?: string;
-  osVersion?: string;
-}
-
-export interface UpdateDeviceRequest {
-  expoPushToken?: string;
-  deviceName?: string;
-  appVersion?: string;
-  osVersion?: string;
-  isActive?: boolean;
-}
-
-export interface DeviceResponse {
-  deviceId: number;
-  userId: number;
-  expoPushToken: string;
-  deviceType: string;
-  deviceId_External?: string;
-  deviceName?: string;
-  appVersion?: string;
-  osVersion?: string;
-  isActive: boolean;
+  title: string;
+  content: string;
+  notificationType: NotificationType;
+  readStatus: boolean;
   createdAt: string;
-  updatedAt: string;
-  lastUsedAt?: string;
+  updatedAt?: string;
 }
 
-// ===== NOTIFICATION SENDING TYPES =====
+// ===== NOTIFICATION DATA TYPES =====
 
 export interface NotificationData {
   screen?: string;
@@ -73,38 +70,15 @@ export interface NotificationData {
   [key: string]: any;
 }
 
-export interface SendNotificationRequest {
-  userId: number;
-  title: string;
-  body: string;
-  data?: NotificationData;
-  sound?: string;
-  priority?: NotificationPriority;
+export interface NotificationListResponse {
+  notifications: NotificationResponse[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  hasMore: boolean;
 }
 
-export interface SendBulkNotificationRequest {
-  userIds: number[];
-  title: string;
-  body: string;
-  data?: NotificationData;
-  sound?: string;
-  priority?: NotificationPriority;
-}
-
-export interface NotificationSendResult {
-  success: boolean;
-  message: string;
-  data?: any;
-}
-
-export interface BulkNotificationResponse {
-  message: string;
-  totalSent: number;
-  totalFailed: number;
-  errors: string[];
-}
-
-// ===== NOTIFICATION NAVIGATION DATA TYPES =====
+// ===== NAVIGATION DATA TYPES =====
 
 export interface BookingNotificationData extends NotificationData {
   screen: 'BookingDetail';
@@ -138,26 +112,27 @@ export interface SystemNotificationData extends NotificationData {
   type: NotificationType.SYSTEM_ANNOUNCEMENT;
 }
 
-// ===== AUTOMATIC NOTIFICATION TEMPLATES =====
+// ===== NOTIFICATION TEMPLATES =====
 
-export interface AutoNotificationTemplate {
+export interface NotificationTemplate {
   title: string;
-  body: string;
-  data: NotificationData;
-  sound?: string;
-  priority?: NotificationPriority;
+  content: string;
+  notificationType: NotificationType;
+  referenceId?: number;
 }
 
-export interface AutoNotificationTemplates {
-  newBooking: (customerName: string, bookingId: string) => AutoNotificationTemplate;
-  bookingConfirmed: (bookingId: string) => AutoNotificationTemplate;
-  bookingCompleted: (bookingId: string) => AutoNotificationTemplate;
-  newMessage: (senderName: string, messageContent: string, conversationId: string) => AutoNotificationTemplate;
-  paymentSuccess: (amount: number, paymentId: string) => AutoNotificationTemplate;
-  paymentFailed: (paymentId: string) => AutoNotificationTemplate;
-  newApplication: (photographerName: string, eventId: string) => AutoNotificationTemplate;
-  applicationApproved: (eventId: string) => AutoNotificationTemplate;
-  applicationRejected: (eventId: string, reason?: string) => AutoNotificationTemplate;
+export interface NotificationTemplates {
+  newBooking: (customerName: string, bookingId: number) => NotificationTemplate;
+  bookingConfirmed: (bookingId: number) => NotificationTemplate;
+  bookingCompleted: (bookingId: number) => NotificationTemplate;
+  newMessage: (senderName: string, messageContent: string, conversationId: number) => NotificationTemplate;
+  paymentSuccess: (amount: number, paymentId: number) => NotificationTemplate;
+  paymentFailed: (paymentId: number) => NotificationTemplate;
+  newApplication: (photographerName: string, eventId: number) => NotificationTemplate;
+  applicationApproved: (eventId: number) => NotificationTemplate;
+  applicationRejected: (eventId: number, reason?: string) => NotificationTemplate;
+  photoDelivered: (bookingId: number, photoCount: number) => NotificationTemplate;
+  withdrawalUpdate: (amount: number, status: string) => NotificationTemplate;
 }
 
 // ===== ERROR HANDLING TYPES =====
@@ -168,24 +143,18 @@ export interface NotificationError {
   details?: string;
 }
 
-export interface DeviceValidationError {
-  field: string;
+export interface ApiResponse<T = any> {
+  error: number;
   message: string;
+  data?: T;
 }
 
 // ===== UTILITY TYPES =====
-
-export interface NotificationPermissionStatus {
-  granted: boolean;
-  canAskAgain: boolean;
-  status: 'granted' | 'denied' | 'undetermined';
-}
 
 export interface NotificationSettings {
   enabled: boolean;
   sound: boolean;
   vibration: boolean;
-  badge: boolean;
   types: {
     [K in NotificationType]: boolean;
   };
@@ -196,29 +165,44 @@ export interface NotificationSettings {
   };
 }
 
-export interface TokenValidationResult {
-  isValid: boolean;
-  message: string;
-}
-
-export interface CleanupResult {
-  message: string;
-  deletedCount: number;
+export interface NotificationStats {
+  totalCount: number;
+  unreadCount: number;
+  readCount: number;
+  typeBreakdown: {
+    [K in NotificationType]: number;
+  };
 }
 
 // ===== HOOK OPTIONS =====
 
 export interface UseNotificationOptions {
   userId?: number;
-  autoRegister?: boolean;
   autoRefresh?: boolean;
   refreshInterval?: number;
+  pageSize?: number;
 }
+
+// ===== PAGINATION =====
+
+export interface PaginationParams {
+  page?: number;
+  pageSize?: number;
+}
+
+export interface NotificationFilters {
+  notificationType?: NotificationType;
+  readStatus?: boolean;
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface NotificationQuery extends PaginationParams, NotificationFilters {}
 
 // ===== NAVIGATION TYPES =====
 
 export interface NotificationNavigationHandler {
-  (notification: NotificationData): void;
+  (notification: NotificationResponse): void;
 }
 
 export interface NavigationScreenParams {
@@ -258,26 +242,26 @@ export interface NavigationScreenParams {
 
 // ===== TYPE GUARDS =====
 
-export const isBookingNotification = (data: NotificationData): data is BookingNotificationData => {
-  return data.type === NotificationType.NEW_BOOKING || 
-         data.type === NotificationType.BOOKING_STATUS_UPDATE;
+export const isBookingNotification = (notification: NotificationResponse): boolean => {
+  return notification.notificationType === NotificationType.NEW_BOOKING || 
+         notification.notificationType === NotificationType.BOOKING_STATUS_UPDATE;
 };
 
-export const isMessageNotification = (data: NotificationData): data is MessageNotificationData => {
-  return data.type === NotificationType.NEW_MESSAGE;
+export const isMessageNotification = (notification: NotificationResponse): boolean => {
+  return notification.notificationType === NotificationType.NEW_MESSAGE;
 };
 
-export const isPaymentNotification = (data: NotificationData): data is PaymentNotificationData => {
-  return data.type === NotificationType.PAYMENT_UPDATE;
+export const isPaymentNotification = (notification: NotificationResponse): boolean => {
+  return notification.notificationType === NotificationType.PAYMENT_UPDATE;
 };
 
-export const isEventNotification = (data: NotificationData): data is EventNotificationData => {
-  return data.type === NotificationType.NEW_APPLICATION || 
-         data.type === NotificationType.APPLICATION_RESPONSE;
+export const isEventNotification = (notification: NotificationResponse): boolean => {
+  return notification.notificationType === NotificationType.NEW_APPLICATION || 
+         notification.notificationType === NotificationType.APPLICATION_RESPONSE;
 };
 
-export const isSystemNotification = (data: NotificationData): data is SystemNotificationData => {
-  return data.type === NotificationType.SYSTEM_ANNOUNCEMENT;
+export const isSystemNotification = (notification: NotificationResponse): boolean => {
+  return notification.notificationType === NotificationType.SYSTEM_ANNOUNCEMENT;
 };
 
 // ===== UTILITY FUNCTIONS =====
@@ -362,21 +346,25 @@ export const getNotificationTypeName = (type: NotificationType): string => {
   }
 };
 
-// ===== VALIDATION HELPERS =====
-
-export const validateExpoPushToken = (token: string): boolean => {
-  if (!token || typeof token !== 'string') return false;
+export const formatNotificationTime = (dateString: string): string => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
   
-  // Expo push token format: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
-  return /^ExponentPushToken\[[a-zA-Z0-9_-]+\]$/.test(token);
-};
-
-export const validateDeviceType = (deviceType: string): deviceType is DeviceType => {
-  return Object.values(DeviceType).includes(deviceType as DeviceType);
-};
-
-export const validateNotificationPriority = (priority: string): priority is NotificationPriority => {
-  return Object.values(NotificationPriority).includes(priority as NotificationPriority);
+  if (diffInHours < 1) {
+    const diffInMinutes = Math.floor(diffInHours * 60);
+    return diffInMinutes <= 0 ? 'Vừa xong' : `${diffInMinutes} phút trước`;
+  } else if (diffInHours < 24) {
+    return `${Math.floor(diffInHours)} giờ trước`;
+  } else if (diffInHours < 48) {
+    return 'Hôm qua';
+  } else {
+    return date.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
 };
 
 // ===== DEFAULT VALUES =====
@@ -385,7 +373,6 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: true,
   sound: true,
   vibration: true,
-  badge: true,
   types: {
     [NotificationType.NEW_BOOKING]: true,
     [NotificationType.BOOKING_STATUS_UPDATE]: true,
@@ -405,18 +392,5 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   },
 };
 
-// ===== RESPONSE WRAPPER TYPES =====
-
-export interface NotificationApiResponse<T = any> {
-  error: number;
-  message: string;
-  data?: T;
-}
-
-export interface PaginatedNotificationResponse<T = any> {
-  data: T[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  hasMore: boolean;
-}
+export const DEFAULT_PAGE_SIZE = 20;
+export const DEFAULT_REFRESH_INTERVAL = 30000; // 30 seconds

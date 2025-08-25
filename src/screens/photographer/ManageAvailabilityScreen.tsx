@@ -630,6 +630,7 @@ const ManageAvailabilityScreen = () => {
         selectedSlot={selectedSlot}
         selectedDay={selectedDay}
         photographerId={photographerId}
+        existingSlots={currentDaySlots}
         onSave={onRefresh}
       />
     </SafeAreaView>

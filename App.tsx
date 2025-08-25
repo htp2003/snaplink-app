@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Linking, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import AppNavigator from './src/navigation/AppNavigator';
 import "./global.css"
 import { ProfileProvider } from './src/context/ProfileContext';
@@ -9,8 +10,13 @@ import { PortalProvider } from '@gorhom/portal';
 import { NavigationContainer } from '@react-navigation/native'; 
 import { AuthProvider } from './src/hooks/useAuth';
 import { handleDeepLink} from './src/config/deepLinks';
-// 🔥 IMPORT CHO EXPO NOTIFICATIONS
-import NotificationProvider from './src/components/NotificationProvider';
+
+// 🔥 NEW: PUSH NOTIFICATION IMPORTS
+
+import { useAuth } from './src/hooks/useAuth';
+import { useNotifications } from 'src/hooks/useNotification';
+import { notificationService } from 'src/services/notificationService';
+import { useNotificationNavigation } from 'src/hooks/useNotificationNavigation';
 
 // 🎯 SUPPRESS IMAGE-RELATED ERRORS - Add this at the top
 LogBox.ignoreLogs([
@@ -88,6 +94,68 @@ if (__DEV__) {
   };
 }
 
+// 🔥 NEW: NOTIFICATION-AWARE APP CONTENT
+function AppContent() {
+  const { user, isAuthenticated } = useAuth();
+  
+  // 🔥 Setup push notifications
+  const {
+    expoPushToken,
+    isRegistered,
+    isLoading: notificationLoading,
+    error: notificationError,
+    setNavigationHandler
+  } = useNotifications({
+    userId: user?.id,
+    autoRegister: true,
+    autoRefresh: true
+  });
+
+  // 🔥 Setup notification navigation
+  const handleNotificationNavigation = useNotificationNavigation();
+
+  useEffect(() => {
+    // 🔥 Setup auth token for notification service
+    const setupNotificationAuth = async () => {
+      try {
+        // Get token from AsyncStorage or auth context
+        const token = await AsyncStorage.getItem('token');
+        if (token && isAuthenticated) {
+          notificationService.setAuthToken(token);
+          console.log('✅ Notification service auth token set');
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to setup notification auth:', error);
+      }
+    };
+
+    setupNotificationAuth();
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    // 🔥 Set navigation handler for notifications
+    if (setNavigationHandler) {
+      setNavigationHandler(handleNotificationNavigation);
+    }
+  }, [setNavigationHandler, handleNotificationNavigation]);
+
+  // 🔥 Log notification status in development
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('🔔 Notification Status:', {
+        isAuthenticated,
+        userId: user?.id,
+        hasToken: !!expoPushToken,
+        isRegistered,
+        isLoading: notificationLoading,
+        error: notificationError
+      });
+    }
+  }, [isAuthenticated, user?.id, expoPushToken, isRegistered, notificationLoading, notificationError]);
+
+  return <AppNavigator />;
+}
+
 export default function App() {
   useEffect(() => {
     // Handle deep link when app is closed and opened via link
@@ -124,9 +192,8 @@ export default function App() {
           <SafeAreaProvider>
             <ProfileProvider>
               <NavigationContainer>
-                {/* <NotificationProvider> */}
-                  <AppNavigator />
-                {/* </NotificationProvider> */}
+                {/* 🔥 NEW: Wrap with notification-aware content */}
+                <AppContent />
               </NavigationContainer>
             </ProfileProvider>
           </SafeAreaProvider>

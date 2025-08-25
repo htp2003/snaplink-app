@@ -31,6 +31,10 @@ import WithdrawalRequestsCard from "../../components/WithdrawalRequestCard";
 import WalletTopUpModal from "../../components/WalletTopUpModal";
 import { WithdrawalRequest } from "src/types/withdrawal";
 
+import { useNotifications } from "../../hooks/useNotification";
+import { notificationService } from "src/services/notificationService";
+import { NotificationPriority, NotificationType } from "src/types/notification";
+
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PhotographerTabParamList, "PhotographerHomeScreen">,
   NativeStackScreenProps<RootStackParamList>
@@ -42,8 +46,161 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
     usePhotographerAuth();
   const shouldFetchData = userId && photographerId && hasPhotographerProfile;
 
+  const {
+    expoPushToken,
+    isRegistered,
+    isLoading,
+    error,
+    permissionStatus,
+    requestPermissions,
+    registerDevice,
+    updateLastUsed
+  } = useNotifications({
+    userId: userId || undefined,
+    autoRegister: true,
+    autoRefresh: true,
+    refreshInterval: 60000,
+  });
+
+  
+
   // State for top-up modal
   const [showTopUpModal, setShowTopUpModal] = useState(false);
+
+  // ✅ ADD: Notification status state
+  const [showNotificationStatus, setShowNotificationStatus] = useState(__DEV__);
+
+  useEffect(() => {
+    const initNotifications = async () => {
+      if (userId && isPhotographer && hasPhotographerProfile) {
+        console.log('🔔 Initializing photographer notifications...', {
+          userId,
+          photographerId,
+          isPhotographer,
+          hasPhotographerProfile,
+        });
+        
+        try {
+          if (userId) {
+            const success = await registerDevice(userId);
+            if (success) {
+              console.log('✅ Photographer notification system ready');
+            } else {
+              console.warn('⚠️ Failed to register photographer notifications');
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error initializing photographer notifications:', error);
+        }
+      }
+    };
+  
+    initNotifications();
+  }, [userId, isPhotographer, hasPhotographerProfile, photographerId, registerDevice]);
+
+  const renderNotificationStatus = () => {
+    if (!__DEV__ || !showNotificationStatus) return null;
+  
+    const hasToken = !!expoPushToken;
+    const hasPermission = permissionStatus?.granted || false;
+  
+    return (
+      <View
+        style={{
+          backgroundColor: isRegistered ? '#10B981' : '#F59E0B',
+          margin: 16,
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 8,
+        }}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 14 }}>
+              🔔 Trạng thái nhận thông báo
+            </Text>
+            <Text style={{ color: 'white', fontSize: 12, marginTop: 2 }}>
+              {isRegistered 
+                ? '✅ Sẵn sàng nhận thông báo booking mới'
+                : '⚠️ Chưa thể nhận thông báo - cần kích hoạt'
+              }
+            </Text>
+            
+            {/* Debug info */}
+            <Text style={{ color: 'white', fontSize: 10, marginTop: 4, opacity: 0.8 }}>
+              Permission: {hasPermission ? 'OK' : 'NO'} • Token: {hasToken ? 'OK' : 'NO'} • Registered: {isRegistered ? 'YES' : 'NO'}
+            </Text>
+          </View>
+          
+          <TouchableOpacity
+            onPress={() => setShowNotificationStatus(false)}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              borderRadius: 12,
+              padding: 4,
+            }}
+          >
+            <Text style={{ color: 'white', fontSize: 12 }}>✕</Text>
+          </TouchableOpacity>
+        </View>
+  
+        {/* Action button if not ready */}
+        {!isRegistered && (
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                if (!hasPermission) {
+                  await requestPermissions();
+                }
+                if (userId) {
+                  await registerDevice(userId);
+                }
+              } catch (error) {
+                console.error('Error fixing notification:', error);
+              }
+            }}
+            style={{
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              borderRadius: 6,
+              padding: 8,
+              marginTop: 8,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 12 }}>
+              🔧 Kích hoạt thông báo
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    );
+  };
+
+  // ✅ ADD: Test notification function
+  const handleTestNotification = async () => {
+    if (!__DEV__ || !userId) return;
+    
+    try {
+      await notificationService.sendNotification({
+        userId: userId,
+        title: 'Test Photographer Notification',
+        body: `Test từ Photographer ${userId} - HomeScreen test`,
+        data: {
+          screen: 'PhotographerMain',
+          tab: 'PhotographerHomeScreen',
+          type: NotificationType.SYSTEM_ANNOUNCEMENT,
+          isTest: true
+        },
+        sound: 'default',
+        priority: NotificationPriority.HIGH,
+      });
+      
+      Alert.alert("Test thành công", "Notification đã được gửi!");
+    } catch (error) {
+      console.error("Test notification failed:", error);
+      Alert.alert("Test thất bại", `Không thể gửi notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
 
   const {
     transactions,
@@ -414,6 +571,27 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
               />
             </TouchableOpacity>
           </View>
+
+          {/* ✅ ADD: Notification Status Banner */}
+          {renderNotificationStatus()}
+
+          {/* ✅ ADD: Test Notification Button (DEV only) */}
+          {__DEV__ && (
+            <TouchableOpacity
+              onPress={handleTestNotification}
+              style={{
+                backgroundColor: '#6B73FF',
+                borderRadius: 8,
+                padding: 12,
+                marginBottom: 16,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: 'white', fontWeight: 'bold' }}>
+                🧪 Test Notification System
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* Balance Card */}
           <View

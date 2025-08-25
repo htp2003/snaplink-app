@@ -1,14 +1,16 @@
-// components/NotificationProvider.tsx - Fixed with correct imports
+// components/NotificationProvider.tsx - ✅ USING SINGLETON MANAGER
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
+
 import { 
   NotificationType,
   type SystemNotificationData,
   type NotificationData 
 } from '../types/notification';
+import { notificationManager } from './NotificationManager';
 
 interface NotificationProviderProps {
   children: React.ReactNode;
@@ -16,95 +18,133 @@ interface NotificationProviderProps {
 
 const NotificationProvider: React.FC<NotificationProviderProps> = ({ children }) => {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  
+  // ✅ FIX: Use refs to track initialization state and prevent multiple calls
+  const initializationAttempted = useRef(false);
+  const currentUserId = useRef<number | null>(null);
+  const isInitializing = useRef(false);
+  
   const [initializationStatus, setInitializationStatus] = useState<'idle' | 'initializing' | 'success' | 'error'>('idle');
   const [initError, setInitError] = useState<string | null>(null);
   
-  // 🔥 Use notification hook with proper types
-  const notification = useNotification({
-    userId: user?.id || undefined,
+  // ✅ FIX: Only create notification hook once with stable options
+  const notificationOptions = useRef({
+    userId: undefined as number | undefined,
     autoRegister: true,
     autoRefresh: true,
-    refreshInterval: 60000, // 1 minute
+    refreshInterval: 60000,
   });
 
-  // Debug log user state
+  // ✅ FIX: Update options only when needed
+  if (user?.id !== currentUserId.current) {
+    notificationOptions.current.userId = user?.id;
+    currentUserId.current = user?.id || null;
+  }
+
+  const notification = useNotification(notificationOptions.current);
+
+  // Debug log user state - ✅ OPTIMIZED: Only log when values actually change
+  const prevUserData = useRef({ isAuthenticated: false, userId: null as number | null, authLoading: true });
+  
   useEffect(() => {
-    console.log('🔔 NotificationProvider: Auth state changed', {
+    const currentUserData = {
       isAuthenticated,
-      userId: user?.id,
+      userId: user?.id || null,
       authLoading,
-      hasExpoPushToken: !!notification.expoPushToken,
-      isNotificationInitialized: notification.isInitialized(),
-    });
-  }, [isAuthenticated, user?.id, authLoading, notification.expoPushToken]);
+    };
+    
+    // Only log if something actually changed
+    if (
+      currentUserData.isAuthenticated !== prevUserData.current.isAuthenticated ||
+      currentUserData.userId !== prevUserData.current.userId ||
+      currentUserData.authLoading !== prevUserData.current.authLoading
+    ) {
+      console.log('🔔 NotificationProvider: Auth state changed', {
+        isAuthenticated,
+        userId: user?.id,
+        authLoading,
+        hasExpoPushToken: !!notification.expoPushToken,
+        isNotificationInitialized: notification.isInitialized(),
+      });
+      
+      prevUserData.current = currentUserData;
+    }
+  }, [isAuthenticated, user?.id, authLoading, notification.expoPushToken, notification.isInitialized]);
 
-  // Initialize notification system when user logs in
-  useEffect(() => {
-    const initializeNotifications = async () => {
-      if (authLoading) {
-        console.log('🔔 Auth still loading, waiting...');
-        return;
-      }
+  // ✅ FIX: Use notification manager for initialization
+  const initializeNotifications = useCallback(async () => {
+    if (authLoading) {
+      console.log('🔔 Auth still loading, waiting...');
+      return;
+    }
 
-      if (!isAuthenticated || !user?.id) {
-        console.log('🔔 User not authenticated, skipping notification init');
-        setInitializationStatus('idle');
-        return;
-      }
+    if (!isAuthenticated || !user?.id) {
+      console.log('🔔 User not authenticated, skipping notification init');
+      setInitializationStatus('idle');
+      return;
+    }
 
-      if (initializationStatus === 'initializing') {
-        console.log('🔔 Already initializing, skipping...');
-        return;
-      }
+    // Use singleton manager to prevent multiple initialization
+    if (notificationManager.getIsInitializing()) {
+      console.log('🔔 NotificationManager is already initializing');
+      return;
+    }
 
-      try {
-        setInitializationStatus('initializing');
-        setInitError(null);
+    try {
+      setInitializationStatus('initializing');
+      setInitError(null);
+      
+      console.log('🔔 Using NotificationManager for user:', user.id);
+      
+      // Use singleton manager
+      const success = await notificationManager.initializeForUser(user.id);
+      
+      if (success) {
+        // Now use the hook to actually register device
+        const hookInitialized = await notification.initialize();
         
-        console.log('🔔 Starting notification initialization for user:', user.id);
-        
-        // Initialize notification system
-        const success = await notification.initialize();
-        
-        if (success) {
-          console.log('✅ Notification system initialized successfully');
-          
-          // Login user to notification service (this will register device)
+        if (hookInitialized) {
           const loginSuccess = await notification.loginUser(user.id, true);
           
           if (loginSuccess) {
-            console.log('✅ User logged into notification service successfully');
+            console.log('✅ Notification system fully initialized');
             setInitializationStatus('success');
           } else {
-            console.warn('⚠️ Failed to login user to notification service');
             setInitializationStatus('error');
-            setInitError('Failed to register device for notifications');
+            setInitError('Failed to register device');
           }
         } else {
-          console.error('❌ Failed to initialize notification system');
           setInitializationStatus('error');
-          setInitError('Failed to initialize push notifications');
+          setInitError('Failed to initialize notification hook');
         }
-      } catch (error) {
-        console.error('❌ Notification initialization error:', error);
+      } else {
         setInitializationStatus('error');
-        setInitError(error instanceof Error ? error.message : 'Unknown initialization error');
+        setInitError('Failed to initialize notification manager');
       }
-    };
+    } catch (error) {
+      console.error('❌ Notification initialization error:', error);
+      setInitializationStatus('error');
+      setInitError(error instanceof Error ? error.message : 'Unknown error');
+    }
+  }, [isAuthenticated, user?.id, authLoading, notification]); // ✅ FIX: Stable dependencies
 
+  // ✅ FIX: Initialize notifications - but only when conditions change meaningfully
+  useEffect(() => {
     initializeNotifications();
-  }, [isAuthenticated, user?.id, authLoading, initializationStatus]);
+  }, [initializeNotifications]);
 
-  // Handle user logout
+  // ✅ FIX: Handle user logout - with better cleanup logic
   useEffect(() => {
     const handleLogout = async () => {
       if (!isAuthenticated && initializationStatus === 'success') {
         console.log('🔔 User logged out, cleaning up notifications...');
         
         try {
-          await notification.logoutUser(true); // Unregister device
+          await notification.logoutUser(true);
           setInitializationStatus('idle');
           setInitError(null);
+          initializationAttempted.current = false;
+          currentUserId.current = null;
           console.log('✅ Notification cleanup completed');
         } catch (error) {
           console.error('❌ Error during notification cleanup:', error);
@@ -113,12 +153,10 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
     };
 
     handleLogout();
-  }, [isAuthenticated, initializationStatus]);
+  }, [isAuthenticated, initializationStatus, notification]);
 
-  // Show permission banner if no permission
-  const showPermissionBanner = notification.isInitialized() && !notification.permissionStatus.granted;
-
-  const handleRequestPermission = () => {
+  // ✅ FIX: Memoized permission handler
+  const handleRequestPermission = useCallback(() => {
     Alert.alert(
       'Bật thông báo',
       'Bạn có muốn nhận thông báo về booking, tin nhắn và cập nhật quan trọng không?',
@@ -138,10 +176,10 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
         }
       ]
     );
-  };
+  }, [notification]);
 
-  // Test notification function with proper types
-  const handleTestNotification = () => {
+  // ✅ FIX: Memoized test notification handler
+  const handleTestNotification = useCallback(() => {
     if (!__DEV__) return;
 
     Alert.alert(
@@ -152,7 +190,6 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
         { 
           text: 'Local Test', 
           onPress: () => {
-            // ✅ Use proper typed data
             const testData: SystemNotificationData = {
               screen: 'Home',
               type: NotificationType.SYSTEM_ANNOUNCEMENT
@@ -170,7 +207,6 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
           onPress: async () => {
             if (user?.id) {
               try {
-                // ✅ Call test notification method from hook
                 await notification.testNotification(
                   'Test Server Notification',
                   'Đây là thông báo test từ server!'
@@ -185,13 +221,21 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
         }
       ]
     );
-  };
+  }, [notification, user?.id]);
 
-  // Debug notification system status
-  const renderDebugInfo = () => {
+  // ✅ FIX: Memoized debug info to prevent constant re-renders
+  const debugInfo = useCallback(() => {
     if (!__DEV__) return null;
 
-    const debugInfo = notification.getDebugInfo();
+    return notification.getDebugInfo();
+  }, [notification.expoPushToken, notification.currentDevice, notification.error, initializationStatus]);
+
+  // ✅ FIX: Memoized debug render
+  const renderDebugInfo = useCallback(() => {
+    if (!__DEV__) return null;
+
+    const debug = debugInfo();
+    if (!debug) return null;
     
     return (
       <View style={styles.debugContainer}>
@@ -212,10 +256,10 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
           User: {user?.id || 'NOT LOGGED IN'}
         </Text>
         <Text style={styles.debugText}>
-          Initialized: {debugInfo?.isInitialized ? 'YES' : 'NO'}
+          Initialized: {debug?.isInitialized ? 'YES' : 'NO'}
         </Text>
         <Text style={styles.debugText}>
-          Can Send: {debugInfo?.canSendNotifications ? 'YES' : 'NO'}
+          Can Send: {debug?.canSendNotifications ? 'YES' : 'NO'}
         </Text>
         {initError && (
           <Text style={styles.errorText}>
@@ -229,24 +273,18 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
         )}
       </View>
     );
-  };
+  }, [debugInfo, initializationStatus, notification.permissionStatus.granted, notification.expoPushToken, notification.currentDevice, user?.id, initError, notification.error]);
 
-  // Handle notification tapped (when app opens from notification)
-  useEffect(() => {
-    const handleNotificationTapped = (notificationData: NotificationData) => {
-      console.log('🔔 Notification tapped in provider:', notificationData);
-      
-      // The useNotification hook already handles navigation
-      // This is just for additional provider-level logic if needed
-    };
+  // ✅ FIX: Check conditions before showing banner
+  const showPermissionBanner = notification.isInitialized() && 
+    !notification.permissionStatus.granted && 
+    !authLoading && 
+    isAuthenticated;
 
-    // The hook handles notification responses internally
-    // We can add additional logic here if needed
-
-    return () => {
-      // Cleanup if needed
-    };
-  }, [notification]);
+  const showTestButton = __DEV__ && 
+    notification.permissionStatus.granted && 
+    !authLoading && 
+    isAuthenticated;
 
   return (
     <View style={styles.container}>
@@ -271,7 +309,7 @@ const NotificationProvider: React.FC<NotificationProviderProps> = ({ children })
       )}
 
       {/* Test Button for Development */}
-      {__DEV__ && notification.permissionStatus.granted && (
+      {showTestButton && (
         <TouchableOpacity 
           style={styles.testButton}
           onPress={handleTestNotification}

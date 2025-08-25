@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -31,6 +31,7 @@ interface TimeSlotModalProps {
   selectedSlot?: TimeSlot | null;
   selectedDay: DayOfWeek;
   photographerId: number | null;
+  existingSlots?: TimeSlot[]; 
   onSave?: () => void;
 }
 
@@ -40,7 +41,8 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
   selectedSlot,
   selectedDay,
   photographerId,
-  onSave
+  onSave,
+  existingSlots = []
 }) => {
   const insets = useSafeAreaInsets();
   const {
@@ -79,34 +81,70 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
     setValidationErrors({});
   };
 
+  const checkTimeOverlap = useCallback((
+    newStartTime: string,
+    newEndTime: string
+  ): boolean => {
+    const newStart = new Date(`2000-01-01 ${newStartTime}`);
+    const newEnd = new Date(`2000-01-01 ${newEndTime}`);
+    
+    return existingSlots
+      .filter(slot => slot.availabilityId !== selectedSlot?.availabilityId) // Loại trừ slot đang edit
+      .some(slot => {
+        const existingStart = new Date(`2000-01-01 ${slot.startTime}`);
+        const existingEnd = new Date(`2000-01-01 ${slot.endTime}`);
+        
+        // Kiểm tra overlap: (newStart < existingEnd && newEnd > existingStart)
+        return newStart < existingEnd && newEnd > existingStart;
+      });
+  }, [existingSlots, selectedSlot])
+
   const handleSave = async () => {
     if (!photographerId) {
       Alert.alert('Error', 'Photographer information not found');
       return;
     }
 
+    const formStartTime = `${startTime}:00`;
+    const formEndTime = `${endTime}:00`;
+
+    // Validate cơ bản
+    if (formEndTime <= formStartTime) {
+      Alert.alert('Lỗi', 'Giờ kết thúc phải sau giờ bắt đầu');
+      return;
+    }
+
+    // Validate trùng giờ
+    if (checkTimeOverlap(formStartTime, formEndTime)) {
+      Alert.alert(
+        'Lỗi thời gian', 
+        'Khung giờ này bị trùng với slot khác trong ngày. Vui lòng chọn thời gian khác.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Tiếp tục với logic save hiện tại
     const formData = {
       photographerId,
       dayOfWeek: selectedDay,
-      startTime: `${startTime}:00`,
-      endTime: `${endTime}:00`,
+      startTime: formStartTime,
+      endTime: formEndTime,
       status
     };
 
-    const errors = validateAvailabilityForm(formData);
-    
     try {
       if (isEditing && selectedSlot?.availabilityId) {
         const updateData: UpdateAvailabilityRequest = {
           dayOfWeek: selectedDay,
-          startTime: `${startTime}:00`,
-          endTime: `${endTime}:00`,
+          startTime: formStartTime,
+          endTime: formEndTime,
           status
         };
         
         const result = await updateAvailability(selectedSlot.availabilityId, updateData);
         if (result) {
-          Alert.alert('Success', 'Time slot updated successfully');
+          Alert.alert('Thành công', 'Cập nhật slot thành công');
           onSave?.();
           onClose();
         }
@@ -114,21 +152,21 @@ const TimeSlotModal: React.FC<TimeSlotModalProps> = ({
         const createData: CreateAvailabilityRequest = {
           photographerId,
           dayOfWeek: selectedDay,
-          startTime: `${startTime}:00`,
-          endTime: `${endTime}:00`,
+          startTime: formStartTime,
+          endTime: formEndTime,
           status
         };
         
         const result = await createAvailability(createData);
         if (result) {
-          Alert.alert('Success', 'Time slot created successfully');
+          Alert.alert('Thành công', 'Tạo slot thành công');
           onSave?.();
           onClose();
         }
       }
     } catch (err) {
       console.error('Error saving time slot:', err);
-      Alert.alert('Error', 'Could not save time slot. Please try again.');
+      Alert.alert('Lỗi', 'Không thể lưu slot. Vui lòng thử lại.');
     }
   };
 

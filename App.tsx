@@ -1,3 +1,5 @@
+// App.tsx - UPDATED với Notification System
+
 import React, { useEffect } from 'react';
 import { Linking, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -11,12 +13,8 @@ import { NavigationContainer } from '@react-navigation/native';
 import { AuthProvider } from './src/hooks/useAuth';
 import { handleDeepLink} from './src/config/deepLinks';
 
-// 🔥 NEW: PUSH NOTIFICATION IMPORTS
-
-import { useAuth } from './src/hooks/useAuth';
-import { useNotifications } from 'src/hooks/useNotification';
-import { notificationService } from 'src/services/notificationService';
-import { useNotificationNavigation } from 'src/hooks/useNotificationNavigation';
+// 🔥 NEW: NOTIFICATION IMPORTS
+import { NotificationProvider } from './src/context/NotificationProvider';
 
 // 🎯 SUPPRESS IMAGE-RELATED ERRORS - Add this at the top
 LogBox.ignoreLogs([
@@ -49,8 +47,7 @@ LogBox.ignoreLogs([
   'Require cycle',
   'Remote debugger',
   
-  // 🔥 EXPO NOTIFICATIONS WARNINGS
-  'Expo push token',
+  // 🔥 NOTIFICATION WARNINGS
   'Notification',
   'Constants.expoConfig',
 ]);
@@ -94,68 +91,6 @@ if (__DEV__) {
   };
 }
 
-// 🔥 NEW: NOTIFICATION-AWARE APP CONTENT
-function AppContent() {
-  const { user, isAuthenticated } = useAuth();
-  
-  // 🔥 Setup push notifications
-  const {
-    expoPushToken,
-    isRegistered,
-    isLoading: notificationLoading,
-    error: notificationError,
-    setNavigationHandler
-  } = useNotifications({
-    userId: user?.id,
-    autoRegister: true,
-    autoRefresh: true
-  });
-
-  // 🔥 Setup notification navigation
-  const handleNotificationNavigation = useNotificationNavigation();
-
-  useEffect(() => {
-    // 🔥 Setup auth token for notification service
-    const setupNotificationAuth = async () => {
-      try {
-        // Get token from AsyncStorage or auth context
-        const token = await AsyncStorage.getItem('token');
-        if (token && isAuthenticated) {
-          notificationService.setAuthToken(token);
-          console.log('✅ Notification service auth token set');
-        }
-      } catch (error) {
-        console.warn('⚠️ Failed to setup notification auth:', error);
-      }
-    };
-
-    setupNotificationAuth();
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    // 🔥 Set navigation handler for notifications
-    if (setNavigationHandler) {
-      setNavigationHandler(handleNotificationNavigation);
-    }
-  }, [setNavigationHandler, handleNotificationNavigation]);
-
-  // 🔥 Log notification status in development
-  useEffect(() => {
-    if (__DEV__) {
-      console.log('🔔 Notification Status:', {
-        isAuthenticated,
-        userId: user?.id,
-        hasToken: !!expoPushToken,
-        isRegistered,
-        isLoading: notificationLoading,
-        error: notificationError
-      });
-    }
-  }, [isAuthenticated, user?.id, expoPushToken, isRegistered, notificationLoading, notificationError]);
-
-  return <AppNavigator />;
-}
-
 export default function App() {
   useEffect(() => {
     // Handle deep link when app is closed and opened via link
@@ -179,8 +114,8 @@ export default function App() {
     
     // 🎯 Log that error suppression is active
     console.log('🖼️ Image error suppression configured');
-    // 🔥 Log Expo Notifications initialization
-    console.log('🔔 Expo Notification system starting...');
+    // 🔥 Log Notification system initialization
+    console.log('📱 Notification system starting...');
     
     return () => subscription?.remove();
   }, []);
@@ -188,16 +123,18 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AuthProvider>
-        <PortalProvider>
-          <SafeAreaProvider>
-            <ProfileProvider>
-              <NavigationContainer>
-                {/* 🔥 NEW: Wrap with notification-aware content */}
-                <AppContent />
-              </NavigationContainer>
-            </ProfileProvider>
-          </SafeAreaProvider>
-        </PortalProvider>
+        {/* 🔥 NEW: Wrap toàn bộ app với NotificationProvider */}
+        <NotificationProvider>
+          <PortalProvider>
+            <SafeAreaProvider>
+              <ProfileProvider>
+                <NavigationContainer>
+                  <AppNavigator />
+                </NavigationContainer>
+              </ProfileProvider>
+            </SafeAreaProvider>
+          </PortalProvider>
+        </NotificationProvider>
       </AuthProvider>
     </GestureHandlerRootView>
   );

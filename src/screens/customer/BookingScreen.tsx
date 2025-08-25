@@ -25,12 +25,12 @@ import { photographerStyleRecommendations } from "../../hooks/useStyleRecommenda
 import { useCurrentUserId } from "../../hooks/useAuth";
 import { availabilityService } from "../../services/availabilityService";
 
+
 import LocationModal from "../../components/Location/LocationModal";
 import PhotographerModal from "src/components/Photographer/PhotographerModel";
 
 
-import { NotificationType, NotificationPriority } from "../../types/notification"; 
-import { notificationService, NotificationTemplates } from "src/services/notificationService";
+import { useNotificationContext } from '../../context/NotificationProvider';
 
 // Route params interface - UPDATED
 interface RouteParams {
@@ -101,6 +101,9 @@ export default function BookingScreen() {
 
   // Extract photographerId (might be null in location-first mode initially)
   const initialPhotographerId = photographer?.photographerId;
+
+  const { sendBookingNotification } = useNotificationContext();
+
 
   // ===== UNIFIED DATETIME HELPERS =====
   const createUnifiedDateTime = (date: Date, timeString: string): string => {
@@ -718,118 +721,100 @@ export default function BookingScreen() {
     user,
   ]);
 
-  // Booking submission
-  const handleSubmitBooking = async () => {
-    if (!currentPhotographerId) {
-      Alert.alert("Lỗi", "Vui lòng chọn photographer");
-      return;
-    }
+// handleSubmitBooking - Version cập nhật sử dụng NotificationContext
 
-    if (!selectedStartTime || !selectedEndTime) {
-      Alert.alert("Lỗi", "Vui lòng chọn thời gian bắt đầu và kết thúc");
-      return;
-    }
+const handleSubmitBooking = async () => {
+  if (!currentPhotographerId) {
+    Alert.alert("Lỗi", "Vui lòng chọn photographer");
+    return;
+  }
 
-    if (!isAuthenticated || !user?.id) {
-      Alert.alert("Lỗi", "Vui lòng đăng nhập để đặt lịch");
-      return;
-    }
+  if (!selectedStartTime || !selectedEndTime) {
+    Alert.alert("Lỗi", "Vui lòng chọn thời gian bắt đầu và kết thúc");
+    return;
+  }
 
-    try {
-      const startDateTimeString = createUnifiedDateTime(selectedDate, selectedStartTime);
-      const endDateTimeString = createUnifiedDateTime(selectedDate, selectedEndTime);
+  if (!isAuthenticated || !user?.id) {
+    Alert.alert("Lỗi", "Vui lòng đăng nhập để đặt lịch");
+    return;
+  }
 
-      if (isEditMode && existingBookingId) {
-        // UPDATE MODE
-        const updateData = {
-          startDatetime: startDateTimeString,
-          endDatetime: endDateTimeString,
-          ...(specialRequests && { specialRequests }),
-        };
+  try {
+    const startDateTimeString = createUnifiedDateTime(selectedDate, selectedStartTime);
+    const endDateTimeString = createUnifiedDateTime(selectedDate, selectedEndTime);
 
-        const updatedBooking = await updateBooking(existingBookingId, updateData);
+    if (isEditMode && existingBookingId) {
+      // =============== UPDATE MODE ===============
+      const updateData = {
+        startDatetime: startDateTimeString,
+        endDatetime: endDateTimeString,
+        ...(specialRequests && { specialRequests }),
+      };
 
-        if (!updatedBooking) {
-          Alert.alert("Lỗi", "Không thể cập nhật booking. Vui lòng thử lại.");
-          return;
-        }
+      const updatedBooking = await updateBooking(existingBookingId, updateData);
 
-        // 🔥 NEW: Send update notification to photographer
-        try {
-          console.log('📤 Sending booking update notification to photographer:', currentPhotographerId);
-  
-          const notificationTemplate = NotificationTemplates.bookingConfirmed(
-            existingBookingId.toString(),
-            user.fullName || 'Khách hàng'
-          );
-  
-          // Override template for update
-          notificationTemplate.title = "Booking đã được cập nhật 📅";
-          notificationTemplate.body = `${user.fullName || 'Khách hàng'} đã cập nhật thời gian booking`;
-          notificationTemplate.data = {
-            ...notificationTemplate.data,
-            type: NotificationType.BOOKING_STATUS_UPDATE,
-            status: 'updated',
-            customerId: user.id?.toString(),
-            customerName: user.fullName,
-            newStartTime: selectedStartTime,
-            newEndTime: selectedEndTime,
-            newDate: selectedDate.toISOString(),
-          };
-  
-          await notificationService.sendNotification({
-            userId: currentPhotographerId,
-            ...notificationTemplate
-          });
-  
+      if (!updatedBooking) {
+        Alert.alert("Lỗi", "Không thể cập nhật booking. Vui lòng thử lại.");
+        return;
+      }
+
+      // 🔥 NEW: Send booking update notification using context
+      try {
+        console.log('📤 Sending booking update notification to photographer:', currentPhotographerId);
+
+        // Create a simple update notification
+        const notificationSuccess = await sendBookingNotification(
+          currentPhotographerId,
+          `${user.fullName || 'Khách hàng'} đã cập nhật booking`,
+          existingBookingId
+        );
+
+        if (notificationSuccess) {
           console.log('✅ Booking update notification sent successfully');
-        } catch (notificationError) {
-          console.warn('⚠️ Failed to send update notification:', notificationError);
-          // Don't fail the booking update if notification fails
-          if (__DEV__) {
-            Alert.alert(
-              'Thông báo', 
-              `Cập nhật booking thành công!\n\n⚠️ Không thể gửi thông báo cho photographer (${notificationError instanceof Error ? notificationError.message : 'Unknown error'})`,
-              [{ text: 'OK' }]
-            );
-          }
+        } else {
+          console.warn('⚠️ Failed to send booking update notification');
         }
-  
-        // Navigate to order detail
-        navigation.navigate("OrderDetail", {
-          bookingId: existingBookingId,
-          photographer: {
-            photographerId: currentPhotographerId,
-            fullName: photographerName,
-            profileImage: photographerAvatar,
-            hourlyRate: photographerRate,
-          },
-          selectedDate: selectedDate.toISOString(),
-          selectedStartTime,
-          selectedEndTime,
-          selectedLocation: selectedLocation
-            ? {
+      } catch (notificationError) {
+        console.warn('⚠️ Failed to send update notification:', notificationError);
+        // Không fail booking update nếu notification lỗi
+      }
+
+      // Navigate to order detail
+      navigation.navigate("OrderDetail", {
+        bookingId: existingBookingId,
+        photographer: {
+          photographerId: currentPhotographerId,
+          fullName: photographerName,
+          profileImage: photographerAvatar,
+          hourlyRate: photographerRate,
+        },
+        selectedDate: selectedDate.toISOString(),
+        selectedStartTime,
+        selectedEndTime,
+        selectedLocation: selectedLocation
+          ? {
               id: selectedLocation.locationId || selectedLocation.id,
               name: selectedLocation.name,
               hourlyRate: selectedLocation.hourlyRate,
             }
-            : undefined,
-          specialRequests: specialRequests || undefined,
-          priceCalculation: priceCalculation || {
-            totalPrice: 0,
-            photographerFee: 0,
-            locationFee: 0,
-            duration: 0,
-            breakdown: {
-              baseRate: 0,
-              locationRate: 0,
-              additionalFees: [],
-            },
+          : undefined,
+        specialRequests: specialRequests || undefined,
+        priceCalculation: priceCalculation || {
+          totalPrice: 0,
+          photographerFee: 0,
+          locationFee: 0,
+          duration: 0,
+          breakdown: {
+            baseRate: 0,
+            locationRate: 0,
+            additionalFees: [],
           },
-        });
-      } else {
-       // =============== CREATE MODE ===============
-       const bookingData: CreateBookingRequest = {
+        },
+      });
+
+    } else {
+      // =============== CREATE MODE ===============
+      const bookingData: CreateBookingRequest = {
         photographerId: currentPhotographerId,
         startDatetime: startDateTimeString,
         endDatetime: endDateTimeString,
@@ -865,79 +850,67 @@ export default function BookingScreen() {
         return;
       }
 
-      // 🔥 NEW: Send new booking notification to photographer
-      const bookingId = (createdBooking.id || createdBooking.bookingId).toString();
+      // 🔥 NEW: Send new booking notification using context
+      const bookingId = createdBooking.id || createdBooking.bookingId;
       let notificationSent = false;
       let notificationErrorMsg = null;
+      
+      // Use photographerId from the photographer object, not userId
+      const photographerUserId = selectedPhotographer?.userId || photographer?.userId;
 
-      try {
-        console.log('📤 Sending new booking notification to photographer:', currentPhotographerId);
-        
-        // Use notification template
-        const notificationTemplate = NotificationTemplates.newBooking(
-          user.fullName || 'Khách hàng',
-          bookingId
-        );
-
-        // Enhance with more detailed data
-        notificationTemplate.data = {
-          ...notificationTemplate.data,
-          customerId: user.id?.toString(),
-          customerName: user.fullName,
-          bookingDate: selectedDate.toISOString(),
-          startTime: selectedStartTime,
-          endTime: selectedEndTime,
-          locationName: selectedLocation?.name,
-          totalPrice: priceCalculation?.totalPrice,
-          specialRequests: specialRequests || '',
-        };
-
-        await notificationService.sendNotification({
-          userId: currentPhotographerId,
-          ...notificationTemplate
-        });
-        
-        console.log('✅ New booking notification sent successfully');
-        notificationSent = true;
-        
-        // 🔥 OPTIONAL: Send detailed notification with booking info
-        await notificationService.sendNotification({
-          userId: currentPhotographerId,
-          title: "Chi tiết booking mới 📸",
-          body: `📅 ${formatDate(selectedDate)} • ⏰ ${selectedStartTime}-${selectedEndTime}${selectedLocation ? ` • 📍 ${selectedLocation.name}` : ''}`,
-          data: {
-            screen: 'BookingDetailScreen',
+      if (!photographerUserId) {
+        console.warn('⚠️ Cannot send notification: Missing photographer ID');
+        notificationErrorMsg = 'Missing photographer ID';
+      } else {
+        try {
+          console.log('📤 Sending new booking notification to photographer:', photographerUserId);
+          console.log('🚀 Notification details:', {
+            photographerUserId: photographerUserId,
+            customerName: user.fullName || 'Khách hàng',
             bookingId: bookingId,
-            type: NotificationType.NEW_BOOKING,
-            customerId: user.id?.toString(),
-            customerName: user.fullName,
-            bookingDate: selectedDate.toISOString(),
-            startTime: selectedStartTime,
-            endTime: selectedEndTime,
-            locationName: selectedLocation?.name,
-            totalPrice: priceCalculation?.totalPrice,
-            specialRequests: specialRequests || '',
-          },
-          sound: 'default',
-          priority: NotificationPriority.HIGH,
-        });
-        
-      } catch (notificationError) {
-        console.warn('⚠️ Failed to send booking notification:', notificationError);
-        notificationSent = false;
-        notificationErrorMsg = notificationError instanceof Error ? notificationError.message : 'Unknown error';
+          });
+          
+          const notificationSuccess = await sendBookingNotification(
+            photographerUserId,  
+            user.fullName || 'Khách hàng',
+            parseInt(bookingId.toString())
+          );
+
+          if (notificationSuccess) {
+            console.log('✅ New booking notification sent successfully');
+            notificationSent = true;
+          } else {
+            console.warn('⚠️ Failed to send booking notification - service returned false');
+            notificationSent = false;
+            notificationErrorMsg = 'Service returned false';
+          }
+
+        } catch (notificationError) {
+          console.warn('⚠️ Failed to send booking notification:', notificationError);
+          notificationSent = false;
+          notificationErrorMsg = notificationError instanceof Error ? notificationError.message : 'Unknown error';
+        }
       }
 
       // 🔥 NEW: Show success message with notification status
       const alertTitle = "Đặt lịch thành công! 🎉";
-      const alertMessage = `Booking đã được tạo${notificationSent ? ' và photographer sẽ nhận được thông báo' : ' (thông báo có thể gặp sự cố)'}.\n\n📅 ${formatDate(selectedDate)}\n⏰ ${selectedStartTime} - ${selectedEndTime}${selectedLocation ? `\n📍 ${selectedLocation.name}` : ''}`;
+      const baseMessage = `Booking đã được tạo.\n\n📅 ${formatDate(selectedDate)}\n⏰ ${selectedStartTime} - ${selectedEndTime}${selectedLocation ? `\n📍 ${selectedLocation.name}` : ''}`;
       
+      let statusMessage = '';
+      if (notificationSent) {
+        statusMessage = '\n\n✅ Photographer sẽ nhận được thông báo';
+      } else {
+        statusMessage = '\n\n⚠️ Thông báo có thể gặp sự cố (booking vẫn thành công)';
+      }
+
       // Add debug info in development
-      const debugInfo = __DEV__ && !notificationSent ? `\n\n🐛 Debug: ${notificationErrorMsg}` : '';
+      const debugInfo = __DEV__ && !notificationSent ? `\n\n🛠 Debug: ${notificationErrorMsg}` : '';
+
+      const alertMessage = baseMessage + statusMessage + debugInfo;
 
       Alert.alert(
         alertTitle,
-        alertMessage + debugInfo,
+        alertMessage,
         [
           {
             text: "Xem chi tiết",
@@ -955,10 +928,10 @@ export default function BookingScreen() {
                 selectedEndTime,
                 selectedLocation: selectedLocation
                   ? {
-                    id: selectedLocation.locationId || selectedLocation.id,
-                    name: selectedLocation.name,
-                    hourlyRate: selectedLocation.hourlyRate,
-                  }
+                      id: selectedLocation.locationId || selectedLocation.id,
+                      name: selectedLocation.name,
+                      hourlyRate: selectedLocation.hourlyRate,
+                    }
                   : undefined,
                 specialRequests: specialRequests || undefined,
                 priceCalculation: priceCalculation || {
@@ -991,93 +964,16 @@ export default function BookingScreen() {
         errorMessage = "Photographer không có lịch rảnh vào thời gian này. Vui lòng chọn thời gian khác.";
       } else if (error.message.includes("booking conflict")) {
         errorMessage = "Thời gian này đã có booking khác. Vui lòng chọn thời gian khác.";
-      } else if (error.message.includes("notification")) {
-        errorMessage = "Booking đã được tạo nhưng có lỗi khi gửi thông báo. Photographer vẫn sẽ nhận được booking.";
+      } else if (error.message.includes("Network")) {
+        errorMessage = "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối và thử lại.";
       }
     }
     
     Alert.alert("Lỗi đặt lịch", errorMessage, [{ text: "OK" }]);
   }
 };
-  // =======================
-  const testNotificationFunction = async () => {
-    if (__DEV__ && currentPhotographerId && user) {
-      try {
-        // 🔥 SIMPLE: Tạo trực tiếp object test
-        await notificationService.sendNotification({
-          userId: currentPhotographerId,
-          title: "🧪 TEST Notification",
-          body: `Test từ ${user.fullName || 'Customer'} - BookingScreen`,
-          data: {
-            screen: 'BookingDetailScreen',
-            bookingId: 'TEST-123',
-            type: NotificationType.NEW_BOOKING,
-            isTest: true,
-            customerId: user.id?.toString(),
-            customerName: user.fullName,
-          },
-          sound: 'default',
-          priority: NotificationPriority.HIGH,
-        });
-  
-        Alert.alert("Test thành công", "Notification đã được gửi!");
-      } catch (error) {
-        console.error("Test notification failed:", error);
-        Alert.alert("Test thất bại", `Không thể gửi notification: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    }
-  };
-  
 
-  // ✅ ADD: Show notification status in development
-  const renderDebugInfo = () => {
-    if (!__DEV__) return null;
-  
-    return (
-      <View style={{
-        position: 'absolute',
-        top: 120,
-        right: 10,
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        padding: 8,
-        borderRadius: 8,
-        maxWidth: 200,
-        zIndex: 1000,
-      }}>
-        <Text style={{ color: '#ffd43b', fontSize: 10, fontWeight: 'bold' }}>
-          🔔 Notification Status
-        </Text>
-        <Text style={{ color: 'white', fontSize: 9 }}>
-          Service: {notificationService.hasAuthToken() ? 'Ready' : 'No Token'}
-        </Text>
-        <Text style={{ color: 'white', fontSize: 9 }}>
-          User ID: {user?.id || 'None'}
-        </Text>
-        <Text style={{ color: 'white', fontSize: 9 }}>
-          Photographer: {currentPhotographerId || 'None'}
-        </Text>
-        <Text style={{ color: 'white', fontSize: 9 }}>
-          Authenticated: {isAuthenticated ? 'YES' : 'NO'}
-        </Text>
-        
-        {/* Test button */}
-        <TouchableOpacity
-          onPress={testNotificationFunction}
-          style={{
-            backgroundColor: '#4CAF50',
-            padding: 4,
-            borderRadius: 4,
-            marginTop: 4,
-          }}
-        >
-          <Text style={{ color: 'white', fontSize: 8, textAlign: 'center' }}>
-            Test Notification
-          </Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-  // =======================
+
 
   // Dynamic variables
   const buttonText = creating || updating
@@ -2148,8 +2044,6 @@ export default function BookingScreen() {
           </Text>
         </View>
       )}
-
-{renderDebugInfo()}
     </View>
   );
 }

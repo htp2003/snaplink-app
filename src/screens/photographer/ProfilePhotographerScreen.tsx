@@ -25,6 +25,11 @@ import {
   PhotographerProfile,
 } from "../../services/photographerService";
 
+// Notification
+import { NotificationBadge } from '../../components/Notification/NotificationBell';
+import NotificationModal from '../../components/Notification/NotificationModal';
+import { useNotificationContext } from '../../context/NotificationProvider';
+
 const { width } = Dimensions.get("window");
 const HEADER_HEIGHT = 60;
 
@@ -38,6 +43,9 @@ const ProfilePhotographerScreen = () => {
     useState<PhotographerProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const { unreadCount } = useNotificationContext();
 
   useEffect(() => {
     loadPhotographerData();
@@ -181,7 +189,7 @@ const ProfilePhotographerScreen = () => {
   };
 
   const handleNotificationPress = () => {
-    // navigation.navigate('Notifications');
+    setShowNotificationModal(true);
   };
 
   
@@ -353,34 +361,12 @@ const ProfilePhotographerScreen = () => {
             Hồ sơ
           </Animated.Text>
           <Animated.View style={{ opacity: headerOpacity }}>
-            <TouchableOpacity
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: "#F7F7F7",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-              onPress={handleNotificationPress}
-            >
-              <Ionicons
-                name="notifications-outline"
-                size={24}
-                color="#000000"
-              />
-              <View
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  width: 8,
-                  height: 8,
-                  borderRadius: 4,
-                  backgroundColor: "#FF385C",
-                }}
-              />
-            </TouchableOpacity>
+          <NotificationBadge
+            size="medium"
+            color="#FF385C"
+            onPress={handleNotificationPress}
+            iconName="bell"
+          />
           </Animated.View>
         </Animated.View>
       </Animated.View>
@@ -813,6 +799,10 @@ const ProfilePhotographerScreen = () => {
         visible={isModalVisible}
         favoritedUsers={favoritedUsers}
         onClose={handleModalClose}
+      />
+      <NotificationModal
+        visible={showNotificationModal}
+        onClose={() => setShowNotificationModal(false)}
       />
     </View>
   );

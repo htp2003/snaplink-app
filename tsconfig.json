@@ -6,7 +6,11 @@
     "noEmit": true,
     "baseUrl": ".",
     "target": "esnext",
-    "lib": ["dom", "dom.iterable", "es6"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "es6"
+    ],
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
@@ -14,7 +18,9 @@
     "resolveJsonModule": true,
     "jsx": "react-native",
     "paths": {
-      "@env": ["./src/@types/@env"]
+      "@env": [
+        "./src/@types/@env"
+      ]
     }
   },
   "include": [
@@ -25,5 +31,6 @@
   ],
   "exclude": [
     "node_modules"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

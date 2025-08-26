@@ -56,15 +56,11 @@ export class NotificationService {
   }
 
   // Generic API call method
-  private async apiCall<T>(
-    endpoint: string, 
-    options: RequestInit = {}
-  ): Promise<ApiResponse<T>> {
+  private async apiCall<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
     try {
       const url = `${API_BASE_URL}${endpoint}`;
-      console.log('🌐 API Call:', url);
-      console.log('🔒 Headers:', this.getHeaders());
-
+      console.log('API Call:', url);
+      
       const response = await fetch(url, {
         ...options,
         headers: {
@@ -72,17 +68,42 @@ export class NotificationService {
           ...options.headers,
         },
       });
-
-      console.log('📊 Response Status:', response.status);
-
+  
+      console.log('Response status:', response.status);
+      const contentType = response.headers.get('content-type');
+      console.log('Content-Type:', contentType);
+      
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ API Error:', errorText);
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-
-      const data = await response.json();
-      console.log('✅ API Success:', data);
+  
+      // Handle different response types
+      let data: T;
+      if (contentType?.includes('application/json')) {
+        // JSON response
+        data = JSON.parse(responseText);
+      } else if (responseText === 'Created' || responseText === 'Success') {
+        // Plain text success response - create mock response
+        data = {
+          id: Date.now(), // Mock ID
+          success: true,
+          message: responseText
+        } as any;
+      } else {
+        // Try to parse as JSON anyway
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          // If can't parse, create mock response
+          data = {
+            success: true,
+            message: responseText
+          } as any;
+        }
+      }
       
       return {
         error: 0,
@@ -90,7 +111,7 @@ export class NotificationService {
         data: data
       };
     } catch (error) {
-      console.error('💥 API call failed:', error);
+      console.error('API call failed:', error);
       return {
         error: 1,
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -129,7 +150,7 @@ export class NotificationService {
    * Tạo notification mới
    */
   public async createNotification(request: CreateNotificationRequest): Promise<ApiResponse<NotificationResponse>> {
-    console.log('📝 Creating notification:', request);
+    console.log('Creating notification:', request);
     
     const payload = {
       userId: request.userId,
@@ -138,8 +159,11 @@ export class NotificationService {
       notificationType: request.notificationType,
       readStatus: request.readStatus || false
     };
-
-    console.log('📤 Payload:', payload);
+  
+    console.log('API URL:', `${API_BASE_URL}${ENDPOINTS.CREATE_NOTIFICATION}`);
+    console.log('Payload:', JSON.stringify(payload));
+    console.log('Headers:', this.getHeaders());
+    
     return this.apiCall<NotificationResponse>(ENDPOINTS.CREATE_NOTIFICATION, {
       method: 'POST',
       body: JSON.stringify(payload),

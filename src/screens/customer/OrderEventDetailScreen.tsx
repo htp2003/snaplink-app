@@ -12,7 +12,7 @@ import {
   Dimensions,
 } from "react-native";
 import { getResponsiveSize } from "../../utils/responsive";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native";
 import { AntDesign, Feather, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import type { RouteProp } from "@react-navigation/native";
@@ -20,15 +20,15 @@ import type { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
 import { useBooking } from "../../hooks/useBooking";
 import { usePayment } from "../../hooks/usePayment";
+import { useWallet } from "../../hooks/useWallet";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import type { PaymentFlowData } from "../../types/payment";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ✅ ENHANCED: Route params structure for Event Booking
+// Route params structure for Event Booking
 type OrderEventDetailRouteParams = {
-
   eventBookingResponse?: {
     eventBookingId: number;
     bookingId: number;
@@ -39,18 +39,15 @@ type OrderEventDetailRouteParams = {
       photographerId: number;
       totalPrice: number;
       status: string;
-      // ... other booking fields
     };
     event: any;
     eventPhotographer: any;
   };
 
-
   eventBookingId?: number;
   bookingId?: number;
   eventPrice?: number;
   bookingResponse?: any;
-
 
   event: {
     eventId: number;
@@ -64,7 +61,6 @@ type OrderEventDetailRouteParams = {
     primaryImage?: string;
   };
 
-  // Selected photographer
   photographer: {
     eventPhotographerId: number;
     photographerId: number;
@@ -75,7 +71,6 @@ type OrderEventDetailRouteParams = {
     verificationStatus?: string;
   };
 
-  // Booking time details
   bookingTimes?: {
     startTime: string;
     endTime: string;
@@ -83,7 +78,6 @@ type OrderEventDetailRouteParams = {
     endDatetime: string;
   };
 
-  // Special requests
   specialRequests?: string;
 };
 
@@ -100,7 +94,16 @@ export default function OrderEventDetailScreen() {
   // Auth hook
   const { user, isAuthenticated } = useAuth();
 
-  // ✅ Use existing hooks for consistency
+  // Wallet hook
+  const {
+    walletBalance,
+    loading: balanceLoading,
+    refreshWalletData,
+  } = useWallet();
+
+  const shouldFetchWallet = isAuthenticated && user?.id;
+
+  // Booking và Payment hooks
   const { getBookingById, confirmBooking } = useBooking();
   const {
     createEventPayment,
@@ -108,16 +111,15 @@ export default function OrderEventDetailScreen() {
     error: paymentError
   } = usePayment();
 
-  // ✅ Payment method state
+  // Payment method state
   type PaymentMethod = "bank_qr" | "snaplink_wallet";
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("bank_qr");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showWalletSuccessModal, setShowWalletSuccessModal] = useState(false);
 
-  // ✅ Booking state
+  // Booking state
   const [regularBooking, setRegularBooking] = useState<any>(null);
   const [loadingBooking, setLoadingBooking] = useState(true);
-
 
   // Test token 
   useEffect(() => {
@@ -125,11 +127,9 @@ export default function OrderEventDetailScreen() {
       try {
         const token = await AsyncStorage.getItem('authToken');
         if (token) {
-          console.log('🔐 ===== TOKEN DEBUG =====');
-          console.log('🔐 Token exists:', !!token);
-          console.log('🔐 Token length:', token.length);
+          console.log('Token exists:', !!token);
+          console.log('Token length:', token.length);
 
-          // Try to decode JWT token
           try {
             const parts = token.split('.');
             if (parts.length === 3) {
@@ -138,31 +138,30 @@ export default function OrderEventDetailScreen() {
               const exp = payload.exp;
               const iat = payload.iat;
 
-              console.log('🔐 Token issued at:', new Date(iat * 1000));
-              console.log('🔐 Token expires at:', new Date(exp * 1000));
-              console.log('🔐 Current time:', new Date());
-              console.log('🔐 Time until expiry:', (exp - now), 'seconds');
-              console.log('🔐 Is expired:', exp < now);
+              console.log('Token issued at:', new Date(iat * 1000));
+              console.log('Token expires at:', new Date(exp * 1000));
+              console.log('Current time:', new Date());
+              console.log('Time until expiry:', (exp - now), 'seconds');
+              console.log('Is expired:', exp < now);
 
-              // Check if token will expire soon (within 5 minutes)
               const expiresIn = exp - now;
-              if (expiresIn < 300) { // 5 minutes
-                console.warn('⚠️ Token will expire soon!', expiresIn, 'seconds');
+              if (expiresIn < 300) {
+                console.warn('Token will expire soon!', expiresIn, 'seconds');
               }
             }
           } catch (decodeError) {
-            console.log('🔐 Token is not JWT format');
+            console.log('Token is not JWT format');
           }
-          console.log('🔐 ===== TOKEN DEBUG END =====');
         }
       } catch (error) {
-        console.error('❌ Error debugging token:', error);
+        console.error('Error debugging token:', error);
       }
     };
 
     debugToken();
   }, []);
 
+  // Load regular booking data
   useEffect(() => {
     const loadRegularBooking = async () => {
       const bookingId = params.eventBookingResponse?.bookingId;
@@ -170,19 +169,19 @@ export default function OrderEventDetailScreen() {
       if (bookingId) {
         try {
           setLoadingBooking(true);
-          console.log("🔄 Loading regular booking for event booking ID:", bookingId);
+          console.log("Loading regular booking for event booking ID:", bookingId);
 
           const bookingData = await getBookingById(bookingId);
 
           if (bookingData) {
             setRegularBooking(bookingData);
-            console.log("✅ Regular booking loaded for event:", bookingData);
+            console.log("Regular booking loaded for event:", bookingData);
           } else {
-            console.warn("⚠️ No regular booking data returned");
+            console.warn("No regular booking data returned");
             console.log("Will use fallback price calculation");
           }
         } catch (error) {
-          console.error("❌ Error loading regular booking:", error);
+          console.error("Error loading regular booking:", error);
           console.log("Will use fallback price calculation");
         } finally {
           setLoadingBooking(false);
@@ -195,7 +194,6 @@ export default function OrderEventDetailScreen() {
 
     loadRegularBooking();
   }, [params.eventBookingResponse?.bookingId, params.eventBookingId, getBookingById]);
-
 
   // Check authentication
   useEffect(() => {
@@ -218,15 +216,24 @@ export default function OrderEventDetailScreen() {
     }
   }, [isAuthenticated, navigation]);
 
+  // Refresh wallet data khi màn hình được focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (shouldFetchWallet) {
+        refreshWalletData();
+      }
+    }, [shouldFetchWallet, refreshWalletData])
+  );
+
   // Validate params
   if (!params || !params.event || !params.photographer) {
     return (
-      <View style={styles.errorContainer}>
+      <View className="flex-1 items-center justify-center">
         <MaterialIcons name="error" size={getResponsiveSize(48)} color="#EF5350" />
-        <Text style={styles.errorTitle}>Thông tin không hợp lệ</Text>
-        <Text style={styles.errorSubtitle}>Vui lòng quay lại và thử lại</Text>
-        <TouchableOpacity style={styles.errorButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.errorButtonText}>Quay lại</Text>
+        <Text className="text-xl font-bold">Thông tin không hợp lệ</Text>
+        <Text className="text-gray-600">Vui lòng quay lại và thử lại</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text>Quay lại</Text>
         </TouchableOpacity>
       </View>
     );
@@ -234,23 +241,23 @@ export default function OrderEventDetailScreen() {
 
   if (!isAuthenticated || !user?.id) {
     return (
-      <View style={styles.loadingContainer}>
+      <View className="flex-1 items-center justify-center">
         <ActivityIndicator size="large" color="#E91E63" />
-        <Text style={styles.loadingText}>Đang kiểm tra xác thực...</Text>
+        <Text className="text-xl font-bold">Đang kiểm tra xác thực...</Text>
       </View>
     );
   }
 
   if (loadingBooking) {
     return (
-      <View style={styles.loadingContainer}>
+      <View className="flex-1 items-center justify-center">
         <ActivityIndicator size="large" color="#E91E63" />
-        <Text style={styles.loadingText}>Đang tải thông tin booking...</Text>
+        <Text className="text-xl font-bold">Đang tải thông tin booking...</Text>
       </View>
     );
   }
 
-  // ✅ Helper functions
+  // Helper functions
   const formatDate = (dateString: string) => {
     try {
       const date = new Date(dateString);
@@ -291,7 +298,7 @@ export default function OrderEventDetailScreen() {
       return `${amount.toLocaleString()} ₫`;
     }
   };
-
+  
   const calculateDurationFromTimes = (startTime: string, endTime: string): number => {
     const [startHour, startMinute] = startTime.split(":").map(Number);
     const [endHour, endMinute] = endTime.split(":").map(Number);
@@ -300,7 +307,7 @@ export default function OrderEventDetailScreen() {
     return Math.max(0, (endMinutes - startMinutes) / 60);
   };
 
-  // ✅ Calculate fallback price if no booking data
+  // Calculate fallback price if no booking data
   const calculateFallbackPrice = (): number => {
     const eventBaseFee = params.event.discountedPrice || params.event.originalPrice || 0;
     const photographerRate = params.photographer.specialRate || 0;
@@ -310,7 +317,7 @@ export default function OrderEventDetailScreen() {
     return eventBaseFee + (photographerRate * duration);
   };
 
-  // ✅ Calculate pricing - use regular booking data if available, otherwise fallback
+  // Calculate pricing - use regular booking data if available, otherwise fallback
   const totalPrice = params.eventPrice ||
     params.eventBookingResponse?.eventPrice ||
     regularBooking?.totalPrice ||
@@ -319,11 +326,23 @@ export default function OrderEventDetailScreen() {
   const durationHours = regularBooking?.durationHours ||
     (params.bookingTimes ? calculateDurationFromTimes(params.bookingTimes.startTime, params.bookingTimes.endTime) : 1);
 
-  // ✅ Get the booking ID for payment (critical for API)
-  const getBookingIdForPayment = (): number => {
-    console.log('🎯 Getting booking ID for payment...');
+  // Kiểm tra số dư ví có đủ để thanh toán không
+  const isWalletBalanceSufficient = useMemo(() => {
+    if (!shouldFetchWallet || balanceLoading || !walletBalance) return false;
+    return walletBalance.balance >= totalPrice;
+  }, [shouldFetchWallet, walletBalance, balanceLoading, totalPrice]);
 
-    // Collect all possible sources
+  // Auto-deselect wallet payment nếu số dư không đủ
+  useEffect(() => {
+    if (selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && !balanceLoading && !isWalletBalanceSufficient) {
+      setSelectedPaymentMethod("bank_qr");
+    }
+  }, [selectedPaymentMethod, shouldFetchWallet, balanceLoading, isWalletBalanceSufficient]);
+
+  // Get the booking ID for payment
+  const getBookingIdForPayment = (): number => {
+    console.log('Getting booking ID for payment...');
+
     const sources = [
       { name: 'eventBookingResponse.booking.bookingId', value: params.eventBookingResponse?.booking?.bookingId },
       { name: 'eventBookingResponse.bookingId', value: params.eventBookingResponse?.bookingId },
@@ -333,37 +352,35 @@ export default function OrderEventDetailScreen() {
       { name: 'regularBooking.bookingId', value: regularBooking?.bookingId },
     ];
 
-    console.log('📋 All booking ID sources:', sources);
+    console.log('All booking ID sources:', sources);
 
-    // Try each source in priority order
     for (const source of sources) {
       if (source.value && typeof source.value === 'number' && source.value > 0) {
-        console.log(`✅ FOUND booking ID from ${source.name}:`, source.value);
+        console.log(`FOUND booking ID from ${source.name}:`, source.value);
         return source.value;
       } else {
-        console.log(`❌ ${source.name}:`, source.value, '(invalid)');
+        console.log(`${source.name}:`, source.value, '(invalid)');
       }
     }
 
-    // ⚠️ FALLBACK: Nếu không tìm thấy regular booking ID nào, temporarily dùng eventBookingId
     const fallbackId = params.eventBookingId;
     if (fallbackId && typeof fallbackId === 'number' && fallbackId > 0) {
-      console.warn('⚠️ FALLBACK: Using eventBookingId as last resort:', fallbackId);
-      console.warn('⚠️ This might cause issues - eventBookingId is not regular booking ID');
+      console.warn('FALLBACK: Using eventBookingId as last resort:', fallbackId);
+      console.warn('This might cause issues - eventBookingId is not regular booking ID');
       return fallbackId;
     }
 
-    console.error('❌ NO BOOKING ID FOUND AT ALL!');
-    console.error('💡 Debug info:', {
+    console.error('NO BOOKING ID FOUND AT ALL!');
+    console.error('Debug info:', {
       hasParams: !!params,
       paramsKeys: params ? Object.keys(params) : [],
       hasRegularBooking: !!regularBooking,
     });
 
-    return 0; // ✅ FIXED: Always return a number
+    return 0;
   };
 
-  // ✅ ENHANCED: Payment handler using shared payment flow
+  // Payment handler using shared payment flow
   const handlePayment = async () => {
     if (isProcessing) return;
 
@@ -373,32 +390,46 @@ export default function OrderEventDetailScreen() {
     }
 
     if (!isAuthenticated) {
-      console.error('❌ User not authenticated');
+      console.error('User not authenticated');
       Alert.alert("Lỗi xác thực", "Vui lòng đăng nhập lại");
       navigation.navigate("Login");
       return;
     }
 
+    // Kiểm tra số dư ví trước khi xử lý thanh toán
+    if (selectedPaymentMethod === "snaplink_wallet" && !isWalletBalanceSufficient) {
+      Alert.alert(
+        "Số dư không đủ", 
+        `Số dư ví hiện tại: ${formatCurrency(walletBalance?.balance || 0)}\nSố tiền cần thanh toán: ${formatCurrency(totalPrice)}\n\nVui lòng nạp thêm tiền hoặc chọn phương thức thanh toán khác.`,
+        [
+          {
+            text: "Nạp tiền",
+            onPress: () => navigation.navigate("WalletScreen")
+          },
+          {
+            text: "Chọn phương thức khác", 
+            onPress: () => setSelectedPaymentMethod("bank_qr")
+          }
+        ]
+      );
+      return;
+    }
+
     try {
-      // Import AsyncStorage nếu chưa có
-
-
       const token = await AsyncStorage.getItem('token');
-      console.log('🔐 Auth token exists:', !!token);
-      console.log('🔐 Auth token length:', token?.length || 0);
+      console.log('Auth token exists:', !!token);
+      console.log('Auth token length:', token?.length || 0);
 
       if (!token) {
-        console.error('❌ No auth token found');
+        console.error('No auth token found');
         Alert.alert("Phiên đăng nhập hết hạn", "Vui lòng đăng nhập lại", [
           { text: "Đăng nhập", onPress: () => navigation.navigate("Login") }
         ]);
         return;
       }
     } catch (error) {
-      console.error('❌ Error checking auth token:', error);
+      console.error('Error checking auth token:', error);
     }
-
-    console.log('🔐 ===== AUTH CHECK END =====');
 
     const bookingId = getBookingIdForPayment();
 
@@ -411,7 +442,7 @@ export default function OrderEventDetailScreen() {
 
     try {
       if (selectedPaymentMethod === "snaplink_wallet") {
-        console.log("💳 Processing wallet payment for event booking:", bookingId);
+        console.log("Processing wallet payment for event booking:", bookingId);
 
         const confirmSuccess = await confirmBooking(bookingId);
 
@@ -421,10 +452,9 @@ export default function OrderEventDetailScreen() {
 
         setShowWalletSuccessModal(true);
       } else {
-        // ✅ QR Payment - create payment using shared flow
-        console.log("🏦 Processing bank QR payment for event booking:", bookingId);
+        // QR Payment - create payment using shared flow
+        console.log("Processing bank QR payment for event booking:", bookingId);
 
-        // ✅ Use existing payment creation method
         const paymentResult = await createEventPayment(
           user.id,
           bookingId,
@@ -437,13 +467,14 @@ export default function OrderEventDetailScreen() {
             photographerName: params.photographer.fullName
           }
         );
+
         if (!paymentResult) {
           throw new Error(paymentError || "Không thể tạo thanh toán");
         }
 
-        console.log("✅ Event payment created:", paymentResult);
+        console.log("Event payment created:", paymentResult);
 
-        // ✅ Navigate with enhanced PaymentFlowData for event booking
+        // Navigate with enhanced PaymentFlowData for event booking
         const paymentData: PaymentFlowData = {
           booking: {
             id: bookingId,
@@ -454,7 +485,6 @@ export default function OrderEventDetailScreen() {
             totalAmount: totalPrice,
           },
           payment: {
-            // ✅ Primary fields
             paymentId: paymentResult.paymentId,
             externalTransactionId: paymentResult.externalTransactionId || "",
             customerId: user.id,
@@ -464,8 +494,6 @@ export default function OrderEventDetailScreen() {
             bookingId: bookingId,
             photographerName: params.photographer.fullName,
             locationName: params.event.locationName || "",
-
-            // ✅ Legacy compatibility
             id: paymentResult.paymentId,
             paymentUrl: paymentResult.paymentUrl || "",
             orderCode: paymentResult.orderCode || "",
@@ -478,11 +506,10 @@ export default function OrderEventDetailScreen() {
           },
         };
 
-        // ✅ Navigate to shared PaymentWaitingScreen
         navigation.navigate("PaymentWaitingScreen", paymentData);
       }
     } catch (err) {
-      console.error("❌ Event payment processing error:", err);
+      console.error("Event payment processing error:", err);
 
       const errorMessage = err instanceof Error ? err.message : "Có lỗi xảy ra khi xử lý thanh toán";
       const errorTitle = selectedPaymentMethod === "snaplink_wallet" ? "Lỗi thanh toán ví" : "Lỗi thanh toán";
@@ -503,76 +530,135 @@ export default function OrderEventDetailScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="light-content" backgroundColor="#E91E63" />
 
-      {/* ✅ ENHANCED: Header with gradient */}
-      <LinearGradient colors={["#E91E63", "#F06292"]} style={styles.header}>
+      {/* Header with gradient */}
+      <LinearGradient 
+        colors={["#E91E63", "#F06292"]} 
+        className="flex-row items-center justify-between"
+        style={{
+          paddingHorizontal: getResponsiveSize(20),
+          paddingTop: getResponsiveSize(50),
+          paddingBottom: getResponsiveSize(20),
+        }}
+      >
         <TouchableOpacity
           onPress={() => navigation.goBack()}
-          style={styles.backButton}
+          className="bg-white bg-opacity-20 rounded-xl"
+          style={{ padding: getResponsiveSize(8) }}
           activeOpacity={0.8}
         >
           <AntDesign name="arrowleft" size={getResponsiveSize(24)} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Xác nhận tham gia sự kiện</Text>
-        <View style={styles.headerSpacer} />
+        <Text 
+          className="text-white font-bold"
+          style={{ fontSize: getResponsiveSize(18) }}
+        >
+          Xác nhận tham gia sự kiện
+        </Text>
+        <View style={{ width: getResponsiveSize(40) }} />
       </LinearGradient>
 
       <ScrollView
-        style={styles.content}
-        contentContainerStyle={styles.scrollContent}
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: getResponsiveSize(120) }}
         showsVerticalScrollIndicator={false}
       >
-        {/* ✅ ENHANCED: Event Hero Card */}
-        <View style={styles.eventHeroCard}>
+        {/* Event Hero Card */}
+        <View
+          className="rounded-2xl overflow-hidden shadow-lg"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            elevation: 8,
+          }}
+        >
           <LinearGradient
             colors={["#E91E63", "#F06292", "#CE93D8"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.eventHeroGradient}
+            style={{ padding: getResponsiveSize(24) }}
           >
-            <View style={styles.eventHeroContent}>
-              <View style={styles.eventBadge}>
+            <View className="items-center">
+              <View className="flex-row items-center bg-white bg-opacity-20 px-3 py-1.5 rounded-full mb-4">
                 <MaterialIcons name="event" size={getResponsiveSize(16)} color="#fff" />
-                <Text style={styles.eventBadgeText}>SỰ KIỆN ĐẶC BIỆT</Text>
+                <Text 
+                  className="text-white font-bold ml-1"
+                  style={{ fontSize: getResponsiveSize(12) }}
+                >
+                  SỰ KIỆN ĐẶC BIỆT
+                </Text>
               </View>
 
-              <Text style={styles.eventHeroTitle}>{params.event.name}</Text>
+              <Text 
+                className="text-white font-bold text-center mb-5"
+                style={{ 
+                  fontSize: getResponsiveSize(24),
+                  lineHeight: getResponsiveSize(32) 
+                }}
+              >
+                {params.event.name}
+              </Text>
 
-              <View style={styles.eventHeroDetails}>
-                <View key="hero-date" style={styles.eventHeroDetailItem}>
+              <View className="items-center mb-5 gap-2">
+                <View className="flex-row items-center bg-white bg-opacity-15 px-3 py-2 rounded-full min-w-50 justify-center">
                   <Feather name="calendar" size={getResponsiveSize(16)} color="#fff" />
-                  <Text style={styles.eventHeroDetailText}>
+                  <Text 
+                    className="text-white font-medium ml-2 text-center flex-1"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
                     {formatDate(params.event.startDate)}
                   </Text>
                 </View>
 
-                <View style={styles.eventHeroDetailItem}>
+                <View className="flex-row items-center bg-white bg-opacity-15 px-3 py-2 rounded-full min-w-50 justify-center">
                   <Feather name="clock" size={getResponsiveSize(16)} color="#fff" />
-                  <Text style={styles.eventHeroDetailText}>
+                  <Text 
+                    className="text-white font-medium ml-2 text-center flex-1"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
                     {formatTime(params.event.startDate)} - {formatTime(params.event.endDate)}
                   </Text>
                 </View>
 
                 {params.event.locationName && (
-                  <View style={styles.eventHeroDetailItem}>
+                  <View className="flex-row items-center bg-white bg-opacity-15 px-3 py-2 rounded-full min-w-50 justify-center">
                     <Feather name="map-pin" size={getResponsiveSize(16)} color="#fff" />
-                    <Text style={styles.eventHeroDetailText} numberOfLines={2}>
+                    <Text 
+                      className="text-white font-medium ml-2 text-center flex-1"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                      numberOfLines={2}
+                    >
                       {params.event.locationName}
                     </Text>
                   </View>
                 )}
               </View>
 
-              {/* ✅ Price highlight */}
-              <View style={styles.priceHighlight}>
-                <Text style={styles.priceLabel}>Giá tham gia</Text>
-                <View style={styles.priceContainer}>
-                  <Text style={styles.currentPrice}>{formatCurrency(totalPrice)}</Text>
+              {/* Price highlight */}
+              <View 
+                className="bg-white bg-opacity-20 rounded-2xl p-4 items-center w-full"
+              >
+                <Text 
+                  className="text-white font-medium mb-2"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Giá tham gia
+                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Text 
+                    className="text-white font-bold"
+                    style={{ fontSize: getResponsiveSize(20) }}
+                  >
+                    {formatCurrency(totalPrice)}
+                  </Text>
                   {params.event.originalPrice && params.event.discountedPrice &&
                     params.event.originalPrice > params.event.discountedPrice && (
-                      <Text style={styles.originalPrice}>
+                      <Text 
+                        className="text-white text-opacity-70 line-through"
+                        style={{ fontSize: getResponsiveSize(16) }}
+                      >
                         {formatCurrency(params.event.originalPrice)}
                       </Text>
                     )}
@@ -582,84 +668,178 @@ export default function OrderEventDetailScreen() {
           </LinearGradient>
         </View>
 
-        {/* ✅ ENHANCED: Photographer Card */}
-        <View style={styles.photographerCard}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardIcon}>
-              <MaterialCommunityIcons name="camera" size={getResponsiveSize(20)} color="#E91E63" />
+        {/* Photographer Card */}
+        <View
+          className="bg-white rounded-2xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View 
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View 
+              className="bg-pink-600 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
+              <MaterialCommunityIcons name="camera" size={getResponsiveSize(20)} color="#fff" />
             </View>
-            <Text style={styles.cardTitle}>Photographer đã chọn</Text>
+            <Text 
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Photographer đã chọn
+            </Text>
           </View>
 
-          <View style={styles.photographerInfo}>
-            <View style={styles.photographerImageContainer}>
+          <View className="flex-row items-center">
+            <View 
+              className="relative"
+              style={{ marginRight: getResponsiveSize(16) }}
+            >
               <Image
                 source={{
                   uri: params.photographer.profileImage ||
                     "https://via.placeholder.com/80x80/f0f0f0/999?text=P",
                 }}
-                style={styles.photographerImage}
+                className="bg-gray-100"
+                style={{
+                  width: getResponsiveSize(70),
+                  height: getResponsiveSize(70),
+                  borderRadius: getResponsiveSize(35),
+                }}
                 defaultSource={{
                   uri: "https://via.placeholder.com/80x80/f0f0f0/999?text=P",
                 }}
               />
-              <View style={styles.verifiedBadge}>
+              <View 
+                className="absolute -bottom-0.5 -right-0.5 bg-white rounded-xl shadow-sm"
+                style={{ padding: getResponsiveSize(2) }}
+              >
                 <MaterialIcons name="verified" size={getResponsiveSize(16)} color="#4CAF50" />
               </View>
             </View>
 
-            <View style={styles.photographerDetails}>
-              <Text style={styles.photographerName} numberOfLines={2}>
+            <View className="flex-1">
+              <Text 
+                className="font-bold text-gray-800"
+                style={{
+                  fontSize: getResponsiveSize(18),
+                  marginBottom: getResponsiveSize(8),
+                }}
+                numberOfLines={2}
+              >
                 {params.photographer.fullName}
               </Text>
 
               {params.photographer.specialRate && (
-                <View style={styles.specialRateContainer}>
+                <View 
+                  className="flex-row items-center"
+                  style={{ marginBottom: getResponsiveSize(8) }}
+                >
                   <MaterialIcons name="star" size={getResponsiveSize(16)} color="#FFD700" />
-                  <Text style={styles.specialRateText}>
+                  <Text 
+                    className="text-pink-600 font-semibold ml-1"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
                     Giá đặc biệt: {formatCurrency(params.photographer.specialRate)}/giờ
                   </Text>
                 </View>
               )}
 
-              <View style={styles.photographerStats}>
-                <View key="stat-duration" style={styles.statItem}>
+              <View className="flex-row items-center">
+                <View className="flex-row items-center">
                   <MaterialIcons name="timer" size={getResponsiveSize(14)} color="#666" />
-                  <Text style={styles.statText}>{durationHours} giờ</Text>
+                  <Text 
+                    className="text-gray-600 ml-1"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    {durationHours} giờ
+                  </Text>
                 </View>
-                <View key="stat-divider" style={styles.statDivider} />
-                <View key="stat-approved" style={styles.statItem}>
+                <View 
+                  className="bg-gray-300"
+                  style={{
+                    width: 1,
+                    height: getResponsiveSize(12),
+                    marginHorizontal: getResponsiveSize(12),
+                  }}
+                />
+                <View className="flex-row items-center">
                   <MaterialIcons name="event-available" size={getResponsiveSize(14)} color="#666" />
-                  <Text style={styles.statText}>Đã phê duyệt</Text>
+                  <Text 
+                    className="text-gray-600 ml-1"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    Đã phê duyệt
+                  </Text>
                 </View>
               </View>
             </View>
           </View>
         </View>
 
-        {/* ✅ ENHANCED: Payment Method Card */}
-        <View style={styles.paymentCard}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardIcon}>
-              <MaterialIcons name="payment" size={getResponsiveSize(20)} color="#E91E63" />
+        {/* Payment Method Card */}
+        <View
+          className="bg-white rounded-2xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View 
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View 
+              className="bg-pink-600 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
+              <MaterialIcons name="payment" size={getResponsiveSize(20)} color="#fff" />
             </View>
-            <Text style={styles.cardTitle}>Chọn phương thức thanh toán</Text>
+            <Text 
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Chọn phương thức thanh toán
+            </Text>
           </View>
 
-          <View style={styles.paymentMethods}>
+          <View style={{ gap: getResponsiveSize(12) }}>
             {/* Bank QR Payment */}
             <TouchableOpacity
-             key="payment-bank-qr"
               onPress={() => setSelectedPaymentMethod("bank_qr")}
-              style={[
-                styles.paymentMethod,
-                selectedPaymentMethod === "bank_qr" && styles.paymentMethodSelected
-              ]}
+              className={`flex-row items-center rounded-xl border-2 ${
+                selectedPaymentMethod === "bank_qr"
+                  ? "bg-pink-50 border-pink-600"
+                  : "bg-gray-50 border-gray-200"
+              }`}
+              style={{ padding: getResponsiveSize(16) }}
             >
-              <View style={[
-                styles.paymentMethodIcon,
-                selectedPaymentMethod === "bank_qr" && styles.paymentMethodIconSelected
-              ]}>
+              <View
+                className={`rounded-full items-center justify-center ${
+                  selectedPaymentMethod === "bank_qr"
+                    ? "bg-pink-600"
+                    : "bg-gray-200"
+                }`}
+                style={{
+                  width: getResponsiveSize(48),
+                  height: getResponsiveSize(48),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
                 <MaterialCommunityIcons
                   name="qrcode-scan"
                   size={getResponsiveSize(24)}
@@ -667,160 +847,389 @@ export default function OrderEventDetailScreen() {
                 />
               </View>
 
-              <View style={styles.paymentMethodContent}>
-                <Text style={[
-                  styles.paymentMethodTitle,
-                  selectedPaymentMethod === "bank_qr" && styles.paymentMethodTitleSelected
-                ]}>
+              <View className="flex-1">
+                <Text
+                  className={`font-bold ${
+                    selectedPaymentMethod === "bank_qr"
+                      ? "text-pink-600"
+                      : "text-gray-800"
+                  }`}
+                  style={{ 
+                    fontSize: getResponsiveSize(16),
+                    marginBottom: getResponsiveSize(4),
+                  }}
+                >
                   Quét mã ngân hàng
                 </Text>
-                <Text style={styles.paymentMethodSubtitle}>
+                <Text 
+                  className="text-gray-600"
+                  style={{ fontSize: getResponsiveSize(13) }}
+                >
                   Thanh toán qua QR code ngân hàng
                 </Text>
               </View>
 
-              <View style={[
-                styles.radioButton,
-                selectedPaymentMethod === "bank_qr" && styles.radioButtonSelected
-              ]}>
+              <View
+                className={`rounded-full border-2 items-center justify-center ${
+                  selectedPaymentMethod === "bank_qr"
+                    ? "border-pink-600"
+                    : "border-gray-300"
+                }`}
+                style={{
+                  width: getResponsiveSize(20),
+                  height: getResponsiveSize(20),
+                }}
+              >
                 {selectedPaymentMethod === "bank_qr" && (
-                  <View style={styles.radioButtonInner} />
+                  <View
+                    className="bg-pink-600 rounded-full"
+                    style={{
+                      width: getResponsiveSize(10),
+                      height: getResponsiveSize(10),
+                    }}
+                  />
                 )}
               </View>
             </TouchableOpacity>
 
             {/* SnapLink Wallet Payment */}
             <TouchableOpacity
-              key="payment-snaplink-wallet"
-              onPress={() => setSelectedPaymentMethod("snaplink_wallet")}
-              style={[
-                styles.paymentMethod,
-                selectedPaymentMethod === "snaplink_wallet" && styles.paymentMethodSelected
-              ]}
+              onPress={() => shouldFetchWallet && isWalletBalanceSufficient && setSelectedPaymentMethod("snaplink_wallet")}
+              className={`flex-row items-center rounded-xl border-2 ${
+                selectedPaymentMethod === "snaplink_wallet"
+                  ? "bg-pink-50 border-pink-600"
+                  : !shouldFetchWallet || !isWalletBalanceSufficient 
+                    ? "bg-gray-100 border-gray-200"
+                    : "bg-gray-50 border-gray-200"
+              }`}
+              style={{ 
+                padding: getResponsiveSize(16),
+                opacity: shouldFetchWallet && isWalletBalanceSufficient ? 1 : 0.6
+              }}
+              disabled={!shouldFetchWallet || !isWalletBalanceSufficient}
             >
-              <View style={[
-                styles.paymentMethodIcon,
-                selectedPaymentMethod === "snaplink_wallet" && styles.paymentMethodIconSelected
-              ]}>
+              <View
+                className={`rounded-full items-center justify-center ${
+                  selectedPaymentMethod === "snaplink_wallet"
+                    ? "bg-pink-600"
+                    : !shouldFetchWallet || !isWalletBalanceSufficient
+                      ? "bg-gray-300"
+                      : "bg-gray-200"
+                }`}
+                style={{
+                  width: getResponsiveSize(48),
+                  height: getResponsiveSize(48),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
                 <MaterialCommunityIcons
                   name="wallet"
                   size={getResponsiveSize(24)}
-                  color={selectedPaymentMethod === "snaplink_wallet" ? "#fff" : "#666"}
+                  color={
+                    selectedPaymentMethod === "snaplink_wallet" ? "#fff" :
+                    (!shouldFetchWallet || !isWalletBalanceSufficient) ? "#999" : "#666"
+                  }
                 />
               </View>
 
-              <View style={styles.paymentMethodContent}>
-                <Text style={[
-                  styles.paymentMethodTitle,
-                  selectedPaymentMethod === "snaplink_wallet" && styles.paymentMethodTitleSelected
-                ]}>
+              <View className="flex-1">
+                <Text
+                  className={`font-bold ${
+                    selectedPaymentMethod === "snaplink_wallet"
+                      ? "text-pink-600"
+                      : !shouldFetchWallet || !isWalletBalanceSufficient
+                        ? "text-gray-400"
+                        : "text-gray-800"
+                  }`}
+                  style={{ 
+                    fontSize: getResponsiveSize(16),
+                    marginBottom: getResponsiveSize(4),
+                  }}
+                >
                   Ví SnapLink
                 </Text>
-                <Text style={styles.paymentMethodSubtitle}>
-                  Thanh toán từ ví SnapLink của bạn
-                </Text>
+                
+                {/* Hiển thị số dư */}
+                {!shouldFetchWallet ? (
+                  <Text 
+                    className="text-gray-400"
+                    style={{ fontSize: getResponsiveSize(13) }}
+                  >
+                    Cần đăng nhập
+                  </Text>
+                ) : balanceLoading ? (
+                  <View className="flex-row items-center">
+                    <ActivityIndicator size="small" color="#666" />
+                    <Text 
+                      className="text-gray-600 ml-2"
+                      style={{ fontSize: getResponsiveSize(13) }}
+                    >
+                      Đang tải...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text
+                    className={isWalletBalanceSufficient ? "text-green-600 font-medium" : "text-red-500 font-medium"}
+                    style={{ fontSize: getResponsiveSize(13) }}
+                  >
+                    Số dư: {formatCurrency(walletBalance?.balance || 0)}
+                    {shouldFetchWallet && !isWalletBalanceSufficient && " (Không đủ)"}
+                  </Text>
+                )}
               </View>
 
-              <View style={[
-                styles.radioButton,
-                selectedPaymentMethod === "snaplink_wallet" && styles.radioButtonSelected
-              ]}>
-                {selectedPaymentMethod === "snaplink_wallet" && (
-                  <View style={styles.radioButtonInner} />
+              <View
+                className={`rounded-full border-2 items-center justify-center ${
+                  selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && isWalletBalanceSufficient
+                    ? "border-pink-600"
+                    : "border-gray-300"
+                }`}
+                style={{
+                  width: getResponsiveSize(20),
+                  height: getResponsiveSize(20),
+                }}
+              >
+                {selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && isWalletBalanceSufficient && (
+                  <View
+                    className="bg-pink-600 rounded-full"
+                    style={{
+                      width: getResponsiveSize(10),
+                      height: getResponsiveSize(10),
+                    }}
+                  />
                 )}
               </View>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* ✅ ENHANCED: Price Summary Card */}
-        <View style={styles.priceCard}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardIcon}>
-              <MaterialIcons name="receipt" size={getResponsiveSize(20)} color="#E91E63" />
+        {/* Price Summary Card */}
+        <View
+          className="bg-white rounded-2xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View 
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View 
+              className="bg-pink-600 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
+              <MaterialIcons name="receipt" size={getResponsiveSize(20)} color="#fff" />
             </View>
-            <Text style={styles.cardTitle}>Chi phí dự kiến</Text>
+            <Text 
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Chi phí dự kiến
+            </Text>
           </View>
 
-          <View style={styles.priceBreakdown}>
-            <View key="price-item" style={styles.priceItem}>
-              <Text style={styles.priceItemLabel}>Phí tham gia sự kiện ({durationHours}h)</Text>
-              <Text style={styles.priceItemValue}>{formatCurrency(totalPrice)}</Text>
+          <View style={{ gap: getResponsiveSize(12) }}>
+            <View className="flex-row justify-between items-center">
+              <Text 
+                className="text-gray-600 flex-1"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
+                Phí tham gia sự kiện ({durationHours}h)
+              </Text>
+              <Text 
+                className="font-semibold text-gray-800"
+                style={{ fontSize: getResponsiveSize(14) }}
+              >
+                {formatCurrency(totalPrice)}
+              </Text>
             </View>
 
             {params.event.originalPrice && params.event.discountedPrice &&
               params.event.originalPrice > params.event.discountedPrice && (
-                <View key="price-discount" style={styles.priceItem}>
-                  <Text style={styles.discountLabel}>Giảm giá sự kiện</Text>
-                  <Text style={styles.discountValue}>
+                <View className="flex-row justify-between items-center">
+                  <Text 
+                    className="text-green-600 flex-1"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    Giảm giá sự kiện
+                  </Text>
+                  <Text 
+                    className="font-semibold text-green-600"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
                     -{formatCurrency(params.event.originalPrice - params.event.discountedPrice)}
                   </Text>
                 </View>
               )}
 
-            <View key="price-divider" style={styles.priceDivider} />
+            <View 
+              className="bg-gray-200"
+              style={{
+                height: 1,
+                marginVertical: getResponsiveSize(8),
+              }}
+            />
 
-            <View key="price-total" style={styles.totalPriceItem}>
-              <Text style={styles.totalPriceLabel}>Tổng cộng</Text>
-              <Text style={styles.totalPriceValue}>{formatCurrency(totalPrice)}</Text>
+            <View className="flex-row justify-between items-center pt-2">
+              <Text 
+                className="font-bold text-gray-800"
+                style={{ fontSize: getResponsiveSize(16) }}
+              >
+                Tổng cộng
+              </Text>
+              <Text 
+                className="font-bold text-pink-600"
+                style={{ fontSize: getResponsiveSize(18) }}
+              >
+                {formatCurrency(totalPrice)}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* ✅ Booking Info Card */}
+        {/* Booking Info Card */}
         {regularBooking && (
-          <View style={styles.bookingInfoCard}>
-            <View key="booking-info-header" style={styles.cardHeader}>
-              <View style={styles.cardIcon}>
-                <MaterialIcons name="info" size={getResponsiveSize(20)} color="#E91E63" />
+          <View
+            className="bg-white rounded-2xl shadow-sm"
+            style={{
+              marginHorizontal: getResponsiveSize(20),
+              marginTop: getResponsiveSize(16),
+              padding: getResponsiveSize(20),
+              elevation: 3,
+            }}
+          >
+            <View 
+              className="flex-row items-center"
+              style={{ marginBottom: getResponsiveSize(16) }}
+            >
+              <View 
+                className="bg-pink-600 rounded-lg"
+                style={{
+                  padding: getResponsiveSize(8),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
+                <MaterialIcons name="info" size={getResponsiveSize(20)} color="#fff" />
               </View>
-              <Text style={styles.cardTitle}>Thông tin booking</Text>
+              <Text 
+                className="font-bold text-gray-800"
+                style={{ fontSize: getResponsiveSize(16) }}
+              >
+                Thông tin booking
+              </Text>
             </View>
 
-            <View key="booking-info-content" style={styles.bookingInfoContent}>
-              <View style={styles.bookingInfoItem}>
-                <Text style={styles.bookingInfoLabel}>Booking ID:</Text>
-                <Text style={styles.bookingInfoValue}>{regularBooking.bookingId}</Text>
+            <View style={{ gap: getResponsiveSize(12) }}>
+              <View className="flex-row justify-between items-center">
+                <Text 
+                  className="text-gray-600"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Booking ID:
+                </Text>
+                <Text 
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  {regularBooking.bookingId}
+                </Text>
               </View>
-              <View style={styles.bookingInfoItem}>
-                <Text style={styles.bookingInfoLabel}>Trạng thái:</Text>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusText}>{regularBooking.status}</Text>
+              <View className="flex-row justify-between items-center">
+                <Text 
+                  className="text-gray-600"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Trạng thái:
+                </Text>
+                <View className="bg-orange-50 px-2 py-1 rounded-md">
+                  <Text 
+                    className="text-orange-600 font-semibold"
+                    style={{ fontSize: getResponsiveSize(12) }}
+                  >
+                    {regularBooking.status}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.bookingInfoItem}>
-                <Text style={styles.bookingInfoLabel}>Thời lượng:</Text>
-                <Text style={styles.bookingInfoValue}>{durationHours} giờ</Text>
+              <View className="flex-row justify-between items-center">
+                <Text 
+                  className="text-gray-600"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Thời lượng:
+                </Text>
+                <Text 
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  {durationHours} giờ
+                </Text>
               </View>
             </View>
           </View>
         )}
       </ScrollView>
 
-      {/* ✅ ENHANCED: Bottom Payment Button */}
-      <View style={styles.bottomContainer}>
-        <View key="price-preview" style={styles.pricePreview}>
-          <Text style={styles.pricePreviewLabel}>Tổng thanh toán</Text>
-          <Text style={styles.pricePreviewValue}>{formatCurrency(totalPrice)}</Text>
+      {/* Bottom Payment Button */}
+      <View 
+        className="bg-white border-t border-gray-200 shadow-lg"
+        style={{
+          paddingHorizontal: getResponsiveSize(20),
+          paddingVertical: getResponsiveSize(16),
+          elevation: 8,
+        }}
+      >
+        <View 
+          className="flex-row justify-between items-center"
+          style={{ marginBottom: getResponsiveSize(12) }}
+        >
+          <Text 
+            className="font-semibold text-gray-800"
+            style={{ fontSize: getResponsiveSize(16) }}
+          >
+            Tổng thanh toán
+          </Text>
+          <Text 
+            className="font-bold text-pink-600"
+            style={{ fontSize: getResponsiveSize(18) }}
+          >
+            {formatCurrency(totalPrice)}
+          </Text>
         </View>
 
         <TouchableOpacity
-          key="payment-button"
           onPress={handlePayment}
           activeOpacity={0.8}
-          style={[styles.paymentButton, isProcessing && styles.paymentButtonDisabled]}
+          className="rounded-xl overflow-hidden shadow-lg"
           disabled={isProcessing}
+          style={{
+            elevation: isProcessing ? 0 : 4,
+          }}
         >
           <LinearGradient
             colors={isProcessing ? ["#d1d5db", "#d1d5db"] : ["#E91E63", "#F06292"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.paymentButtonGradient}
+            className="flex-row items-center justify-center"
+            style={{
+              paddingVertical: getResponsiveSize(16),
+              paddingHorizontal: getResponsiveSize(20),
+            }}
           >
             {isProcessing ? (
               <>
                 <ActivityIndicator size="small" color="#666" style={{ marginRight: 8 }} />
-                <Text style={styles.paymentButtonTextDisabled}>Đang xử lý...</Text>
+                <Text 
+                  className="text-gray-600 font-bold"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Đang xử lý...
+                </Text>
               </>
             ) : (
               <>
@@ -830,10 +1239,11 @@ export default function OrderEventDetailScreen() {
                   color="#fff"
                   style={{ marginRight: 8 }}
                 />
-                <Text style={styles.paymentButtonText}>
-                  {selectedPaymentMethod === "snaplink_wallet"
-                    ? `Thanh toán ${formatCurrency(totalPrice)}`
-                    : `Thanh toán ${formatCurrency(totalPrice)}`}
+                <Text 
+                  className="text-white font-bold"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Thanh toán {formatCurrency(totalPrice)}
                 </Text>
               </>
             )}
@@ -841,45 +1251,110 @@ export default function OrderEventDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* ✅ Wallet Success Modal */}
+      {/* Wallet Success Modal */}
       {showWalletSuccessModal && (
         <View style={StyleSheet.absoluteFill}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              {/* Success Icon */}
-              <View style={styles.successIcon}>
+          <View className="flex-1 bg-black bg-opacity-60 justify-center items-center px-5">
+            <View 
+              className="bg-white rounded-2xl p-6 items-center w-full shadow-2xl"
+              style={{ 
+                maxWidth: getResponsiveSize(360),
+                elevation: 20,
+              }}
+            >
+              <View style={{ marginBottom: getResponsiveSize(20) }}>
                 <MaterialIcons name="check-circle" size={getResponsiveSize(80)} color="#4CAF50" />
               </View>
 
-              {/* Title */}
-              <Text style={styles.modalTitle}>Tham gia sự kiện thành công! 🎉</Text>
+              <Text 
+                className="font-bold text-gray-800 text-center mb-3"
+                style={{ fontSize: getResponsiveSize(24) }}
+              >
+                Tham gia sự kiện thành công!
+              </Text>
 
-              {/* Message */}
-              <Text style={styles.modalMessage}>
+              <Text 
+                className="text-gray-600 text-center mb-6"
+                style={{ 
+                  fontSize: getResponsiveSize(16),
+                  lineHeight: getResponsiveSize(24),
+                }}
+              >
                 {totalPrice > 0
                   ? `Đã thanh toán thành công ${formatCurrency(totalPrice)} từ ví SnapLink. Booking sự kiện của bạn đã được xác nhận.`
                   : "Bạn đã đăng ký tham gia sự kiện thành công!"
                 }
               </Text>
 
-              {/* Event Details */}
-              <View style={styles.modalDetails}>
-                <Text style={styles.modalDetailsTitle}>Chi tiết tham gia sự kiện:</Text>
-                <Text style={styles.modalDetailItem}>🎉 {params.event.name}</Text>
-                <Text style={styles.modalDetailItem}>📸 {params.photographer.fullName}</Text>
-                <Text style={styles.modalDetailItem}>📅 {formatDate(params.event.startDate)}</Text>
-                <Text style={styles.modalDetailItem}>
-                  ⏰ {formatTime(params.event.startDate)} - {formatTime(params.event.endDate)}
+              <View 
+                className="bg-gray-50 rounded-xl p-4 w-full mb-6"
+              >
+                <Text 
+                  className="font-bold text-gray-800 mb-3"
+                  style={{ fontSize: getResponsiveSize(16) }}
+                >
+                  Chi tiết tham gia sự kiện:
+                </Text>
+                <Text 
+                  className="text-gray-600 mb-1.5"
+                  style={{ 
+                    fontSize: getResponsiveSize(14),
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  {params.event.name}
+                </Text>
+                <Text 
+                  className="text-gray-600 mb-1.5"
+                  style={{ 
+                    fontSize: getResponsiveSize(14),
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  {params.photographer.fullName}
+                </Text>
+                <Text 
+                  className="text-gray-600 mb-1.5"
+                  style={{ 
+                    fontSize: getResponsiveSize(14),
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  {formatDate(params.event.startDate)}
+                </Text>
+                <Text 
+                  className="text-gray-600 mb-1.5"
+                  style={{ 
+                    fontSize: getResponsiveSize(14),
+                    lineHeight: getResponsiveSize(20),
+                  }}
+                >
+                  {formatTime(params.event.startDate)} - {formatTime(params.event.endDate)}
                 </Text>
                 {params.event.locationName && (
-                  <Text style={styles.modalDetailItem}>📍 {params.event.locationName}</Text>
+                  <Text 
+                    className="text-gray-600 mb-1.5"
+                    style={{ 
+                      fontSize: getResponsiveSize(14),
+                      lineHeight: getResponsiveSize(20),
+                    }}
+                  >
+                    {params.event.locationName}
+                  </Text>
                 )}
                 {totalPrice > 0 && (
-                  <Text style={styles.modalDetailItem}>💰 {formatCurrency(totalPrice)}</Text>
+                  <Text 
+                    className="text-gray-600"
+                    style={{ 
+                      fontSize: getResponsiveSize(14),
+                      lineHeight: getResponsiveSize(20),
+                    }}
+                  >
+                    {formatCurrency(totalPrice)}
+                  </Text>
                 )}
               </View>
 
-              {/* Complete Button */}
               <TouchableOpacity
                 onPress={() => {
                   setShowWalletSuccessModal(false);
@@ -893,13 +1368,19 @@ export default function OrderEventDetailScreen() {
                     ],
                   });
                 }}
-                style={styles.modalButton}
+                className="w-full rounded-xl overflow-hidden shadow-lg"
+                style={{ elevation: 4 }}
               >
                 <LinearGradient
                   colors={["#4CAF50", "#66BB6A"]}
-                  style={styles.modalButtonGradient}
+                  className="py-4 items-center justify-center"
                 >
-                  <Text style={styles.modalButtonText}>Hoàn tất</Text>
+                  <Text 
+                    className="text-white font-bold"
+                    style={{ fontSize: getResponsiveSize(16) }}
+                  >
+                    Hoàn tất
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -909,597 +1390,3 @@ export default function OrderEventDetailScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f8f9fa",
-  },
-
-  // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: getResponsiveSize(20),
-    paddingTop: getResponsiveSize(50),
-    paddingBottom: getResponsiveSize(20),
-  },
-  backButton: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(8),
-  },
-  headerTitle: {
-    fontSize: getResponsiveSize(18),
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  headerSpacer: {
-    width: getResponsiveSize(40),
-  },
-
-  // Content
-  content: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingBottom: getResponsiveSize(120),
-  },
-
-  // Event Hero Card
-  eventHeroCard: {
-    marginHorizontal: getResponsiveSize(20),
-    marginTop: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(20),
-    overflow: "hidden",
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  eventHeroGradient: {
-    padding: getResponsiveSize(24),
-  },
-  eventHeroContent: {
-    alignItems: "center",
-  },
-  eventBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(6),
-    borderRadius: getResponsiveSize(20),
-    marginBottom: getResponsiveSize(16),
-  },
-  eventBadgeText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(12),
-    fontWeight: "bold",
-    marginLeft: getResponsiveSize(4),
-  },
-  eventHeroTitle: {
-    fontSize: getResponsiveSize(24),
-    fontWeight: "bold",
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: getResponsiveSize(20),
-    lineHeight: getResponsiveSize(32),
-  },
-  eventHeroDetails: {
-    alignItems: "center",
-    marginBottom: getResponsiveSize(20),
-    gap: getResponsiveSize(8),
-  },
-  eventHeroDetailItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.15)",
-    paddingHorizontal: getResponsiveSize(12),
-    paddingVertical: getResponsiveSize(8),
-    borderRadius: getResponsiveSize(20),
-    minWidth: getResponsiveSize(200),
-    justifyContent: "center",
-  },
-  eventHeroDetailText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(14),
-    fontWeight: "500",
-    marginLeft: getResponsiveSize(8),
-    textAlign: "center",
-    flex: 1,
-  },
-  priceHighlight: {
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(16),
-    alignItems: "center",
-    minWidth: "100%",
-  },
-  priceLabel: {
-    color: "#fff",
-    fontSize: getResponsiveSize(14),
-    fontWeight: "500",
-    marginBottom: getResponsiveSize(8),
-  },
-  priceContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: getResponsiveSize(8),
-  },
-  currentPrice: {
-    color: "#fff",
-    fontSize: getResponsiveSize(20),
-    fontWeight: "bold",
-  },
-  originalPrice: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: getResponsiveSize(16),
-    textDecorationLine: "line-through",
-  },
-
-  // Common Card Styles
-  photographerCard: {
-    backgroundColor: "#fff",
-    marginHorizontal: getResponsiveSize(20),
-    marginTop: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(20),
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  paymentCard: {
-    backgroundColor: "#fff",
-    marginHorizontal: getResponsiveSize(20),
-    marginTop: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(20),
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  priceCard: {
-    backgroundColor: "#fff",
-    marginHorizontal: getResponsiveSize(20),
-    marginTop: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(20),
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  bookingInfoCard: {
-    backgroundColor: "#fff",
-    marginHorizontal: getResponsiveSize(20),
-    marginTop: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(16),
-    padding: getResponsiveSize(20),
-    elevation: 3,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: getResponsiveSize(16),
-  },
-  cardIcon: {
-    backgroundColor: "#E91E63",
-    borderRadius: getResponsiveSize(8),
-    padding: getResponsiveSize(8),
-    marginRight: getResponsiveSize(12),
-  },
-  cardTitle: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-  },
-
-  // Photographer Card
-  photographerInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  photographerImageContainer: {
-    position: "relative",
-    marginRight: getResponsiveSize(16),
-  },
-  photographerImage: {
-    width: getResponsiveSize(70),
-    height: getResponsiveSize(70),
-    borderRadius: getResponsiveSize(35),
-    backgroundColor: "#f0f0f0",
-  },
-  verifiedBadge: {
-    position: "absolute",
-    bottom: -2,
-    right: -2,
-    backgroundColor: "#fff",
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(2),
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  photographerDetails: {
-    flex: 1,
-  },
-  photographerName: {
-    fontSize: getResponsiveSize(18),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: getResponsiveSize(8),
-  },
-  specialRateContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: getResponsiveSize(8),
-  },
-  specialRateText: {
-    fontSize: getResponsiveSize(14),
-    color: "#E91E63",
-    fontWeight: "600",
-    marginLeft: getResponsiveSize(4),
-  },
-  photographerStats: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  statText: {
-    fontSize: getResponsiveSize(12),
-    color: "#666",
-    marginLeft: getResponsiveSize(4),
-  },
-  statDivider: {
-    width: 1,
-    height: getResponsiveSize(12),
-    backgroundColor: "#e0e0e0",
-    marginHorizontal: getResponsiveSize(12),
-  },
-
-  // Payment Methods
-  paymentMethods: {
-    gap: getResponsiveSize(12),
-  },
-  paymentMethod: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: getResponsiveSize(16),
-    borderRadius: getResponsiveSize(12),
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
-    backgroundColor: "#f8f9fa",
-  },
-  paymentMethodSelected: {
-    borderColor: "#E91E63",
-    backgroundColor: "#FFF0F5",
-  },
-  paymentMethodIcon: {
-    width: getResponsiveSize(48),
-    height: getResponsiveSize(48),
-    borderRadius: getResponsiveSize(24),
-    backgroundColor: "#e0e0e0",
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: getResponsiveSize(12),
-  },
-  paymentMethodIconSelected: {
-    backgroundColor: "#E91E63",
-  },
-  paymentMethodContent: {
-    flex: 1,
-  },
-  paymentMethodTitle: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: getResponsiveSize(4),
-  },
-  paymentMethodTitleSelected: {
-    color: "#E91E63",
-  },
-  paymentMethodSubtitle: {
-    fontSize: getResponsiveSize(13),
-    color: "#666",
-  },
-  radioButton: {
-    width: getResponsiveSize(20),
-    height: getResponsiveSize(20),
-    borderRadius: getResponsiveSize(10),
-    borderWidth: 2,
-    borderColor: "#e0e0e0",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  radioButtonSelected: {
-    borderColor: "#E91E63",
-  },
-  radioButtonInner: {
-    width: getResponsiveSize(10),
-    height: getResponsiveSize(10),
-    borderRadius: getResponsiveSize(5),
-    backgroundColor: "#E91E63",
-  },
-
-  // Price Breakdown
-  priceBreakdown: {
-    gap: getResponsiveSize(12),
-  },
-  priceItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  priceItemLabel: {
-    fontSize: getResponsiveSize(14),
-    color: "#666",
-    flex: 1,
-  },
-  priceItemValue: {
-    fontSize: getResponsiveSize(14),
-    fontWeight: "600",
-    color: "#333",
-  },
-  discountLabel: {
-    fontSize: getResponsiveSize(14),
-    color: "#4CAF50",
-    flex: 1,
-  },
-  discountValue: {
-    fontSize: getResponsiveSize(14),
-    fontWeight: "600",
-    color: "#4CAF50",
-  },
-  priceDivider: {
-    height: 1,
-    backgroundColor: "#e0e0e0",
-    marginVertical: getResponsiveSize(8),
-  },
-  totalPriceItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: getResponsiveSize(8),
-  },
-  totalPriceLabel: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-  },
-  totalPriceValue: {
-    fontSize: getResponsiveSize(18),
-    fontWeight: "bold",
-    color: "#E91E63",
-  },
-
-  // Booking Info
-  bookingInfoContent: {
-    gap: getResponsiveSize(12),
-  },
-  bookingInfoItem: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  bookingInfoLabel: {
-    fontSize: getResponsiveSize(14),
-    color: "#666",
-  },
-  bookingInfoValue: {
-    fontSize: getResponsiveSize(14),
-    fontWeight: "600",
-    color: "#333",
-  },
-  statusBadge: {
-    backgroundColor: "#FFF3E0",
-    paddingHorizontal: getResponsiveSize(8),
-    paddingVertical: getResponsiveSize(4),
-    borderRadius: getResponsiveSize(6),
-  },
-  statusText: {
-    fontSize: getResponsiveSize(12),
-    fontWeight: "600",
-    color: "#FF9800",
-  },
-
-  // Bottom Container
-  bottomContainer: {
-    backgroundColor: "#fff",
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    paddingHorizontal: getResponsiveSize(20),
-    paddingVertical: getResponsiveSize(16),
-    elevation: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  pricePreview: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: getResponsiveSize(12),
-  },
-  pricePreviewLabel: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "600",
-    color: "#333",
-  },
-  pricePreviewValue: {
-    fontSize: getResponsiveSize(18),
-    fontWeight: "bold",
-    color: "#E91E63",
-  },
-  paymentButton: {
-    borderRadius: getResponsiveSize(12),
-    overflow: "hidden",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  paymentButtonDisabled: {
-    elevation: 0,
-    shadowOpacity: 0,
-  },
-  paymentButtonGradient: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: getResponsiveSize(16),
-    paddingHorizontal: getResponsiveSize(20),
-  },
-  paymentButtonText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-  },
-  paymentButtonTextDisabled: {
-    color: "#666",
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-  },
-
-  // Modal Styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: getResponsiveSize(20),
-  },
-  modalContent: {
-    backgroundColor: "#fff",
-    borderRadius: getResponsiveSize(20),
-    padding: getResponsiveSize(24),
-    alignItems: "center",
-    width: "100%",
-    maxWidth: getResponsiveSize(360),
-    elevation: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-  },
-  successIcon: {
-    marginBottom: getResponsiveSize(20),
-  },
-  modalTitle: {
-    fontSize: getResponsiveSize(24),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: getResponsiveSize(12),
-    textAlign: "center",
-  },
-  modalMessage: {
-    fontSize: getResponsiveSize(16),
-    color: "#666",
-    textAlign: "center",
-    lineHeight: getResponsiveSize(24),
-    marginBottom: getResponsiveSize(24),
-  },
-  modalDetails: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: getResponsiveSize(12),
-    padding: getResponsiveSize(16),
-    width: "100%",
-    marginBottom: getResponsiveSize(24),
-  },
-  modalDetailsTitle: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: getResponsiveSize(12),
-  },
-  modalDetailItem: {
-    fontSize: getResponsiveSize(14),
-    color: "#666",
-    marginBottom: getResponsiveSize(6),
-    lineHeight: getResponsiveSize(20),
-  },
-  modalButton: {
-    width: "100%",
-    borderRadius: getResponsiveSize(12),
-    overflow: "hidden",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-  },
-  modalButtonGradient: {
-    paddingVertical: getResponsiveSize(16),
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalButtonText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(16),
-    fontWeight: "bold",
-  },
-
-  // Error & Loading States
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-    paddingHorizontal: getResponsiveSize(40),
-  },
-  errorTitle: {
-    fontSize: getResponsiveSize(20),
-    fontWeight: "bold",
-    color: "#333",
-    textAlign: "center",
-    marginTop: getResponsiveSize(16),
-    marginBottom: getResponsiveSize(8),
-  },
-  errorSubtitle: {
-    fontSize: getResponsiveSize(16),
-    color: "#666",
-    textAlign: "center",
-    marginBottom: getResponsiveSize(24),
-  },
-  errorButton: {
-    backgroundColor: "#E91E63",
-    paddingHorizontal: getResponsiveSize(24),
-    paddingVertical: getResponsiveSize(12),
-    borderRadius: getResponsiveSize(8),
-  },
-  errorButtonText: {
-    color: "#fff",
-    fontSize: getResponsiveSize(16),
-    fontWeight: "600",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8f9fa",
-  },
-  loadingText: {
-    fontSize: getResponsiveSize(16),
-    fontWeight: "600",
-    color: "#333",
-    marginTop: getResponsiveSize(16),
-  },
-});

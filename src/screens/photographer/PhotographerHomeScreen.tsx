@@ -31,9 +31,6 @@ import WithdrawalRequestsCard from "../../components/WithdrawalRequestCard";
 import WalletTopUpModal from "../../components/WalletTopUpModal";
 import { WithdrawalRequest } from "src/types/withdrawal";
 
-import { useNotifications } from "../../hooks/useNotification";
-import { notificationService } from "src/services/notificationService";
-import { NotificationPriority, NotificationType } from "src/types/notification";
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PhotographerTabParamList, "PhotographerHomeScreen">,

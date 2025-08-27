@@ -3,6 +3,7 @@ import { View } from "react-native";
 import { useCustomerEventDiscovery, useHotEvents } from "src/hooks/useEvent";
 import { LocationEvent } from "src/types/event";
 import { HotEventBanner, EventSection } from "../Event";
+import { getResponsiveSize } from "src/utils/responsive";
 
 interface EventsTabProps {
   navigation: any;
@@ -50,6 +51,113 @@ const EventsTab: React.FC<EventsTabProps> = ({ navigation }) => {
     error: eventsError,
     refetch: refetchEvents
   } = useCustomerEventDiscovery();
+
+  // Render loading skeleton for event cards
+  const renderLoadingSkeleton = useCallback(() => 
+    [1, 2, 3].map((_, index) => (
+      <View
+        key={`event-loading-${index}`}
+        style={{ 
+          width: getResponsiveSize(280), 
+          height: getResponsiveSize(200),
+          marginRight: 12,
+          backgroundColor: '#f5f5f4',
+          borderRadius: 16,
+        }}
+      >
+        {/* Event image skeleton */}
+        <View 
+          style={{
+            width: '100%',
+            height: getResponsiveSize(120),
+            backgroundColor: '#e7e5e4',
+            borderRadius: 16,
+            marginBottom: 12,
+          }}
+        />
+        
+        {/* Event title skeleton */}
+        <View 
+          style={{
+            width: '80%',
+            height: 16,
+            backgroundColor: '#e7e5e4',
+            borderRadius: 8,
+            marginHorizontal: 12,
+            marginBottom: 8,
+          }}
+        />
+        
+        {/* Event details skeleton */}
+        <View 
+          style={{
+            width: '60%',
+            height: 12,
+            backgroundColor: '#e7e5e4',
+            borderRadius: 6,
+            marginHorizontal: 12,
+            marginBottom: 6,
+          }}
+        />
+        
+        {/* Event price skeleton */}
+        <View 
+          style={{
+            width: '40%',
+            height: 14,
+            backgroundColor: '#e7e5e4',
+            borderRadius: 7,
+            marginHorizontal: 12,
+          }}
+        />
+      </View>
+    )), []
+  );
+
+  // Render hot event banner loading skeleton
+  const renderHotEventBannerSkeleton = useCallback(() => (
+    <View 
+      style={{
+        marginHorizontal: 16,
+        marginVertical: 16,
+        height: getResponsiveSize(180),
+        backgroundColor: '#f5f5f4',
+        borderRadius: 20,
+      }}
+    >
+      {/* Banner image skeleton */}
+      <View 
+        style={{
+          width: '100%',
+          height: getResponsiveSize(140),
+          backgroundColor: '#e7e5e4',
+          borderRadius: 20,
+          marginBottom: 12,
+        }}
+      />
+      
+      {/* Banner content skeleton */}
+      <View style={{ paddingHorizontal: 16 }}>
+        <View 
+          style={{
+            width: '70%',
+            height: 18,
+            backgroundColor: '#e7e5e4',
+            borderRadius: 9,
+            marginBottom: 8,
+          }}
+        />
+        <View 
+          style={{
+            width: '50%',
+            height: 14,
+            backgroundColor: '#e7e5e4',
+            borderRadius: 7,
+          }}
+        />
+      </View>
+    </View>
+  ), []);
 
   // Processed events memo
   const processedEvents = useMemo(() => {
@@ -100,12 +208,18 @@ const EventsTab: React.FC<EventsTabProps> = ({ navigation }) => {
 
   return (
     <>
-      <HotEventBanner
-        event={processedEvents.hotEventsFiltered[0] || null}
-        loading={hotLoading}
-        onPress={processedEvents.hotEventsFiltered[0] ? () => handleEventPress(processedEvents.hotEventsFiltered[0]) : undefined}
-      />
+      {/* Hot Event Banner with Loading */}
+      {hotLoading ? (
+        renderHotEventBannerSkeleton()
+      ) : (
+        <HotEventBanner
+          event={processedEvents.hotEventsFiltered[0] || null}
+          loading={hotLoading}
+          onPress={processedEvents.hotEventsFiltered[0] ? () => handleEventPress(processedEvents.hotEventsFiltered[0]) : undefined}
+        />
+      )}
 
+      {/* Featured Events Section */}
       <EventSection
         title="Sự kiện nổi bật"
         subtitle="Những workshop được yêu thích nhất"
@@ -116,8 +230,10 @@ const EventsTab: React.FC<EventsTabProps> = ({ navigation }) => {
         onSeeAllPress={handleEventSeeAll}
         onRetry={refetchEvents}
         emptyMessage="Hiện tại chưa có sự kiện nổi bật nào"
+        renderLoadingSkeleton={renderLoadingSkeleton}
       />
 
+      {/* Upcoming Events Section */}
       <EventSection
         title="Sự kiện sắp diễn ra"
         subtitle="Đăng ký ngay để không bị lỡ"
@@ -128,8 +244,10 @@ const EventsTab: React.FC<EventsTabProps> = ({ navigation }) => {
         onSeeAllPress={handleEventSeeAll}
         onRetry={refetchEvents}
         emptyMessage="Hiện tại chưa có sự kiện sắp diễn ra"
+        renderLoadingSkeleton={renderLoadingSkeleton}
       />
 
+      {/* All Events Section */}
       <EventSection
         title="Tất cả sự kiện"
         subtitle="Khám phá thêm nhiều workshop thú vị"
@@ -140,6 +258,7 @@ const EventsTab: React.FC<EventsTabProps> = ({ navigation }) => {
         onSeeAllPress={handleEventSeeAll}
         onRetry={refetchEvents}
         emptyMessage="Hiện tại chưa có sự kiện nào"
+        renderLoadingSkeleton={renderLoadingSkeleton}
       />
     </>
   );

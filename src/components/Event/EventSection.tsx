@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity } from "react-native";
+import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { getResponsiveSize } from "../../utils/responsive";
 import { LocationEvent } from "../../types/event";
@@ -23,6 +23,7 @@ type EventSectionProps = {
   cardWidth?: number;
   emptyMessage?: string;
   renderCustomEmpty?: () => React.ReactNode;
+  renderLoadingSkeleton?: () => React.ReactElement[]; // NEW: Loading skeleton prop
 };
 
 const EventSection: React.FC<EventSectionProps> = ({
@@ -43,6 +44,7 @@ const EventSection: React.FC<EventSectionProps> = ({
   cardWidth = 260,
   emptyMessage,
   renderCustomEmpty,
+  renderLoadingSkeleton, // NEW: Loading skeleton prop
 }) => {
 
   const renderHeader = () => (
@@ -66,6 +68,20 @@ const EventSection: React.FC<EventSectionProps> = ({
           </Text>
         )}
       </View>
+      {showSeeAll && onSeeAllPress && !loading && (
+        <TouchableOpacity
+          className="flex-row items-center"
+          onPress={onSeeAllPress}
+        >
+          <Text
+            className="text-stone-600 mr-1"
+            style={{ fontSize: getResponsiveSize(14) }}
+          >
+            Xem tất cả
+          </Text>
+          <Ionicons name="chevron-forward" size={20} color="#57534e" />
+        </TouchableOpacity>
+      )}
     </View>
   );
 
@@ -94,7 +110,7 @@ const EventSection: React.FC<EventSectionProps> = ({
         className="text-red-500 text-center font-medium mb-3"
         style={{ fontSize: getResponsiveSize(16) }}
       >
-        ⚠️ Không thể tải sự kiện
+        Không thể tải sự kiện
       </Text>
       
       <Text
@@ -167,12 +183,106 @@ const EventSection: React.FC<EventSectionProps> = ({
     );
   };
 
+  // NEW: Render loading skeleton
+  const renderLoadingState = () => {
+    if (renderLoadingSkeleton) {
+      return (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ 
+            paddingLeft: getResponsiveSize(24),
+            paddingRight: getResponsiveSize(16) 
+          }}
+        >
+          {renderLoadingSkeleton()}
+        </ScrollView>
+      );
+    }
+
+    // Fallback default loading skeleton if no custom one provided
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ 
+          paddingLeft: getResponsiveSize(24),
+          paddingRight: getResponsiveSize(16) 
+        }}
+      >
+        {[1, 2, 3].map((_, index) => (
+          <View
+            key={`default-loading-${index}`}
+            style={{ 
+              width: getResponsiveSize(cardWidth), 
+              height: getResponsiveSize(200),
+              marginRight: 12,
+              backgroundColor: '#f5f5f4',
+              borderRadius: 16,
+            }}
+          >
+            {/* Event image skeleton */}
+            <View 
+              style={{
+                width: '100%',
+                height: getResponsiveSize(120),
+                backgroundColor: '#e7e5e4',
+                borderRadius: 16,
+                marginBottom: 12,
+              }}
+            />
+            
+            {/* Event title skeleton */}
+            <View 
+              style={{
+                width: '80%',
+                height: 16,
+                backgroundColor: '#e7e5e4',
+                borderRadius: 8,
+                marginHorizontal: 12,
+                marginBottom: 8,
+              }}
+            />
+            
+            {/* Event details skeleton */}
+            <View 
+              style={{
+                width: '60%',
+                height: 12,
+                backgroundColor: '#e7e5e4',
+                borderRadius: 6,
+                marginHorizontal: 12,
+                marginBottom: 6,
+              }}
+            />
+            
+            {/* Event price skeleton */}
+            <View 
+              style={{
+                width: '40%',
+                height: 14,
+                backgroundColor: '#e7e5e4',
+                borderRadius: 7,
+                marginHorizontal: 12,
+              }}
+            />
+          </View>
+        ))}
+      </ScrollView>
+    );
+  };
+
   const renderContent = () => {
     if (error) {
       return renderError();
     }
 
-    if (!loading && (!events || events.length === 0)) {
+    // NEW: Show loading skeleton when loading
+    if (loading) {
+      return renderLoadingState();
+    }
+
+    if (!events || events.length === 0) {
       return renderEmpty();
     }
 

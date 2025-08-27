@@ -4,6 +4,7 @@ import {
   StatusBar,
   ScrollView,
   SafeAreaView,
+  ActivityIndicator,
 } from "react-native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { RootStackParamList, GooglePlaceDisplay } from "../../navigation/types";
@@ -14,16 +15,15 @@ import { useNavigation } from "@react-navigation/native";
 import CategoryTabs, { CategoryItem } from "../../components/CategoryTabs";
 import { SearchBar } from "../../components/SearchBar";
 import LocationsTab from "src/components/CustomerHome/LocationsTab";
-
 import EventsTab from "src/components/CustomerHome/EventsTab";
 import PhotographersTab from "src/components/CustomerHome/PhotographersTab";
-
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export default function CustomerHomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [selectedCategory, setSelectedCategory] = useState<string>("locations");
+  const [tabLoading, setTabLoading] = useState<boolean>(false);
 
   // Categories memo
   const categories = useMemo(
@@ -43,12 +43,21 @@ export default function CustomerHomeScreen() {
     });
   }, []);
 
-  // Category press handler
+  // Category press handler with loading state
   const handleCategoryPress = useCallback(
     (categoryId: string) => {
+      // Avoid loading if clicking the same tab
+      if (categoryId === selectedCategory) return;
+      
+      setTabLoading(true);
       setSelectedCategory(categoryId);
+      
+      // Simulate loading time for smooth UX
+      setTimeout(() => {
+        setTabLoading(false);
+      }, 150); 
     },
-    []
+    [selectedCategory]
   );
 
   // Handle location selection from search
@@ -74,8 +83,32 @@ export default function CustomerHomeScreen() {
     }
   }, [navigation]);
 
+  // Render loading overlay for tab switching
+  const renderTabLoadingOverlay = () => {
+    if (!tabLoading) return null;
+    
+    return (
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(255, 255, 255, 0.8)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 10,
+        }}
+      >
+        <ActivityIndicator size="large" color="#FF385C" />
+      </View>
+    );
+  };
+
   // Render current tab content
   const renderTabContent = () => {
+    // Show previous content while loading to avoid flashing
     switch (selectedCategory) {
       case "locations":
         return <LocationsTab navigation={navigation} />;
@@ -110,14 +143,20 @@ export default function CustomerHomeScreen() {
         onCategoryPress={handleCategoryPress}
       />
 
-      {/* Main Content */}
-      <ScrollView
-        className="flex-1 bg-white"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: getResponsiveSize(100) }}
-      >
-        {renderTabContent()}
-      </ScrollView>
+      {/* Main Content with Loading Overlay */}
+      <View className="flex-1 relative">
+        <ScrollView
+          className="flex-1 bg-white"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: getResponsiveSize(100) }}
+          scrollEnabled={!tabLoading} // Disable scroll when loading
+        >
+          {renderTabContent()}
+        </ScrollView>
+        
+        {/* Tab Loading Overlay */}
+        {renderTabLoadingOverlay()}
+      </View>
     </SafeAreaView>
   );
 }

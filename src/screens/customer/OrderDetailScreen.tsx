@@ -13,7 +13,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { getResponsiveSize } from "../../utils/responsive";
-import { useNavigation, useRoute } from "@react-navigation/native";
+import { useNavigation, useRoute, useFocusEffect } from "@react-navigation/native";
 import { AntDesign, Feather, MaterialIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import type { RouteProp } from "@react-navigation/native";
@@ -21,6 +21,7 @@ import type { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
 import { useBooking } from "../../hooks/useBooking";
 import { usePayment } from "../../hooks/usePayment";
+import { useWallet } from "../../hooks/useWallet";
 import type {
   BookingResponse,
   CreatePaymentLinkRequest,
@@ -67,6 +68,15 @@ export default function OrderDetailScreen() {
   // Auth hook
   const { user, isAuthenticated } = useAuth();
 
+  // Wallet hook
+  const {
+    walletBalance,
+    loading: balanceLoading,
+    refreshWalletData,
+  } = useWallet();
+
+  const shouldFetchWallet = isAuthenticated && user?.id;
+
   const {
     getBookingById,
     loading: loadingBooking,
@@ -82,9 +92,8 @@ export default function OrderDetailScreen() {
 
   const [showWalletSuccessModal, setShowWalletSuccessModal] = useState(false);
 
-  // ===== THÊM STATE CHO PAYMENT METHOD =====
+  // Payment method state
   type PaymentMethod = "bank_qr" | "snaplink_wallet";
-  // Thêm state sau các state hiện tại
   const [selectedPaymentMethod, setSelectedPaymentMethod] =
     useState<PaymentMethod>("bank_qr");
 
@@ -104,11 +113,11 @@ export default function OrderDetailScreen() {
           if (bookingData) {
             setCurrentBooking(bookingData);
           } else {
-            console.warn("⚠️ No booking data returned");
+            console.warn("No booking data returned");
             Alert.alert("Cảnh báo", "Không thể tải thông tin booking");
           }
         } catch (error) {
-          console.error("❌ Error loading booking:", error);
+          console.error("Error loading booking:", error);
           Alert.alert("Lỗi", "Không thể tải thông tin booking");
         }
       }
@@ -137,6 +146,15 @@ export default function OrderDetailScreen() {
       );
     }
   }, [isAuthenticated, navigation]);
+
+  // Refresh wallet data khi màn hình được focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (shouldFetchWallet) {
+        refreshWalletData();
+      }
+    }, [shouldFetchWallet, refreshWalletData])
+  );
 
   // Validate params
   if (!params || !params.photographer || !params.selectedDate) {
@@ -285,6 +303,19 @@ export default function OrderDetailScreen() {
     params.selectedEndTime,
   ]);
 
+  // Kiểm tra số dư ví có đủ để thanh toán không (PHẢI ĐẶT SAU pricingDetails)
+  const isWalletBalanceSufficient = useMemo(() => {
+    if (!shouldFetchWallet || balanceLoading || !walletBalance) return false;
+    return walletBalance.balance >= pricingDetails.totalPrice;
+  }, [shouldFetchWallet, walletBalance, balanceLoading, pricingDetails.totalPrice]);
+
+  // Auto-deselect wallet payment nếu số dư không đủ
+  useEffect(() => {
+    if (selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && !balanceLoading && !isWalletBalanceSufficient) {
+      setSelectedPaymentMethod("bank_qr");
+    }
+  }, [selectedPaymentMethod, shouldFetchWallet, balanceLoading, isWalletBalanceSufficient]);
+
   const handleEditBooking = () => {
     if (!params) {
       Alert.alert("Lỗi", "Không có dữ liệu để chỉnh sửa");
@@ -307,7 +338,7 @@ export default function OrderDetailScreen() {
     });
   };
 
-  // ✅ FIX: Improved payment handling
+  // Improved payment handling
   const handleBookNow = async () => {
     if (isProcessing || creatingPayment) return;
 
@@ -329,12 +360,32 @@ export default function OrderDetailScreen() {
 
     setIsProcessing(true);
 
+    // Kiểm tra số dư ví trước khi xử lý thanh toán
+    if (selectedPaymentMethod === "snaplink_wallet" && !isWalletBalanceSufficient) {
+      setIsProcessing(false);
+      Alert.alert(
+        "Số dư không đủ", 
+        `Số dư ví hiện tại: ${formatCurrency(walletBalance?.balance || 0)}\nSố tiền cần thanh toán: ${formatCurrency(pricingDetails.totalPrice)}\n\nVui lòng nạp thêm tiền hoặc chọn phương thức thanh toán khác.`,
+        [
+          {
+            text: "Nạp tiền",
+            onPress: () => navigation.navigate("WalletScreen")
+          },
+          {
+            text: "Chọn phương thức khác", 
+            onPress: () => setSelectedPaymentMethod("bank_qr")
+          }
+        ]
+      );
+      return;
+    }
+
     try {
-      // ===== XỬ LÝ THEO PAYMENT METHOD =====
+      // Xử lý theo payment method
       if (selectedPaymentMethod === "snaplink_wallet") {
-        // ===== WALLET PAYMENT FLOW =====
+        // WALLET PAYMENT FLOW
         console.log(
-          "💳 Processing wallet payment for booking:",
+          "Processing wallet payment for booking:",
           params.bookingId
         );
 
@@ -347,9 +398,9 @@ export default function OrderDetailScreen() {
 
         setShowWalletSuccessModal(true);
       } else {
-        // ===== BANK QR PAYMENT FLOW (EXISTING LOGIC) =====
+        // BANK QR PAYMENT FLOW (EXISTING LOGIC)
         console.log(
-          "🏦 Processing bank QR payment for booking:",
+          "Processing bank QR payment for booking:",
           params.bookingId
         );
 
@@ -375,7 +426,7 @@ export default function OrderDetailScreen() {
         const qrCode = paymentResult.qrCode;
 
         if (!qrCode) {
-          console.warn("⚠️ No QR code in payment response");
+          console.warn("No QR code in payment response");
         }
 
         // Prepare navigation data for payment screen
@@ -414,7 +465,7 @@ export default function OrderDetailScreen() {
         navigation.navigate("PaymentWaitingScreen", navigationData);
       }
     } catch (err) {
-      console.error("❌ Payment processing error:", err);
+      console.error("Payment processing error:", err);
 
       let errorMessage = "Có lỗi xảy ra khi xử lý thanh toán";
 
@@ -444,7 +495,6 @@ export default function OrderDetailScreen() {
       setIsProcessing(false);
     }
   };
-
   return (
     <View className="flex-1 bg-gray-50">
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
@@ -714,9 +764,7 @@ export default function OrderDetailScreen() {
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
                     {params.selectedLocation.hourlyRate > 0
-                      ? `${formatCurrency(
-                        params.selectedLocation.hourlyRate
-                      )}/giờ`
+                      ? `${formatCurrency(params.selectedLocation.hourlyRate)}/giờ`
                       : "Miễn phí"}
                   </Text>
                 )}
@@ -818,18 +866,19 @@ export default function OrderDetailScreen() {
             {/* Bank QR Payment */}
             <TouchableOpacity
               onPress={() => setSelectedPaymentMethod("bank_qr")}
-              className={`flex-row items-center rounded-xl border-2 ${selectedPaymentMethod === "bank_qr"
-                ? "bg-pink-50 border-pink-600"
-                : "bg-gray-50 border-gray-200"
-                }`}
+              className={`flex-row items-center rounded-xl border-2 ${
+                selectedPaymentMethod === "bank_qr"
+                  ? "bg-pink-50 border-pink-600"
+                  : "bg-gray-50 border-gray-200"
+              }`}
               style={{ padding: getResponsiveSize(16) }}
             >
-              {/* Icon */}
               <View
-                className={`rounded-full items-center justify-center ${selectedPaymentMethod === "bank_qr"
-                  ? "bg-pink-600"
-                  : "bg-gray-100"
-                  }`}
+                className={`rounded-full items-center justify-center ${
+                  selectedPaymentMethod === "bank_qr"
+                    ? "bg-pink-600"
+                    : "bg-gray-100"
+                }`}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -843,13 +892,13 @@ export default function OrderDetailScreen() {
                 />
               </View>
 
-              {/* Content */}
               <View className="flex-1">
                 <Text
-                  className={`font-bold ${selectedPaymentMethod === "bank_qr"
-                    ? "text-pink-600"
-                    : "text-gray-800"
-                    }`}
+                  className={`font-bold ${
+                    selectedPaymentMethod === "bank_qr"
+                      ? "text-pink-600"
+                      : "text-gray-800"
+                  }`}
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Quét mã ngân hàng
@@ -865,12 +914,12 @@ export default function OrderDetailScreen() {
                 </Text>
               </View>
 
-              {/* Radio Button */}
               <View
-                className={`rounded-full border-2 items-center justify-center ${selectedPaymentMethod === "bank_qr"
-                  ? "border-pink-600"
-                  : "border-gray-300"
-                  }`}
+                className={`rounded-full border-2 items-center justify-center ${
+                  selectedPaymentMethod === "bank_qr"
+                    ? "border-pink-600"
+                    : "border-gray-300"
+                }`}
                 style={{
                   width: getResponsiveSize(20),
                   height: getResponsiveSize(20),
@@ -890,19 +939,28 @@ export default function OrderDetailScreen() {
 
             {/* SnapLink Wallet Payment */}
             <TouchableOpacity
-              onPress={() => setSelectedPaymentMethod("snaplink_wallet")}
-              className={`flex-row items-center rounded-xl border-2 ${selectedPaymentMethod === "snaplink_wallet"
-                ? "bg-pink-50 border-pink-600"
-                : "bg-gray-50 border-gray-200"
-                }`}
-              style={{ padding: getResponsiveSize(16) }}
+              onPress={() => shouldFetchWallet && isWalletBalanceSufficient && setSelectedPaymentMethod("snaplink_wallet")}
+              className={`flex-row items-center rounded-xl border-2 ${
+                selectedPaymentMethod === "snaplink_wallet"
+                  ? "bg-pink-50 border-pink-600"
+                  : !shouldFetchWallet || !isWalletBalanceSufficient 
+                    ? "bg-gray-100 border-gray-200"
+                    : "bg-gray-50 border-gray-200"
+              }`}
+              style={{ 
+                padding: getResponsiveSize(16),
+                opacity: shouldFetchWallet && isWalletBalanceSufficient ? 1 : 0.6
+              }}
+              disabled={!shouldFetchWallet || !isWalletBalanceSufficient}
             >
-              {/* Icon */}
               <View
-                className={`rounded-full items-center justify-center ${selectedPaymentMethod === "snaplink_wallet"
-                  ? "bg-pink-600"
-                  : "bg-gray-100"
-                  }`}
+                className={`rounded-full items-center justify-center ${
+                  selectedPaymentMethod === "snaplink_wallet"
+                    ? "bg-pink-600"
+                    : !shouldFetchWallet || !isWalletBalanceSufficient
+                      ? "bg-gray-300"
+                      : "bg-gray-100"
+                }`}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -915,45 +973,79 @@ export default function OrderDetailScreen() {
                   color={
                     selectedPaymentMethod === "snaplink_wallet"
                       ? "#fff"
-                      : "#666"
+                      : !shouldFetchWallet || !isWalletBalanceSufficient
+                        ? "#999"
+                        : "#666"
                   }
                 />
               </View>
 
-              {/* Content */}
               <View className="flex-1">
                 <Text
-                  className={`font-bold ${selectedPaymentMethod === "snaplink_wallet"
-                    ? "text-pink-600"
-                    : "text-gray-800"
-                    }`}
+                  className={`font-bold ${
+                    selectedPaymentMethod === "snaplink_wallet"
+                      ? "text-pink-600"
+                      : !shouldFetchWallet || !isWalletBalanceSufficient
+                        ? "text-gray-400"
+                        : "text-gray-800"
+                  }`}
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Ví SnapLink
                 </Text>
-                <Text
-                  className="text-gray-600"
-                  style={{
-                    fontSize: getResponsiveSize(13),
-                    marginTop: getResponsiveSize(2),
-                  }}
-                >
-                  Thanh toán từ ví SnapLink của bạn
-                </Text>
+                
+                {!shouldFetchWallet ? (
+                  <Text
+                    className="text-gray-400"
+                    style={{ 
+                      fontSize: getResponsiveSize(13),
+                      marginTop: getResponsiveSize(2),
+                    }}
+                  >
+                    Cần đăng nhập
+                  </Text>
+                ) : balanceLoading ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                    <ActivityIndicator size="small" color="#666" />
+                    <Text
+                      className="text-gray-600"
+                      style={{ 
+                        fontSize: getResponsiveSize(12),
+                        marginLeft: getResponsiveSize(8),
+                      }}
+                    >
+                      Đang tải...
+                    </Text>
+                  </View>
+                ) : (
+                  <Text
+                    className={`${
+                      isWalletBalanceSufficient ? "text-green-600" : "text-red-500"
+                    }`}
+                    style={{
+                      fontSize: getResponsiveSize(13),
+                      marginTop: getResponsiveSize(2),
+                      fontWeight: '500'
+                    }}
+                  >
+                    Số dư: {formatCurrency(walletBalance?.balance || 0)}
+                    {shouldFetchWallet && !isWalletBalanceSufficient && " (Không đủ)"}
+                  </Text>
+                )}
               </View>
 
-              {/* Radio Button */}
               <View
-                className={`rounded-full border-2 items-center justify-center ${selectedPaymentMethod === "snaplink_wallet"
-                  ? "border-pink-600"
-                  : "border-gray-300"
-                  }`}
+                className={`rounded-full border-2 items-center justify-center ${
+                  selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && isWalletBalanceSufficient
+                    ? "border-pink-600"
+                    : "border-gray-300"
+                }`}
                 style={{
                   width: getResponsiveSize(20),
                   height: getResponsiveSize(20),
                 }}
               >
-                {selectedPaymentMethod === "snaplink_wallet" && (
+                {selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && isWalletBalanceSufficient && (
                   <View
                     className="bg-pink-600 rounded-full"
                     style={{
@@ -1003,7 +1095,6 @@ export default function OrderDetailScreen() {
           </View>
 
           <View style={{ gap: getResponsiveSize(12) }}>
-            {/* Photographer Fee */}
             <View className="flex-row justify-between items-center">
               <Text
                 className="text-gray-600 flex-1"
@@ -1019,7 +1110,6 @@ export default function OrderDetailScreen() {
               </Text>
             </View>
 
-            {/* Location Fee */}
             {pricingDetails.locationFee > 0 && (
               <View className="flex-row justify-between items-center">
                 <Text
@@ -1037,7 +1127,6 @@ export default function OrderDetailScreen() {
               </View>
             )}
 
-            {/* Service Fee */}
             {pricingDetails.serviceFee > 0 && (
               <View className="flex-row justify-between items-center">
                 <Text
@@ -1055,7 +1144,6 @@ export default function OrderDetailScreen() {
               </View>
             )}
 
-            {/* Divider */}
             <View
               className="bg-gray-200"
               style={{
@@ -1064,7 +1152,6 @@ export default function OrderDetailScreen() {
               }}
             />
 
-            {/* Total */}
             <View className="flex-row justify-between items-center">
               <Text
                 className="font-bold text-gray-800"
@@ -1083,7 +1170,6 @@ export default function OrderDetailScreen() {
         </View>
       </ScrollView>
 
-
       {/* Bottom Action Buttons */}
       <View
         className="bg-white border-t border-gray-100"
@@ -1100,7 +1186,6 @@ export default function OrderDetailScreen() {
             gap: getResponsiveSize(10),
           }}
         >
-          {/* Edit Button */}
           <TouchableOpacity
             onPress={handleEditBooking}
             activeOpacity={0.7}
@@ -1111,7 +1196,7 @@ export default function OrderDetailScreen() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "center",
-              width: getResponsiveSize(120), 
+              width: getResponsiveSize(120),
             }}
           >
             <Feather name="edit-3" size={getResponsiveSize(18)} color="#666" />
@@ -1126,14 +1211,11 @@ export default function OrderDetailScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Confirm Button - Takes remaining space */}
           <TouchableOpacity
             onPress={handleBookNow}
             activeOpacity={0.8}
             className="rounded-xl overflow-hidden"
-            style={{
-              flex: 1, 
-            }}
+            style={{ flex: 1 }}
           >
             <LinearGradient
               colors={["#E91E63", "#F06292"]}
@@ -1208,7 +1290,6 @@ export default function OrderDetailScreen() {
                 maxWidth: getResponsiveSize(360),
               }}
             >
-              {/* Success Icon */}
               <View style={{ marginBottom: getResponsiveSize(20) }}>
                 <MaterialIcons
                   name="check-circle"
@@ -1217,7 +1298,6 @@ export default function OrderDetailScreen() {
                 />
               </View>
 
-              {/* Title */}
               <Text
                 style={{
                   fontSize: getResponsiveSize(24),
@@ -1227,10 +1307,9 @@ export default function OrderDetailScreen() {
                   textAlign: "center",
                 }}
               >
-                Đặt lịch thành công! 🎉
+                Đặt lịch thành công!
               </Text>
 
-              {/* Message */}
               <Text
                 style={{
                   fontSize: getResponsiveSize(16),
@@ -1245,7 +1324,6 @@ export default function OrderDetailScreen() {
                 Booking của bạn đã được xác nhận.
               </Text>
 
-              {/* Booking Details */}
               <View
                 style={{
                   backgroundColor: "#f8f9fa",
@@ -1273,7 +1351,7 @@ export default function OrderDetailScreen() {
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
-                  📸 {params.photographer.fullName}
+                  {params.photographer.fullName}
                 </Text>
                 <Text
                   style={{
@@ -1283,7 +1361,7 @@ export default function OrderDetailScreen() {
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
-                  📅 {formatDate(selectedDate)}
+                  {formatDate(selectedDate)}
                 </Text>
                 <Text
                   style={{
@@ -1293,7 +1371,7 @@ export default function OrderDetailScreen() {
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
-                  ⏰ {params.selectedStartTime} - {params.selectedEndTime}
+                  {params.selectedStartTime} - {params.selectedEndTime}
                 </Text>
                 {params.selectedLocation && (
                   <Text
@@ -1304,7 +1382,7 @@ export default function OrderDetailScreen() {
                       lineHeight: getResponsiveSize(20),
                     }}
                   >
-                    📍 {params.selectedLocation.name}
+                    {params.selectedLocation.name}
                   </Text>
                 )}
                 <Text
@@ -1314,15 +1392,13 @@ export default function OrderDetailScreen() {
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
-                  💰 {formatCurrency(pricingDetails.totalPrice)}
+                  {formatCurrency(pricingDetails.totalPrice)}
                 </Text>
               </View>
 
-              {/* Complete Button */}
               <TouchableOpacity
                 onPress={() => {
                   setShowWalletSuccessModal(false);
-                  // Navigate to CustomerMain stack with CustomerHomeScreen tab
                   navigation.reset({
                     index: 0,
                     routes: [

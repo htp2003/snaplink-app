@@ -99,7 +99,9 @@ export enum BookingStatus {
   COMPLETED = 'Completed',
   CANCELLED = 'Cancelled',
   EXPIRED = 'Expired',
+
   UNDER_REVIEW = 'Under_Review'
+
 }
 
 export interface BookingFilters {
@@ -178,7 +180,11 @@ export type BookingStatusPhotographer =
   | 'Cancelled' 
   | 'Completed' 
   | 'InProgress'
+
   | 'Under_Review'; 
+
+  | 'Complaints';
+
 
 export interface BookingQueryParams {
   page?: number;

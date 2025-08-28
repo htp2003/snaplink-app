@@ -224,7 +224,7 @@ class TransactionService {
     iconName: string;
     iconBgColor: string;
   } {
-    const displayType = this.getDisplayType(transaction.type);
+    const displayType = this.getDisplayType(transaction);
     const formattedDate = new Date(transaction.createdAt).toLocaleDateString('vi-VN');
     const formattedAmount = new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -267,14 +267,56 @@ class TransactionService {
     };
   }
 
-  private getDisplayType(transactionType: string): 'income' | 'withdrawal' {
-    const incomeTypes = ['payment', 'bonus', 'refund', 'commission'];
-    return incomeTypes.includes(transactionType.toLowerCase()) ? 'income' : 'withdrawal';
+  // Thêm method mới để check direction
+private getTransactionDirection(transaction: Transaction): 'income' | 'withdrawal' {
+  if (transaction.fromUserName === 'System' || transaction.fromUserId === null) {
+    return 'income'; 
   }
+  
+  if (transaction.toUserName === 'System' || transaction.toUserId === null) {
+    return 'withdrawal'; 
+  }
+  
+  return 'withdrawal'; 
+}
+
+  private getDisplayType(transaction: Transaction): 'income' | 'withdrawal' {
+  const incomeTypes = [
+    'payment', 
+    'bonus', 
+    'refund', 
+    'commission',
+    'photographerfee',
+    'bookingpayment',
+    'earning'
+  ];
+  
+  const expenseTypes = [
+    'withdraw',
+    'purchase',
+    'fee',
+    'penalty',
+    'transfer'
+  ];
+  
+  const typeToCheck = transaction.type.toLowerCase();
+  
+  // Ưu tiên check type trước
+  if (incomeTypes.includes(typeToCheck)) {
+    return 'income';
+  }
+  
+  if (expenseTypes.includes(typeToCheck)) {
+    return 'withdrawal';
+  }
+  
+  // Fallback: check direction based on fromUser/toUser
+  return this.getTransactionDirection(transaction);
+}
 
   private getCustomerName(transaction: Transaction): string | undefined {
     // For withdrawal, show toUserName, for income show fromUserName
-    const displayType = this.getDisplayType(transaction.type);
+    const displayType = this.getDisplayType(transaction);
     if (displayType === 'income' && transaction.fromUserName) {
       return transaction.fromUserName;
     }

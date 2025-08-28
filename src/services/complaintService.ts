@@ -26,6 +26,33 @@ export interface ComplaintResponse {
   updatedAt?: string;
 }
 
+export interface ComplaintAgainstMeResponse {
+  complaintId: number;
+  reporterId: number;
+  reporterName: string;
+  reporterEmail: string;
+  reportedUserId: number;
+  reportedUserName: string;
+  reportedUserEmail: string;
+  bookingId: number;
+  complaintType: string;
+  description: string;
+  status: "Pending" | "InProgress" | "Resolved";
+  assignedModeratorId: number | null;
+  assignedModeratorName: string | null;
+  resolutionNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ComplaintListResponse {
+  complaints: ComplaintAgainstMeResponse[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 const API_BASE_URL = "https://snaplinkapi-g7eubeghazh5byd8.southeastasia-01.azurewebsites.net";
 
 class ComplaintService {
@@ -50,6 +77,21 @@ class ComplaintService {
       return null;
     }
   }
+  async getComplaintsAgainstMe(page: number = 1, pageSize: number = 10): Promise<ComplaintListResponse> {
+  try {
+    console.log(`📋 Fetching complaints against me - Page: ${page}`);
+    
+    const result = await this.makeRequest<ComplaintListResponse>(
+      `/api/Complaint/against-me?page=${page}&pageSize=${pageSize}`
+    );
+
+    console.log(`✅ Got ${result.complaints.length} complaints`);
+    return result;
+  } catch (error) {
+    console.error('❌ Error fetching complaints against me:', error);
+    throw error;
+  }
+}
 
   private async makeRequest<T>(
     endpoint: string,

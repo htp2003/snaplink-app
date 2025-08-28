@@ -242,7 +242,7 @@ const ViewProfilePhotographerScreen = () => {
                     fontWeight: '500',
                     marginBottom: 12,
                   }}>
-                    Sở thích nhiếp ảnh:
+                    Phong cách chụp:
                   </Text>
                   <View style={{
                     flexDirection: 'row',

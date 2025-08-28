@@ -46,7 +46,7 @@ interface ProfileField {
 
 const EditProfilePhotographerScreen = () => {
   const navigation = useNavigation<RootStackNavigationProp>();
-  const { user, getCurrentUserId, updateProfile  } = useAuth();
+  const { user, getCurrentUserId } = useAuth();
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -512,145 +512,161 @@ const EditProfilePhotographerScreen = () => {
       console.error("Error selecting location:", error);
     }
   };
+   
+  useEffect(() => {
+  console.log('=== STYLES DEBUG ===');
+  console.log('photographerStyles from hook:', photographerStyles);
+  console.log('allStyles:', allStyles);
+  console.log('selectedStyleIds:', selectedStyleIds);
+  console.log('computed style names:', getSelectedStyleNames());
+}, [photographerStyles, allStyles, selectedStyleIds]);
   const handleSaveProfile = async () => {
-    try {
-      setIsSaving(true);
-      const userId = getCurrentUserId();
-  
-      if (!userId) {
-        Alert.alert("Lỗi", "Không tìm thấy thông tin user");
-        return;
-      }
-  
-      // Validate required fields
-      const yearsExperienceValue = parseInt(
-        profileData.find((f) => f.id === "yearsExperience")?.value || "0"
-      );
-      const equipmentValue =
-        profileData.find((f) => f.id === "equipment")?.value || "";
-      const hourlyRateValue = parseInt(
-        profileData.find((f) => f.id === "hourlyRate")?.value || "0"
-      );
-      const availabilityValue =
-        profileData.find((f) => f.id === "availabilityStatus")?.value ||
-        "Available";
-  
-      // Validation checks...
-      if (yearsExperienceValue <= 0) {
-        Alert.alert("Lỗi", "Vui lòng nhập số năm kinh nghiệm hợp lệ");
-        setIsSaving(false);
-        return;
-      }
-  
-      if (!equipmentValue.trim()) {
-        Alert.alert("Lỗi", "Vui lòng nhập thông tin thiết bị");
-        setIsSaving(false);
-        return;
-      }
-  
-      if (hourlyRateValue <= 0) {
-        Alert.alert("Lỗi", "Vui lòng nhập giá dịch vụ hợp lệ");
-        setIsSaving(false);
-        return;
-      }
-  
-      if (selectedStyleIds.length === 0) {
-        Alert.alert("Lỗi", "Vui lòng chọn ít nhất 1 concept chụp");
-        setIsSaving(false);
-        return;
-      }
-  
-      if (isEditMode && photographer) {
-        // ✅ STEP 1: Update User Profile (for profile image)
-        if (profileImage && profileImage !== user?.profileImage) {
-          try {
-            console.log('🖼️ Updating user profile image:', profileImage);
-            await updateProfile(userId, {
-              profileImage: profileImage,
-            });
-            console.log('✅ User profile image updated successfully');
-          } catch (userUpdateError) {
-            console.error('❌ Error updating user profile image:', userUpdateError);
-            // Continue with photographer update even if user update fails
-          }
-        }
-  
-        // ✅ STEP 2: Update Photographer Profile
-        const updateData: UpdatePhotographerRequest = {
-          yearsExperience: yearsExperienceValue,
-          equipment: equipmentValue,
-          hourlyRate: hourlyRateValue,
-          availabilityStatus: availabilityValue,
-          // Don't include profileImage in photographer update - it's handled in user profile
-        };
-  
-        // Add location data if available
-        if (selectedLocationData) {
-          updateData.address = selectedLocationData.address;
-          updateData.googleMapsAddress = selectedLocationData.address;
-          updateData.latitude = selectedLocationData.coordinates.latitude;
-          updateData.longitude = selectedLocationData.coordinates.longitude;
-        }
-  
-        await updatePhotographer(updateData);
-  
-        // ✅ STEP 3: Update styles separately
-        await updatePhotographerStyles();
-  
-        Alert.alert("Thành công", "Hồ sơ nhiếp ảnh gia đã được cập nhật", [
-          { text: "OK", onPress: () => navigation.goBack() },
-        ]);
-  
-      } else {
-        // ✅ CREATE MODE: Update user profile first, then create photographer
-        
-        // STEP 1: Update user profile image if changed
-        if (profileImage && profileImage !== user?.profileImage) {
-          try {
-            console.log('🖼️ Creating - updating user profile image:', profileImage);
-            await updateProfile(userId, {
-              profileImage: profileImage,
-            });
-            console.log('✅ User profile image updated successfully');
-          } catch (userUpdateError) {
-            console.error('❌ Error updating user profile image:', userUpdateError);
-            // Continue with photographer creation
-          }
-        }
-  
-        // STEP 2: Create photographer profile
-        const createData: CreatePhotographerRequest = {
-          userId: userId,
-          yearsExperience: yearsExperienceValue,
-          equipment: equipmentValue,
-          hourlyRate: hourlyRateValue,
-          availabilityStatus: availabilityValue,
-          styleIds: selectedStyleIds,
-          // Don't include profileImage - it's handled in user profile
-          ...(selectedLocationData && {
-            address: selectedLocationData.address,
-            googleMapsAddress: selectedLocationData.address,
-            latitude: selectedLocationData.coordinates.latitude,
-            longitude: selectedLocationData.coordinates.longitude,
-          }),
-        };
-  
-        await createProfile(createData);
-  
-        Alert.alert(
-          "Thành công",
-          "Hồ sơ nhiếp ảnh gia đã được tạo thành công",
-          [{ text: "OK", onPress: () => navigation.goBack() }]
-        );
-      }
-  
-      setIsSaving(false);
-    } catch (error) {
-      console.error("Error saving profile:", error);
-      Alert.alert("Lỗi", "Không thể lưu hồ sơ. Vui lòng thử lại.");
-      setIsSaving(false);
+  try {
+    setIsSaving(true);
+    const userId = getCurrentUserId();
+
+    if (!userId) {
+      Alert.alert("Lỗi", "Không tìm thấy thông tin user");
+      return;
     }
-  };
+
+    // Validate required fields (giữ nguyên code validation hiện tại)
+    const yearsExperienceValue = parseInt(
+      profileData.find((f) => f.id === "yearsExperience")?.value || "0"
+    );
+    const equipmentValue =
+      profileData.find((f) => f.id === "equipment")?.value || "";
+    const hourlyRateValue = parseInt(
+      profileData.find((f) => f.id === "hourlyRate")?.value || "0"
+    );
+    const availabilityValue =
+      profileData.find((f) => f.id === "availabilityStatus")?.value ||
+      "Available";
+
+    // Validation logic (giữ nguyên)
+    if (yearsExperienceValue <= 0) {
+      Alert.alert("Lỗi", "Vui lòng nhập số năm kinh nghiệm hợp lệ");
+      setIsSaving(false);
+      return;
+    }
+
+    if (!equipmentValue.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập thông tin thiết bị");
+      setIsSaving(false);
+      return;
+    }
+
+    if (hourlyRateValue <= 0) {
+      Alert.alert("Lỗi", "Vui lòng nhập giá dịch vụ hợp lệ");
+      setIsSaving(false);
+      return;
+    }
+
+    if (selectedStyleIds.length === 0) {
+      Alert.alert("Lỗi", "Vui lòng chọn ít nhất 1 concept chụp");
+      setIsSaving(false);
+      return;
+    }
+      console.log('=== BEFORE SAVE ===');
+      console.log('selectedStyleIds before save:', selectedStyleIds);
+      console.log('current styles from hook:', photographerStyles);
+    if (isEditMode && photographer) {
+      // Update existing profile
+      const updateData: UpdatePhotographerRequest = {
+        yearsExperience: yearsExperienceValue,
+        equipment: equipmentValue,
+        hourlyRate: hourlyRateValue,
+        availabilityStatus: availabilityValue,
+        profileImage: profileImage || photographer.profileImage,
+      };
+
+      if (selectedLocationData) {
+        updateData.address = selectedLocationData.address;
+        updateData.googleMapsAddress = selectedLocationData.address;
+        updateData.latitude = selectedLocationData.coordinates.latitude;
+        updateData.longitude = selectedLocationData.coordinates.longitude;
+      }
+
+      await updatePhotographer(updateData);
+
+      // Update styles using hook methods (FIX HERE)
+      await updatePhotographerStylesUsingHook();
+      console.log('=== AFTER STYLES UPDATE ===');
+      console.log('selectedStyleIds after styles update:', selectedStyleIds);
+      console.log('styles from hook after update:', photographerStyles);
+      
+      // Refresh data
+      await findByUserId(userId);
+      
+      console.log('=== AFTER REFRESH ===');
+      console.log('styles from hook after refresh:', photographerStyles);
+      // CRITICAL: Refresh entire profile data after save
+      await findByUserId(userId);
+
+      Alert.alert("Thành công", "Hồ sơ nhiếp ảnh gia đã được cập nhật", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
+    } else {
+      // Create new profile (giữ nguyên logic create)
+      const createData: CreatePhotographerRequest = {
+        userId: userId,
+        yearsExperience: yearsExperienceValue,
+        equipment: equipmentValue,
+        hourlyRate: hourlyRateValue,
+        availabilityStatus: availabilityValue,
+        styleIds: selectedStyleIds,
+        profileImage: profileImage || undefined,
+        ...(selectedLocationData && {
+          address: selectedLocationData.address,
+          googleMapsAddress: selectedLocationData.address,
+          latitude: selectedLocationData.coordinates.latitude,
+          longitude: selectedLocationData.coordinates.longitude,
+        }),
+      };
+
+      await createProfile(createData);
+
+      Alert.alert("Thành công", "Hồ sơ nhiếp ảnh gia đã được tạo thành công", [
+        { text: "OK", onPress: () => navigation.goBack() },
+      ]);
+    }
+
+    setIsSaving(false);
+  } catch (error) {
+    console.error("Error saving profile:", error);
+    Alert.alert("Lỗi", "Không thể lưu hồ sơ. Vui lòng thử lại.");
+    setIsSaving(false);
+  }
+};
+
+  const updatePhotographerStylesUsingHook = async () => {
+  if (!photographer) return;
+
+  try {
+    const currentStyleIds = photographerStyles.map(style => style.styleId);
+
+    // Find styles to add and remove
+    const stylesToAdd = selectedStyleIds.filter(
+      (id) => !currentStyleIds.includes(id)
+    );
+    const stylesToRemove = currentStyleIds.filter(
+      (id) => !selectedStyleIds.includes(id)
+    );
+
+    // Remove old styles first using hook methods
+    for (const styleId of stylesToRemove) {
+      await removeStyle(styleId);
+    }
+
+    // Add new styles using hook methods  
+    for (const styleId of stylesToAdd) {
+      await addStyle(styleId);
+    }
+  } catch (error) {
+    console.error("Error updating styles:", error);
+    throw error;
+  }
+};
 
   // Update styles using individual API calls
   const updatePhotographerStyles = async () => {
@@ -946,7 +962,7 @@ const EditProfilePhotographerScreen = () => {
               marginBottom: 8,
             }}
           >
-            Sở thích của tôi
+            Phong cách chụp của tôi
           </Text>
 
           <Text
@@ -958,7 +974,7 @@ const EditProfilePhotographerScreen = () => {
               lineHeight: 20,
             }}
           >
-            Thêm sở thích vào hồ sơ để tìm ra điểm chung với host và khách khác.
+            Thêm phong cách chụp vào hồ sơ để tìm ra điểm chung với khách khác.
           </Text>
 
           <View
@@ -1232,20 +1248,18 @@ const EditProfilePhotographerScreen = () => {
               >
                 Lưu
               </Text>
-              
             </TouchableOpacity>
           </View>
-          </SafeAreaView>
+        </SafeAreaView>
       </Modal>
       <LocationPickerModal
-            visible={showLocationModal}
-            onClose={() => setShowLocationModal(false)}
-            onLocationSelect={handleLocationSelect}
-            initialLocation={selectedLocationData} // Truyền location hiện tại
-            title="Chọn khu vực làm việc"
-          />
+        visible={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        onLocationSelect={handleLocationSelect}
+        initialLocation={selectedLocationData} // Truyền location hiện tại
+        title="Chọn khu vực làm việc"
+      />
     </SafeAreaView>
-    
   );
 };
 

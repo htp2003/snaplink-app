@@ -91,7 +91,7 @@ export interface PhotographerProfile {
 export interface PhotographerStyle {
   id: number;
   name: string;
-  description?: string;
+  description: string;
   photographerCount: number;
 }
 

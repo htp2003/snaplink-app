@@ -63,16 +63,19 @@ const BookingDetailScreen = () => {
   const [photographerUserId, setPhotographerUserId] = useState<number | null>(null);
   const [loadingPhotographerUserId, setLoadingPhotographerUserId] = useState(false);
 
+  // 🆕 NEW: State for cancelling booking
+  const [cancelling, setCancelling] = useState(false);
+
   // 🆕 NEW: Function to fetch photographer userId from photographerId
   const fetchPhotographerUserId = async (photographerId: number) => {
     try {
       setLoadingPhotographerUserId(true);
       console.log('🔍 Fetching photographer userId for photographerId:', photographerId);
-      
+
       // ✅ Use getDetail method from photographerService
       const photographerDetail = await photographerService.getDetail(photographerId);
       console.log('📄 Photographer detail response:', photographerDetail);
-      
+
       // ✅ PhotographerProfile interface has userId field
       if (photographerDetail?.userId) {
         setPhotographerUserId(photographerDetail.userId);
@@ -114,7 +117,7 @@ const BookingDetailScreen = () => {
     setDeliveryLoading(true);
     setDeliveryError(null);
     setDeliveryHasError(false);
-    
+
     try {
       const deliveryData = await photoDeliveryService.getPhotoDeliveryByBooking(bookingId);
       setPhotoDelivery(deliveryData);
@@ -122,7 +125,7 @@ const BookingDetailScreen = () => {
       // ✅ Skip all errors - just set null
       setPhotoDelivery(null);
     }
-    
+
     setDeliveryLoading(false);
   };
 
@@ -199,7 +202,7 @@ const BookingDetailScreen = () => {
                 fetchPhotoDelivery()
               ]);
               // Show rating modal after successful completion
-               setShowRatingModal(true);
+              setShowRatingModal(true);
             } catch (error: any) {
               console.error('Error completing booking:', error);
               Alert.alert('Lỗi', 'Không thể hoàn thành đơn hàng');
@@ -215,14 +218,14 @@ const BookingDetailScreen = () => {
   // Rating handlers
   const handleRatingComplete = () => {
     setHasRated(true);
-   Alert.alert(
+    Alert.alert(
       'Cảm ơn bạn!',
       'Đánh giá của bạn đã được gửi thành công. Cảm ơn bạn đã sử dụng dịch vụ của chúng tôi!',
       [{ text: 'OK' }]
     );
   }
 
-   const handleShowRating = () => {
+  const handleShowRating = () => {
     if (booking && (booking.status === BookingStatus.COMPLETED)) {
       setShowRatingModal(true);
     }
@@ -244,11 +247,11 @@ const BookingDetailScreen = () => {
     } else {
       console.log('❌ No photographer userId available, showing retry alert');
       Alert.alert(
-        'Lỗi', 
+        'Lỗi',
         'Không thể lấy thông tin photographer. Vui lòng thử lại sau.',
         [
-          { 
-            text: 'Thử lại', 
+          {
+            text: 'Thử lại',
             onPress: () => {
               if (booking?.photographer?.photographerId) {
                 console.log('🔄 Retrying fetchPhotographerUserId...');
@@ -262,13 +265,60 @@ const BookingDetailScreen = () => {
     }
   };
 
-  const handleComplaintSubmitted = () => {
-    // Optionally refresh data or show success message
-    console.log('✅ Complaint submitted successfully');
+  const handleComplaintSubmitted = async () => {
+    try {
+      console.log('✅ Complaint submitted successfully');
+      if (booking) {
+        await bookingService.updateBooking(booking.id || booking.bookingId, {
+          status: 'Under_Review'
+        })
+        await fetchBookingDetails();
+      }
+      Alert.alert(
+        'Thành công',
+        'Khiếu nại của bạn đã được gửi thành công. Chúng tôi sẽ xem xét và phản hồi sớm nhất có thể.',
+        [{ text: 'OK' }]
+      );
+    } catch (error: any) {
+      console.error('Error submitting complaint:', error);
+      Alert.alert('Lỗi', 'Không thể gửi khiếu nại');
+    }
+  }
+
+  const canShowCancelBooking = () => {
+    const statusStr = booking?.status.toString().toLowerCase();
+    const isUnderReview = statusStr === 'under_review' || statusStr === 'under review';
+
+    // TODO: Cần check thêm complaint status = 'APPROVED' khi có API
+    return isUnderReview && booking;
+  };
+
+  const handleCancelBooking = async () => {
+    if (!booking) return;
+
     Alert.alert(
-      'Thành công',
-      'Khiếu nại của bạn đã được gửi thành công. Chúng tôi sẽ xem xét và phản hồi sớm nhất có thể.',
-      [{ text: 'OK' }]
+      'Hủy đơn hàng',
+      'Bạn có chắc muốn hủy đơn hàng này? Tiền sẽ được hoàn về ví của bạn.',
+      [
+        { text: 'Không', style: 'cancel' },
+        {
+          text: 'Hủy đơn hàng',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setCancelling(true);
+              await bookingService.cancelBooking(booking.id || booking.bookingId);
+              await fetchBookingDetails();
+
+              Alert.alert('Thành công', 'Đơn hàng đã được hủy và tiền đã được hoàn về ví của bạn.');
+            } catch (error) {
+              Alert.alert('Lỗi', 'Không thể hủy đơn hàng. Vui lòng thử lại sau.');
+            } finally {
+              setCancelling(false);
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -287,6 +337,8 @@ const BookingDetailScreen = () => {
         return 'bg-purple-500';
       case BookingStatus.EXPIRED:
         return 'bg-gray-500';
+      case BookingStatus.UNDER_REVIEW:
+        return 'bg-yellow-600';
       default:
         return 'bg-gray-400';
     }
@@ -306,6 +358,8 @@ const BookingDetailScreen = () => {
         return 'Đang thực hiện';
       case BookingStatus.EXPIRED:
         return 'Đã hết hạn';
+      case BookingStatus.UNDER_REVIEW:
+        return 'Đang kiểm duyệt';
       default:
         return status;
     }
@@ -373,9 +427,12 @@ const BookingDetailScreen = () => {
   };
 
   const canConfirmReceived = () => {
+    const statusStr = booking?.status.toString().toLowerCase();
+    const isUnderReview = statusStr === 'under_review' || statusStr === 'under review';
     return (
       booking &&
       photoDelivery &&
+      !isUnderReview &&
       // 🆕 UPDATED: Different logic based on delivery method
       (
         // For PhotographerDevice: need drive link
@@ -389,12 +446,15 @@ const BookingDetailScreen = () => {
   };
 
   const canShowComplaint = () => {
+    const statusStr = booking?.status.toString().toLowerCase();
+    const isUnderReview = statusStr === 'under_review' || statusStr === 'under review';
     return (
       booking &&
       photoDelivery &&
+      !isUnderReview &&
       // 🆕 UPDATED: Only show complaint for active bookings, not completed
-      (booking.status === BookingStatus.CONFIRMED || 
-       booking.status === BookingStatus.IN_PROGRESS) 
+      (booking.status === BookingStatus.CONFIRMED ||
+        booking.status === BookingStatus.IN_PROGRESS)
       // 🆕 TODO: Add check for existing complaints
       // !booking.hasComplaint && // Add this field if available from API
       // booking.status !== BookingStatus.COMPLETED // Don't allow complaint after completion
@@ -416,15 +476,16 @@ const BookingDetailScreen = () => {
 
   const getDaysUntilExpiry = () => {
     if (!photoDelivery?.expiresAt) return null;
-    
+
     const expiryDate = new Date(photoDelivery.expiresAt);
     const today = new Date();
     const diffTime = expiryDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return diffDays;
   };
 
+  // ✅ Render Photo Delivery Section with improved states and delivery method logic
   // ✅ Render Photo Delivery Section with improved states and delivery method logic
   const renderPhotoDeliverySection = () => {
     if (deliveryLoading) {
@@ -442,7 +503,7 @@ const BookingDetailScreen = () => {
         <View className="items-center py-10">
           <Ionicons name="alert-circle-outline" size={48} color="#F44336" />
           <Text className="text-lg text-red-500 mt-4 text-center">{deliveryError}</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             className="bg-red-500 px-4 py-2 rounded-lg mt-3"
             onPress={fetchPhotoDelivery}
           >
@@ -477,7 +538,7 @@ const BookingDetailScreen = () => {
           </View>
         </View>
 
-        {/* 🆕 NEW: Delivery Method Display */}
+        {/* NEW: Delivery Method Display */}
         {photoDelivery.deliveryMethod && (
           <View className="flex-row items-center mb-2">
             <Ionicons name="swap-horizontal-outline" size={20} color="#666666" />
@@ -525,13 +586,13 @@ const BookingDetailScreen = () => {
 
         {photoDelivery.expiresAt && isPhotographerDevice() && (
           <View className="flex-row items-center mb-2">
-            <Ionicons 
-              name="time-outline" 
-              size={20} 
-              color={isExpired() ? "#F44336" : "#666666"} 
+            <Ionicons
+              name="time-outline"
+              size={20}
+              color={isExpired() ? "#F44336" : "#666666"}
             />
             <Text className={`ml-2 text-sm ${isExpired() ? 'text-red-500' : 'text-gray-600'}`}>
-              {isExpired() 
+              {isExpired()
                 ? "Đã hết hạn tải ảnh"
                 : `Hết hạn sau ${getDaysUntilExpiry()} ngày`
               }
@@ -539,7 +600,7 @@ const BookingDetailScreen = () => {
           </View>
         )}
 
-        {/* 🆕 UPDATED: Google Drive Link - Only for PhotographerDevice */}
+        {/* Google Drive Link - Only for PhotographerDevice */}
         {photoDelivery.driveLink && isPhotographerDevice() && (
           <TouchableOpacity
             className="bg-blue-500 flex-row items-center justify-center py-3 rounded-lg mt-4"
@@ -552,7 +613,7 @@ const BookingDetailScreen = () => {
           </TouchableOpacity>
         )}
 
-        {/* 🆕 UPDATED: Complaint Button - Show for ALL delivery methods */}
+        {/* Complaint Button - Show for ALL delivery methods */}
         {canShowComplaint() && (
           <TouchableOpacity
             className="bg-orange-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
@@ -565,7 +626,25 @@ const BookingDetailScreen = () => {
           </TouchableOpacity>
         )}
 
-        {/* 🆕 UPDATED: Confirm Button - Show AFTER complaint button */}
+        {/* NEW: Cancel Booking Button - Show when under review */}
+        {canShowCancelBooking() && (
+          <TouchableOpacity
+            className={`bg-red-500 flex-row items-center justify-center py-3 rounded-lg mt-3 ${cancelling ? 'opacity-60' : ''}`}
+            onPress={handleCancelBooking}
+            disabled={cancelling}
+          >
+            {cancelling ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons name="close-circle-outline" size={24} color="#FFFFFF" />
+            )}
+            <Text className="text-white text-base font-semibold ml-2">
+              {cancelling ? 'Đang xử lý...' : 'Hủy đơn hàng và hoàn tiền'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Confirm Button - Show AFTER cancel button */}
         {canConfirmReceived() && (
           <TouchableOpacity
             className={`bg-green-500 flex-row items-center justify-center py-3 rounded-lg mt-3 ${updating ? 'opacity-60' : ''}`}
@@ -578,8 +657,8 @@ const BookingDetailScreen = () => {
               <Ionicons name="checkmark-circle-outline" size={24} color="#FFFFFF" />
             )}
             <Text className="text-white text-base font-semibold ml-2">
-              {updating ? 'Đang xử lý...' : 
-               isPhotographerDevice() ? 'Xác nhận đã nhận ảnh' : 'Xác nhận hoàn thành chụp'}
+              {updating ? 'Đang xử lý...' :
+                isPhotographerDevice() ? 'Xác nhận đã nhận ảnh' : 'Xác nhận hoàn thành chụp'}
             </Text>
           </TouchableOpacity>
         )}
@@ -591,7 +670,7 @@ const BookingDetailScreen = () => {
             onPress={handleShowRating}
           >
             <Ionicons name="star-outline" size={getResponsiveSize(24)} color="#FFFFFF" />
-            <Text 
+            <Text
               className="text-white text-base font-semibold ml-2"
               style={{ fontSize: getResponsiveSize(14) }}
             >
@@ -613,7 +692,20 @@ const BookingDetailScreen = () => {
           </View>
         )}
 
-        {/* 🆕 UPDATED: CustomerDevice Info Message */}
+        {/* NEW: Under Review Status Message */}
+        {booking?.status === BookingStatus.UNDER_REVIEW && (
+          <View className="flex-row items-center bg-yellow-50 p-3 rounded-lg mt-4">
+            <Ionicons name="time-outline" size={24} color="#F59E0B" />
+            <View className="flex-1 ml-2">
+              <Text className="text-yellow-600 text-base font-medium">Đơn hàng đang được kiểm duyệt</Text>
+              <Text className="text-yellow-600 text-xs mt-1">
+                Khiếu nại của bạn đang được xem xét. Kéo xuống để cập nhật trạng thái.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* CustomerDevice Info Message */}
         {isCustomerDevice() && (
           <View className="flex-row items-center bg-blue-50 p-3 rounded-lg mt-4">
             <Ionicons name="camera" size={24} color="#3B82F6" />
@@ -646,7 +738,7 @@ const BookingDetailScreen = () => {
                 {isPhotographerDevice() ? 'Đang chuẩn bị ảnh' : 'Đang chờ chụp ảnh'}
               </Text>
               <Text className="text-orange-600 text-xs mt-1">
-                {isPhotographerDevice() 
+                {isPhotographerDevice()
                   ? 'Photographer đang xử lý và sẽ upload ảnh sớm nhất có thể'
                   : 'Vui lòng chụp ảnh theo yêu cầu đã thỏa thuận'
                 }
@@ -662,7 +754,7 @@ const BookingDetailScreen = () => {
   if (loadingBooking) {
     return (
       <View className="flex-1 bg-gray-50">
-        <View 
+        <View
           className="bg-white px-4 pb-4 border-b border-gray-200"
           style={{ paddingTop: insets.top }}
         >
@@ -685,7 +777,7 @@ const BookingDetailScreen = () => {
   if (bookingError) {
     return (
       <View className="flex-1 bg-gray-50">
-        <View 
+        <View
           className="bg-white px-4 pb-4 border-b border-gray-200"
           style={{ paddingTop: insets.top }}
         >
@@ -699,7 +791,7 @@ const BookingDetailScreen = () => {
         <View className="flex-1 justify-center items-center px-10">
           <Ionicons name="alert-circle-outline" size={64} color="#FF385C" />
           <Text className="text-lg text-red-500 mt-4 text-center">{bookingError}</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             className="bg-red-500 px-6 py-3 rounded-lg mt-4"
             onPress={fetchBookingDetails}
           >
@@ -717,7 +809,7 @@ const BookingDetailScreen = () => {
   return (
     <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View 
+      <View
         className="bg-white px-4 pb-4 border-b border-gray-200"
         style={{ paddingTop: insets.top }}
       >
@@ -826,17 +918,19 @@ const BookingDetailScreen = () => {
         />
       )}
 
-      {/* 🆕 FIXED: Complaint Modal with correct reportedUserId and enhanced debugging */}
+      {/* Complaint Modal */}
       {booking?.photographer && photographerUserId && (
         <ComplaintModal
           visible={showComplaintModal}
           onClose={() => setShowComplaintModal(false)}
           bookingId={bookingId}
-          reportedUserId={photographerUserId} // 🎯 Now using correct userId (26) not photographerId (17)
+          reportedUserId={photographerUserId}
           reportedUserName={booking.photographer.fullName}
           onComplaintSubmitted={handleComplaintSubmitted}
         />
       )}
+
+
     </View>
   );
 };

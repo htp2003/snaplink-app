@@ -393,7 +393,7 @@ export default function VenueOwnerEventsScreen() {
       return;
     }
 
-    navigation.navigate("VenueManagement");
+    navigation.navigate("VenueOwnerCreateEvent");
   };
 
   const handleLocationFilter = (location: LocationFilter) => {

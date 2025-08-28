@@ -269,7 +269,7 @@ export const useBookings = (photographerId: number) => {
             return "confirmed";
           case "cancelled":
           case "canceled":
-            return "rejected";
+            return "cancelled";
           case "completed":
           case "finished":
           case "done":
@@ -344,12 +344,12 @@ export const useBookings = (photographerId: number) => {
   const getBookingCounts = useCallback(() => {
     const uiBookings = getBookingsForUI();
     const counts = {
-      pending: uiBookings.filter((b) => b.status === "pending").length,
+      cancelled: uiBookings.filter((b) => b.status === "cancelled").length,
       confirmed: uiBookings.filter(
         (b) => b.status === "confirmed" || b.status === "in-progress"
       ).length,
       completed: uiBookings.filter(
-        (b) => b.status === "completed" || b.status === "rejected"
+        (b) => b.status === "completed" || b.status === "cancelled"
       ).length,
     };
 

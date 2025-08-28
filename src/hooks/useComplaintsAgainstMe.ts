@@ -63,14 +63,21 @@ export const useComplaintsAgainstMe = () => {
     if (bookingComplaints.length === 0) return null;
     
     // Return most severe status
-    if (bookingComplaints.some(c => c.status === "InProgress")) return "InProgress";
+    if (bookingComplaints.some(c => c.status === "Rejected")) return "Rejected";
     if (bookingComplaints.some(c => c.status === "Pending")) return "Pending";
     return "Resolved";
   }, [complaints]);
+  const getActiveComplaintsCount = useCallback((): number => {
+  return complaints.filter(c => c.status !== "Resolved").length;
+}, [complaints]);
+
+const getResolvedComplaintsCount = useCallback((): number => {
+  return complaints.filter(c => c.status === "Resolved").length;
+}, [complaints]);
 
   // Statistics
   const pendingComplaintsCount = complaints.filter(c => c.status === "Pending").length;
-  const inProgressComplaintsCount = complaints.filter(c => c.status === "InProgress").length;
+  const inProgressComplaintsCount = complaints.filter(c => c.status === "Rejected").length;
   const totalComplaintsCount = complaints.length;
 
   useEffect(() => {
@@ -93,5 +100,7 @@ export const useComplaintsAgainstMe = () => {
     getComplaintsByBookingId,
     hasComplaints,
     getComplaintStatus,
+    getActiveComplaintsCount,
+    getResolvedComplaintsCount,
   };
 };

@@ -213,7 +213,7 @@ export interface BookingCardData {
   time: string;
   duration: number;
   totalPrice: number;
-  status: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'in-progress' | 'under-review'; 
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'in-progress' | 'under-review'; 
   description: string;
   createdAt: string;
   specialRequests?: string;

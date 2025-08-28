@@ -37,7 +37,7 @@ export interface ComplaintAgainstMeResponse {
   bookingId: number;
   complaintType: string;
   description: string;
-  status: "Pending" | "InProgress" | "Resolved";
+  status: "Pending" | "Rejected" | "Resolved";
   assignedModeratorId: number | null;
   assignedModeratorName: string | null;
   resolutionNotes: string | null;

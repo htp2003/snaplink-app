@@ -465,6 +465,7 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     },
     []
   );
+  
 
   // ===== UTILITY METHODS =====
 

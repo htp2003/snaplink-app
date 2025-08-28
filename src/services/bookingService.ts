@@ -28,6 +28,7 @@ const BOOKING_ENDPOINTS = {
   CALCULATE_PRICE: "/api/Booking/calculate-price",
   CLEANUP_EXPIRED: "/api/Booking/cleanup-expired",
   CLEANUP_PENDING: "/api/Booking/cleanup-all-pending",
+  UNDER_REVIEW: (bookingId: number) => `/api/Booking/${bookingId}/under-review`,
 };
 
 export class BookingService {
@@ -379,6 +380,17 @@ export class BookingService {
         suggestedTimes: [],
         message: "Không thể kiểm tra tình trạng địa điểm",
       };
+    }
+  }
+
+  async setBookingUnderReview(bookingId: number): Promise<void> {
+    try {
+      console.log(`🔄 Setting booking ${bookingId} to under-review...`);
+      await apiClient.put<void>(BOOKING_ENDPOINTS.UNDER_REVIEW(bookingId));
+      console.log(`✅ Booking ${bookingId} set to under-review successfully`);
+    } catch (error) {
+      console.error("❌ Error setting booking under review:", error);
+      throw error;
     }
   }
 

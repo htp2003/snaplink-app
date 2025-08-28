@@ -416,6 +416,8 @@ export default function LocationCardDetail() {
         styles: getAmenities(),
         indoor: locationDetail.indoor || false,
         outdoor: locationDetail.outdoor || false,
+        latitude: locationDetail.latitude,
+        longitude: locationDetail.longitude,
       };
       (navigation as any).navigate('Booking', { location: locationData });
     }

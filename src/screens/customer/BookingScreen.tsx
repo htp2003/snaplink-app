@@ -66,6 +66,8 @@ interface RouteParams {
     styles?: string[];
     indoor?: boolean;
     outdoor?: boolean;
+    latitude?: number;
+    longitude?: number;
   };
   editMode?: boolean;
   existingBookingId?: number;
@@ -893,63 +895,43 @@ const handleSubmitBooking = async () => {
       }
 
       // 🔥 NEW: Show success message with notification status
-      const alertTitle = "Đặt lịch thành công! 🎉";
-      const baseMessage = `Booking đã được tạo.\n\n📅 ${formatDate(selectedDate)}\n⏰ ${selectedStartTime} - ${selectedEndTime}${selectedLocation ? `\n📍 ${selectedLocation.name}` : ''}`;
-      
       let statusMessage = '';
       if (notificationSent) {
         statusMessage = '\n\n✅ Photographer sẽ nhận được thông báo';
       } else {
         statusMessage = '\n\n⚠️ Thông báo có thể gặp sự cố (booking vẫn thành công)';
       }
-
-      // Add debug info in development
-      const debugInfo = __DEV__ && !notificationSent ? `\n\n🛠 Debug: ${notificationErrorMsg}` : '';
-
-      const alertMessage = baseMessage + statusMessage + debugInfo;
-
-      Alert.alert(
-        alertTitle,
-        alertMessage,
-        [
-          {
-            text: "Xem chi tiết",
-            onPress: () => {
-              navigation.navigate("OrderDetail", {
-                bookingId: createdBooking.id || createdBooking.bookingId,
-                photographer: {
-                  photographerId: currentPhotographerId,
-                  fullName: photographerName,
-                  profileImage: photographerAvatar,
-                  hourlyRate: photographerRate,
-                },
-                selectedDate: selectedDate.toISOString(),
-                selectedStartTime,
-                selectedEndTime,
-                selectedLocation: selectedLocation
-                  ? {
-                      id: selectedLocation.locationId || selectedLocation.id,
-                      name: selectedLocation.name,
-                      hourlyRate: selectedLocation.hourlyRate,
-                    }
-                  : undefined,
-                specialRequests: specialRequests || undefined,
-                priceCalculation: priceCalculation || {
-                  totalPrice: 0,
-                  photographerFee: 0,
-                  locationFee: 0,
-                  duration: 0,
-                  breakdown: {
-                    baseRate: 0,
-                    locationRate: 0,
-                    additionalFees: [],
-                  },
-                },
-              });
+      navigation.navigate("OrderDetail", {
+        bookingId: createdBooking.id || createdBooking.bookingId,
+        photographer: {
+          photographerId: currentPhotographerId,
+          fullName: photographerName,
+          profileImage: photographerAvatar,
+          hourlyRate: photographerRate,
+        },
+        selectedDate: selectedDate.toISOString(),
+        selectedStartTime,
+        selectedEndTime,
+        selectedLocation: selectedLocation
+          ? {
+              id: selectedLocation.locationId || selectedLocation.id,
+              name: selectedLocation.name,
+              hourlyRate: selectedLocation.hourlyRate,
             }
-          }
-        ]
-      );
+          : undefined,
+        specialRequests: specialRequests || undefined,
+        priceCalculation: priceCalculation || {
+          totalPrice: 0,
+          photographerFee: 0,
+          locationFee: 0,
+          duration: 0,
+          breakdown: {
+            baseRate: 0,
+            locationRate: 0,
+            additionalFees: [],
+          },
+        },
+      });
     }
   } catch (error) {
     console.error("❌ Error in booking operation:", error);
@@ -972,6 +954,18 @@ const handleSubmitBooking = async () => {
     Alert.alert("Lỗi đặt lịch", errorMessage, [{ text: "OK" }]);
   }
 };
+
+useEffect(() => {
+  console.log("🔍 DEBUG Location data in BookingScreen:", {
+    location,
+    hasLatitude: !!location?.latitude,
+    hasLongitude: !!location?.longitude,
+    latitude: location?.latitude,
+    longitude: location?.longitude,
+    latitudeType: typeof location?.latitude,
+    longitudeType: typeof location?.longitude
+  });
+}, [location]);
 
 
 

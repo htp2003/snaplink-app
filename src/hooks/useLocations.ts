@@ -20,6 +20,10 @@ export interface LocationData {
   availabilityStatus?: string;
   featuredStatus?: boolean;
   verificationStatus?: string;
+
+  latitude?: number;
+  longitude?: number;
+
   // GPS related fields
   distance?: number; 
   source?: 'app' | 'google';
@@ -141,6 +145,9 @@ export const useLocations = (): UseLocationsReturn => {
       availabilityStatus: location.availabilityStatus || 'available',
       featuredStatus: location.featuredStatus,
       verificationStatus: location.verificationStatus,
+
+      latitude: location.latitude,
+      longitude: location.longitude,
       source: 'app',
       // Add distance if current location is available
       distance: currentLocation && location.latitude && location.longitude
@@ -209,6 +216,8 @@ export const useLocations = (): UseLocationsReturn => {
       availabilityStatus: location.availabilityStatus || 'available',
       featuredStatus: location.featuredStatus,
       verificationStatus: location.verificationStatus,
+      latitude: location.latitude,
+      longitude: location.longitude,
       distance: location.distance, // 🎯 Distance từ API
       source: 'app',
       rating: 4.5, // Default rating - có thể lấy từ API nếu có
@@ -277,6 +286,8 @@ export const useLocations = (): UseLocationsReturn => {
             hourlyRate: location.hourlyRate,
             capacity: location.capacity,
             availabilityStatus: location.availabilityStatus || 'available',
+            latitude: location.latitude,
+            longitude: location.longitude,
             source: 'app',
           });
         }

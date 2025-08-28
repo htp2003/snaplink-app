@@ -22,6 +22,8 @@ type LocationCardProps = {
     distance?: number;
     rating?: number;
     source?: string;
+    latitude?: number;
+    longitude?: number;
 }
 
 const LocationCard: React.FC<LocationCardProps> = ({
@@ -40,7 +42,9 @@ const LocationCard: React.FC<LocationCardProps> = ({
     // 🆕 Destructure props mới
     distance,
     rating,
-    source
+    source,
+    latitude,
+    longitude
 }) => {
     const navigation = useNavigation<RootStackNavigationProp>();
     const [imageError, setImageError] = useState(false);
@@ -92,6 +96,8 @@ const LocationCard: React.FC<LocationCardProps> = ({
             styles: styles || [],
             indoor: true,
             outdoor: true,
+            latitude,
+            longitude
         };
         (navigation as any).navigate('Booking', {
             location: locationData,

@@ -75,6 +75,9 @@ export default function OrderDetailScreen() {
     refreshWalletData,
   } = useWallet();
 
+  // Cancel booking state
+  const [isCancelling, setIsCancelling] = useState(false);
+
   const shouldFetchWallet = isAuthenticated && user?.id;
 
   const {
@@ -82,6 +85,8 @@ export default function OrderDetailScreen() {
     loading: loadingBooking,
     confirmBooking,
     confirming,
+    updateBooking, 
+    updating, 
   } = useBooking();
 
   const {
@@ -496,6 +501,42 @@ export default function OrderDetailScreen() {
     }
   };
 
+  const handleCancelBooking = async () => {
+    if (!params.bookingId || isCancelling) return;
+    
+    try {
+      setIsCancelling(true);
+      await updateBooking(params.bookingId, { status: 'Cancelled' });
+      console.log(`✅ Cancelled booking ${params.bookingId} when going back`);
+    } catch (error) {
+      console.error('❌ Error cancelling booking on back:', error);
+      // Không hiển thị alert để không làm gián đoạn navigation
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleGoBack = () => {
+    Alert.alert(
+      'Hủy đặt lịch',
+      'Bạn có muốn hủy đặt lịch này và quay lại không?',
+      [
+        {
+          text: 'Ở lại',
+          style: 'cancel',
+        },
+        {
+          text: 'Hủy đặt lịch',
+          style: 'destructive',
+          onPress: async () => {
+            await handleCancelBooking();
+            navigation.goBack();
+          },
+        },
+      ]
+    );
+  };
+
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -511,10 +552,11 @@ export default function OrderDetailScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
+           onPress={handleGoBack}
           className="bg-gray-100 rounded-lg"
           style={{ padding: getResponsiveSize(8) }}
           activeOpacity={0.7}
+          disabled={isCancelling}
         >
           <AntDesign
             name="arrowleft"

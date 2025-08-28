@@ -51,6 +51,8 @@ const LocationsTab: React.FC<LocationsTabProps> = ({ navigation }) => {
         distance={showDistance && location.distance ? Number(location.distance) : undefined}
         rating={location.rating ? Number(location.rating) : undefined}
         source={location.source || "internal"}
+        latitude={location.latitude}
+        longitude={location.longitude}
       />
     </View>
   );

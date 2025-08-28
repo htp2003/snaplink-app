@@ -24,7 +24,8 @@ import { BookingCardData } from "../../types/booking";
 import { usePhotographerAuth } from "../../hooks/usePhotographerAuth";
 import { useSubscriptionStatus } from "../../hooks/useSubscriptionStatus";
 import SubscriptionRequiredOverlay from "../../components/SubscriptionRequiredOverlay";
-import WalletTopUpModal from "../../components/WalletTopUpModal";  
+import { useComplaintsAgainstMe } from "../../hooks/useComplaintsAgainstMe";
+import WalletTopUpModal from "../../components/WalletTopUpModal";
 // ✅ ADD THESE IMPORTS:
 import { useChat } from "../../hooks/useChat";
 import { useAuth } from "../../hooks/useAuth";
@@ -36,10 +37,9 @@ type Props = CompositeScreenProps<
 
 export default function OrderManagementScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<"confirmed" | "completed">(
-    "confirmed"
-  );
- 
+  const [activeTab, setActiveTab] = useState<
+    "confirmed" | "completed" | "complaints"
+  >("confirmed");
 
   // ✅ ADD AUTH CONTEXT:
   const { getCurrentUserId, user } = useAuth();
@@ -90,27 +90,45 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     enableRealtime: true,
   });
 
+  const {
+    complaints,
+    loading: complaintsLoading,
+    error: complaintsError,
+    hasComplaints,
+    getComplaintsByBookingId,
+    pendingComplaintsCount,
+    refreshComplaints,
+  } = useComplaintsAgainstMe();
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
     }).format(amount);
   };
-  const { hasActiveSubscription, isLoading: subscriptionLoading, refreshSubscriptionStatus } =
-      useSubscriptionStatus(photographerId);
-      useFocusEffect(
-      React.useCallback(() => {
-        console.log('🔍 Screen focused, refreshing subscription status...');
-        refreshSubscriptionStatus();
-      }, [refreshSubscriptionStatus])
-    );
+  const {
+    hasActiveSubscription,
+    isLoading: subscriptionLoading,
+    refreshSubscriptionStatus,
+  } = useSubscriptionStatus(photographerId);
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log("🔍 Screen focused, refreshing subscription status...");
+      refreshSubscriptionStatus();
+    }, [refreshSubscriptionStatus])
+  );
 
   const formatDateTime = (date: string, time: string) => {
     const dateObj = new Date(date);
     return `${dateObj.toLocaleDateString("vi-VN")} lúc ${time}`;
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string, hasComplaint: boolean = false) => {
+    // Nếu đơn hàng bị complaint, dùng màu cảnh báo
+    if (hasComplaint && status.toLowerCase() === "confirmed") {
+      return { bg: "#FEF3C7", text: "#D97706" }; // Màu vàng cam cảnh báo
+    }
+
     switch (status) {
       case "pending":
         return { bg: "#FEF3C7", text: "#D97706" };
@@ -127,7 +145,12 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string, hasComplaint: boolean = false) => {
+    // Nếu đơn hàng bị complaint và đang confirmed, hiển thị "ĐANG XỬ LÍ"
+    if (hasComplaint && status.toLowerCase() === "confirmed") {
+      return "ĐANG XỬ LÍ";
+    }
+
     switch (status) {
       case "pending":
         return "Chờ xác nhận";
@@ -144,49 +167,63 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     }
   };
 
-  const filteredOrders = getBookingsByStatus(activeTab);
+  const getFilteredOrders = () => {
+  if (activeTab === "complaints") {
+    // Tab phàn nàn: chỉ hiện đơn có complaint
+    return getBookingsByStatus("confirmed")
+      .concat(getBookingsByStatus("completed"))
+      .filter(order => hasComplaints(parseInt(order.id)));
+  } else if (activeTab === "confirmed") {
+    // Tab đã nhận: loại bỏ đơn có complaint
+    return getBookingsByStatus("confirmed")
+      .filter(order => !hasComplaints(parseInt(order.id)));
+  }
+  return getBookingsByStatus(activeTab);
+};
+
+  const filteredOrders = getFilteredOrders();
   const bookingCounts = getBookingCounts();
 
   const handleCompleteOrder = async (bookingId: string) => {
-  Alert.alert(
-    "Hoàn thành đơn hàng", 
-    "Xác nhận đơn hàng này đã hoàn thành? Hành động này không thể hoàn tác.",
-    [
-      { 
-        text: "Hủy", 
-        style: "cancel" 
-      },
-      {
-        text: "Hoàn thành",
-        style: "default",
-        onPress: async () => {
-          try {
-            console.log(`🔄 Completing booking ${bookingId}...`);
-            
-            // ✅ Sử dụng API Complete
-            const success = await completeBooking(parseInt(bookingId));
-            
-            if (success) {
-              console.log("✅ Booking completed successfully!");
-              
-              // Refresh data để đảm bảo UI được update
-              await refreshBookings();
-              
-              // Optional: Trigger photo delivery refresh nếu cần
-              await refreshPhotoDeliveries();
-            }
-          } catch (error) {
-            console.error("❌ Error in handleCompleteOrder:", error);
-            Alert.alert(
-              "Lỗi", 
-              "Không thể hoàn thành đơn hàng. Vui lòng thử lại."
-            );
-          }
+    Alert.alert(
+      "Hoàn thành đơn hàng",
+      "Xác nhận đơn hàng này đã hoàn thành? Hành động này không thể hoàn tác.",
+      [
+        {
+          text: "Hủy",
+          style: "cancel",
         },
-      },
-    ]
-  );
-};
+        {
+          text: "Hoàn thành",
+          style: "default",
+          onPress: async () => {
+            try {
+              console.log(`🔄 Completing booking ${bookingId}...`);
+
+              // ✅ Sử dụng API Complete
+              const success = await completeBooking(parseInt(bookingId));
+
+              if (success) {
+                console.log("✅ Booking completed successfully!");
+
+                // Refresh data để đảm bảo UI được update
+                await refreshBookings();
+
+                // Optional: Trigger photo delivery refresh nếu cần
+                await refreshPhotoDeliveries();
+              }
+            } catch (error) {
+              console.error("❌ Error in handleCompleteOrder:", error);
+              Alert.alert(
+                "Lỗi",
+                "Không thể hoàn thành đơn hàng. Vui lòng thử lại."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handlePhotoDelivery = (order: BookingCardData) => {
     const bookingId = parseInt(order.id);
@@ -306,6 +343,80 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
       backgroundColor: "#D1FAE5",
       textColor: "#059669",
     };
+  };
+
+  const ComplaintSection = ({ bookingId }: { bookingId: number }) => {
+    const bookingComplaints = getComplaintsByBookingId(bookingId);
+
+    if (bookingComplaints.length === 0) return null;
+
+    return (
+      <View
+        style={{
+          backgroundColor: "#FEF2F2",
+          borderRadius: 8,
+          padding: 12,
+          marginTop: 12,
+          borderLeftWidth: 4,
+          borderLeftColor: "#EF4444",
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: 8,
+          }}
+        >
+          <Ionicons name="warning" size={16} color="#EF4444" />
+          <Text
+            style={{
+              fontSize: 12,
+              fontWeight: "600",
+              color: "#EF4444",
+              marginLeft: 6,
+              letterSpacing: 0.5,
+            }}
+          >
+            PHÀN NÀN ({bookingComplaints.length})
+          </Text>
+        </View>
+
+        {bookingComplaints.map((complaint) => (
+          <View key={complaint.complaintId} style={{ marginBottom: 8 }}>
+            <Text
+              style={{
+                fontSize: 11,
+                color: "#7F1D1D",
+                fontWeight: "500",
+                marginBottom: 4,
+              }}
+            >
+              {complaint.complaintType}
+            </Text>
+            <Text
+              style={{
+                fontSize: 11,
+                color: "#991B1B",
+                lineHeight: 16,
+              }}
+            >
+              "{complaint.description}"
+            </Text>
+            <Text
+              style={{
+                fontSize: 10,
+                color: "#7F1D1D",
+                marginTop: 4,
+              }}
+            >
+              Từ: {complaint.reporterName} •{" "}
+              {new Date(complaint.createdAt).toLocaleDateString("vi-VN")}
+            </Text>
+          </View>
+        ))}
+      </View>
+    );
   };
 
   // ✅ UPDATE VIEW DETAILS TO USE CHAT:
@@ -489,6 +600,11 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
               key: "completed",
               label: "Hoàn thành",
               count: getTabCount("completed"),
+            },
+            {
+              key: "complaints",
+              label: "Phàn nàn",
+              count: pendingComplaintsCount,
             },
           ].map((tab) => (
             <TouchableOpacity
@@ -707,15 +823,50 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                   {/* Status Indicator Bar */}
                   <View
                     style={{
-                      height: 3,
-                      backgroundColor:
-                        order.status === "confirmed"
-                          ? "#1A1A1A"
-                          : order.status === "completed"
-                          ? "#1A1A1A"
-                          : "#C8C8C8",
+                      backgroundColor: (() => {
+                        const orderHasComplaints = hasComplaints(
+                          parseInt(order.id)
+                        );
+                        if (
+                          orderHasComplaints &&
+                          order.status.toLowerCase() === "confirmed"
+                        ) {
+                          return "#FEF3C7"; // Nền vàng cam cho complaint
+                        }
+                        return "#FAFAFA";
+                      })(),
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 4,
                     }}
-                  />
+                  >
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: (() => {
+                          const orderHasComplaints = hasComplaints(
+                            parseInt(order.id)
+                          );
+                          if (
+                            orderHasComplaints &&
+                            order.status.toLowerCase() === "confirmed"
+                          ) {
+                            return "#D97706"; // Màu text cảnh báo
+                          }
+                          return order.status === "completed"
+                            ? "#1A1A1A"
+                            : "#8A8A8A";
+                        })(),
+                        letterSpacing: 0.5,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {getStatusText(
+                        order.status,
+                        hasComplaints(parseInt(order.id))
+                      )}
+                    </Text>
+                  </View>
 
                   <View style={{ padding: 20 }}>
                     {/* Header Section */}
@@ -889,6 +1040,10 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                       </View>
                     )}
 
+                    {hasComplaints(parseInt(order.id)) && (
+                      <ComplaintSection bookingId={parseInt(order.id)} />
+                    )}
+
                     {/* Action Buttons */}
                     <View
                       style={{
@@ -1054,7 +1209,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                                 letterSpacing: 0.5,
                               }}
                             >
-                              NHẮN TIN 
+                              NHẮN TIN
                             </Text>
                           )}
                         </TouchableOpacity>

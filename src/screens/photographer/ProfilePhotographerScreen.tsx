@@ -25,10 +25,13 @@ import {
   PhotographerProfile,
 } from "../../services/photographerService";
 
+// Import the new PhotographerRatingsModal
+import PhotographerRatingsModal from "../../components/PhotographerRatingModal";
+
 // Notification
-import { NotificationBadge } from '../../components/Notification/NotificationBell';
-import NotificationModal from '../../components/Notification/NotificationModal';
-import { useNotificationContext } from '../../context/NotificationProvider';
+import { NotificationBadge } from "../../components/Notification/NotificationBell";
+import NotificationModal from "../../components/Notification/NotificationModal";
+import { useNotificationContext } from "../../context/NotificationProvider";
 
 const { width } = Dimensions.get("window");
 const HEADER_HEIGHT = 60;
@@ -43,7 +46,7 @@ const ProfilePhotographerScreen = () => {
     useState<PhotographerProfile | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-
+  const [showRatingModal, setShowRatingModal] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const { unreadCount } = useNotificationContext();
 
@@ -110,11 +113,26 @@ const ProfilePhotographerScreen = () => {
     { useNativeDriver: false }
   );
 
+  const handleRatingPress = () => {
+    if (photographerData) {
+      setShowRatingModal(true);
+    } else {
+      Alert.alert(
+        "Thông báo",
+        "Bạn cần trở thành nhiếp ảnh gia để xem đánh giá.",
+        [
+          { text: "Hủy", style: "cancel" },
+          {
+            text: "Đăng ký",
+            onPress: () => navigation.navigate("EditProfilePhotographer"),
+          },
+        ]
+      );
+    }
+  };
+
   const handleLogout = async () => {
-  Alert.alert(
-    "Đăng xuất", 
-    "Bạn có chắc chắn muốn đăng xuất không?", 
-    [
+    Alert.alert("Đăng xuất", "Bạn có chắc chắn muốn đăng xuất không?", [
       {
         text: "Hủy",
         style: "cancel",
@@ -128,19 +146,18 @@ const ProfilePhotographerScreen = () => {
 
             // Clear any cached data first
             await AsyncStorage.clear();
-            
+
             // Call logout from auth context
             await logout();
 
             // Small delay to ensure logout is processed
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
 
             // Reset navigation stack completely
             navigation.reset({
               index: 0,
               routes: [{ name: "Login" }],
             });
-
           } catch (error) {
             console.error("❌ Logout error:", error);
 
@@ -154,14 +171,11 @@ const ProfilePhotographerScreen = () => {
               [{ text: "OK" }]
             );
           }
-          // Note: Don't set setIsLoggingOut(false) in finally block
-          // because component will unmount after navigation reset
         },
       },
-    ]
-  );
-};
-  
+    ]);
+  };
+
   const handlePortfolioPress = () => {
     if (photographerData) {
       navigation.navigate("PortfolioScreen");
@@ -192,77 +206,72 @@ const ProfilePhotographerScreen = () => {
     setShowNotificationModal(true);
   };
 
-  
-
-  
-
   const menuItems = [
-  {
-    icon: "card-outline",
-    title: "Quản lý gói đăng ký",
-    hasNotification: false,
-    onPress: () => {
-      if (photographerData) {
-        navigation.navigate("SubscriptionManagement");
-      } else {
-        Alert.alert(
-          "Thông báo",
-          "Bạn cần trở thành nhiếp ảnh gia trước khi quản lý gói đăng ký.",
-          [
-            { text: "Hủy", style: "cancel" },
-            {
-              text: "Đăng ký",
-              onPress: () => navigation.navigate("EditProfilePhotographer"),
-            },
-          ]
-        );
-      }
+    {
+      icon: "card-outline",
+      title: "Quản lý gói đăng ký",
+      hasNotification: false,
+      onPress: () => {
+        if (photographerData) {
+          navigation.navigate("SubscriptionManagement");
+        } else {
+          Alert.alert(
+            "Thông báo",
+            "Bạn cần trở thành nhiếp ảnh gia trước khi quản lý gói đăng ký.",
+            [
+              { text: "Hủy", style: "cancel" },
+              {
+                text: "Đăng ký",
+                onPress: () => navigation.navigate("EditProfilePhotographer"),
+              },
+            ]
+          );
+        }
+      },
     },
-  },
-  {
-    icon: "settings-outline",
-    title: "Cài đặt tài khoản",
-    hasNotification: true,
-    // onPress: () => navigation.navigate('Settings')
-  },
-  {
-    icon: "help-circle-outline",
-    title: "Nhận trợ giúp",
-    // onPress: () => navigation.navigate('Help')
-  },
-  {
-    icon: "person-outline",
-    title: "Xem hồ sơ",
-    // onPress: () => navigation.navigate('ViewProfile')
-  },
-  {
-    icon: "hand-left-outline",
-    title: "Quyền riêng tư",
-    // onPress: () => navigation.navigate('Privacy')
-  },
-  {
-    icon: "people-outline",
-    title: "Giới thiệu host",
-    // onPress: () => navigation.navigate('BecomeHost')
-  },
-  {
-    icon: "business-outline",
-    title: "Tìm đồng chủ nhà",
-    // onPress: () => navigation.navigate('FindCoHost')
-  },
-  {
-    icon: "document-text-outline",
-    title: "Pháp lý",
-    // onPress: () => navigation.navigate('Legal')
-  },
-  {
-    icon: "log-out-outline",
-    title: "Đăng xuất",
-    onPress: handleLogout,
-    isLoading: isLoggingOut,
-  },
-];
-  
+    {
+      icon: "settings-outline",
+      title: "Cài đặt tài khoản",
+      hasNotification: true,
+      // onPress: () => navigation.navigate('Settings')
+    },
+    {
+      icon: "help-circle-outline",
+      title: "Nhận trợ giúp",
+      // onPress: () => navigation.navigate('Help')
+    },
+    {
+      icon: "person-outline",
+      title: "Xem hồ sơ",
+      // onPress: () => navigation.navigate('ViewProfile')
+    },
+    {
+      icon: "hand-left-outline",
+      title: "Quyền riêng tư",
+      // onPress: () => navigation.navigate('Privacy')
+    },
+    {
+      icon: "people-outline",
+      title: "Giới thiệu host",
+      // onPress: () => navigation.navigate('BecomeHost')
+    },
+    {
+      icon: "business-outline",
+      title: "Tìm đồng chủ nhà",
+      // onPress: () => navigation.navigate('FindCoHost')
+    },
+    {
+      icon: "document-text-outline",
+      title: "Pháp lý",
+      // onPress: () => navigation.navigate('Legal')
+    },
+    {
+      icon: "log-out-outline",
+      title: "Đăng xuất",
+      onPress: handleLogout,
+      isLoading: isLoggingOut,
+    },
+  ];
 
   const renderMenuItem = (item: any, index: number) => (
     <TouchableOpacity
@@ -361,12 +370,12 @@ const ProfilePhotographerScreen = () => {
             Hồ sơ
           </Animated.Text>
           <Animated.View style={{ opacity: headerOpacity }}>
-          <NotificationBadge
-            size="medium"
-            color="#FF385C"
-            onPress={handleNotificationPress}
-            iconName="bell"
-          />
+            <NotificationBadge
+              size="medium"
+              color="#FF385C"
+              onPress={handleNotificationPress}
+              iconName="bell"
+            />
           </Animated.View>
         </Animated.View>
       </Animated.View>
@@ -639,7 +648,13 @@ const ProfilePhotographerScreen = () => {
 
         {/* Photographer Stats Cards - 3 cards in a row */}
         {isLoadingProfile ? (
-          <View style={{ paddingHorizontal: 16, marginBottom: 30, alignItems: 'center' }}>
+          <View
+            style={{
+              paddingHorizontal: 16,
+              marginBottom: 30,
+              alignItems: "center",
+            }}
+          >
             <ActivityIndicator size="large" color="#666666" />
             <Text style={{ marginTop: 10, color: "#666666" }}>
               Đang tải thông tin nhiếp ảnh gia...
@@ -651,7 +666,7 @@ const ProfilePhotographerScreen = () => {
               style={{ flexDirection: "row", justifyContent: "space-between" }}
             >
               {/* Rating Card */}
-              <View
+              <TouchableOpacity
                 style={{
                   flex: 0.32,
                   backgroundColor: "#FFFFFF",
@@ -664,6 +679,7 @@ const ProfilePhotographerScreen = () => {
                   shadowRadius: 4,
                   elevation: 3,
                 }}
+                onPress={handleRatingPress}
               >
                 <Ionicons name="star" size={24} color="#FFD700" />
                 <Text
@@ -695,7 +711,7 @@ const ProfilePhotographerScreen = () => {
                 >
                   ({photographerData.ratingCount || 0} lượt)
                 </Text>
-              </View>
+              </TouchableOpacity>
 
               {/* Experience Card */}
               <View
@@ -794,12 +810,20 @@ const ProfilePhotographerScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Modal */}
+      {/* Updated Modal - Use PhotographerRatingsModal instead of RatingModal */}
+      <PhotographerRatingsModal
+        visible={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        photographerId={photographerData?.photographerId || ""}
+        photographerName={user?.fullName || "Photographer"}
+      />
+      
       <FavoritedModal
         visible={isModalVisible}
         favoritedUsers={favoritedUsers}
         onClose={handleModalClose}
       />
+
       <NotificationModal
         visible={showNotificationModal}
         onClose={() => setShowNotificationModal(false)}

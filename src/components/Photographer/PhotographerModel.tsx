@@ -13,7 +13,7 @@ import { AntDesign, Feather } from "@expo/vector-icons";
 import { getResponsiveSize } from "../../utils/responsive";
 import { usePhotographers } from "../../hooks/usePhotographers";
 import { photographerService } from "../../services/photographerService";
-import * as Location from 'expo-location';
+
 
 interface PhotographerModalProps {
   visible: boolean;
@@ -58,41 +58,44 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
   } = usePhotographers();
 
   // Fetch recommended photographers
-  const fetchRecommendedPhotographers = async () => {
-    if (!location) return;
+// Thay thế function fetchRecommendedPhotographers
+const fetchRecommendedPhotographers = async () => {
+  if (!location) return;
+  
+  setLoadingRecommend(true);
+  setErrorRecommend(null);
+  
+  try {
+    let targetLatitude: number;
+    let targetLongitude: number;
     
-    setLoadingRecommend(true);
-    setErrorRecommend(null);
-    
-    try {
-      // Lấy vị trí hiện tại
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Quyền truy cập vị trí bị từ chối');
-      }
-  
-      let currentLocation = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = currentLocation.coords;
-  
-      console.log("Using location:", { latitude, longitude, locationId: location.locationId });
-  
-      const photographers = await photographerService.getRecommended(
-        latitude,
-        longitude,
-        location.locationId,
-        50, 
-        20  
-      );
-      
-      setRecommendedPhotographers(photographers || []);
-    } catch (error) {
-      console.error('Error:', error);
-      setErrorRecommend('Không thể lấy vị trí hoặc tải danh sách photographer');
-      setRecommendedPhotographers([]);
-    } finally {
-      setLoadingRecommend(false);
+    if (location.latitude && location.longitude) {
+      // Sử dụng tọa độ của location - đây là case chính
+      targetLatitude = location.latitude;
+      targetLongitude = location.longitude;
+      console.log("Using location coordinates:", { latitude: targetLatitude, longitude: targetLongitude });
+    } else {
+      // Nếu location không có tọa độ thì báo lỗi thay vì fallback
+      throw new Error('Địa điểm không có thông tin tọa độ');
     }
-  };
+
+    const photographers = await photographerService.getRecommended(
+      targetLatitude,
+      targetLongitude,
+      location.locationId,
+      50, 
+      20  
+    );
+    
+    setRecommendedPhotographers(photographers || []);
+  } catch (error) {
+    console.error('Error:', error);
+    setErrorRecommend('Không thể tải danh sách photographer gần địa điểm này');
+    setRecommendedPhotographers([]);
+  } finally {
+    setLoadingRecommend(false);
+  }
+};
 
   // Load data when tab changes
   useEffect(() => {
@@ -225,7 +228,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
                       fontWeight: "bold",
                     }}
                   >
-                    Đã đặt ở đây
+                    Đã được đặt ở đây
                   </Text>
                 </View>
               )}
@@ -277,7 +280,7 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
                     marginLeft: getResponsiveSize(4),
                   }}
                 >
-                  Cách {photographer.distanceKm.toFixed(1)}km
+                  Cách địa điểm {photographer.distanceKm.toFixed(1)}km
                 </Text>
               </View>
             )}

@@ -15,6 +15,10 @@ export interface Location {
   createdAt?: string;
   updatedAt?: string;
 
+  // ➕ ADD COORDINATES
+  latitude?: number;
+  longitude?: number;
+
   rating?: number;
   ratingSum?: number;
   ratingCount?: number;
@@ -38,6 +42,11 @@ export interface LocationDto {
   availabilityStatus?: string;
   featuredStatus?: boolean;
   verificationStatus?: string;
+  
+  // ➕ ADD COORDINATES TO DTO
+  latitude?: number;
+  longitude?: number;
+  
   locationImages?: LocationImage[];
 }
 
@@ -56,8 +65,6 @@ export interface LocationOwner {
     phoneNumber?: string;
   };
 }
-
-
 
 export interface LocationOwnerDto {
   userId: number;

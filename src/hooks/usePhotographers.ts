@@ -15,6 +15,7 @@ export interface PhotographerData {
   yearsExperience?: number;
   equipment?: string;
   verificationStatus?: string;
+  distanceKm?: number;
 }
 
 export const usePhotographers = () => {
@@ -68,6 +69,11 @@ export const usePhotographers = () => {
     const equipment = photographerApiData.equipment;
     const verificationStatus = photographerApiData.verificationStatus;
     const portfolioUrl = photographerApiData.portfolioUrl;
+
+    const distanceKm = photographerApiData.distanceKm || 
+                     photographerApiData.distance || 
+                     photographerApiData.distanceInKm ||
+                     null;
     
     // Extract styles
     let styles: string[] = [];
@@ -102,6 +108,7 @@ export const usePhotographers = () => {
       yearsExperience,
       equipment,
       verificationStatus,
+      distanceKm
     };
 
     console.log('✅ Transformed photographer data:', JSON.stringify(result, null, 2));
@@ -126,6 +133,7 @@ export const usePhotographers = () => {
       yearsExperience: photographer.yearsExperience,
       equipment: photographer.equipment,
       verificationStatus: photographer.verificationStatus,
+      distanceKm: photographer.distanceKm
     };
   }, []);
 

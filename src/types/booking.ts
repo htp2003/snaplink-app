@@ -99,9 +99,7 @@ export enum BookingStatus {
   COMPLETED = 'Completed',
   CANCELLED = 'Cancelled',
   EXPIRED = 'Expired',
-
   UNDER_REVIEW = 'Under_Review'
-
 }
 
 export interface BookingFilters {

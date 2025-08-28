@@ -309,8 +309,8 @@ export default function FavoritesScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={['#10b981']}
-            tintColor="#10b981"
+            colors={['#FF385C']}
+            tintColor="#FF385C"
           />
         }
         contentContainerStyle={{

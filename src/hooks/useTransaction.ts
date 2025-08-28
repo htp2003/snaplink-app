@@ -134,6 +134,97 @@ export const useTransactionHistory = (photographerId: number, pageSize = 10): Us
   };
 };
 
+// Hook for user transaction history
+export const useUserTransactionHistory = (userId: number, pageSize = 10): UseTransactionHistoryReturn => {
+  const [transactions, setTransactions] = useState<DisplayTransaction[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+
+  const fetchTransactions = useCallback(async (page = 1, isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+        setCurrentPage(1);
+      } else if (page === 1) {
+        setLoading(true);
+      }
+
+      setError(null);
+
+      // Gọi getUserTransactionHistory thay vì getPhotographerTransactionHistory
+      const response = await transactionService.getUserTransactionHistory(userId, page, pageSize);
+      
+      // Check if response has transactions
+      if (!response || !response.transactions) {
+        throw new Error('No transaction data received');
+      }
+
+      // Convert API transactions to DisplayTransactions
+      const formattedTransactions: DisplayTransaction[] = response.transactions.map(transaction => 
+        transactionService.convertToDisplayTransaction(transaction)
+      );
+
+      if (page === 1 || isRefresh) {
+        setTransactions(formattedTransactions);
+      } else {
+        setTransactions(prev => [...prev, ...formattedTransactions]);
+      }
+
+      setTotalCount(response.totalCount || 0);
+      setHasMore(page < (response.totalPages || 1));
+      setCurrentPage(page);
+
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Đã xảy ra lỗi không xác định';
+      setError(errorMessage);
+      console.error('Error fetching user transactions:', err);
+      
+      Alert.alert(
+        'Lỗi', 
+        'Không thể tải lịch sử giao dịch. Vui lòng thử lại.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [userId, pageSize]); // Đổi từ photographerId thành userId
+
+  const refreshTransactions = useCallback(() => {
+    return fetchTransactions(1, true);
+  }, [fetchTransactions]);
+
+  const loadMoreTransactions = useCallback(() => {
+    if (hasMore && !loading) {
+      return fetchTransactions(currentPage + 1);
+    }
+    return Promise.resolve();
+  }, [fetchTransactions, currentPage, hasMore, loading]);
+
+  // Initial fetch
+  useEffect(() => {
+    if (userId > 0) { // Only fetch if we have a valid userId
+      fetchTransactions();
+    }
+  }, [fetchTransactions, userId]);
+
+  return {
+    transactions,
+    loading,
+    refreshing,
+    error,
+    hasMore,
+    totalCount,
+    fetchTransactions: () => fetchTransactions(),
+    refreshTransactions,
+    loadMoreTransactions,
+  };
+};
+
 // Hook for wallet balance
 export const useWallet = (userId: number): UseWalletReturn => {
   const [balance, setBalance] = useState<WalletBalance>({

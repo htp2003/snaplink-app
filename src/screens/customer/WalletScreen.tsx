@@ -15,9 +15,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../hooks/useAuth';
 import { useWithdrawalRequests } from '../../hooks/useWithdrawal';
 import {
-  useTransactionHistory,
   useWallet,
   useTransactionStats,
+  useUserTransactionHistory,
 } from '../../hooks/useTransaction';
 import transactionService from '../../services/transactionService';
 import WalletTopUpModal from '../../components/WalletTopUpModal';
@@ -40,7 +40,7 @@ const userId = getCurrentUserId();
     refreshing: transactionsRefreshing,
     error: transactionsError,
     refreshTransactions,
-  } = useTransactionHistory(shouldFetchData ? userId : 0, 5); // pageSize = 5 cho home screen
+  } = useUserTransactionHistory(shouldFetchData ? userId : 0, 5); // pageSize = 5 cho home screen
 
   // Hook khác cho wallet và stats
   const {
@@ -391,28 +391,6 @@ const userId = getCurrentUserId();
                 Ví của tôi
               </Text>
             </View>
-            <TouchableOpacity
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
-                backgroundColor: "#FFFFFF",
-                justifyContent: "center",
-                alignItems: "center",
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-                elevation: 3,
-              }}
-              onPress={onRefresh}
-            >
-              <Ionicons
-                name="refresh-outline"
-                size={24}
-                color="#000000"
-              />
-            </TouchableOpacity>
           </View>
           
           {/* Balance Card */}

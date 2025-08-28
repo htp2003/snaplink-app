@@ -282,6 +282,7 @@ export function useFavorites() {
 
   return {
     favorites: globalFavorites, 
+    loading,
     error,
     addFavorite,
     removeFavorite,

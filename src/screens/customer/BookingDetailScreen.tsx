@@ -25,7 +25,8 @@ import RatingModal from '../../components/RatingModel';
 import ComplaintModal from '../../components/ComplaintModal';
 import { photographerService } from '../../services/photographerService';
 import { useAuth } from '../../hooks/useAuth';
-import { useBooking } from 'src/hooks/useBooking';
+import complaintService, { ComplaintResponse } from 'src/services/complaintService';
+
 
 interface RouteParams {
   bookingId: number;
@@ -52,9 +53,10 @@ const BookingDetailScreen = () => {
   const [deliveryHasError, setDeliveryHasError] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+  const [userComplaint, setUserComplaint] = useState<ComplaintResponse | null>(null);
+  const [loadingComplaint, setLoadingComplaint] = useState(false);
 
-  const { setBookingUnderReview, settingUnderReview } = useBooking();
-  
+
 
   // Rating Modal State 
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -133,10 +135,27 @@ const BookingDetailScreen = () => {
     setDeliveryLoading(false);
   };
 
+  const fetchUserComplaint = async () => {
+    if (!bookingId) return;
+
+    try {
+      setLoadingComplaint(true);
+      const complaint = await complaintService.getComplaintByBooking(bookingId);
+      setUserComplaint(complaint);
+      console.log('Complaint status:', complaint ? 'Found' : 'None');
+    } catch (error) {
+      console.error('Error fetching complaint:', error);
+      setUserComplaint(null);
+    } finally {
+      setLoadingComplaint(false);
+    }
+  };
+
   // 🔄 UPDATED: Fix useEffect - remove booking dependency to avoid infinite loop
   useEffect(() => {
     fetchBookingDetails();
     fetchPhotoDelivery();
+    fetchUserComplaint();
   }, [bookingId]);
 
   // 🆕 NEW: Separate useEffect for photographer userId to avoid dependency issues
@@ -273,9 +292,10 @@ const BookingDetailScreen = () => {
     try {
       console.log('✅ Complaint submitted successfully');
       if (booking) {
-        // NEW: Use dedicated endpoint instead of updateBooking
-        await setBookingUnderReview(booking.id || booking.bookingId);
-        await fetchBookingDetails();
+        await Promise.all([
+          fetchBookingDetails(),
+          fetchUserComplaint()
+        ]);
       }
       Alert.alert(
         'Thành công',
@@ -430,21 +450,18 @@ const BookingDetailScreen = () => {
   };
 
   const canConfirmReceived = () => {
-    const statusStr = booking?.status.toString().toLowerCase();
-    const isUnderReview = statusStr === 'under_review' || statusStr === 'under review';
     return (
       booking &&
       photoDelivery &&
-      !isUnderReview &&
-      // 🆕 UPDATED: Different logic based on delivery method
+      !userComplaint && // ✅ Sử dụng state complaint thay vì field không tồn tại
       (
-        // For PhotographerDevice: need drive link
         (isPhotographerDevice() && photoDelivery.driveLink) ||
-        // For CustomerDevice: no drive link needed
         isCustomerDevice()
       ) &&
       photoDelivery.status.toLowerCase() !== 'delivered' &&
-      (booking.status === BookingStatus.CONFIRMED || booking.status === BookingStatus.IN_PROGRESS)
+      (booking.status === BookingStatus.CONFIRMED ||
+        booking.status === BookingStatus.IN_PROGRESS ||
+        booking.status === BookingStatus.UNDER_REVIEW)
     );
   };
 
@@ -455,6 +472,7 @@ const BookingDetailScreen = () => {
       booking &&
       photoDelivery &&
       !isUnderReview &&
+      !userComplaint &&
       // 🆕 UPDATED: Only show complaint for active bookings, not completed
       (booking.status === BookingStatus.CONFIRMED ||
         booking.status === BookingStatus.IN_PROGRESS)
@@ -488,7 +506,6 @@ const BookingDetailScreen = () => {
     return diffDays;
   };
 
-  // ✅ Render Photo Delivery Section with improved states and delivery method logic
   // ✅ Render Photo Delivery Section with improved states and delivery method logic
   const renderPhotoDeliverySection = () => {
     if (deliveryLoading) {
@@ -616,7 +633,10 @@ const BookingDetailScreen = () => {
           </TouchableOpacity>
         )}
 
-        {/* Complaint Button - Show for ALL delivery methods */}
+        {/* Complaint Status - Show complaint info or complaint button */}
+        {renderComplaintStatus()}
+
+        {/* Complaint Button - Only show if no complaint exists */}
         {canShowComplaint() && (
           <TouchableOpacity
             className="bg-orange-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
@@ -751,6 +771,143 @@ const BookingDetailScreen = () => {
         )}
       </>
     );
+  };
+
+  // ✅ Render Complaint Status
+  const renderComplaintStatus = () => {
+    if (loadingComplaint) {
+      return (
+        <View className="flex-row items-center justify-center py-4 px-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl mt-4 border border-gray-200">
+          <ActivityIndicator size="small" color="#6B7280" />
+          <Text className="ml-3 text-gray-600 font-medium">Đang kiểm tra khiếu nại...</Text>
+        </View>
+      );
+    }
+  
+    if (userComplaint) {
+      const getComplaintStatusConfig = (status: string) => {
+        switch (status.toLowerCase()) {
+          case 'pending': 
+            return {
+              bgColor: 'bg-amber-50',
+              borderColor: 'border-amber-200', 
+              iconColor: '#F59E0B',
+              iconBg: 'bg-amber-100',
+              textColor: 'text-amber-800',
+              subtextColor: 'text-amber-600',
+              statusText: 'Đang xử lý',
+              iconName: 'time-outline' as const // ✅ Use 'as const'
+            };
+          case 'inprogress': 
+            return {
+              bgColor: 'bg-blue-50',
+              borderColor: 'border-blue-200',
+              iconColor: '#3B82F6', 
+              iconBg: 'bg-blue-100',
+              textColor: 'text-blue-800',
+              subtextColor: 'text-blue-600',
+              statusText: 'Đang giải quyết',
+              iconName: 'refresh-outline' as const // ✅ Use 'as const'
+            };
+          case 'resolved': 
+            return {
+              bgColor: 'bg-emerald-50',
+              borderColor: 'border-emerald-200',
+              iconColor: '#10B981',
+              iconBg: 'bg-emerald-100', 
+              textColor: 'text-emerald-800',
+              subtextColor: 'text-emerald-600',
+              statusText: 'Đã giải quyết',
+              iconName: 'checkmark-circle-outline' as const // ✅ Use 'as const'
+            };
+          default: 
+            return {
+              bgColor: 'bg-gray-50',
+              borderColor: 'border-gray-200',
+              iconColor: '#6B7280',
+              iconBg: 'bg-gray-100',
+              textColor: 'text-gray-800', 
+              subtextColor: 'text-gray-600',
+              statusText: 'Chưa xác định',
+              iconName: 'document-text-outline' as const // ✅ Use 'as const'
+            };
+        }
+      };
+  
+      const config = getComplaintStatusConfig(userComplaint.status);
+  
+      return (
+        <TouchableOpacity
+          className={`${config.bgColor} ${config.borderColor} border-2 rounded-2xl mt-4 p-5 shadow-sm`}
+          onPress={() => {
+            Alert.alert(
+              'Chi tiết khiếu nại',
+              `Loại khiếu nại: ${userComplaint.complaintType}\n\nTrạng thái: ${config.statusText}\n\nNgày gửi: ${formatDate(userComplaint.createdAt)}${userComplaint.resolutionNotes ? `\n\nPhản hồi từ admin:\n${userComplaint.resolutionNotes}` : '\n\nChúng tôi sẽ liên hệ với bạn sớm nhất có thể.'}`,
+              [{ text: 'Đóng', style: 'default' }]
+            );
+          }}
+          activeOpacity={0.8}
+        >
+          {/* Header with icon and status */}
+          <View className="flex-row items-center justify-between mb-3">
+            <View className="flex-row items-center flex-1">
+              <View className={`${config.iconBg} w-10 h-10 rounded-full items-center justify-center mr-3`}>
+                <Ionicons name={config.iconName} size={20} color={config.iconColor} />
+              </View>
+              <View className="flex-1">
+                <Text className={`${config.textColor} text-base font-bold`}>
+                  Khiếu nại đã gửi
+                </Text>
+                <View className={`${config.iconBg} self-start px-2 py-1 rounded-full mt-1`}>
+                  <Text className={`${config.subtextColor} text-xs font-semibold`}>
+                    {config.statusText}
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <View className={`${config.iconBg} w-8 h-8 rounded-full items-center justify-center`}>
+              <Ionicons name="chevron-forward" size={16} color={config.iconColor} />
+            </View>
+          </View>
+  
+          {/* Complaint details */}
+          <View className="space-y-2">
+            <View className="flex-row items-start">
+              <Ionicons name="flag" size={16} color={config.iconColor} />
+              <Text className={`${config.subtextColor} text-sm font-medium ml-2 flex-1`} numberOfLines={2}>
+                {userComplaint.complaintType}
+              </Text>
+            </View>
+            
+            <View className="flex-row items-center">
+              <Ionicons name="calendar" size={16} color={config.iconColor} />
+              <Text className={`${config.subtextColor} text-sm ml-2`}>
+                {formatDate(userComplaint.createdAt)}
+              </Text>
+            </View>
+  
+            {userComplaint.assignedModeratorName && (
+              <View className="flex-row items-center">
+                <Ionicons name="person" size={16} color={config.iconColor} />
+                <Text className={`${config.subtextColor} text-sm ml-2`}>
+                  Người xử lý: {userComplaint.assignedModeratorName}
+                </Text>
+              </View>
+            )}
+          </View>
+  
+          {/* Action hint */}
+          <View className="flex-row items-center justify-center mt-4 pt-3 border-t border-gray-200">
+            <Ionicons name="information-circle-outline" size={14} color={config.iconColor} />
+            <Text className={`${config.subtextColor} text-xs ml-1`}>
+              Nhấn để xem chi tiết khiếu nại
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+  
+    return null;
   };
 
   // Loading state

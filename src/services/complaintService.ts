@@ -188,6 +188,21 @@ class ComplaintService {
     }
   }
 
+  async getComplaintByBooking(bookingId: number): Promise<ComplaintResponse | null> {
+    try {
+      const result = await this.makeRequest<ComplaintResponse>(
+        `/api/Complaint/by-booking/${bookingId}`
+      );
+      return result;
+    } catch (error) {
+      // 404 = không có complaint
+      if (error instanceof Error && error.message.includes('404')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   // 🆕 UPDATED: Simplified - no API call for types to avoid auth issues
   getComplaintTypesStatic(): string[] {
     return [

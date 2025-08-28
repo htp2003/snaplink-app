@@ -180,10 +180,8 @@ export type BookingStatusPhotographer =
   | 'Cancelled' 
   | 'Completed' 
   | 'InProgress'
-
-  | 'Under_Review'; 
-
-  | 'Complaints';
+  | 'Under_Review'
+  | 'Complaints'
 
 
 export interface BookingQueryParams {

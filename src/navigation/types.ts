@@ -1,4 +1,3 @@
-
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
 import { PriceCalculationResponse } from "../types/booking";
@@ -12,7 +11,7 @@ export interface GooglePlaceDisplay {
   latitude?: number;
   longitude?: number;
   rating?: number;
-  types?: string[];      // Array format from Google API
+  types?: string[]; // Array format from Google API
   photoReference?: string;
 }
 
@@ -21,10 +20,10 @@ export interface BookingExternalLocation {
   placeId: string;
   name: string;
   address: string;
-  description?: string;  // Optional for booking API
+  description?: string; // Optional for booking API
   latitude?: number;
   longitude?: number;
-  types?: string;        // String format for API (join array)
+  types?: string; // String format for API (join array)
 }
 
 // 🔧 UPDATED: Enhanced ExternalLocationData (for backward compatibility)
@@ -110,7 +109,7 @@ export type RootStackParamList = {
   ChangePasswordScreen: undefined;
   ForgotPassword: undefined;
   WithdrawalScreen: undefined;
-  
+
   // Photographer screens
   EditProfilePhotographer: undefined;
   SubscriptionManagement: undefined;
@@ -141,25 +140,26 @@ export type RootStackParamList = {
 
   // Customer screens
   PhotographerCardDetail: { photographerId: string };
-  
- 
+
   LocationCardDetail: {
-    locationId?: string;         
-    externalLocation?: GooglePlaceDisplay;  
+    locationId?: string;
+    externalLocation?: GooglePlaceDisplay;
   };
 
   ViewAllPhotographers: {
     type?: "recommended" | "popular" | "user-styles" | "all";
     title?: string;
     userId?: number | null;
-    location?: {  
+    location?: {
       latitude: number;
       longitude: number;
     };
   };
-  ViewAllLocations: {
-    type?: "nearby" | "all";
-  } | undefined;
+  ViewAllLocations:
+    | {
+        type?: "nearby" | "all";
+      }
+    | undefined;
   ProfileUserScreen: undefined;
   EditProfileUserScreen: undefined;
   OrderHistoryScreen: { userId: number };
@@ -175,7 +175,7 @@ export type RootStackParamList = {
     };
   };
   NewChatScreen: undefined;
-  
+
   // 🔧 FIXED: Booking - Updated external location type
   Booking: {
     photographer: {
@@ -268,7 +268,7 @@ export type RootStackParamList = {
       specialRate?: number;
     };
   };
-  
+
   OrderEventDetail: {
     eventBookingId: number;
     photographer: {
@@ -321,6 +321,7 @@ export type RootStackParamList = {
   VenueDetailScreen: { venueId: number };
   VenueOwnerSubscription: undefined;
   VenueOwnerTransaction: undefined;
+  VenueOwnerCreateLocation: undefined;
 
   // VenueOwner Event Management screens
   VenueOwnerEventDetail: {
@@ -396,7 +397,7 @@ export const convertToBookingExternalLocation = (
     description: undefined, // Can add description later if needed
     latitude: googlePlace.latitude,
     longitude: googlePlace.longitude,
-    types: googlePlace.types?.join(','), // Convert array to string
+    types: googlePlace.types?.join(","), // Convert array to string
   };
 };
 
@@ -410,7 +411,7 @@ export const convertToGooglePlaceDisplay = (
     address: bookingLocation.address,
     latitude: bookingLocation.latitude,
     longitude: bookingLocation.longitude,
-    types: bookingLocation.types?.split(','), // Convert string to array
+    types: bookingLocation.types?.split(","), // Convert string to array
     rating: undefined,
     photoReference: undefined,
   };
@@ -422,18 +423,22 @@ export type LocationCardDetailParams = {
   externalLocation?: GooglePlaceDisplay;
 };
 
-export const isAppLocation = (params: LocationCardDetailParams): params is { locationId: string } => {
+export const isAppLocation = (
+  params: LocationCardDetailParams
+): params is { locationId: string } => {
   return !!params.locationId && !params.externalLocation;
 };
 
-export const isExternalLocation = (params: LocationCardDetailParams): params is { 
-  externalLocation: GooglePlaceDisplay 
+export const isExternalLocation = (
+  params: LocationCardDetailParams
+): params is {
+  externalLocation: GooglePlaceDisplay;
 } => {
   return !!params.externalLocation && !params.locationId;
 };
 
 // Type guards for Booking params
-export type BookingParams = RootStackParamList['Booking'];
+export type BookingParams = RootStackParamList["Booking"];
 
 export const hasAppLocation = (params: BookingParams): boolean => {
   return !!params.location && !params.externalLocation;

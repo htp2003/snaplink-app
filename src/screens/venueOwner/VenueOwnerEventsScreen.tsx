@@ -386,14 +386,14 @@ export default function VenueOwnerEventsScreen() {
           { text: "Hủy", style: "cancel" },
           {
             text: "Tạo địa điểm",
-            onPress: () => navigation.navigate("VenueOwnerCreateLocation"),
+            onPress: () => navigation.navigate("VenueManagement"),
           },
         ]
       );
       return;
     }
 
-    navigation.navigate("VenueOwnerCreateEvent");
+    navigation.navigate("VenueManagement");
   };
 
   const handleLocationFilter = (location: LocationFilter) => {

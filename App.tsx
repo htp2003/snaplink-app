@@ -26,6 +26,9 @@ LogBox.ignoreLogs([
   'Failed to fetch images',
   'Warning: useInsertionEffect must not schedule updates',
   'useInsertionEffect must not schedule updates',
+  'Error: Failed to start the connection: Error: The connection was stopped during negotiation',
+  'SignalR initialization failed: [Error: The connection was stopped during negotiation.]',
+  'Failed to connect SignalR in ChatScreen',
   
   // Network and 404 errors
   'Network request failed',

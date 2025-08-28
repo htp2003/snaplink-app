@@ -38,7 +38,7 @@ type Props = CompositeScreenProps<
 export default function OrderManagementScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<
-    "confirmed" | "completed" | "complaints"
+    "confirmed" | "completed" | "complaints" | "cancelled"
   >("confirmed");
 
   // ✅ ADD AUTH CONTEXT:
@@ -129,7 +129,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
       return { bg: "#FEF3C7", text: "#D97706" }; // Màu vàng cam cảnh báo
     }
 
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "pending":
         return { bg: "#FEF3C7", text: "#D97706" };
       case "confirmed":
@@ -137,7 +137,8 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
       case "completed":
         return { bg: "#D1FAE5", text: "#059669" };
       case "rejected":
-        return { bg: "#FEE2E2", text: "#DC2626" };
+      case "cancelled":
+        return { bg: "#FEE2E2", text: "#DC2626" }; // Màu đỏ cho đã hủy
       case "in-progress":
         return { bg: "#E9D5FF", text: "#7C3AED" };
       default:
@@ -146,12 +147,12 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   };
 
   const getStatusText = (status: string, hasComplaint: boolean = false) => {
-    // Nếu đơn hàng bị complaint và đang confirmed, hiển thị "ĐANG XỬ LÍ"
+    // Nếu đơn hàng bị complaint và đang confirmed, hiển thị "ĐANG XỬ LÝ"
     if (hasComplaint && status.toLowerCase() === "confirmed") {
-      return "ĐANG XỬ LÍ";
+      return "ĐANG XỬ LÝ";
     }
 
-    switch (status) {
+    switch (status.toLowerCase()) {
       case "pending":
         return "Chờ xác nhận";
       case "confirmed":
@@ -159,6 +160,8 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
       case "completed":
         return "Hoàn thành";
       case "rejected":
+        return "Đã hủy";
+      case "cancelled":
         return "Đã hủy";
       case "in-progress":
         return "Đang thực hiện";
@@ -168,19 +171,58 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   };
 
   const getFilteredOrders = () => {
-  if (activeTab === "complaints") {
-    // Tab phàn nàn: chỉ hiện đơn có complaint
-    return getBookingsByStatus("confirmed")
-      .concat(getBookingsByStatus("completed"))
-      .filter(order => hasComplaints(parseInt(order.id)));
-  } else if (activeTab === "confirmed") {
-    // Tab đã nhận: loại bỏ đơn có complaint
-    return getBookingsByStatus("confirmed")
-      .filter(order => !hasComplaints(parseInt(order.id)));
-  }
-  return getBookingsByStatus(activeTab);
-};
+    // Debug log
+    console.log("Active tab:", activeTab);
+    console.log("All bookings:", bookings);
+    console.log("All complaints:", complaints);
 
+    if (activeTab === "complaints") {
+      // Tab phàn nàn: chỉ hiển thị đơn có complaint CHƯA resolved (Pending/In Progress)
+      const allBookings = [
+        ...getBookingsByStatus("confirmed"),
+        ...getBookingsByStatus("completed"),
+      ];
+
+      const filteredWithActiveComplaints = allBookings.filter((order) => {
+        const bookingId = parseInt(order.id);
+        const bookingComplaints = getComplaintsByBookingId(bookingId);
+
+        // Chỉ hiển thị đơn có complaint chưa resolved
+        const hasActiveComplaints = bookingComplaints.some(
+          (complaint) => complaint.status !== "Resolved"
+        );
+
+        console.log(
+          `Booking ${order.id}: hasActiveComplaints = ${hasActiveComplaints}`
+        );
+        return hasActiveComplaints;
+      });
+
+      console.log(
+        "Filtered bookings with active complaints:",
+        filteredWithActiveComplaints
+      );
+      return filteredWithActiveComplaints;
+    } else if (activeTab === "confirmed") {
+      // Tab đã nhận: loại bỏ đơn có complaint chưa resolved
+      return getBookingsByStatus("confirmed").filter((order) => {
+        const bookingId = parseInt(order.id);
+        const bookingComplaints = getComplaintsByBookingId(bookingId);
+
+        // Loại bỏ đơn có complaint chưa resolved
+        const hasActiveComplaints = bookingComplaints.some(
+          (complaint) => complaint.status !== "Resolved"
+        );
+
+        return !hasActiveComplaints;
+      });
+    } else if (activeTab === "cancelled") {
+      // Tab đã hủy: chỉ hiển thị đơn có status cancelled
+      return getBookingsByStatus("cancelled");
+    }
+
+    return getBookingsByStatus(activeTab);
+  };
   const filteredOrders = getFilteredOrders();
   const bookingCounts = getBookingCounts();
 
@@ -460,9 +502,21 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
   const getTabCount = (tab: string) => {
     switch (tab) {
       case "confirmed":
-        return bookingCounts.confirmed;
+        // Đếm đơn confirmed KHÔNG có complaint active
+        return getBookingsByStatus("confirmed").filter((order) => {
+          const bookingId = parseInt(order.id);
+          const bookingComplaints = getComplaintsByBookingId(bookingId);
+          const hasActiveComplaints = bookingComplaints.some(
+            (complaint) => complaint.status !== "Resolved"
+          );
+          return !hasActiveComplaints;
+        }).length;
       case "completed":
         return bookingCounts.completed;
+      case "cancelled":
+        return (
+          bookingCounts.cancelled || getBookingsByStatus("cancelled").length
+        );
       default:
         return 0;
     }
@@ -600,6 +654,11 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
               key: "completed",
               label: "Hoàn thành",
               count: getTabCount("completed"),
+            },
+            {
+              key: "cancelled",
+              label: "Đã hủy",
+              count: getTabCount("cancelled"),
             },
             {
               key: "complaints",
@@ -785,7 +844,13 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
               {loading
                 ? "Đang tải..."
                 : `Không có đơn hàng ${
-                    activeTab === "confirmed" ? "đã nhận" : "hoàn thành"
+                    activeTab === "confirmed"
+                      ? "đã nhận"
+                      : activeTab === "completed"
+                      ? "hoàn thành"
+                      : activeTab === "cancelled"
+                      ? "đã hủy"
+                      : "phàn nàn"
                   }`}
             </Text>
             {bookings.length > 0 && (
@@ -820,53 +885,6 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                     overflow: "hidden",
                   }}
                 >
-                  {/* Status Indicator Bar */}
-                  <View
-                    style={{
-                      backgroundColor: (() => {
-                        const orderHasComplaints = hasComplaints(
-                          parseInt(order.id)
-                        );
-                        if (
-                          orderHasComplaints &&
-                          order.status.toLowerCase() === "confirmed"
-                        ) {
-                          return "#FEF3C7"; // Nền vàng cam cho complaint
-                        }
-                        return "#FAFAFA";
-                      })(),
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 4,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 10,
-                        color: (() => {
-                          const orderHasComplaints = hasComplaints(
-                            parseInt(order.id)
-                          );
-                          if (
-                            orderHasComplaints &&
-                            order.status.toLowerCase() === "confirmed"
-                          ) {
-                            return "#D97706"; // Màu text cảnh báo
-                          }
-                          return order.status === "completed"
-                            ? "#1A1A1A"
-                            : "#8A8A8A";
-                        })(),
-                        letterSpacing: 0.5,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {getStatusText(
-                        order.status,
-                        hasComplaints(parseInt(order.id))
-                      )}
-                    </Text>
-                  </View>
 
                   <View style={{ padding: 20 }}>
                     {/* Header Section */}
@@ -903,7 +921,10 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
 
                       <View
                         style={{
-                          backgroundColor: "#FAFAFA",
+                          backgroundColor: getStatusColor(
+                            order.status,
+                            hasComplaints(parseInt(order.id))
+                          ).bg,
                           paddingHorizontal: 12,
                           paddingVertical: 6,
                           borderRadius: 4,
@@ -912,15 +933,18 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                         <Text
                           style={{
                             fontSize: 10,
-                            color:
-                              order.status === "completed"
-                                ? "#1A1A1A"
-                                : "#8A8A8A",
+                            color: getStatusColor(
+                              order.status,
+                              hasComplaints(parseInt(order.id))
+                            ).text,
                             letterSpacing: 0.5,
                             textTransform: "uppercase",
                           }}
                         >
-                          {getStatusText(order.status)}
+                          {getStatusText(
+                            order.status,
+                            hasComplaints(parseInt(order.id))
+                          )}
                         </Text>
                       </View>
                     </View>
@@ -1186,7 +1210,7 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
                       )}
 
                       {(order.status === "completed" ||
-                        order.status === "rejected") && (
+                        order.status === "cancelled") && (
                         <TouchableOpacity
                           style={{
                             flex: 1,

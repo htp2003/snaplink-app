@@ -20,6 +20,7 @@ const BOOKING_ENDPOINTS = {
   CANCEL: (bookingId: number) => `/api/Booking/${bookingId}/cancel`,
   COMPLETE: (bookingId: number) => `/api/Booking/${bookingId}/complete`,
   CONFIRM: (bookingId: number) => `/api/Booking/${bookingId}/confirm`,
+  UNDER_REVIEW: (bookingId: number) => `/api/Booking/${bookingId}/under-review`,
   PHOTOGRAPHER_AVAILABILITY: (photographerId: number) =>
     `/api/Booking/availability/photographer/${photographerId}`,
   LOCATION_AVAILABILITY: (locationId: number) =>
@@ -271,6 +272,17 @@ export class BookingService {
       console.log(`✅ Booking ${bookingId} confirmed successfully`);
     } catch (error) {
       console.error("❌ Error confirming booking:", error);
+      throw error;
+    }
+  }
+
+  async setBookingUnderReview(bookingId: number): Promise<void> {
+    try {
+      console.log(`📄 Setting booking ${bookingId} under review...`);
+      await apiClient.put<void>(BOOKING_ENDPOINTS.UNDER_REVIEW(bookingId));
+      console.log(`✅ Booking ${bookingId} set under review successfully`);
+    } catch (error) {
+      console.error("❌ Error setting booking under review:", error);
       throw error;
     }
   }

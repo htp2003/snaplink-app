@@ -27,7 +27,8 @@ export const useBooking = (options: UseBookingOptions = {}) => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [confirming, setConfirming] = useState(false); // ✅ NEW: confirming state
+  const [confirming, setConfirming] = useState(false); 
+  const [settingUnderReview, setSettingUnderReview] = useState(false);; 
   const [error, setError] = useState<string | null>(null);
 
   // ===== AVAILABILITY & PRICING STATES =====
@@ -376,6 +377,50 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     [confirming, currentBooking]
   );
 
+  const setBookingUnderReview = useCallback(
+    async (bookingId: number): Promise<boolean> => {
+      if (settingUnderReview) return false;
+  
+      try {
+        setSettingUnderReview(true);
+        setError(null);
+  
+        await bookingService.setBookingUnderReview(bookingId);
+  
+        // Update local state
+        setBookings((prev) =>
+          prev.map((booking) =>
+            booking.id === bookingId
+              ? { ...booking, status: BookingStatus.UNDER_REVIEW }
+              : booking
+          )
+        );
+  
+        if (currentBooking?.id === bookingId) {
+          setCurrentBooking((prev) =>
+            prev ? { ...prev, status: BookingStatus.UNDER_REVIEW } : null
+          );
+        }
+  
+        console.log(`✅ Booking ${bookingId} set under review successfully in hook`);
+        return true;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Không thể cập nhật trạng thái booking";
+        setError(errorMessage);
+        console.error("❌ Hook: Error in setBookingUnderReview:", err);
+        return false;
+      } finally {
+        setSettingUnderReview(false);
+      }
+    },
+    [settingUnderReview, currentBooking]
+  );
+
+  
+
+
+
   // ===== AVAILABILITY & PRICING METHODS =====
 
 
@@ -537,6 +582,8 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     completeBooking,
     confirmBooking, // ✅ NEW: confirmBooking method
     validateBookingForm,
+    settingUnderReview,
+    setBookingUnderReview,
 
     // ===== AVAILABILITY & PRICING METHODS =====
     calculatePrice,

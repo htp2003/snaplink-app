@@ -25,6 +25,7 @@ import RatingModal from '../../components/RatingModel';
 import ComplaintModal from '../../components/ComplaintModal';
 import { photographerService } from '../../services/photographerService';
 import { useAuth } from '../../hooks/useAuth';
+import { useBooking } from 'src/hooks/useBooking';
 
 interface RouteParams {
   bookingId: number;
@@ -51,6 +52,9 @@ const BookingDetailScreen = () => {
   const [deliveryHasError, setDeliveryHasError] = useState(false);
   const [deliveryError, setDeliveryError] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
+
+  const { setBookingUnderReview, settingUnderReview } = useBooking();
+  
 
   // Rating Modal State 
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -269,9 +273,8 @@ const BookingDetailScreen = () => {
     try {
       console.log('✅ Complaint submitted successfully');
       if (booking) {
-        await bookingService.updateBooking(booking.id || booking.bookingId, {
-          status: 'Under_Review'
-        })
+        // NEW: Use dedicated endpoint instead of updateBooking
+        await setBookingUnderReview(booking.id || booking.bookingId);
         await fetchBookingDetails();
       }
       Alert.alert(
@@ -283,7 +286,7 @@ const BookingDetailScreen = () => {
       console.error('Error submitting complaint:', error);
       Alert.alert('Lỗi', 'Không thể gửi khiếu nại');
     }
-  }
+  };
 
   const canShowCancelBooking = () => {
     const statusStr = booking?.status.toString().toLowerCase();

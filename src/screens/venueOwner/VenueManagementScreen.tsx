@@ -20,6 +20,7 @@ import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
 import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
 import { useAuth } from "../../hooks/useAuth";
 import { useVenueOwnerLocationImages } from "../../hooks/useVenueOwnerLocationImages";
+import { LocationPickerModal } from "../../components/venueOwner/LocationPickerModal";
 import {
   VenueLocation,
   CreateLocationRequest,
@@ -47,6 +48,7 @@ export default function VenueManagementScreen() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showLocationPicker, setShowLocationPicker] = useState(false);
   const [selectedLocation, setSelectedLocation] =
     useState<VenueLocation | null>(null);
   const [editingLocation, setEditingLocation] = useState<VenueLocation | null>(
@@ -77,6 +79,11 @@ export default function VenueManagementScreen() {
     capacity: "",
     indoor: false,
     outdoor: false,
+    // New location fields
+    latitude: undefined as number | undefined,
+    longitude: undefined as number | undefined,
+    placeName: "",
+    placeId: "",
   });
 
   // Filter locations by actual locationOwnerId from profile
@@ -99,7 +106,7 @@ export default function VenueManagementScreen() {
         setLocationOwnerId(null);
       }
     } catch (error) {
-      console.error("❌ Error getting venue owner profile:", error);
+      console.error("Error getting venue owner profile:", error);
       setLocationOwnerId(null);
     } finally {
       setProfileLoading(false);
@@ -108,25 +115,25 @@ export default function VenueManagementScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      console.log("🔄 Screen focused, checking venue owner profile...");
+      console.log("Screen focused, checking venue owner profile...");
       fetchVenueOwnerProfile();
     }, [fetchVenueOwnerProfile])
   );
 
   useEffect(() => {
     if (!profileLoading && locationOwnerId) {
-      console.log("🏠 Loading locations for owner ID:", locationOwnerId);
+      console.log("Loading locations for owner ID:", locationOwnerId);
       getAllLocations();
     }
   }, [profileLoading, locationOwnerId, forceRefreshKey]);
 
   const onRefresh = async () => {
-    console.log("🔄 Manual refresh triggered");
+    console.log("Manual refresh triggered");
     await Promise.all([fetchVenueOwnerProfile(), refreshLocations()]);
   };
 
   const forceRefresh = useCallback(async () => {
-    console.log("🔄 Force refresh triggered");
+    console.log("Force refresh triggered");
     setForceRefreshKey((prev) => prev + 1);
     await fetchVenueOwnerProfile();
   }, [fetchVenueOwnerProfile]);
@@ -141,6 +148,10 @@ export default function VenueManagementScreen() {
       capacity: "",
       indoor: false,
       outdoor: false,
+      latitude: undefined,
+      longitude: undefined,
+      placeName: "",
+      placeId: "",
     });
     setEditingLocation(null);
   };
@@ -160,6 +171,10 @@ export default function VenueManagementScreen() {
       capacity: location.capacity?.toString() || "",
       indoor: location.indoor || false,
       outdoor: location.outdoor || false,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      placeName: location.name || "",
+      placeId: location.externalPlaceId || "",
     });
     setEditingLocation(location);
     setShowCreateModal(true);
@@ -169,6 +184,28 @@ export default function VenueManagementScreen() {
     setSelectedLocation(location);
     setShowImageModal(true);
     clearImageError();
+  };
+
+  // Handle location selection from picker
+  const handleLocationSelected = (locationData: {
+    latitude?: number;
+    longitude?: number;
+    address?: string;
+    placeName?: string;
+    placeId?: string;
+  }) => {
+    setFormData((prev) => ({
+      ...prev,
+      latitude: locationData.latitude,
+      longitude: locationData.longitude,
+      placeName: locationData.placeName || "",
+      placeId: locationData.placeId || "",
+      // Update address if selected from place
+      address:
+        locationData.address && locationData.placeName !== "Vị trí hiện tại"
+          ? locationData.address
+          : prev.address,
+    }));
   };
 
   const handleSave = async () => {
@@ -195,6 +232,8 @@ export default function VenueManagementScreen() {
           capacity: formData.capacity ? parseInt(formData.capacity) : undefined,
           indoor: formData.indoor,
           outdoor: formData.outdoor,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
         };
 
         const result = await updateLocation(
@@ -221,6 +260,9 @@ export default function VenueManagementScreen() {
           featuredStatus: false,
           verificationStatus: "pending",
           locationType: "Registered",
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          // Note: externalPlaceId is not in CreateLocationRequest interface but can be added if needed
         };
 
         const result = await createLocation(createData);
@@ -348,6 +390,19 @@ export default function VenueManagementScreen() {
       return primaryImage?.url || location.images[0].url;
     }
     return null;
+  };
+
+  // Get location display text
+  const getLocationDisplayText = () => {
+    if (formData.placeName && formData.placeName !== "Vị trí hiện tại") {
+      return formData.placeName;
+    }
+    if (formData.latitude && formData.longitude) {
+      return `${formData.latitude.toFixed(6)}, ${formData.longitude.toFixed(
+        6
+      )}`;
+    }
+    return "Chọn vị trí địa điểm";
   };
 
   // Loading State
@@ -791,6 +846,36 @@ export default function VenueManagementScreen() {
                 </View>
               </View>
 
+              {/* Location Section */}
+              <View className="bg-gray-50 p-4 rounded-2xl">
+                <Text className="text-lg font-bold text-gray-900 mb-4">
+                  Vị trí địa điểm
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => setShowLocationPicker(true)}
+                  className="bg-white border border-gray-200 rounded-xl p-4 flex-row items-center justify-between"
+                >
+                  <View className="flex-row items-center flex-1">
+                    <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center mr-3">
+                      <Ionicons name="location" size={20} color="#3B82F6" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-gray-900 font-medium text-base">
+                        {getLocationDisplayText()}
+                      </Text>
+                      {formData.latitude && formData.longitude && (
+                        <Text className="text-gray-500 text-sm mt-1">
+                          Lat: {formData.latitude.toFixed(6)}, Lng:{" "}
+                          {formData.longitude.toFixed(6)}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
               {/* Details */}
               <View className="bg-gray-50 p-4 rounded-2xl">
                 <Text className="text-lg font-bold text-gray-900 mb-4">
@@ -969,6 +1054,13 @@ export default function VenueManagementScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Location Picker Modal */}
+      <LocationPickerModal
+        visible={showLocationPicker}
+        onClose={() => setShowLocationPicker(false)}
+        onLocationSelected={handleLocationSelected}
+      />
 
       {/* Image Management Modal */}
       <Modal

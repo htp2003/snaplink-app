@@ -91,6 +91,7 @@ export interface BookingListResponse {
   totalPages: number;
 }
 
+// 📝 UPDATED: Added UNDER_REVIEW status
 export enum BookingStatus {
   PENDING = 'Pending',
   CONFIRMED = 'Confirmed',
@@ -98,6 +99,9 @@ export enum BookingStatus {
   COMPLETED = 'Completed',
   CANCELLED = 'Cancelled',
   EXPIRED = 'Expired',
+
+  UNDER_REVIEW = 'Under_Review'
+
 }
 
 export interface BookingFilters {
@@ -169,13 +173,18 @@ export interface Booking {
   pricePerHour: number;
 }
 
+// 📝 UPDATED: Added Under_Review for photographer status
 export type BookingStatusPhotographer = 
   | 'Pending' 
   | 'Confirmed' 
   | 'Cancelled' 
   | 'Completed' 
   | 'InProgress'
+
+  | 'Under_Review'; 
+
   | 'Complaints';
+
 
 export interface BookingQueryParams {
   page?: number;
@@ -206,7 +215,7 @@ export interface BookingCardData {
   time: string;
   duration: number;
   totalPrice: number;
-  status: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'in-progress';
+  status: 'pending' | 'confirmed' | 'rejected' | 'completed' | 'in-progress' | 'under-review'; 
   description: string;
   createdAt: string;
   specialRequests?: string;

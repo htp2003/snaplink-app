@@ -239,5 +239,45 @@ export interface WalletBalanceResponse {
   currency: string;
 }
 
+export interface LocationBookingCountResponse {
+  locationId: number;
+  count: number;
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface DistanceCalculationRequest {
+  photographerId: number;
+  startTime: string;
+  endTime: string;
+  locationId: number;
+}
+
+
+export interface DistanceCalculationResponse {
+  hasConflict: boolean;
+  distanceInKm?: number;
+  travelTimeEstimateMinutes?: number;
+  availableTimeMinutes?: number;
+  isTravelTimeFeasible?: boolean;
+  previousBookingId?: number;
+  previousBookingEndTime?: string;
+  previousLocationId?: number;
+  previousLocationName?: string;
+  previousLocationAddress?: string;
+  suggestedStartTime?: string;
+  message?: string;
+
+  // ✅ NEW: Additional fields from API response
+  photographerId?: number;
+  intendedBookingStartTime?: string;
+  intendedBookingEndTime?: string;
+  intendedLocationId?: number;
+  intendedLocationName?: string;
+  intendedLocationAddress?: string;
+  previousBookingFound?: boolean;
+  errorDetails?: string | null;
+}
+
 // ===== RE-EXPORT PAYMENT TYPES for backward compatibility =====
 export type { PaymentResponse, CreatePaymentLinkRequest };

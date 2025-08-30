@@ -7,6 +7,7 @@ import type {
   BookingResponse,
   BookingListResponse,
   PriceCalculationResponse,
+  DistanceCalculationResponse,
 } from "../types/booking";
 import type { CheckAvailabilityResponse } from "../types/availability";
 
@@ -28,6 +29,8 @@ const BOOKING_ENDPOINTS = {
   CALCULATE_PRICE: "/api/Booking/calculate-price",
   CLEANUP_EXPIRED: "/api/Booking/cleanup-expired",
   CLEANUP_PENDING: "/api/Booking/cleanup-all-pending",
+  LOCATION_BOOKING_COUNT: (locationId: number) => `/api/Booking/count/location/${locationId}`,
+  DISTANCE_CALCULATION: "/api/Booking/distance-calculation",
 };
 
 export class BookingService {
@@ -284,6 +287,143 @@ export class BookingService {
     } catch (error) {
       console.error("❌ Error setting booking under review:", error);
       throw error;
+    }
+  }
+
+  async getLocationBookingCount(
+    locationId: number,
+    startTime?: string,
+    endTime?: string
+  ): Promise<number> {
+    try {
+      console.log("🏢 BOOKING COUNT API CALL:", {
+        locationId,
+        startTime,
+        endTime,
+        startTimeType: typeof startTime,
+        endTimeType: typeof endTime,
+        apiEndpoint: BOOKING_ENDPOINTS.LOCATION_BOOKING_COUNT(locationId)
+      });
+  
+      const params = new URLSearchParams();
+      
+      if (startTime) {
+        params.append("startTime", startTime);
+      }
+      if (endTime) {
+        params.append("endTime", endTime);
+      }
+  
+      const queryString = params.toString();
+      const url = queryString 
+        ? `${BOOKING_ENDPOINTS.LOCATION_BOOKING_COUNT(locationId)}?${queryString}`
+        : BOOKING_ENDPOINTS.LOCATION_BOOKING_COUNT(locationId);
+  
+      console.log("🔗 FULL API URL:", url);
+  
+      const response = await apiClient.get<any>(url);
+      
+      // API trả về object với bookingCount
+      const count = response.data?.bookingCount || response.bookingCount || response;
+      
+      console.log("✅ BOOKING COUNT RESPONSE:", {
+        locationId,
+        rawResponse: response,
+        extractedCount: count,
+        requestedTimeRange: startTime && endTime ? `${startTime} -> ${endTime}` : 'No time filter',
+      });
+  
+      return typeof count === 'number' ? count : 0;
+    } catch (error) {
+      console.error("❌ ERROR fetching location booking count:", {
+        locationId,
+        startTime,
+        endTime,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return 0;
+    }
+  }
+
+  async checkDistanceConflict(
+    photographerId: number,
+    startTime: string,
+    endTime: string,
+    locationId: number
+  ): Promise<DistanceCalculationResponse> {
+    try {
+      const params = new URLSearchParams({
+        photographerId: photographerId.toString(),
+        startTime,
+        endTime,
+        locationId: locationId.toString(), // Already converted to string for URL
+      });
+  
+      const response = await apiClient.get<any>(
+        `${BOOKING_ENDPOINTS.DISTANCE_CALCULATION}?${params}`
+      );
+  
+      console.log("📍 Distance API Response:", response);
+  
+      const apiData = response.data?.data || response.data || response;
+      
+      const hasConflict = (
+        apiData.isTravelTimeFeasible === false || 
+        (apiData.previousBookingFound === true && apiData.availableTimeMinutes === 0) ||
+        apiData.hasConflict === true
+      );
+  
+      return {
+        hasConflict: hasConflict,
+        distanceInKm: apiData.distanceInKm,
+        travelTimeEstimateMinutes: apiData.travelTimeEstimateMinutes,
+        availableTimeMinutes: apiData.availableTimeMinutes,
+        isTravelTimeFeasible: apiData.isTravelTimeFeasible,
+        previousBookingId: apiData.previousBookingId,
+        previousBookingEndTime: apiData.previousBookingEndTime,
+        previousLocationId: apiData.previousLocationId,
+        previousLocationName: apiData.previousLocationName,
+        previousLocationAddress: apiData.previousLocationAddress,
+        suggestedStartTime: apiData.suggestedStartTime || (
+          hasConflict && apiData.previousBookingEndTime
+            ? this.calculateSuggestedTime(apiData.previousBookingEndTime, apiData.travelTimeEstimateMinutes)
+            : undefined
+        ),
+        message: apiData.message || (
+          hasConflict 
+            ? "Photographer có lịch trước đó, có thể gặp xung đột về thời gian di chuyển"
+            : "Không có xung đột về thời gian di chuyển"
+        ),
+      };
+  
+    } catch (error) {
+      console.error("Distance conflict check error:", error);
+      return {
+        hasConflict: false,
+        message: "Không thể kiểm tra xung đột địa lý",
+      };
+    }
+  }
+  
+  // ✅ NEW: Helper method to calculate suggested start time
+  private calculateSuggestedTime(previousEndTime: string, travelMinutes?: number): string {
+    try {
+      const endTime = new Date(previousEndTime);
+      
+      // Đơn giản: luôn suggest giờ tiếp theo (15:00 thay vì 14:35)
+      // Điều này đảm bảo đủ thời gian và dễ nhớ cho customer
+      
+      const nextHour = new Date(endTime);
+      nextHour.setHours(endTime.getHours() + 1);
+      nextHour.setMinutes(0);
+      nextHour.setSeconds(0);
+      
+      const hours = nextHour.getHours().toString().padStart(2, '0');
+      const minutes = nextHour.getMinutes().toString().padStart(2, '0');
+      
+      return `${hours}:${minutes}`;
+    } catch (error) {
+      return "";
     }
   }
 

@@ -12,6 +12,7 @@ import {
   BookingValidationErrors,
   UseBookingOptions,
   BookingStatus,
+  DistanceCalculationResponse,
 } from "../types/booking";
 import type { CheckAvailabilityResponse } from "../types/availability";
 import { availabilityService } from "../services/availabilityService";
@@ -30,6 +31,12 @@ export const useBooking = (options: UseBookingOptions = {}) => {
   const [confirming, setConfirming] = useState(false); 
   const [settingUnderReview, setSettingUnderReview] = useState(false);; 
   const [error, setError] = useState<string | null>(null);
+
+  const [locationBookingCount, setLocationBookingCount] = useState<number>(0);
+  const [loadingBookingCount, setLoadingBookingCount] = useState(false);
+
+  const [distanceConflict, setDistanceConflict] = useState<DistanceCalculationResponse | null>(null);
+  const [checkingDistanceConflict, setCheckingDistanceConflict] = useState(false);
 
   // ===== AVAILABILITY & PRICING STATES =====
   const [availability, setAvailability] =
@@ -503,6 +510,87 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     return booking.status === BookingStatus.PENDING;
   }, []);
 
+  // ===== LOCATION BOOKING COUNT =====
+  const fetchLocationBookingCount = useCallback(
+    async (
+      locationId: number,
+      startTime?: string,
+      endTime?: string
+    ): Promise<number> => {
+      try {
+        setLoadingBookingCount(true);
+        setError(null);
+  
+        console.log("🎯 HOOK: Fetching booking count:", {
+          locationId,
+          startTime,
+          endTime,
+        });
+  
+        const count = await bookingService.getLocationBookingCount(
+          locationId,
+          startTime,
+          endTime
+        );
+  
+        console.log("📊 HOOK: Booking count result:", {
+          locationId,
+          count,
+          willShowNotification: count > 0,
+        });
+  
+        setLocationBookingCount(count);
+        return count;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error
+            ? err.message
+            : "Không thể lấy số lượng booking tại location";
+        
+        setError(errorMessage);
+        return 0;
+      } finally {
+        setLoadingBookingCount(false);
+      }
+    },
+    []
+  );
+
+  // ===== DISTANCE CONFLICT =====
+  const checkDistanceConflict = useCallback(
+    async (
+      photographerIdParam: number,
+      startTime: string,
+      endTime: string,
+      locationId: number
+    ): Promise<DistanceCalculationResponse | null> => {
+      if (checkingDistanceConflict) return null;
+  
+      try {
+        setCheckingDistanceConflict(true);
+        setError(null);
+  
+        const response = await bookingService.checkDistanceConflict(
+          photographerIdParam,
+          startTime,
+          endTime,
+          locationId
+        );
+  
+        setDistanceConflict(response);
+        return response;
+      } catch (err) {
+        const errorMessage =
+          err instanceof Error ? err.message : "Không thể kiểm tra xung đột địa lý";
+        setError(errorMessage);
+        return null;
+      } finally {
+        setCheckingDistanceConflict(false);
+      }
+    },
+    [checkingDistanceConflict]
+  );
+
   const getBookingStatusColor = useCallback((status: BookingStatus): string => {
     switch (status) {
       case BookingStatus.PENDING:
@@ -585,6 +673,13 @@ export const useBooking = (options: UseBookingOptions = {}) => {
     validateBookingForm,
     settingUnderReview,
     setBookingUnderReview,
+    locationBookingCount,
+    loadingBookingCount,
+    fetchLocationBookingCount,
+    distanceConflict,
+    checkingDistanceConflict,
+    checkDistanceConflict,
+    setDistanceConflict,
 
     // ===== AVAILABILITY & PRICING METHODS =====
     calculatePrice,

@@ -19,7 +19,7 @@ import { useBooking } from "../../hooks/useBooking";
 import { useAvailability } from "../../hooks/useAvailability";
 import { useLocations } from "../../hooks/useLocations";
 import type { RootStackNavigationProp } from "../../navigation/types";
-import type { CreateBookingRequest } from "../../types/booking";
+import type { CreateBookingRequest, DistanceCalculationResponse } from "../../types/booking";
 import { useAuth } from "../../hooks/useAuth";
 import { photographerStyleRecommendations } from "../../hooks/useStyleRecommendations";
 import { useCurrentUserId } from "../../hooks/useAuth";
@@ -31,6 +31,8 @@ import PhotographerModal from "src/components/Photographer/PhotographerModel";
 
 
 import { useNotificationContext } from '../../context/NotificationProvider';
+
+import { DistanceConflictWarning } from "../../components/DistanceConflictWarning";
 
 // Route params interface - UPDATED
 interface RouteParams {
@@ -86,6 +88,7 @@ export default function BookingScreen() {
   const route = useRoute();
   const currentUserId = useCurrentUserId();
 
+
   // Extract both photographer and location params
   const { photographer, location, editMode, existingBookingId, existingBookingData } =
     route.params as RouteParams;
@@ -101,10 +104,21 @@ export default function BookingScreen() {
     hasPhotographer: !!photographer
   });
 
+
+
   // Extract photographerId (might be null in location-first mode initially)
   const initialPhotographerId = photographer?.photographerId;
 
   const { sendBookingNotification } = useNotificationContext();
+
+  const BOOKING_COUNT_THRESHOLDS = {
+    SHOW_NOTIFICATION: 1,    // Hiển thị từ 1 booking
+    SHOW_WARNING: 3,         // Cảnh báo từ 3 bookings  
+    SHOW_CROWDED: 5,         // Rất đông từ 5 bookings
+  };
+
+  const [distanceConflict, setDistanceConflict] = useState<DistanceCalculationResponse | null>(null);
+  const [checkingDistanceConflict, setCheckingDistanceConflict] = useState(false);
 
 
   // ===== UNIFIED DATETIME HELPERS =====
@@ -168,9 +182,22 @@ export default function BookingScreen() {
   const [selectedEndTime, setSelectedEndTime] = useState<string>(
     existingBookingData?.selectedEndTime || ""
   );
-  const [selectedLocation, setSelectedLocation] = useState<any>(
-    existingBookingData?.selectedLocation || location || null
-  );
+
+  const [selectedLocation, setSelectedLocation] = useState<any>(() => {
+    if (existingBookingData?.selectedLocation) {
+      return existingBookingData.selectedLocation;
+    }
+    if (location) {
+      // Safe access với optional chaining
+      return {
+        ...location,
+        id: location.locationId,
+        locationId: location.locationId
+      };
+    }
+    return null;
+  });
+  
   const [specialRequests, setSpecialRequests] = useState<string>(
     existingBookingData?.specialRequests || ""
   );
@@ -205,13 +232,41 @@ export default function BookingScreen() {
     createBooking,
     updateBooking,
     calculatePrice,
+    checkDistanceConflict,
     priceCalculation,
     setPriceCalculation,
     creating,
     updating,
     calculatingPrice,
+    locationBookingCount,
+    loadingBookingCount,
+    fetchLocationBookingCount,
     error,
   } = useBooking();
+
+  // Thêm vào đầu BookingScreen component, sau các useState
+  useEffect(() => {
+    console.log("📍 LOCATION STATE DEBUG:", {
+      selectedLocation,
+      routeLocation: location,
+      isLocationFirst,
+      hasLocationId: selectedLocation?.id || selectedLocation?.locationId,
+      locationName: selectedLocation?.name
+    });
+  }, [selectedLocation, location]);
+
+  const currentPhotographerId = selectedPhotographer?.photographerId ||
+    selectedPhotographer?.id ||
+    photographer?.photographerId ||
+    initialPhotographerId;
+
+  console.log("🔍 Current Photographer ID Resolution:", {
+    fromSelectedPhotographerId: selectedPhotographer?.photographerId,
+    fromSelectedId: selectedPhotographer?.id,
+    fromPhotographerId: photographer?.photographerId,
+    fromInitial: initialPhotographerId,
+    final: currentPhotographerId
+  });
 
   // UPDATED: Only show error if NEITHER photographer NOR location is provided
   if ((!photographer || !initialPhotographerId) && !location) {
@@ -280,19 +335,132 @@ export default function BookingScreen() {
     }
   }, [isAuthenticated, navigation]);
 
-  // Get current photographer ID (either from selected or initial)
-  const currentPhotographerId = selectedPhotographer?.photographerId ||
-    selectedPhotographer?.id ||
-    photographer?.photographerId ||
-    initialPhotographerId;
+  useEffect(() => {
+    const fetchBookingCount = async () => {
+      if (!selectedLocation?.id) return;
+      if (!selectedStartTime || !selectedEndTime) return;
 
-  console.log("🔍 Current Photographer ID Resolution:", {
-    fromSelectedPhotographerId: selectedPhotographer?.photographerId,
-    fromSelectedId: selectedPhotographer?.id,
-    fromPhotographerId: photographer?.photographerId,
-    fromInitial: initialPhotographerId,
-    final: currentPhotographerId
-  });
+      const startDateTime = createUnifiedDateTime(selectedDate, selectedStartTime);
+      const endDateTime = createUnifiedDateTime(selectedDate, selectedEndTime);
+
+      await fetchLocationBookingCount(selectedLocation.id, startDateTime, endDateTime);
+    };
+
+    fetchBookingCount();
+  }, [
+    selectedLocation?.id,
+    selectedStartTime,
+    selectedEndTime,
+    selectedDate,
+    fetchLocationBookingCount
+  ]);
+
+
+  useEffect(() => {
+    const checkLocationConflict = async () => {
+      console.log("🔄 DISTANCE CONFLICT CHECK - Start", {
+        currentPhotographerId,
+        selectedStartTime,
+        selectedEndTime,
+        selectedLocation: selectedLocation?.name,
+        locationId: selectedLocation?.id || selectedLocation?.locationId,
+      });
+
+      setDistanceConflict(null);
+
+      if (!currentPhotographerId || typeof currentPhotographerId !== 'number') {
+        console.log("❌ Skipping - invalid photographer ID");
+        return;
+      }
+
+      if (!selectedStartTime || !selectedEndTime || !selectedLocation) {
+        console.log("❌ Skipping - missing required data");
+        return;
+      }
+
+      const locationToCheck = selectedLocation || location;
+      if (!locationToCheck) {
+        return;
+      }
+
+      const locationId = locationToCheck.id || locationToCheck.locationId;
+
+      // FIX: Convert string ID to number
+      const numericLocationId = typeof locationId === 'string' ? parseInt(locationId) : locationId;
+
+      if (!numericLocationId || typeof numericLocationId !== "number" || isNaN(numericLocationId)) {
+        console.log("❌ Skipping - external location or invalid locationId", {
+          originalId: locationId,
+          convertedId: numericLocationId,
+          isExternal: !!selectedLocation.placeId
+        });
+        return;
+      }
+
+      try {
+        setCheckingDistanceConflict(true);
+
+        const startDateTime = createUnifiedDateTime(selectedDate, selectedStartTime);
+        const endDateTime = createUnifiedDateTime(selectedDate, selectedEndTime);
+
+        console.log("📞 Calling distance API:", {
+          photographerId: currentPhotographerId,
+          startDateTime,
+          endDateTime,
+          locationId: numericLocationId
+        });
+
+        const conflictResult = await checkDistanceConflict(
+          currentPhotographerId,
+          startDateTime,
+          endDateTime,
+          numericLocationId // Pass as number
+        );
+
+        console.log("✅ Distance API result:", conflictResult);
+
+        if (conflictResult) {
+          setDistanceConflict(conflictResult);
+
+          if (conflictResult.hasConflict) {
+            console.log("⚠️ CONFLICT DETECTED - Warning should show");
+          } else {
+            console.log("✅ No conflict found");
+          }
+        }
+
+      } catch (error) {
+        console.error("❌ Distance check error:", error);
+      } finally {
+        setCheckingDistanceConflict(false);
+      }
+    };
+
+    checkLocationConflict();
+  }, [
+    currentPhotographerId,
+    selectedStartTime,
+    selectedEndTime,
+    selectedLocation,
+    selectedDate,
+  ]);
+
+  const handleAcceptTimeSuggestion = (suggestedTime: string) => {
+    console.log("✅ Accepting suggested time:", suggestedTime);
+
+    // Parse suggested time và update start time
+    const [hours, minutes] = suggestedTime.split(':');
+    const newStartTime = `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+
+    setSelectedStartTime(newStartTime);
+    setSelectedEndTime(""); // Clear end time để user chọn lại
+    setDistanceConflict(null); // Clear conflict warning
+  };
+
+  const handleIgnoreConflict = () => {
+    console.log("⏭️ User ignored distance conflict");
+    setDistanceConflict(null);
+  };
 
   // Load available times when date changes
   useEffect(() => {
@@ -497,14 +665,24 @@ export default function BookingScreen() {
   };
 
   const handleLocationSelect = (location: any) => {
+    console.log("📍 LOCATION SELECTED:", {
+      location,
+      hasId: !!(location?.id || location?.locationId),
+      hasPlaceId: !!location?.placeId,
+      isValid: !!(location && (location.id || location.locationId))
+    });
+
     if (location && (location.id || location.locationId)) {
       const validLocation = {
         ...location,
         id: location.id || location.locationId,
+        locationId: location.locationId || location.id, // Ensure both fields
       };
+
+      console.log("📍 SETTING VALID LOCATION:", validLocation);
       setSelectedLocation(validLocation);
     } else {
-      console.warn("⚠️ Location selected without valid ID:", location);
+      console.warn("Invalid location selected:", location);
       setSelectedLocation(null);
     }
     setShowLocationPicker(false);
@@ -723,249 +901,249 @@ export default function BookingScreen() {
     user,
   ]);
 
-// handleSubmitBooking - Version cập nhật sử dụng NotificationContext
+  // handleSubmitBooking - Version cập nhật sử dụng NotificationContext
 
-const handleSubmitBooking = async () => {
-  if (!currentPhotographerId) {
-    Alert.alert("Lỗi", "Vui lòng chọn photographer");
-    return;
-  }
+  const handleSubmitBooking = async () => {
+    if (!currentPhotographerId) {
+      Alert.alert("Lỗi", "Vui lòng chọn photographer");
+      return;
+    }
 
-  if (!selectedStartTime || !selectedEndTime) {
-    Alert.alert("Lỗi", "Vui lòng chọn thời gian bắt đầu và kết thúc");
-    return;
-  }
+    if (!selectedStartTime || !selectedEndTime) {
+      Alert.alert("Lỗi", "Vui lòng chọn thời gian bắt đầu và kết thúc");
+      return;
+    }
 
-  if (!isAuthenticated || !user?.id) {
-    Alert.alert("Lỗi", "Vui lòng đăng nhập để đặt lịch");
-    return;
-  }
+    if (!isAuthenticated || !user?.id) {
+      Alert.alert("Lỗi", "Vui lòng đăng nhập để đặt lịch");
+      return;
+    }
 
-  try {
-    const startDateTimeString = createUnifiedDateTime(selectedDate, selectedStartTime);
-    const endDateTimeString = createUnifiedDateTime(selectedDate, selectedEndTime);
+    try {
+      const startDateTimeString = createUnifiedDateTime(selectedDate, selectedStartTime);
+      const endDateTimeString = createUnifiedDateTime(selectedDate, selectedEndTime);
 
-    if (isEditMode && existingBookingId) {
-      // =============== UPDATE MODE ===============
-      const updateData = {
-        startDatetime: startDateTimeString,
-        endDatetime: endDateTimeString,
-        ...(specialRequests && { specialRequests }),
-      };
+      if (isEditMode && existingBookingId) {
+        // =============== UPDATE MODE ===============
+        const updateData = {
+          startDatetime: startDateTimeString,
+          endDatetime: endDateTimeString,
+          ...(specialRequests && { specialRequests }),
+        };
 
-      const updatedBooking = await updateBooking(existingBookingId, updateData);
+        const updatedBooking = await updateBooking(existingBookingId, updateData);
 
-      if (!updatedBooking) {
-        Alert.alert("Lỗi", "Không thể cập nhật booking. Vui lòng thử lại.");
-        return;
-      }
-
-      // 🔥 NEW: Send booking update notification using context
-      try {
-        console.log('📤 Sending booking update notification to photographer:', currentPhotographerId);
-
-        // Create a simple update notification
-        const notificationSuccess = await sendBookingNotification(
-          currentPhotographerId,
-          `${user.fullName || 'Khách hàng'} đã cập nhật booking`,
-          existingBookingId
-        );
-
-        if (notificationSuccess) {
-          console.log('✅ Booking update notification sent successfully');
-        } else {
-          console.warn('⚠️ Failed to send booking update notification');
+        if (!updatedBooking) {
+          Alert.alert("Lỗi", "Không thể cập nhật booking. Vui lòng thử lại.");
+          return;
         }
-      } catch (notificationError) {
-        console.warn('⚠️ Failed to send update notification:', notificationError);
-        // Không fail booking update nếu notification lỗi
-      }
 
-      // Navigate to order detail
-      navigation.navigate("OrderDetail", {
-        bookingId: existingBookingId,
-        photographer: {
-          photographerId: currentPhotographerId,
-          fullName: photographerName,
-          profileImage: photographerAvatar,
-          hourlyRate: photographerRate,
-        },
-        selectedDate: selectedDate.toISOString(),
-        selectedStartTime,
-        selectedEndTime,
-        selectedLocation: selectedLocation
-          ? {
-              id: selectedLocation.locationId || selectedLocation.id,
-              name: selectedLocation.name,
-              hourlyRate: selectedLocation.hourlyRate,
-            }
-          : undefined,
-        specialRequests: specialRequests || undefined,
-        priceCalculation: priceCalculation || {
-          totalPrice: 0,
-          photographerFee: 0,
-          locationFee: 0,
-          duration: 0,
-          breakdown: {
-            baseRate: 0,
-            locationRate: 0,
-            additionalFees: [],
-          },
-        },
-      });
-
-    } else {
-      // =============== CREATE MODE ===============
-      const bookingData: CreateBookingRequest = {
-        photographerId: currentPhotographerId,
-        startDatetime: startDateTimeString,
-        endDatetime: endDateTimeString,
-        ...(selectedLocation?.id && { locationId: selectedLocation.id }),
-        ...(specialRequests && { specialRequests }),
-      };
-
-      if (selectedLocation) {
-        if (selectedLocation.id || selectedLocation.locationId) {
-          // Internal location từ database
-          bookingData.locationId = selectedLocation.id || selectedLocation.locationId;
-        } else if (selectedLocation.placeId) {
-          // External location
-          bookingData.externalLocation = {
-            placeId: selectedLocation.placeId,
-            name: selectedLocation.name,
-            address: selectedLocation.address || selectedLocation.formatted_address || "",
-          };
-        }
-      }
-
-      console.log("🗓️ Final booking data:", {
-        bookingData,
-        selectedLocation,
-        hasInternalId: !!(selectedLocation?.id || selectedLocation?.locationId),
-        hasExternalPlaceId: !!selectedLocation?.placeId,
-      });
-
-      const createdBooking = await createBooking(user.id, bookingData);
-
-      if (!createdBooking) {
-        Alert.alert("Lỗi", "Không thể tạo booking. Vui lòng thử lại.");
-        return;
-      }
-
-      // 🔥 NEW: Send new booking notification using context
-      const bookingId = createdBooking.id || createdBooking.bookingId;
-      let notificationSent = false;
-      let notificationErrorMsg = null;
-      
-      // Use photographerId from the photographer object, not userId
-      const photographerUserId = selectedPhotographer?.userId || photographer?.userId;
-
-      if (!photographerUserId) {
-        console.warn('⚠️ Cannot send notification: Missing photographer ID');
-        notificationErrorMsg = 'Missing photographer ID';
-      } else {
+        // 🔥 NEW: Send booking update notification using context
         try {
-          console.log('📤 Sending new booking notification to photographer:', photographerUserId);
-          console.log('🚀 Notification details:', {
-            photographerUserId: photographerUserId,
-            customerName: user.fullName || 'Khách hàng',
-            bookingId: bookingId,
-          });
-          
+          console.log('📤 Sending booking update notification to photographer:', currentPhotographerId);
+
+          // Create a simple update notification
           const notificationSuccess = await sendBookingNotification(
-            photographerUserId,  
-            user.fullName || 'Khách hàng',
-            parseInt(bookingId.toString())
+            currentPhotographerId,
+            `${user.fullName || 'Khách hàng'} đã cập nhật booking`,
+            existingBookingId
           );
 
           if (notificationSuccess) {
-            console.log('✅ New booking notification sent successfully');
-            notificationSent = true;
+            console.log('✅ Booking update notification sent successfully');
           } else {
-            console.warn('⚠️ Failed to send booking notification - service returned false');
-            notificationSent = false;
-            notificationErrorMsg = 'Service returned false';
+            console.warn('⚠️ Failed to send booking update notification');
           }
-
         } catch (notificationError) {
-          console.warn('⚠️ Failed to send booking notification:', notificationError);
-          notificationSent = false;
-          notificationErrorMsg = notificationError instanceof Error ? notificationError.message : 'Unknown error';
+          console.warn('⚠️ Failed to send update notification:', notificationError);
+          // Không fail booking update nếu notification lỗi
         }
-      }
 
-      // 🔥 NEW: Show success message with notification status
-      let statusMessage = '';
-      if (notificationSent) {
-        statusMessage = '\n\n✅ Photographer sẽ nhận được thông báo';
-      } else {
-        statusMessage = '\n\n⚠️ Thông báo có thể gặp sự cố (booking vẫn thành công)';
-      }
-      navigation.navigate("OrderDetail", {
-        bookingId: createdBooking.id || createdBooking.bookingId,
-        photographer: {
-          photographerId: currentPhotographerId,
-          fullName: photographerName,
-          profileImage: photographerAvatar,
-          hourlyRate: photographerRate,
-        },
-        selectedDate: selectedDate.toISOString(),
-        selectedStartTime,
-        selectedEndTime,
-        selectedLocation: selectedLocation
-          ? {
+        // Navigate to order detail
+        navigation.navigate("OrderDetail", {
+          bookingId: existingBookingId,
+          photographer: {
+            photographerId: currentPhotographerId,
+            fullName: photographerName,
+            profileImage: photographerAvatar,
+            hourlyRate: photographerRate,
+          },
+          selectedDate: selectedDate.toISOString(),
+          selectedStartTime,
+          selectedEndTime,
+          selectedLocation: selectedLocation
+            ? {
               id: selectedLocation.locationId || selectedLocation.id,
               name: selectedLocation.name,
               hourlyRate: selectedLocation.hourlyRate,
             }
-          : undefined,
-        specialRequests: specialRequests || undefined,
-        priceCalculation: priceCalculation || {
-          totalPrice: 0,
-          photographerFee: 0,
-          locationFee: 0,
-          duration: 0,
-          breakdown: {
-            baseRate: 0,
-            locationRate: 0,
-            additionalFees: [],
+            : undefined,
+          specialRequests: specialRequests || undefined,
+          priceCalculation: priceCalculation || {
+            totalPrice: 0,
+            photographerFee: 0,
+            locationFee: 0,
+            duration: 0,
+            breakdown: {
+              baseRate: 0,
+              locationRate: 0,
+              additionalFees: [],
+            },
           },
-        },
-      });
-    }
-  } catch (error) {
-    console.error("❌ Error in booking operation:", error);
-    
-    // 🔥 ENHANCED: Better error handling
-    let errorMessage = "Có lỗi xảy ra khi đặt lịch. Vui lòng thử lại.";
-    
-    if (error instanceof Error) {
-      if (error.message.includes("401") || error.message.includes("Unauthorized")) {
-        errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
-      } else if (error.message.includes("photographer not available")) {
-        errorMessage = "Photographer không có lịch rảnh vào thời gian này. Vui lòng chọn thời gian khác.";
-      } else if (error.message.includes("booking conflict")) {
-        errorMessage = "Thời gian này đã có booking khác. Vui lòng chọn thời gian khác.";
-      } else if (error.message.includes("Network")) {
-        errorMessage = "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối và thử lại.";
-      }
-    }
-    
-    Alert.alert("Lỗi đặt lịch", errorMessage, [{ text: "OK" }]);
-  }
-};
+        });
 
-useEffect(() => {
-  console.log("🔍 DEBUG Location data in BookingScreen:", {
-    location,
-    hasLatitude: !!location?.latitude,
-    hasLongitude: !!location?.longitude,
-    latitude: location?.latitude,
-    longitude: location?.longitude,
-    latitudeType: typeof location?.latitude,
-    longitudeType: typeof location?.longitude
-  });
-}, [location]);
+      } else {
+        // =============== CREATE MODE ===============
+        const bookingData: CreateBookingRequest = {
+          photographerId: currentPhotographerId,
+          startDatetime: startDateTimeString,
+          endDatetime: endDateTimeString,
+          ...(selectedLocation?.id && { locationId: selectedLocation.id }),
+          ...(specialRequests && { specialRequests }),
+        };
+
+        if (selectedLocation) {
+          if (selectedLocation.id || selectedLocation.locationId) {
+            // Internal location từ database
+            bookingData.locationId = selectedLocation.id || selectedLocation.locationId;
+          } else if (selectedLocation.placeId) {
+            // External location
+            bookingData.externalLocation = {
+              placeId: selectedLocation.placeId,
+              name: selectedLocation.name,
+              address: selectedLocation.address || selectedLocation.formatted_address || "",
+            };
+          }
+        }
+
+        console.log("🗓️ Final booking data:", {
+          bookingData,
+          selectedLocation,
+          hasInternalId: !!(selectedLocation?.id || selectedLocation?.locationId),
+          hasExternalPlaceId: !!selectedLocation?.placeId,
+        });
+
+        const createdBooking = await createBooking(user.id, bookingData);
+
+        if (!createdBooking) {
+          Alert.alert("Lỗi", "Không thể tạo booking. Vui lòng thử lại.");
+          return;
+        }
+
+        // 🔥 NEW: Send new booking notification using context
+        const bookingId = createdBooking.id || createdBooking.bookingId;
+        let notificationSent = false;
+        let notificationErrorMsg = null;
+
+        // Use photographerId from the photographer object, not userId
+        const photographerUserId = selectedPhotographer?.userId || photographer?.userId;
+
+        if (!photographerUserId) {
+          console.warn('⚠️ Cannot send notification: Missing photographer ID');
+          notificationErrorMsg = 'Missing photographer ID';
+        } else {
+          try {
+            console.log('📤 Sending new booking notification to photographer:', photographerUserId);
+            console.log('🚀 Notification details:', {
+              photographerUserId: photographerUserId,
+              customerName: user.fullName || 'Khách hàng',
+              bookingId: bookingId,
+            });
+
+            const notificationSuccess = await sendBookingNotification(
+              photographerUserId,
+              user.fullName || 'Khách hàng',
+              parseInt(bookingId.toString())
+            );
+
+            if (notificationSuccess) {
+              console.log('✅ New booking notification sent successfully');
+              notificationSent = true;
+            } else {
+              console.warn('⚠️ Failed to send booking notification - service returned false');
+              notificationSent = false;
+              notificationErrorMsg = 'Service returned false';
+            }
+
+          } catch (notificationError) {
+            console.warn('⚠️ Failed to send booking notification:', notificationError);
+            notificationSent = false;
+            notificationErrorMsg = notificationError instanceof Error ? notificationError.message : 'Unknown error';
+          }
+        }
+
+        // 🔥 NEW: Show success message with notification status
+        let statusMessage = '';
+        if (notificationSent) {
+          statusMessage = '\n\n✅ Photographer sẽ nhận được thông báo';
+        } else {
+          statusMessage = '\n\n⚠️ Thông báo có thể gặp sự cố (booking vẫn thành công)';
+        }
+        navigation.navigate("OrderDetail", {
+          bookingId: createdBooking.id || createdBooking.bookingId,
+          photographer: {
+            photographerId: currentPhotographerId,
+            fullName: photographerName,
+            profileImage: photographerAvatar,
+            hourlyRate: photographerRate,
+          },
+          selectedDate: selectedDate.toISOString(),
+          selectedStartTime,
+          selectedEndTime,
+          selectedLocation: selectedLocation
+            ? {
+              id: selectedLocation.locationId || selectedLocation.id,
+              name: selectedLocation.name,
+              hourlyRate: selectedLocation.hourlyRate,
+            }
+            : undefined,
+          specialRequests: specialRequests || undefined,
+          priceCalculation: priceCalculation || {
+            totalPrice: 0,
+            photographerFee: 0,
+            locationFee: 0,
+            duration: 0,
+            breakdown: {
+              baseRate: 0,
+              locationRate: 0,
+              additionalFees: [],
+            },
+          },
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error in booking operation:", error);
+
+      // 🔥 ENHANCED: Better error handling
+      let errorMessage = "Có lỗi xảy ra khi đặt lịch. Vui lòng thử lại.";
+
+      if (error instanceof Error) {
+        if (error.message.includes("401") || error.message.includes("Unauthorized")) {
+          errorMessage = "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.";
+        } else if (error.message.includes("photographer not available")) {
+          errorMessage = "Photographer không có lịch rảnh vào thời gian này. Vui lòng chọn thời gian khác.";
+        } else if (error.message.includes("booking conflict")) {
+          errorMessage = "Thời gian này đã có booking khác. Vui lòng chọn thời gian khác.";
+        } else if (error.message.includes("Network")) {
+          errorMessage = "Lỗi kết nối mạng. Vui lòng kiểm tra kết nối và thử lại.";
+        }
+      }
+
+      Alert.alert("Lỗi đặt lịch", errorMessage, [{ text: "OK" }]);
+    }
+  };
+
+  useEffect(() => {
+    console.log("🔍 DEBUG Location data in BookingScreen:", {
+      location,
+      hasLatitude: !!location?.latitude,
+      hasLongitude: !!location?.longitude,
+      latitude: location?.latitude,
+      longitude: location?.longitude,
+      latitudeType: typeof location?.latitude,
+      longitudeType: typeof location?.longitude
+    });
+  }, [location]);
 
 
 
@@ -980,11 +1158,14 @@ useEffect(() => {
 
   // Form validation
   const isFormValid = currentPhotographerId &&
-    selectedStartTime &&
-    selectedEndTime &&
-    !creating &&
-    !updating &&
-    availableTimes.length > 0;
+  typeof currentPhotographerId === 'number' &&
+  selectedStartTime &&
+  selectedEndTime &&
+  (selectedLocation || location) && 
+  !creating &&
+  !updating &&
+  !checkingDistanceConflict &&
+  availableTimes.length > 0;
 
   // NEW: Render photographer card for vertical selection
   const renderPhotographerCard = (photographer: any, index: number) => {
@@ -1632,6 +1813,18 @@ useEffect(() => {
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
+
+                  {(loadingSlots || checkingDistanceConflict) && (
+                    <Text
+                      style={{
+                        fontSize: getResponsiveSize(12),
+                        color: "#E91E63",
+                        marginLeft: "auto",
+                      }}
+                    >
+                      {checkingDistanceConflict ? "Kiểm tra xung đột..." : "Đang tải..."}
+                    </Text>
+                  )}
                 </>
               )}
             </View>
@@ -1763,8 +1956,83 @@ useEffect(() => {
                   </View>
                 )}
               </TouchableOpacity>
+              {selectedLocation &&
+                selectedStartTime &&
+                selectedEndTime &&
+                !loadingBookingCount &&
+                locationBookingCount >= BOOKING_COUNT_THRESHOLDS.SHOW_NOTIFICATION && (
+                  <View
+                    style={{
+                      marginTop: getResponsiveSize(12),
+                      backgroundColor: locationBookingCount >= BOOKING_COUNT_THRESHOLDS.SHOW_WARNING ? "#FFE0B2" : "#FFF9C4",
+                      borderRadius: getResponsiveSize(8),
+                      padding: getResponsiveSize(12),
+                      borderWidth: 1,
+                      borderColor: locationBookingCount >= BOOKING_COUNT_THRESHOLDS.SHOW_WARNING ? "#FF9800" : "#FFC107",
+                    }}
+                  >
+                    <View style={{
+                      flexDirection: "row",
+                      alignItems: "flex-start",  // Changed from "center" to handle text wrap
+                      flexWrap: "wrap"  // Allow wrapping
+                    }}>
+                      <Feather
+                        name="users"
+                        size={getResponsiveSize(16)}
+                        color={locationBookingCount >= BOOKING_COUNT_THRESHOLDS.SHOW_WARNING ? "#E65100" : "#F57C00"}
+                        style={{ marginTop: getResponsiveSize(2) }}  // Align icon with first line of text
+                      />
+                      <View style={{
+                        flex: 1,
+                        marginLeft: getResponsiveSize(8),
+                        paddingRight: getResponsiveSize(4)  // Add some padding to prevent text touching edge
+                      }}>
+                        <Text
+                          style={{
+                            fontSize: getResponsiveSize(14),
+                            color: locationBookingCount >= BOOKING_COUNT_THRESHOLDS.SHOW_WARNING ? "#E65100" : "#F57C00",
+                            fontWeight: "500",
+                            lineHeight: getResponsiveSize(20),  // Better line spacing
+                          }}
+                          numberOfLines={2}  // Allow max 2 lines
+                        >
+                          Đã có {locationBookingCount} booking khác tại địa điểm này trong khung giờ này
+                        </Text>
+
+                        {locationBookingCount >= BOOKING_COUNT_THRESHOLDS.SHOW_WARNING && (
+                          <Text
+                            style={{
+                              fontSize: getResponsiveSize(12),
+                              color: "#E65100",
+                              marginTop: getResponsiveSize(4),
+                              fontStyle: "italic",
+                              lineHeight: getResponsiveSize(16),  // Better line spacing for small text
+                            }}
+                          >
+                            {locationBookingCount >= BOOKING_COUNT_THRESHOLDS.SHOW_CROWDED
+                              ? "Địa điểm rất đông đúc"
+                              : "Địa điểm có thể khá đông đúc"
+                            }
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  </View>
+                )}
             </View>
           )}
+          {/* Render warning if distance conflict exists */}
+          {distanceConflict &&
+            (distanceConflict.hasConflict || distanceConflict.isTravelTimeFeasible === false) &&
+            (selectedLocation || location) && 
+            (
+              <DistanceConflictWarning
+                conflict={distanceConflict}
+                onAcceptSuggestion={handleAcceptTimeSuggestion}
+                onIgnore={handleIgnoreConflict}
+                formatPrice={formatPrice}
+              />
+            )}
 
           {/* Special Requests */}
           {(selectedPhotographer || photographer) && (

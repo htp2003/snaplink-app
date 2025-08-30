@@ -1,4 +1,4 @@
-// components/Photographer/PhotographerModal.tsx - Updated UI
+// components/Photographer/PhotographerModal.tsx - Fixed to use service directly
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -11,9 +11,7 @@ import {
 } from "react-native";
 import { AntDesign, Feather } from "@expo/vector-icons";
 import { getResponsiveSize } from "../../utils/responsive";
-import { usePhotographers } from "../../hooks/usePhotographers";
 import { photographerService } from "../../services/photographerService";
-
 
 interface PhotographerModalProps {
   visible: boolean;
@@ -39,77 +37,192 @@ const PhotographerModal: React.FC<PhotographerModalProps> = ({
   location,
   formatPrice,
 }) => {
-  // States
+  // States for all tabs - use service directly instead of hooks
   const [activeTab, setActiveTab] = useState<TabType>('recommend');
+
+  // Recommend tab
   const [recommendedPhotographers, setRecommendedPhotographers] = useState<any[]>([]);
   const [loadingRecommend, setLoadingRecommend] = useState(false);
   const [errorRecommend, setErrorRecommend] = useState<string | null>(null);
 
-  // Use existing hooks for other tabs
-  const {
-    userStylePhotographers,
-    userStyleLoading,
-    userStyleError,
-    fetchPhotographersByUserStyles,
-    popularPhotographers,
-    popularLoading,
-    popularError,
-    fetchPopularPhotographers,
-  } = usePhotographers();
+  // User Style tab
+  const [userStylePhotographers, setUserStylePhotographers] = useState<any[]>([]);
+  const [loadingUserStyle, setLoadingUserStyle] = useState(false);
+  const [errorUserStyle, setErrorUserStyle] = useState<string | null>(null);
 
-  // Fetch recommended photographers
-// Thay thế function fetchRecommendedPhotographers
-const fetchRecommendedPhotographers = async () => {
-  if (!location) return;
-  
-  setLoadingRecommend(true);
-  setErrorRecommend(null);
-  
-  try {
-    let targetLatitude: number;
-    let targetLongitude: number;
-    
-    if (location.latitude && location.longitude) {
-      // Sử dụng tọa độ của location - đây là case chính
-      targetLatitude = location.latitude;
-      targetLongitude = location.longitude;
-      console.log("Using location coordinates:", { latitude: targetLatitude, longitude: targetLongitude });
-    } else {
-      // Nếu location không có tọa độ thì báo lỗi thay vì fallback
-      throw new Error('Địa điểm không có thông tin tọa độ');
+  // Popular tab
+  const [popularPhotographers, setPopularPhotographers] = useState<any[]>([]);
+  const [loadingPopular, setLoadingPopular] = useState(false);
+  const [errorPopular, setErrorPopular] = useState<string | null>(null);
+
+  const processApiResponse = (apiResponse: any): any[] => {
+    if (Array.isArray(apiResponse)) return apiResponse;
+    if (Array.isArray(apiResponse?.data)) return apiResponse.data;
+    if (Array.isArray(apiResponse?.$values)) return apiResponse.$values;
+    if (apiResponse) return [apiResponse];
+    return [];
+  };
+
+  // Normalize photographer data function
+  const normalizePhotographerData = (photographer: any) => {
+    const photographerId = photographer.photographerId || photographer.id;
+    if (!photographerId) {
+      console.error("❌ No photographerId found in:", photographer);
+      throw new Error("Missing photographerId");
     }
 
-    const photographers = await photographerService.getRecommended(
-      targetLatitude,
-      targetLongitude,
-      location.locationId,
-      50, 
-      20  
-    );
-    
-    setRecommendedPhotographers(photographers || []);
-  } catch (error) {
-    console.error('Error:', error);
-    setErrorRecommend('Không thể tải danh sách photographer gần địa điểm này');
-    setRecommendedPhotographers([]);
-  } finally {
-    setLoadingRecommend(false);
-  }
-};
+    // Fix: try multiple sources for userId
+    const userId =
+      photographer.userId ||
+      photographer.user?.id ||
+      photographer.user?.userId ||
+      photographer.id; // fallback (nếu API không gửi userId riêng)
+
+    if (!userId) {
+      console.warn("⚠️ Missing userId - fallback to photographerId");
+    }
+
+    return {
+      id: photographerId,
+      photographerId,
+      userId: userId || photographerId, // đảm bảo không bị null
+      fullName: photographer.fullName || photographer.user?.fullName || "Unknown",
+      profileImage:
+        photographer.profileImage ||
+        photographer.avatar ||
+        photographer.user?.profileImage,
+      hourlyRate: photographer.hourlyRate || 0,
+      specialty: photographer.specialty || "Professional Photographer",
+      yearsExperience: photographer.yearsExperience || 0,
+      equipment: photographer.equipment,
+      rating: photographer.rating || 0,
+      availabilityStatus: photographer.availabilityStatus,
+      verificationStatus: photographer.verificationStatus,
+      styles: photographer.styles || [],
+      distanceKm: photographer.distanceKm,
+      _original: photographer,
+    };
+  };
+
+
+  // Fetch recommended photographers
+  const fetchRecommendedPhotographers = async () => {
+    if (!location) return;
+
+    setLoadingRecommend(true);
+    setErrorRecommend(null);
+
+    try {
+      if (!location.latitude || !location.longitude) {
+        throw new Error('Địa điểm không có thông tin tọa độ');
+      }
+
+      console.log("📍 Fetching recommended photographers for location:", {
+        locationId: location.locationId,
+        latitude: location.latitude,
+        longitude: location.longitude
+      });
+
+      const photographers = await photographerService.getRecommended(
+        location.latitude,
+        location.longitude,
+        location.locationId,
+        50,
+        20
+      );
+
+      const normalizedPhotographers = (photographers || []).map(normalizePhotographerData);
+      setRecommendedPhotographers(normalizedPhotographers);
+
+      console.log("✅ Normalized recommended photographers:", normalizedPhotographers);
+    } catch (error) {
+      console.error('Error fetching recommended:', error);
+      setErrorRecommend('Không thể tải danh sách photographer gợi ý');
+      setRecommendedPhotographers([]);
+    } finally {
+      setLoadingRecommend(false);
+    }
+  };
+
+  // Fetch user style photographers - use service directly
+  const fetchUserStylePhotographers = async () => {
+    setLoadingUserStyle(true);
+    setErrorUserStyle(null);
+  
+    try {
+      console.log("🎨 Fetching user style photographers");
+  
+      const photographers = await photographerService.getByUserStyles(
+        location?.latitude,
+        location?.longitude
+      );
+  
+      console.log("🎨 Raw user style response:", photographers);
+  
+      // ✅ unwrap về array
+      const photographersArray = processApiResponse(photographers);
+      const normalizedPhotographers = photographersArray.map(normalizePhotographerData);
+      setUserStylePhotographers(normalizedPhotographers);
+  
+      console.log("✅ Normalized user style photographers:", normalizedPhotographers);
+    } catch (error) {
+      console.error('Error fetching user style photographers:', error);
+      setErrorUserStyle('Không thể tải photographer theo style của bạn');
+      setUserStylePhotographers([]);
+    } finally {
+      setLoadingUserStyle(false);
+    }
+  };
+  
+
+  // Fetch popular photographers - use service directly
+  const fetchPopularPhotographers = async () => {
+    setLoadingPopular(true);
+    setErrorPopular(null);
+  
+    try {
+      console.log("🔥 Fetching popular photographers");
+  
+      const photographers: any = await photographerService.getPopular(
+        location?.latitude,
+        location?.longitude,
+        1,
+        20
+      );
+  
+      console.log("🔥 Raw popular response:", photographers);
+  
+      const photographersArray = processApiResponse(photographers);
+      const normalizedPhotographers = photographersArray.map(normalizePhotographerData);
+  
+      setPopularPhotographers(normalizedPhotographers);
+      console.log("✅ Normalized popular photographers:", normalizedPhotographers);
+    } catch (error) {
+      console.error("Error fetching popular photographers:", error);
+      setErrorPopular("Không thể tải photographer phổ biến");
+      setPopularPhotographers([]);
+    } finally {
+      setLoadingPopular(false);
+    }
+  };
+  
+  
 
   // Load data when tab changes
   useEffect(() => {
     if (!visible) return;
-    
+
+    console.log("🔄 Tab changed to:", activeTab);
+
     switch (activeTab) {
       case 'recommend':
         fetchRecommendedPhotographers();
         break;
       case 'userStyle':
-        fetchPhotographersByUserStyles(location?.latitude, location?.longitude);
+        fetchUserStylePhotographers();
         break;
       case 'popular':
-        fetchPopularPhotographers(location?.latitude, location?.longitude, 1, 20);
+        fetchPopularPhotographers();
         break;
     }
   }, [activeTab, visible, location]);
@@ -120,7 +233,7 @@ const fetchRecommendedPhotographers = async () => {
       key: 'recommend' as TabType,
       title: 'Gợi ý',
       icon: 'star',
-      data: Array.isArray(recommendedPhotographers) ? recommendedPhotographers : [],
+      data: recommendedPhotographers,
       loading: loadingRecommend,
       error: errorRecommend,
     },
@@ -128,42 +241,57 @@ const fetchRecommendedPhotographers = async () => {
       key: 'userStyle' as TabType,
       title: 'Style của bạn',
       icon: 'heart',
-      data: Array.isArray(userStylePhotographers) ? userStylePhotographers : [],
-      loading: userStyleLoading,
-      error: userStyleError,
+      data: userStylePhotographers,
+      loading: loadingUserStyle,
+      error: errorUserStyle,
     },
     {
       key: 'popular' as TabType,
       title: 'Phổ biến',
       icon: 'trending-up',
-      data: Array.isArray(popularPhotographers) ? popularPhotographers : [],
-      loading: popularLoading,
-      error: popularError,
+      data: popularPhotographers,
+      loading: loadingPopular,
+      error: errorPopular,
     },
   ];
 
   const renderPhotographerCard = (photographer: any, index: number) => {
-    const isSelected = selectedPhotographer?.id === photographer.id || 
-                      selectedPhotographer?.photographerId === photographer.photographerId;
-    
-    // 🔧 NEW: Check isbookedhere status
+    const isSelected = selectedPhotographer?.id === photographer.id ||
+      selectedPhotographer?.photographerId === photographer.photographerId;
+
     const isBookedHere = photographer.isbookedhere === true;
-    
-    // 🎨 Keep original colors (red/pink theme)
+
+    // Debug log for each card
+    console.log(`🎯 Rendering photographer card [${activeTab}] #${index}:`, {
+      id: photographer.id,
+      photographerId: photographer.photographerId,
+      userId: photographer.userId,
+      fullName: photographer.fullName,
+      hasRequiredFields: !!(photographer.photographerId) && !!(photographer.userId),
+      tab: activeTab
+    });
+
     const cardBorderColor = isSelected ? "#E91E63" : "#e0e0e0";
     const cardBorderWidth = isSelected ? 2 : 1;
     const cardElevation = isSelected ? 4 : 2;
-    const cardBackgroundColor = "#fff";
-    
+
     return (
       <TouchableOpacity
-        key={photographer.id || photographer.photographerId || index}
+        key={photographer.photographerId || photographer.id || index}
         onPress={() => {
+          console.log("📸 SELECTING photographer from", activeTab, "tab:", {
+            originalData: photographer,
+            photographerId: photographer.photographerId,
+            userId: photographer.userId,
+            fullName: photographer.fullName,
+            hasRequiredIDs: !!(photographer.photographerId && photographer.userId)
+          });
+
           onPhotographerSelect(photographer);
           onClose();
         }}
         style={{
-          backgroundColor: cardBackgroundColor,
+          backgroundColor: "#fff",
           borderRadius: getResponsiveSize(16),
           padding: getResponsiveSize(16),
           marginBottom: getResponsiveSize(12),
@@ -179,11 +307,11 @@ const fetchRecommendedPhotographers = async () => {
         <View style={{ flexDirection: "row", alignItems: "center" }}>
           {/* Photographer Image */}
           <Image
-            source={{ 
-              uri: photographer.profileImage || 
-                   photographer.avatar || 
-                   photographer.user?.profileImage || 
-                   ''
+            source={{
+              uri: photographer.profileImage ||
+                photographer.avatar ||
+                photographer.user?.profileImage ||
+                ''
             }}
             style={{
               width: getResponsiveSize(80),
@@ -208,14 +336,13 @@ const fetchRecommendedPhotographers = async () => {
                 }}
                 numberOfLines={1}
               >
-                {photographer.fullName || photographer.user?.fullName || 'Unknown'}
+                {photographer.fullName || 'Unknown'}
               </Text>
-              
-              {/* 🔧 FIXED: Only show badge when isbookedhere is true */}
+
               {isBookedHere && (
                 <View
                   style={{
-                    backgroundColor: "#fbbf24",  // Yellow-400
+                    backgroundColor: "#fbbf24",
                     borderRadius: getResponsiveSize(10),
                     paddingHorizontal: getResponsiveSize(8),
                     paddingVertical: getResponsiveSize(2),
@@ -223,7 +350,7 @@ const fetchRecommendedPhotographers = async () => {
                 >
                   <Text
                     style={{
-                      color: "#92400e",  // Yellow-800
+                      color: "#92400e",
                       fontSize: getResponsiveSize(10),
                       fontWeight: "bold",
                     }}
@@ -268,8 +395,8 @@ const fetchRecommendedPhotographers = async () => {
                 {photographer.rating || 4.8} • {photographer.yearsExperience || 5}+ năm
               </Text>
             </View>
-            
-            {/* 🔧 NEW: Distance info if available */}
+
+            {/* Distance info */}
             {photographer.distanceKm && (
               <View style={{ flexDirection: "row", alignItems: "center" }}>
                 <Feather name="map-pin" size={getResponsiveSize(12)} color="#6b7280" />
@@ -289,10 +416,10 @@ const fetchRecommendedPhotographers = async () => {
 
         {/* Styles */}
         {photographer.styles && photographer.styles.length > 0 && (
-          <View style={{ 
-            marginTop: getResponsiveSize(12), 
-            paddingTop: getResponsiveSize(12), 
-            borderTopWidth: 1, 
+          <View style={{
+            marginTop: getResponsiveSize(12),
+            paddingTop: getResponsiveSize(12),
+            borderTopWidth: 1,
             borderTopColor: isSelected ? "#FFF0F5" : "#f0f0f0"
           }}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -329,7 +456,7 @@ const fetchRecommendedPhotographers = async () => {
 
   const renderTabContent = () => {
     const currentTab = tabs.find(tab => tab.key === activeTab);
-    
+
     if (!currentTab) return null;
 
     if (currentTab.loading) {
@@ -345,16 +472,16 @@ const fetchRecommendedPhotographers = async () => {
 
     if (currentTab.error) {
       return (
-        <View style={{ 
-          padding: getResponsiveSize(40), 
+        <View style={{
+          padding: getResponsiveSize(40),
           alignItems: "center",
-          backgroundColor: "#fef2f2",  // Red-50
+          backgroundColor: "#fef2f2",
           borderRadius: getResponsiveSize(12),
           margin: getResponsiveSize(20),
         }}>
           <Feather name="alert-circle" size={getResponsiveSize(48)} color="#ef4444" />
-          <Text style={{ 
-            color: "#dc2626", 
+          <Text style={{
+            color: "#dc2626",
             marginTop: 10,
             textAlign: 'center',
           }}>
@@ -364,7 +491,7 @@ const fetchRecommendedPhotographers = async () => {
             onPress={() => {
               // Retry logic based on tab
               if (activeTab === 'recommend') fetchRecommendedPhotographers();
-              else if (activeTab === 'userStyle') fetchPhotographersByUserStyles();
+              else if (activeTab === 'userStyle') fetchUserStylePhotographers();
               else if (activeTab === 'popular') fetchPopularPhotographers();
             }}
             style={{
@@ -405,12 +532,25 @@ const fetchRecommendedPhotographers = async () => {
           >
             Không tìm thấy photographer nào
           </Text>
+          <Text
+            style={{
+              fontSize: getResponsiveSize(14),
+              color: "#999",
+              marginTop: getResponsiveSize(8),
+              textAlign: "center",
+            }}
+          >
+            {activeTab === 'userStyle' ?
+              'Hãy cập nhật style yêu thích trong hồ sơ' :
+              'Thử lại sau hoặc chọn tab khác'
+            }
+          </Text>
         </View>
       );
     }
 
     return (
-      <ScrollView 
+      <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: getResponsiveSize(20) }}
         showsVerticalScrollIndicator={false}

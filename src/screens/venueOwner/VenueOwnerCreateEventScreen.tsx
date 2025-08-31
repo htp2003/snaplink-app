@@ -69,8 +69,27 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     useState(false);
   const [isEndTimePickerVisible, setEndTimePickerVisibility] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  // Load locations on mount (unchanged)
+  // Auto-fill pricing when location is selected
+  useEffect(() => {
+    if (formData.locationId) {
+      const selectedLocation = userLocations.find(
+        (loc) => loc.locationId === formData.locationId
+      );
+
+      if (selectedLocation?.hourlyRate) {
+        // Auto-fill original price from location's hourly rate
+        updateFormData("originalPrice", selectedLocation.hourlyRate.toString());
+        console.log(
+          "Auto-filled original price from location:",
+          selectedLocation.hourlyRate
+        );
+      }
+    }
+  }, [formData.locationId, userLocations]);
+
+  // Load locations on mount
   useEffect(() => {
     const loadLocations = async () => {
       const result = await loadUserLocationsWithSubscriptions(
@@ -131,6 +150,102 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     loadLocations();
   }, []);
 
+  // Validation function - trực tiếp trong component
+  const validateFormData = () => {
+    const newErrors: Record<string, string> = {};
+
+    // Location
+    if (!formData.locationId) {
+      newErrors.locationId = "Vui lòng chọn địa điểm";
+    } else {
+      const selectedLocation = userLocations.find(
+        (loc) => loc.locationId === formData.locationId
+      );
+      if (selectedLocation && !selectedLocation.canCreateEvent) {
+        newErrors.locationId = "Địa điểm này không có gói subscription active";
+      }
+    }
+
+    // Name
+    if (!formData.name.trim()) {
+      newErrors.name = "Tên sự kiện không được để trống";
+    } else if (formData.name.trim().length < 3) {
+      newErrors.name = "Tên sự kiện phải có ít nhất 3 ký tự";
+    } else if (formData.name.trim().length > 255) {
+      newErrors.name = "Tên sự kiện không được quá 255 ký tự";
+    }
+
+    // Description
+    if (formData.description.length > 1000) {
+      newErrors.description = "Mô tả không được quá 1000 ký tự";
+    }
+
+    // Dates
+    const now = new Date();
+    if (formData.startDate < now) {
+      newErrors.startDate = "Ngày bắt đầu phải trong tương lai";
+    }
+    if (formData.endDate <= formData.startDate) {
+      newErrors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
+    }
+
+    // Duration check (không quá 30 ngày)
+    if (formData.startDate && formData.endDate) {
+      const durationDays =
+        (formData.endDate.getTime() - formData.startDate.getTime()) /
+        (1000 * 60 * 60 * 24);
+      if (durationDays > 30) {
+        newErrors.endDate = "Sự kiện không thể kéo dài quá 30 ngày";
+      }
+    }
+
+    // Prices - chỉ validate discountedPrice vì originalPrice là read-only
+    if (formData.discountedPrice) {
+      const discountedPrice = parseFloat(formData.discountedPrice);
+      if (isNaN(discountedPrice) || discountedPrice < 0) {
+        newErrors.discountedPrice = "Giá khuyến mãi phải là số dương";
+      } else if (discountedPrice > 100000000) {
+        newErrors.discountedPrice =
+          "Giá khuyến mãi quá cao (tối đa 100 triệu VND)";
+      }
+
+      // So sánh với giá gốc
+      if (formData.originalPrice) {
+        const originalPrice = parseFloat(formData.originalPrice);
+        if (!isNaN(originalPrice) && discountedPrice >= originalPrice) {
+          newErrors.discountedPrice = "Giá khuyến mãi phải nhỏ hơn giá gốc";
+        }
+      }
+    }
+
+    // Kiểm tra phải có giá gốc (từ địa điểm)
+    if (!formData.originalPrice) {
+      newErrors.locationId = "Địa điểm phải có giá thuê để tạo sự kiện";
+    }
+
+    // Capacity
+    const maxPhotographers = parseInt(formData.maxPhotographers);
+    if (
+      isNaN(maxPhotographers) ||
+      maxPhotographers < 1 ||
+      maxPhotographers > 1000
+    ) {
+      newErrors.maxPhotographers = "Số nhiếp ảnh gia phải từ 1-1000";
+    }
+
+    const maxBookingsPerSlot = parseInt(formData.maxBookingsPerSlot);
+    if (
+      isNaN(maxBookingsPerSlot) ||
+      maxBookingsPerSlot < 1 ||
+      maxBookingsPerSlot > 100
+    ) {
+      newErrors.maxBookingsPerSlot = "Số booking/slot phải từ 1-100";
+    }
+
+    setFormErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   // Helper functions
   const getSelectedLocationName = () => {
     if (!formData.locationId) return "Chọn địa điểm";
@@ -145,7 +260,70 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     return userLocations.find((l) => l.locationId === formData.locationId);
   };
 
-  // Event handlers
+  // Input handlers với validation
+  const handlePriceChange = (text: string) => {
+    // Chỉ cho phép số và dấu thập phân
+    const cleaned = text.replace(/[^\d.]/g, "");
+
+    // Chỉ 1 dấu thập phân
+    const parts = cleaned.split(".");
+    let formatted = parts[0];
+    if (parts.length > 1) {
+      formatted += "." + parts[1].substring(0, 2);
+    }
+
+    // Giới hạn 100 triệu
+    const num = parseFloat(formatted);
+    if (num > 100000000) {
+      formatted = "100000000";
+    }
+
+    updateFormData("discountedPrice", formatted);
+
+    // Clear error khi user đang nhập
+    if (formErrors.discountedPrice) {
+      setFormErrors((prev) => ({ ...prev, discountedPrice: "" }));
+    }
+  };
+
+  const handleIntegerChange =
+    (field: "maxPhotographers" | "maxBookingsPerSlot") => (text: string) => {
+      const cleaned = text.replace(/[^\d]/g, "");
+      const maxValue = field === "maxPhotographers" ? 1000 : 100;
+
+      if (cleaned && parseInt(cleaned) > maxValue) {
+        updateFormData(field, maxValue.toString());
+      } else {
+        updateFormData(field, cleaned);
+      }
+
+      // Clear error khi user đang nhập
+      if (formErrors[field]) {
+        setFormErrors((prev) => ({ ...prev, [field]: "" }));
+      }
+    };
+
+  const handleNameChange = (text: string) => {
+    if (text.length <= 255) {
+      updateFormData("name", text);
+      // Clear error khi user đang nhập
+      if (formErrors.name) {
+        setFormErrors((prev) => ({ ...prev, name: "" }));
+      }
+    }
+  };
+
+  const handleDescriptionChange = (text: string) => {
+    if (text.length <= 1000) {
+      updateFormData("description", text);
+      // Clear error khi user đang nhập
+      if (formErrors.description) {
+        setFormErrors((prev) => ({ ...prev, description: "" }));
+      }
+    }
+  };
+
+  // Auto-fill pricing from selected location
   const handleLocationSelect = (location: any) => {
     if (!location.canCreateEvent) {
       Alert.alert(
@@ -166,9 +344,23 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
     }
 
     updateFormData("locationId", location.locationId);
+
+    // Always update original price from location's hourly rate
+    if (location.hourlyRate) {
+      updateFormData("originalPrice", location.hourlyRate.toString());
+      console.log(
+        "Set original price from location hourly rate:",
+        location.hourlyRate
+      );
+    } else {
+      // Clear original price if location has no hourly rate
+      updateFormData("originalPrice", "");
+    }
+
     setShowLocationPicker(false);
   };
 
+  // Event handlers
   const handleStartDateConfirm = (date: Date) => {
     const currentTime = getTimeFromDate(formData.startDate);
     updateDateTime("startDate", date, currentTime.hour, currentTime.minute);
@@ -222,7 +414,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
 
   const handleCreateEvent = async () => {
     try {
-      if (!validateForm(userLocations)) {
+      // Validate form trước khi submit
+      if (!validateFormData()) {
         Alert.alert("Lỗi", "Vui lòng kiểm tra lại thông tin");
         return;
       }
@@ -231,15 +424,22 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
 
       const { startDate, endDate } = getFormattedDatesForAPI();
 
-      console.log("🕐 Original dates:", {
+      console.log("Original dates:", {
         startDate: formData.startDate,
         endDate: formData.endDate,
       });
 
-      console.log("🕐 Formatted dates for API:", {
+      console.log("Formatted dates for API:", {
         startDate,
         endDate,
       });
+
+      // Auto-fill discounted price if empty (use original price)
+      const finalDiscountedPrice = formData.discountedPrice
+        ? parseFloat(formData.discountedPrice)
+        : formData.originalPrice
+        ? parseFloat(formData.originalPrice)
+        : undefined;
 
       const eventData: CreateEventRequest = {
         locationId: formData.locationId!,
@@ -247,9 +447,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         description: formData.description.trim() || undefined,
         startDate,
         endDate,
-        discountedPrice: formData.discountedPrice
-          ? parseFloat(formData.discountedPrice)
-          : undefined,
+        discountedPrice: finalDiscountedPrice,
         originalPrice: formData.originalPrice
           ? parseFloat(formData.originalPrice)
           : undefined,
@@ -257,16 +455,16 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         maxBookingsPerSlot: parseInt(formData.maxBookingsPerSlot),
       };
 
-      console.log("📅 Event data being sent to API:", eventData);
+      console.log("Event data being sent to API:", eventData);
 
       const createdEvent = await createEvent(eventData);
       if (!createdEvent) throw new Error("Không thể tạo sự kiện");
 
-      console.log("✅ Event created successfully:", createdEvent);
+      console.log("Event created successfully:", createdEvent);
 
       // Upload images if any
       if (images.length > 0) {
-        console.log("📸 Uploading", images.length, "images...");
+        console.log("Uploading", images.length, "images...");
 
         const uploadPromises = images.map(async (image, index) => {
           try {
@@ -277,10 +475,10 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               isPrimary,
               `Event ${createdEvent.name} - Image ${index + 1}`
             );
-            console.log(`✅ Image ${index + 1} uploaded:`, result?.url);
+            console.log(`Image ${index + 1} uploaded:`, result?.url);
             return result;
           } catch (error) {
-            console.error(`❌ Failed to upload image ${index + 1}:`, error);
+            console.error(`Failed to upload image ${index + 1}:`, error);
             return null;
           }
         });
@@ -300,7 +498,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         { text: "OK", onPress: () => navigation.goBack() },
       ]);
     } catch (error) {
-      console.error("❌ Create event error:", error);
+      console.error("Create event error:", error);
       Alert.alert(
         "Lỗi",
         error instanceof Error ? error.message : "Không thể tạo sự kiện"
@@ -328,6 +526,9 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
   const isLoading =
     eventLoading || uploading || locationsLoading || loadingSubscriptions;
 
+  // Có lỗi hay không
+  const hasErrors = Object.keys(formErrors).length > 0;
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
@@ -345,9 +546,9 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
 
           <TouchableOpacity
             onPress={handleCreateEvent}
-            disabled={isLoading}
+            disabled={isLoading || hasErrors}
             className={`px-4 py-2 rounded-lg ${
-              isLoading ? "bg-gray-300" : "bg-blue-500"
+              isLoading || hasErrors ? "bg-gray-300" : "bg-blue-500"
             }`}
           >
             {isLoading ? (
@@ -366,7 +567,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             Thông tin cơ bản
           </Text>
 
-          {/* Location Selection with Subscription Info */}
+          {/* Location Selection */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
               Địa điểm *
@@ -375,7 +576,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               onPress={() => setShowLocationPicker(true)}
               disabled={isLoading}
               className={`border rounded-lg p-3 flex-row items-center justify-between ${
-                errors.locationId ? "border-red-300" : "border-gray-300"
+                formErrors.locationId ? "border-red-300" : "border-gray-300"
               } ${isLoading ? "opacity-50" : ""}`}
             >
               <View className="flex-row items-center flex-1">
@@ -399,9 +600,9 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               </View>
               <Ionicons name="chevron-down" size={20} color="#6B7280" />
             </TouchableOpacity>
-            {errors.locationId && (
+            {formErrors.locationId && (
               <Text className="text-red-500 text-sm mt-1">
-                {errors.locationId}
+                {formErrors.locationId}
               </Text>
             )}
 
@@ -459,15 +660,17 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             </Text>
             <TextInput
               value={formData.name}
-              onChangeText={(text) => updateFormData("name", text)}
+              onChangeText={handleNameChange}
               placeholder="Nhập tên sự kiện..."
               className={`border rounded-lg p-3 text-gray-900 ${
-                errors.name ? "border-red-300" : "border-gray-300"
+                formErrors.name ? "border-red-300" : "border-gray-300"
               }`}
               maxLength={255}
             />
-            {errors.name && (
-              <Text className="text-red-500 text-sm mt-1">{errors.name}</Text>
+            {formErrors.name && (
+              <Text className="text-red-500 text-sm mt-1">
+                {formErrors.name}
+              </Text>
             )}
             <Text className="text-gray-500 text-xs mt-1">
               {formData.name.length}/255 ký tự
@@ -481,19 +684,19 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             </Text>
             <TextInput
               value={formData.description}
-              onChangeText={(text) => updateFormData("description", text)}
+              onChangeText={handleDescriptionChange}
               placeholder="Mô tả chi tiết về sự kiện..."
               multiline
               numberOfLines={4}
               textAlignVertical="top"
               className={`border rounded-lg p-3 text-gray-900 ${
-                errors.description ? "border-red-300" : "border-gray-300"
+                formErrors.description ? "border-red-300" : "border-gray-300"
               }`}
               maxLength={1000}
             />
-            {errors.description && (
+            {formErrors.description && (
               <Text className="text-red-500 text-sm mt-1">
-                {errors.description}
+                {formErrors.description}
               </Text>
             )}
             <Text className="text-gray-500 text-xs mt-1">
@@ -502,7 +705,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
           </View>
         </View>
 
-        {/* Date & Time - Updated với separate date and time pickers */}
+        {/* Date & Time */}
         <View className="bg-white rounded-lg p-4 mb-4">
           <Text className="text-lg font-semibold text-gray-900 mb-4">
             Thời gian
@@ -518,7 +721,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             <TouchableOpacity
               onPress={() => setStartDatePickerVisibility(true)}
               className={`border rounded-lg p-3 flex-row items-center mb-2 ${
-                errors.startDate ? "border-red-300" : "border-gray-300"
+                formErrors.startDate ? "border-red-300" : "border-gray-300"
               }`}
             >
               <Ionicons name="calendar-outline" size={20} color="#6B7280" />
@@ -532,7 +735,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             <TouchableOpacity
               onPress={() => setStartTimePickerVisibility(true)}
               className={`border rounded-lg p-3 flex-row items-center ${
-                errors.startDate ? "border-red-300" : "border-gray-300"
+                formErrors.startDate ? "border-red-300" : "border-gray-300"
               }`}
             >
               <Ionicons name="time-outline" size={20} color="#6B7280" />
@@ -542,9 +745,9 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               <Ionicons name="chevron-down" size={16} color="#6B7280" />
             </TouchableOpacity>
 
-            {errors.startDate && (
+            {formErrors.startDate && (
               <Text className="text-red-500 text-sm mt-1">
-                {errors.startDate}
+                {formErrors.startDate}
               </Text>
             )}
           </View>
@@ -559,7 +762,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             <TouchableOpacity
               onPress={() => setEndDatePickerVisibility(true)}
               className={`border rounded-lg p-3 flex-row items-center mb-2 ${
-                errors.endDate ? "border-red-300" : "border-gray-300"
+                formErrors.endDate ? "border-red-300" : "border-gray-300"
               }`}
             >
               <Ionicons name="calendar-outline" size={20} color="#6B7280" />
@@ -573,7 +776,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             <TouchableOpacity
               onPress={() => setEndTimePickerVisibility(true)}
               className={`border rounded-lg p-3 flex-row items-center ${
-                errors.endDate ? "border-red-300" : "border-gray-300"
+                formErrors.endDate ? "border-red-300" : "border-gray-300"
               }`}
             >
               <Ionicons name="time-outline" size={20} color="#6B7280" />
@@ -583,9 +786,9 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               <Ionicons name="chevron-down" size={16} color="#6B7280" />
             </TouchableOpacity>
 
-            {errors.endDate && (
+            {formErrors.endDate && (
               <Text className="text-red-500 text-sm mt-1">
-                {errors.endDate}
+                {formErrors.endDate}
               </Text>
             )}
           </View>
@@ -604,58 +807,169 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
           </View>
         </View>
 
-        {/* Pricing */}
+        {/* Improved Pricing Section */}
         <View className="bg-white rounded-lg p-4 mb-4">
           <Text className="text-lg font-semibold text-gray-900 mb-4">
             Giá cả
           </Text>
 
+          {/* Show location hourly rate info */}
+          {formData.locationId &&
+            (() => {
+              const selectedLocation = getSelectedLocationInfo();
+              if (selectedLocation?.hourlyRate) {
+                return (
+                  <View className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <View className="flex-row items-center">
+                      <Ionicons
+                        name="information-circle"
+                        size={16}
+                        color="#3B82F6"
+                      />
+                      <Text className="ml-2 text-sm text-blue-800">
+                        Giá thuê địa điểm:{" "}
+                        {selectedLocation.hourlyRate.toLocaleString("vi-VN")}{" "}
+                        VND/giờ
+                      </Text>
+                    </View>
+                    <Text className="text-xs text-blue-600 mt-1">
+                      Giá gốc đã được tự động điền dựa trên giá thuê địa điểm
+                    </Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
+
           <View className="flex-row space-x-3">
-            {/* Original Price */}
+            {/* Original Price - Read Only */}
             <View className="flex-1">
               <Text className="text-sm font-medium text-gray-700 mb-2">
-                Giá gốc (VNĐ)
+                Giá gốc (VND)
               </Text>
-              <TextInput
-                value={formData.originalPrice}
-                onChangeText={(text) => updateFormData("originalPrice", text)}
-                placeholder="0"
-                keyboardType="numeric"
-                className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.originalPrice ? "border-red-300" : "border-gray-300"
-                }`}
-              />
-              {errors.originalPrice && (
-                <Text className="text-red-500 text-xs mt-1">
-                  {errors.originalPrice}
+              <View className="border rounded-lg p-3 bg-gray-100 flex-row items-center justify-between">
+                <Text className="text-gray-900 font-medium">
+                  {formData.originalPrice
+                    ? `${parseFloat(formData.originalPrice).toLocaleString(
+                        "vi-VN"
+                      )} VND`
+                    : formData.locationId
+                    ? (() => {
+                        const selectedLocation = getSelectedLocationInfo();
+                        return selectedLocation?.hourlyRate
+                          ? `${selectedLocation.hourlyRate.toLocaleString(
+                              "vi-VN"
+                            )} VND`
+                          : "Chưa có giá";
+                      })()
+                    : "Chưa chọn địa điểm"}
                 </Text>
-              )}
+                <Ionicons name="lock-closed" size={16} color="#6B7280" />
+              </View>
+              <Text className="text-gray-500 text-xs mt-1">
+                Giá tự động lấy từ giá thuê địa điểm
+              </Text>
             </View>
 
             {/* Discounted Price */}
             <View className="flex-1">
               <Text className="text-sm font-medium text-gray-700 mb-2">
-                Giá khuyến mãi (VNĐ)
+                Giá khuyến mãi (VND)
               </Text>
               <TextInput
                 value={formData.discountedPrice}
-                onChangeText={(text) => updateFormData("discountedPrice", text)}
-                placeholder="0"
+                onChangeText={handlePriceChange}
+                placeholder={
+                  formData.originalPrice || "Để trống nếu không có KM"
+                }
                 keyboardType="numeric"
                 className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.discountedPrice ? "border-red-300" : "border-gray-300"
+                  formErrors.discountedPrice
+                    ? "border-red-300"
+                    : "border-gray-300"
                 }`}
               />
-              {errors.discountedPrice && (
+              {formErrors.discountedPrice && (
                 <Text className="text-red-500 text-xs mt-1">
-                  {errors.discountedPrice}
+                  {formErrors.discountedPrice}
                 </Text>
               )}
+              <Text className="text-gray-500 text-xs mt-1">
+                Phải nhỏ hơn giá gốc
+              </Text>
             </View>
           </View>
 
+          {/* Price Summary */}
+          {(formData.originalPrice || formData.discountedPrice) && (
+            <View className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <Text className="text-sm font-medium text-gray-700 mb-2">
+                💰 Tóm tắt giá:
+              </Text>
+
+              {formData.originalPrice && (
+                <View className="flex-row justify-between items-center mb-1">
+                  <Text className="text-sm text-gray-600">Giá gốc:</Text>
+                  <Text className="text-sm font-medium text-gray-800">
+                    {parseFloat(formData.originalPrice).toLocaleString("vi-VN")}{" "}
+                    VND
+                  </Text>
+                </View>
+              )}
+
+              {formData.discountedPrice ? (
+                <View>
+                  <View className="flex-row justify-between items-center mb-1">
+                    <Text className="text-sm text-gray-600">
+                      Giá khuyến mãi:
+                    </Text>
+                    <Text className="text-sm font-medium text-green-600">
+                      {parseFloat(formData.discountedPrice).toLocaleString(
+                        "vi-VN"
+                      )}{" "}
+                      VND
+                    </Text>
+                  </View>
+                  {formData.originalPrice && (
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-sm text-gray-600">Tiết kiệm:</Text>
+                      <Text className="text-sm font-medium text-red-600">
+                        -
+                        {(
+                          parseFloat(formData.originalPrice) -
+                          parseFloat(formData.discountedPrice)
+                        ).toLocaleString("vi-VN")}{" "}
+                        VND (
+                        {Math.round(
+                          ((parseFloat(formData.originalPrice) -
+                            parseFloat(formData.discountedPrice)) /
+                            parseFloat(formData.originalPrice)) *
+                            100
+                        )}
+                        %)
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                formData.originalPrice && (
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-sm text-gray-600">Giá sự kiện:</Text>
+                    <Text className="text-sm font-medium text-blue-600">
+                      {parseFloat(formData.originalPrice).toLocaleString(
+                        "vi-VN"
+                      )}{" "}
+                      VND
+                    </Text>
+                  </View>
+                )
+              )}
+            </View>
+          )}
+
           <Text className="text-gray-500 text-xs mt-2">
-            💡 Để trống nếu không có khuyến mãi
+            💡 Nếu không nhập giá khuyến mãi, hệ thống sẽ sử dụng giá gốc làm
+            giá sự kiện
           </Text>
         </View>
 
@@ -673,20 +987,23 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               </Text>
               <TextInput
                 value={formData.maxPhotographers}
-                onChangeText={(text) =>
-                  updateFormData("maxPhotographers", text)
-                }
+                onChangeText={handleIntegerChange("maxPhotographers")}
                 placeholder="5"
                 keyboardType="numeric"
                 className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.maxPhotographers ? "border-red-300" : "border-gray-300"
+                  formErrors.maxPhotographers
+                    ? "border-red-300"
+                    : "border-gray-300"
                 }`}
               />
-              {errors.maxPhotographers && (
+              {formErrors.maxPhotographers && (
                 <Text className="text-red-500 text-xs mt-1">
-                  {errors.maxPhotographers}
+                  {formErrors.maxPhotographers}
                 </Text>
               )}
+              <Text className="text-gray-500 text-xs mt-1">
+                Từ 1-1000 người
+              </Text>
             </View>
 
             {/* Max Bookings Per Slot */}
@@ -696,22 +1013,23 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               </Text>
               <TextInput
                 value={formData.maxBookingsPerSlot}
-                onChangeText={(text) =>
-                  updateFormData("maxBookingsPerSlot", text)
-                }
+                onChangeText={handleIntegerChange("maxBookingsPerSlot")}
                 placeholder="3"
                 keyboardType="numeric"
                 className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.maxBookingsPerSlot
+                  formErrors.maxBookingsPerSlot
                     ? "border-red-300"
                     : "border-gray-300"
                 }`}
               />
-              {errors.maxBookingsPerSlot && (
+              {formErrors.maxBookingsPerSlot && (
                 <Text className="text-red-500 text-xs mt-1">
-                  {errors.maxBookingsPerSlot}
+                  {formErrors.maxBookingsPerSlot}
                 </Text>
               )}
+              <Text className="text-gray-500 text-xs mt-1">
+                Từ 1-100 booking
+              </Text>
             </View>
           </View>
         </View>
@@ -802,7 +1120,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         </View>
       </ScrollView>
 
-      {/* Location Picker Modal with Subscription Status */}
+      {/* Location Picker Modal */}
       <Modal
         visible={showLocationPicker}
         transparent={true}
@@ -899,6 +1217,15 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                               {location.address}
                             </Text>
 
+                            {/* Show hourly rate for location */}
+                            {location.hourlyRate && (
+                              <Text className="text-xs text-green-600 mt-1">
+                                Giá thuê:{" "}
+                                {location.hourlyRate.toLocaleString("vi-VN")}{" "}
+                                VND/giờ
+                              </Text>
+                            )}
+
                             {/* Subscription status */}
                             {canCreateEvent && activeSubscription && (
                               <View className="mt-1">
@@ -987,7 +1314,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         </Pressable>
       </Modal>
 
-      {/* Date Pickers - Only for date selection */}
+      {/* Date Pickers */}
       <DateTimePickerModal
         isVisible={isStartDatePickerVisible}
         mode="date"
@@ -1012,7 +1339,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
         cancelTextIOS="Hủy"
       />
 
-      {/* Time Pickers - Native time pickers */}
+      {/* Time Pickers */}
       <TimePickerModal
         isVisible={isStartTimePickerVisible}
         onConfirm={handleStartTimeConfirm}

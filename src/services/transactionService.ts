@@ -282,21 +282,13 @@ private getTransactionDirection(transaction: Transaction): 'income' | 'withdrawa
 
   private getDisplayType(transaction: Transaction): 'income' | 'withdrawal' {
   const incomeTypes = [
-    'payment', 
-    'bonus', 
-    'refund', 
-    'commission',
     'photographerfee',
-    'bookingpayment',
-    'earning'
+    'deposit'
   ];
   
   const expenseTypes = [
-    'withdraw',
     'purchase',
-    'fee',
-    'penalty',
-    'transfer'
+    'withdrawal'
   ];
   
   const typeToCheck = transaction.type.toLowerCase();

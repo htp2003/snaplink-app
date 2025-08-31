@@ -31,7 +31,6 @@ import WithdrawalRequestsCard from "../../components/WithdrawalRequestCard";
 import WalletTopUpModal from "../../components/WalletTopUpModal";
 import { WithdrawalRequest } from "src/types/withdrawal";
 
-
 type Props = CompositeScreenProps<
   BottomTabScreenProps<PhotographerTabParamList, "PhotographerHomeScreen">,
   NativeStackScreenProps<RootStackParamList>
@@ -42,10 +41,6 @@ export default function PhotographerHomeScreen({ navigation, route }: Props) {
   const { userId, photographerId, isPhotographer, hasPhotographerProfile } =
     usePhotographerAuth();
   const shouldFetchData = userId && photographerId && hasPhotographerProfile;
-
-
-
-  
 
   // State for top-up modal
   const [showTopUpModal, setShowTopUpModal] = useState(false);

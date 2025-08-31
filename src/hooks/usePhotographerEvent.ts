@@ -18,35 +18,57 @@ export const useEventDiscovery = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAllEvents = useCallback(async () => {
+const fetchAllEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('Fetching events...');
+      console.log('Fetching all events...');
       
-      const [activeResponse, upcomingResponse, featuredResponse] = await Promise.all([
-        photographerEventService.getActiveEvents(),
-        photographerEventService.getUpcomingEvents(),
-        photographerEventService.getFeaturedEvents()
-      ]);
+      // Sử dụng getAllEvents thay vì 3 API calls riêng lẻ
+      const allEventsResponse = await photographerEventService.getAllEvents();
       
-      console.log('Featured events response:', featuredResponse);
-      console.log('Active events response:', activeResponse);
-      console.log('Upcoming events response:', upcomingResponse);
-      
-      if (activeResponse.error === 0) {
-        setActiveEvents(activeResponse.data || []);
-      }
-      if (upcomingResponse.error === 0) {
-        setUpcomingEvents(upcomingResponse.data || []);
-      }
-      if (featuredResponse.error === 0) {
-        setFeaturedEvents(featuredResponse.data || []);
-      }
-      
-      if (activeResponse.error !== 0 && upcomingResponse.error !== 0 && featuredResponse.error !== 0) {
-        setError('Failed to load events');
+      if (allEventsResponse.error === 0) {
+        const events = allEventsResponse.data || [];
+        
+        // Filter events by status locally
+        const active = events.filter(event => event.status === 'Active');
+        const upcoming = events.filter(event => {
+          const eventDate = new Date(event.startDate);
+          const now = new Date();
+          return event.status === 'Open' && eventDate > now;
+        });
+        
+        // Featured events logic - có thể dựa vào featuredStatus hoặc criteria khác
+        const featured = events.filter(event => {
+          // Option 1: Nếu API có field featuredStatus
+          // return event.featuredStatus === true;
+          
+          // Option 2: Logic tự định nghĩa "featured"
+          const hasDiscount = event.discountedPrice && 
+            event.originalPrice && 
+            event.discountedPrice < event.originalPrice;
+          
+          const highBookingRate = event.totalBookingsCount > 0 && 
+            event.maxBookingsPerSlot > 0 &&
+            (event.totalBookingsCount / event.maxBookingsPerSlot) > 0.5;
+          
+          return hasDiscount || highBookingRate || event.status === 'Active';
+        });
+        
+        setActiveEvents(active);
+        setUpcomingEvents(upcoming);
+        setFeaturedEvents(featured.slice(0, 10)); // Limit featured to top 10
+        
+        console.log('Events categorized:', {
+          total: events.length,
+          active: active.length,
+          upcoming: upcoming.length,
+          featured: featured.length
+        });
+        
+      } else {
+        setError(allEventsResponse.message || 'Failed to load events');
       }
     } catch (err) {
       console.error('Error fetching events:', err);

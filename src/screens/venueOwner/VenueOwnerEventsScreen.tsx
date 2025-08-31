@@ -50,6 +50,9 @@ export default function VenueOwnerEventsScreen() {
   const { getLocationsByOwnerId, loading: locationsLoading } =
     useVenueOwnerLocation();
 
+  // Show past events toggle
+  const [showPastEvents, setShowPastEvents] = useState(false);
+
   // Filter states
   const [userLocations, setUserLocations] = useState<VenueLocation[]>([]);
   const [selectedLocationFilter, setSelectedLocationFilter] =
@@ -88,26 +91,17 @@ export default function VenueOwnerEventsScreen() {
         return null;
       }
 
-      // JWT có 3 phần: header.payload.signature
       const parts = token.split(".");
       if (parts.length !== 3) {
         throw new Error("Invalid JWT format");
       }
 
-      // Decode base64 payload (phần thứ 2)
       const payload = parts[1];
-
-      // Add padding if needed for base64 decode
       const paddedPayload =
         payload + "=".repeat((4 - (payload.length % 4)) % 4);
-
-      // Decode base64
       const decodedPayload = atob(paddedPayload);
-
-      // Parse JSON
       const payloadObj = JSON.parse(decodedPayload);
 
-      // Extract user ID
       const userIdStr =
         payloadObj[
           "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
@@ -124,9 +118,8 @@ export default function VenueOwnerEventsScreen() {
 
   const loadEventData = async () => {
     try {
-      console.log("🏗️ Loading event data for venue owner...");
+      console.log("🗏️ Loading event data for venue owner...");
 
-      // 1. Get current user ID from JWT token
       const currentUserId = await getCurrentUserId();
       if (!currentUserId) {
         console.error("❌ Could not get current user ID from JWT");
@@ -136,8 +129,6 @@ export default function VenueOwnerEventsScreen() {
 
       console.log("👤 Current user ID:", currentUserId);
 
-      // 2. Get LocationOwner record by userId to get locationOwnerId
-      console.log("🏢 Getting LocationOwner for userId:", currentUserId);
       const locationOwner =
         await venueOwnerProfileService.getLocationOwnerByUserId(currentUserId);
 
@@ -156,22 +147,15 @@ export default function VenueOwnerEventsScreen() {
         businessName: locationOwner.businessName,
       });
 
-      // 3. Get locations using locationOwnerId (not userId!)
-      console.log(
-        "📍 Getting locations for locationOwnerId:",
-        locationOwner.locationOwnerId
-      );
       const locations = await getLocationsByOwnerId(
         locationOwner.locationOwnerId
       );
 
-      console.log("🔍 Locations detail:", JSON.stringify(locations, null, 2));
+      console.log("🏗 Locations detail:", JSON.stringify(locations, null, 2));
       console.log("✅ Locations count:", locations.length);
 
-      // Store locations for filtering
       setUserLocations(locations);
 
-      // Check từng location
       locations.forEach((loc, index) => {
         console.log(`Location ${index + 1}:`, {
           locationId: loc.locationId,
@@ -188,11 +172,9 @@ export default function VenueOwnerEventsScreen() {
         return;
       }
 
-      // 4. Get events cho tất cả locations
       const locationIds = locations.map((location) => location.locationId);
       console.log("📅 Getting events for locations:", locationIds);
 
-      // Debug: Try getting events for each location individually
       for (const locationId of locationIds) {
         console.log(`🎯 Getting events for location ${locationId}...`);
         try {
@@ -223,7 +205,6 @@ export default function VenueOwnerEventsScreen() {
 
   const handleRefresh = async () => {
     try {
-      // Get current user and locationOwner info again
       const currentUserId = await getCurrentUserId();
       if (!currentUserId) return;
 
@@ -236,7 +217,6 @@ export default function VenueOwnerEventsScreen() {
       );
       const locationIds = locations.map((location) => location.locationId);
 
-      // Update locations for filtering
       setUserLocations(locations);
 
       await refreshEvents(undefined, locationIds);
@@ -245,9 +225,21 @@ export default function VenueOwnerEventsScreen() {
     }
   };
 
-  // Filter events based on selected filters
+  // Check if event is in the past based on end date
+  const isEventInPast = (event: VenueOwnerEvent): boolean => {
+    const now = new Date();
+    const eventEnd = new Date(event.endDate);
+    return eventEnd < now;
+  };
+
+  // Filter events based on selected filters and past events toggle
   const getFilteredEvents = (): VenueOwnerEvent[] => {
     let filteredEvents = [...events];
+
+    // Filter by past events toggle (default: hide past events)
+    if (!showPastEvents) {
+      filteredEvents = filteredEvents.filter((event) => !isEventInPast(event));
+    }
 
     // Filter by location
     if (selectedLocationFilter.locationId) {
@@ -272,14 +264,16 @@ export default function VenueOwnerEventsScreen() {
     return location?.name || "Địa điểm không xác định";
   };
 
-  // Get events count by location for dashboard
+  // Get events count by location (only current events for overview)
   const getLocationEventCounts = () => {
+    const currentEvents = events.filter((event) => !isEventInPast(event));
+
     return userLocations.map((location) => ({
       ...location,
-      eventCount: events.filter(
+      eventCount: currentEvents.filter(
         (event) => event.locationId === location.locationId
       ).length,
-      activeEventCount: events.filter(
+      activeEventCount: currentEvents.filter(
         (event) =>
           event.locationId === location.locationId &&
           (event.status === "Active" || event.status === "Open")
@@ -362,7 +356,7 @@ export default function VenueOwnerEventsScreen() {
 
   const handleEventPress = (event: VenueOwnerEvent) => {
     console.log("🎯 Event pressed:", event.name);
-    console.log("📍 Navigating to detail with eventId:", event.eventId);
+    console.log("🔍 Navigating to detail with eventId:", event.eventId);
 
     try {
       navigation.navigate("VenueOwnerEventDetail", {
@@ -377,7 +371,6 @@ export default function VenueOwnerEventsScreen() {
 
   const handleCreateEvent = () => {
     console.log("➕ Create event pressed");
-    // Check if user has locations first
     if (userLocations.length === 0) {
       Alert.alert(
         "Chưa có địa điểm",
@@ -408,6 +401,9 @@ export default function VenueOwnerEventsScreen() {
 
   const filteredEvents = getFilteredEvents();
   const locationEventCounts = getLocationEventCounts();
+
+  // Count past events
+  const pastEventsCount = events.filter(isEventInPast).length;
 
   // Loading state
   if (loading || locationsLoading) {
@@ -581,49 +577,81 @@ export default function VenueOwnerEventsScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Active Filters Display */}
-          {(selectedLocationFilter.locationId ||
-            selectedStatusFilter.status) && (
-            <View className="flex-row items-center mt-3">
-              <Text className="text-sm text-gray-500 mr-2">
-                Bộ lọc hiện tại:
-              </Text>
-              <View className="flex-row space-x-2">
-                {selectedLocationFilter.locationId && (
-                  <TouchableOpacity
-                    className="bg-blue-100 px-3 py-1 rounded-full flex-row items-center"
-                    onPress={() =>
-                      handleLocationFilter({
-                        locationId: null,
-                        locationName: "Tất cả địa điểm",
-                      })
-                    }
-                  >
-                    <Text className="text-blue-800 text-xs mr-1">
-                      {selectedLocationFilter.locationName}
-                    </Text>
-                    <Ionicons name="close" size={12} color="#1E40AF" />
-                  </TouchableOpacity>
-                )}
-                {selectedStatusFilter.status && (
-                  <TouchableOpacity
-                    className="bg-purple-100 px-3 py-1 rounded-full flex-row items-center"
-                    onPress={() =>
-                      handleStatusFilter({
-                        status: null,
-                        statusName: "Tất cả trạng thái",
-                      })
-                    }
-                  >
-                    <Text className="text-purple-800 text-xs mr-1">
-                      {selectedStatusFilter.statusName}
-                    </Text>
-                    <Ionicons name="close" size={12} color="#7C3AED" />
-                  </TouchableOpacity>
-                )}
+          {/* Active Filters Display & Past Events Toggle */}
+          <View className="mt-3">
+            {/* Active Filters */}
+            {(selectedLocationFilter.locationId ||
+              selectedStatusFilter.status) && (
+              <View className="flex-row items-center mb-3">
+                <Text className="text-sm text-gray-500 mr-2">
+                  Bộ lọc hiện tại:
+                </Text>
+                <View className="flex-row space-x-2">
+                  {selectedLocationFilter.locationId && (
+                    <TouchableOpacity
+                      className="bg-blue-100 px-3 py-1 rounded-full flex-row items-center"
+                      onPress={() =>
+                        handleLocationFilter({
+                          locationId: null,
+                          locationName: "Tất cả địa điểm",
+                        })
+                      }
+                    >
+                      <Text className="text-blue-800 text-xs mr-1">
+                        {selectedLocationFilter.locationName}
+                      </Text>
+                      <Ionicons name="close" size={12} color="#1E40AF" />
+                    </TouchableOpacity>
+                  )}
+                  {selectedStatusFilter.status && (
+                    <TouchableOpacity
+                      className="bg-purple-100 px-3 py-1 rounded-full flex-row items-center"
+                      onPress={() =>
+                        handleStatusFilter({
+                          status: null,
+                          statusName: "Tất cả trạng thái",
+                        })
+                      }
+                    >
+                      <Text className="text-purple-800 text-xs mr-1">
+                        {selectedStatusFilter.statusName}
+                      </Text>
+                      <Ionicons name="close" size={12} color="#7C3AED" />
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-            </View>
-          )}
+            )}
+
+            {/* Past Events Toggle */}
+            {pastEventsCount > 0 && (
+              <View className="flex-row justify-between items-center bg-white px-4 py-3 rounded-lg border border-gray-200">
+                <View>
+                  <Text className="text-sm text-gray-700 font-medium">
+                    Hiển thị sự kiện cũ
+                  </Text>
+                  <Text className="text-xs text-gray-500">
+                    {pastEventsCount} sự kiện đã kết thúc
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  className={`w-12 h-6 rounded-full p-1 ${
+                    showPastEvents ? "bg-blue-500" : "bg-gray-300"
+                  }`}
+                  onPress={() => setShowPastEvents(!showPastEvents)}
+                >
+                  <View
+                    className={`w-4 h-4 rounded-full bg-white ${
+                      showPastEvents ? "ml-6" : "ml-0"
+                    }`}
+                    style={{
+                      transform: [{ translateX: showPastEvents ? 0 : 0 }],
+                    }}
+                  />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Events List */}
@@ -638,18 +666,30 @@ export default function VenueOwnerEventsScreen() {
             <View className="space-y-4 mb-6">
               {filteredEvents.map((event) => {
                 const statusStyle = getEventStatusColor(event.status);
+                const isPastEvent = isEventInPast(event);
 
                 return (
                   <TouchableOpacity
                     key={event.eventId}
-                    className="bg-white rounded-lg shadow-sm border border-gray-100 p-4"
+                    className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 ${
+                      isPastEvent ? "opacity-75" : ""
+                    }`}
                     onPress={() => handleEventPress(event)}
                   >
                     <View className="flex-row justify-between items-start mb-3">
                       <View className="flex-1 mr-2">
-                        <Text className="text-lg font-semibold text-gray-900">
-                          {event.name}
-                        </Text>
+                        <View className="flex-row items-center">
+                          <Text className="text-lg font-semibold text-gray-900 flex-1">
+                            {event.name}
+                          </Text>
+                          {isPastEvent && (
+                            <View className="bg-gray-100 px-2 py-1 rounded-full ml-2">
+                              <Text className="text-xs text-gray-600 font-medium">
+                                Đã kết thúc
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                         {/* Location Name */}
                         <View className="flex-row items-center mt-1">
                           <Ionicons
@@ -782,62 +822,75 @@ export default function VenueOwnerEventsScreen() {
           )}
         </View>
 
-        {/* Event Ideas */}
-        <View className="mx-4 mt-6">
-          <Text className="text-lg font-semibold text-gray-900 mb-4">
-            Ý tưởng sự kiện
-          </Text>
+        {/* Event Ideas - Only show when no current events and no filters */}
+        {filteredEvents.length === 0 &&
+          !selectedLocationFilter.locationId &&
+          !selectedStatusFilter.status &&
+          !showPastEvents && (
+            <View className="mx-4 mt-6">
+              <Text className="text-lg font-semibold text-gray-900 mb-4">
+                Ý tưởng sự kiện
+              </Text>
 
-          <View className="space-y-3">
-            <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <View className="flex-row items-center">
-                <View className="bg-yellow-100 p-3 rounded-full mr-4">
-                  <Ionicons name="star-outline" size={20} color="#F59E0B" />
+              <View className="space-y-3">
+                <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                  <View className="flex-row items-center">
+                    <View className="bg-yellow-100 p-3 rounded-full mr-4">
+                      <Ionicons name="star-outline" size={20} color="#F59E0B" />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-gray-900 font-medium">
+                        Khuyến mãi cuối tuần
+                      </Text>
+                      <Text className="text-gray-500 text-sm">
+                        Giảm giá đặc biệt cho các ngày cuối tuần
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-                <View className="flex-1">
-                  <Text className="text-gray-900 font-medium">
-                    Khuyến mãi cuối tuần
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Giảm giá đặc biệt cho các ngày cuối tuần
-                  </Text>
+
+                <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                  <View className="flex-row items-center">
+                    <View className="bg-pink-100 p-3 rounded-full mr-4">
+                      <Ionicons
+                        name="heart-outline"
+                        size={20}
+                        color="#EC4899"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-gray-900 font-medium">
+                        Gói Valentine
+                      </Text>
+                      <Text className="text-gray-500 text-sm">
+                        Ưu đãi đặc biệt cho các cặp đôi
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                  <View className="flex-row items-center">
+                    <View className="bg-green-100 p-3 rounded-full mr-4">
+                      <Ionicons
+                        name="camera-outline"
+                        size={20}
+                        color="#10B981"
+                      />
+                    </View>
+                    <View className="flex-1">
+                      <Text className="text-gray-900 font-medium">
+                        Workshop chụp ảnh
+                      </Text>
+                      <Text className="text-gray-500 text-sm">
+                        Tổ chức lớp học chụp ảnh tại địa điểm
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               </View>
             </View>
-
-            <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <View className="flex-row items-center">
-                <View className="bg-pink-100 p-3 rounded-full mr-4">
-                  <Ionicons name="heart-outline" size={20} color="#EC4899" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-gray-900 font-medium">
-                    Gói Valentine
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Ưu đãi đặc biệt cho các cặp đôi
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-              <View className="flex-row items-center">
-                <View className="bg-green-100 p-3 rounded-full mr-4">
-                  <Ionicons name="camera-outline" size={20} color="#10B981" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-gray-900 font-medium">
-                    Workshop chụp ảnh
-                  </Text>
-                  <Text className="text-gray-500 text-sm">
-                    Tổ chức lớp học chụp ảnh tại địa điểm
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-        </View>
+          )}
 
         <View className="h-6" />
       </ScrollView>

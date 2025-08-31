@@ -170,77 +170,93 @@ export class AvailabilityService {
         photographerId,
         date,
       });
-
+  
       const response = await apiClient.get<AvailableSlotsResponse>(
         AVAILABILITY_ENDPOINTS.GET_AVAILABLE_SLOTS(photographerId, date)
       );
-
-      console.log("📅 Available slots API response:", response);
-
-      if (
-        response.error !== 0 ||
-        !response.data ||
-        response.data.length === 0
-      ) {
-        console.warn("⚠️ No available slots found or API error");
+  
+      console.log("📅 RAW API Response:", JSON.stringify(response, null, 2));
+  
+      if (response.error !== 0 || !response.data || response.data.length === 0) {
+        console.warn("⚠️ No available slots found or API error:", {
+          error: response.error,
+          hasData: !!response.data,
+          dataLength: response.data?.length
+        });
         return [];
       }
-
+  
       const dayData = response.data[0];
       const availableSlots = dayData.availableSlots || [];
       const bookedSlots = dayData.bookedSlots || [];
-
+  
+      console.log("🔍 Extracted data:", {
+        dayData: dayData,
+        availableSlots: availableSlots,
+        bookedSlots: bookedSlots
+      });
+  
       if (availableSlots.length === 0) {
         console.log("🔭 No available slots for this day");
         return [];
       }
-
+  
       console.log("⏰ Processing available ranges:", availableSlots);
       console.log("📋 Booked ranges:", bookedSlots);
-
-      // ✅ FIXED: Generate ALL possible start times correctly
+  
+      // Generate ALL possible start times correctly
       const startTimes: string[] = [];
-
+  
       availableSlots.forEach((slot: any, index: number) => {
+        console.log("🎯 Processing slot:", slot);
+        
         const startHour = parseInt(slot.startTime.split(":")[0]);
         const endHour = parseInt(slot.endTime.split(":")[0]);
-
+  
         console.log(`📅 Available range ${index + 1}: ${startHour}:00 - ${endHour}:00`);
-
-        // ✅ Add all possible start times within this range (except the last hour)
+  
+        // Add all possible start times within this range (except the last hour)
         for (let hour = startHour; hour < endHour; hour++) {
-          // ✅ Check if this hour is NOT booked
+          console.log(`⏳ Checking hour ${hour}:00`);
+          
+          // Check if this hour is NOT booked
           const isBooked = bookedSlots.some((bookedSlot: any) => {
             const bookedStartHour = parseInt(bookedSlot.startTime.split(":")[0]);
             const bookedEndHour = parseInt(bookedSlot.endTime.split(":")[0]);
-            return hour >= bookedStartHour && hour < bookedEndHour;
+            const result = hour >= bookedStartHour && hour < bookedEndHour;
+            
+            console.log(`    🔍 Booked slot ${bookedSlot.startTime}-${bookedSlot.endTime}: ${hour} >= ${bookedStartHour} && ${hour} < ${bookedEndHour} = ${result}`);
+            
+            return result;
           });
-
+  
+          console.log(`    📊 Hour ${hour}:00 is booked: ${isBooked}`);
+  
           if (!isBooked) {
             const timeStr = hour.toString().padStart(2, "0") + ":00";
             if (!startTimes.includes(timeStr)) {
               startTimes.push(timeStr);
-              console.log(`✅ Added available start time: ${timeStr}`);
+              console.log(`    ✅ Added available start time: ${timeStr}`);
             }
           } else {
-            console.log(`❌ Hour ${hour}:00 is booked, skipping`);
+            console.log(`    ❌ Hour ${hour}:00 is booked, skipping`);
           }
         }
       });
-
-      // ✅ Sort by hour
+  
+      // Sort by hour
       startTimes.sort((a, b) => {
         const hourA = parseInt(a.split(":")[0]);
         const hourB = parseInt(b.split(":")[0]);
         return hourA - hourB;
       });
-
+  
       console.log("✅ Final available START times for UI:", {
         startTimes,
         count: startTimes.length,
         example: "Can start at these times, end times calculated separately",
       });
-
+  
       return startTimes;
     } catch (error) {
       console.error("❌ Error getting available times:", error);

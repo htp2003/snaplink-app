@@ -91,6 +91,7 @@ export default function OrderEventDetailScreen() {
   const route = useRoute<OrderEventDetailScreenRouteProp>();
   const params = route.params;
 
+  // ✅ FIXED: Move ALL hooks to the top, before any conditional logic
   // Auth hook
   const { user, isAuthenticated } = useAuth();
 
@@ -101,26 +102,41 @@ export default function OrderEventDetailScreen() {
     refreshWalletData,
   } = useWallet();
 
-  const shouldFetchWallet = isAuthenticated && user?.id;
-
   // Booking và Payment hooks
-  const { getBookingById, confirmBooking } = useBooking();
+    const {
+      getBookingById,
+      confirmBooking,
+      confirming,
+      updateBooking, 
+      updating, 
+    } = useBooking();
   const {
     createEventPayment,
     creatingPayment,
     error: paymentError
   } = usePayment();
 
-  // Payment method state
-  type PaymentMethod = "bank_qr" | "snaplink_wallet";
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>("bank_qr");
+  // ✅ All state hooks at the top
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"bank_qr" | "snaplink_wallet">("bank_qr");
   const [isProcessing, setIsProcessing] = useState(false);
   const [showWalletSuccessModal, setShowWalletSuccessModal] = useState(false);
-
-  // Booking state
   const [regularBooking, setRegularBooking] = useState<any>(null);
   const [loadingBooking, setLoadingBooking] = useState(true);
 
+   const [isCancelling, setIsCancelling] = useState(false);
+
+  // ✅ Derived values using useMemo to prevent unnecessary re-calculations
+  const shouldFetchWallet = useMemo(() => isAuthenticated && user?.id, [isAuthenticated, user?.id]);
+  
+  const isValidParams = useMemo(() => {
+    return params && params.event && params.photographer;
+  }, [params]);
+
+  const isUserReady = useMemo(() => {
+    return isAuthenticated && user?.id;
+  }, [isAuthenticated, user?.id]);
+
+  // ✅ All useEffect hooks
   // Test token 
   useEffect(() => {
     const debugToken = async () => {
@@ -164,7 +180,9 @@ export default function OrderEventDetailScreen() {
   // Load regular booking data
   useEffect(() => {
     const loadRegularBooking = async () => {
-      const bookingId = params.eventBookingResponse?.bookingId;
+      if (!isValidParams) return;
+      
+      const bookingId = params?.eventBookingResponse?.bookingId;
 
       if (bookingId) {
         try {
@@ -193,11 +211,11 @@ export default function OrderEventDetailScreen() {
     };
 
     loadRegularBooking();
-  }, [params.eventBookingResponse?.bookingId, params.eventBookingId, getBookingById]);
+  }, [params?.eventBookingResponse?.bookingId, params?.eventBookingId, getBookingById, isValidParams]);
 
   // Check authentication
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated && isValidParams) {
       Alert.alert(
         "Yêu cầu đăng nhập",
         "Vui lòng đăng nhập để tiếp tục thanh toán",
@@ -214,7 +232,7 @@ export default function OrderEventDetailScreen() {
         ]
       );
     }
-  }, [isAuthenticated, navigation]);
+  }, [isAuthenticated, navigation, isValidParams]);
 
   // Refresh wallet data khi màn hình được focus
   useFocusEffect(
@@ -225,37 +243,49 @@ export default function OrderEventDetailScreen() {
     }, [shouldFetchWallet, refreshWalletData])
   );
 
-  // Validate params
-  if (!params || !params.event || !params.photographer) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <MaterialIcons name="error" size={getResponsiveSize(48)} color="#EF5350" />
-        <Text className="text-xl font-bold">Thông tin không hợp lệ</Text>
-        <Text className="text-gray-600">Vui lòng quay lại và thử lại</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text>Quay lại</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  // ✅ Calculate pricing - use regular booking data if available, otherwise fallback
+  const totalPrice = useMemo(() => {
+    return params?.eventPrice ||
+      params?.eventBookingResponse?.eventPrice ||
+      regularBooking?.totalPrice ||
+      (() => {
+        const eventBaseFee = params?.event?.discountedPrice || params?.event?.originalPrice || 0;
+        const photographerRate = params?.photographer?.specialRate || 0;
+        const duration = params?.bookingTimes ?
+          (() => {
+            const [startHour, startMinute] = params.bookingTimes!.startTime.split(":").map(Number);
+            const [endHour, endMinute] = params.bookingTimes!.endTime.split(":").map(Number);
+            const startMinutes = startHour * 60 + startMinute;
+            const endMinutes = endHour * 60 + endMinute;
+            return Math.max(0, (endMinutes - startMinutes) / 60);
+          })() : 1;
+        return eventBaseFee + (photographerRate * duration);
+      })();
+  }, [params, regularBooking]);
 
-  if (!isAuthenticated || !user?.id) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" color="#E91E63" />
-        <Text className="text-xl font-bold">Đang kiểm tra xác thực...</Text>
-      </View>
-    );
-  }
+  const durationHours = useMemo(() => {
+    return regularBooking?.durationHours ||
+      (params?.bookingTimes ? (() => {
+        const [startHour, startMinute] = params.bookingTimes!.startTime.split(":").map(Number);
+        const [endHour, endMinute] = params.bookingTimes!.endTime.split(":").map(Number);
+        const startMinutes = startHour * 60 + startMinute;
+        const endMinutes = endHour * 60 + endMinute;
+        return Math.max(0, (endMinutes - startMinutes) / 60);
+      })() : 1);
+  }, [regularBooking, params?.bookingTimes]);
 
-  if (loadingBooking) {
-    return (
-      <View className="flex-1 items-center justify-center">
-        <ActivityIndicator size="large" color="#E91E63" />
-        <Text className="text-xl font-bold">Đang tải thông tin booking...</Text>
-      </View>
-    );
-  }
+  // Kiểm tra số dư ví có đủ để thanh toán không
+  const isWalletBalanceSufficient = useMemo(() => {
+    if (!shouldFetchWallet || balanceLoading || !walletBalance) return false;
+    return walletBalance.balance >= totalPrice;
+  }, [shouldFetchWallet, walletBalance, balanceLoading, totalPrice]);
+
+  // Auto-deselect wallet payment nếu số dư không đủ
+  useEffect(() => {
+    if (selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && !balanceLoading && !isWalletBalanceSufficient) {
+      setSelectedPaymentMethod("bank_qr");
+    }
+  }, [selectedPaymentMethod, shouldFetchWallet, balanceLoading, isWalletBalanceSufficient]);
 
   // Helper functions
   const formatDate = (dateString: string) => {
@@ -298,57 +328,17 @@ export default function OrderEventDetailScreen() {
       return `${amount.toLocaleString()} ₫`;
     }
   };
-  
-  const calculateDurationFromTimes = (startTime: string, endTime: string): number => {
-    const [startHour, startMinute] = startTime.split(":").map(Number);
-    const [endHour, endMinute] = endTime.split(":").map(Number);
-    const startMinutes = startHour * 60 + startMinute;
-    const endMinutes = endHour * 60 + endMinute;
-    return Math.max(0, (endMinutes - startMinutes) / 60);
-  };
-
-  // Calculate fallback price if no booking data
-  const calculateFallbackPrice = (): number => {
-    const eventBaseFee = params.event.discountedPrice || params.event.originalPrice || 0;
-    const photographerRate = params.photographer.specialRate || 0;
-    const duration = params.bookingTimes ?
-      calculateDurationFromTimes(params.bookingTimes.startTime, params.bookingTimes.endTime) : 1;
-
-    return eventBaseFee + (photographerRate * duration);
-  };
-
-  // Calculate pricing - use regular booking data if available, otherwise fallback
-  const totalPrice = params.eventPrice ||
-    params.eventBookingResponse?.eventPrice ||
-    regularBooking?.totalPrice ||
-    calculateFallbackPrice();
-
-  const durationHours = regularBooking?.durationHours ||
-    (params.bookingTimes ? calculateDurationFromTimes(params.bookingTimes.startTime, params.bookingTimes.endTime) : 1);
-
-  // Kiểm tra số dư ví có đủ để thanh toán không
-  const isWalletBalanceSufficient = useMemo(() => {
-    if (!shouldFetchWallet || balanceLoading || !walletBalance) return false;
-    return walletBalance.balance >= totalPrice;
-  }, [shouldFetchWallet, walletBalance, balanceLoading, totalPrice]);
-
-  // Auto-deselect wallet payment nếu số dư không đủ
-  useEffect(() => {
-    if (selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && !balanceLoading && !isWalletBalanceSufficient) {
-      setSelectedPaymentMethod("bank_qr");
-    }
-  }, [selectedPaymentMethod, shouldFetchWallet, balanceLoading, isWalletBalanceSufficient]);
 
   // Get the booking ID for payment
   const getBookingIdForPayment = (): number => {
     console.log('Getting booking ID for payment...');
 
     const sources = [
-      { name: 'eventBookingResponse.booking.bookingId', value: params.eventBookingResponse?.booking?.bookingId },
-      { name: 'eventBookingResponse.bookingId', value: params.eventBookingResponse?.bookingId },
-      { name: 'bookingResponse.booking.bookingId', value: params.bookingResponse?.booking?.bookingId },
-      { name: 'bookingResponse.bookingId', value: params.bookingResponse?.bookingId },
-      { name: 'params.bookingId', value: params.bookingId },
+      { name: 'eventBookingResponse.booking.bookingId', value: params?.eventBookingResponse?.booking?.bookingId },
+      { name: 'eventBookingResponse.bookingId', value: params?.eventBookingResponse?.bookingId },
+      { name: 'bookingResponse.booking.bookingId', value: params?.bookingResponse?.booking?.bookingId },
+      { name: 'bookingResponse.bookingId', value: params?.bookingResponse?.bookingId },
+      { name: 'params.bookingId', value: params?.bookingId },
       { name: 'regularBooking.bookingId', value: regularBooking?.bookingId },
     ];
 
@@ -363,7 +353,7 @@ export default function OrderEventDetailScreen() {
       }
     }
 
-    const fallbackId = params.eventBookingId;
+    const fallbackId = params?.eventBookingId;
     if (fallbackId && typeof fallbackId === 'number' && fallbackId > 0) {
       console.warn('FALLBACK: Using eventBookingId as last resort:', fallbackId);
       console.warn('This might cause issues - eventBookingId is not regular booking ID');
@@ -458,13 +448,13 @@ export default function OrderEventDetailScreen() {
         const paymentResult = await createEventPayment(
           user.id,
           bookingId,
-          `Tham gia sự kiện - ${params.event.name}`,
+          `Tham gia sự kiện - ${params?.event?.name}`,
           {
-            date: formatDate(params.event.startDate),
-            startTime: formatTime(params.event.startDate),
-            endTime: formatTime(params.event.endDate),
-            location: params.event.locationName,
-            photographerName: params.photographer.fullName
+            date: formatDate(params?.event?.startDate || ""),
+            startTime: formatTime(params?.event?.startDate || ""),
+            endTime: formatTime(params?.event?.endDate || ""),
+            location: params?.event?.locationName,
+            photographerName: params?.photographer?.fullName
           }
         );
 
@@ -478,10 +468,10 @@ export default function OrderEventDetailScreen() {
         const paymentData: PaymentFlowData = {
           booking: {
             id: bookingId,
-            photographerName: params.photographer.fullName,
-            date: formatDate(params.event.startDate),
-            time: `${formatTime(params.event.startDate)}-${formatTime(params.event.endDate)}`,
-            location: params.event.locationName,
+            photographerName: params?.photographer?.fullName || "",
+            date: formatDate(params?.event?.startDate || ""),
+            time: `${formatTime(params?.event?.startDate || "")}-${formatTime(params?.event?.endDate || "")}`,
+            location: params?.event?.locationName,
             totalAmount: totalPrice,
           },
           payment: {
@@ -492,8 +482,8 @@ export default function OrderEventDetailScreen() {
             totalAmount: totalPrice,
             status: paymentResult.status || "Pending",
             bookingId: bookingId,
-            photographerName: params.photographer.fullName,
-            locationName: params.event.locationName || "",
+            photographerName: params?.photographer?.fullName || "",
+            locationName: params?.event?.locationName || "",
             id: paymentResult.paymentId,
             paymentUrl: paymentResult.paymentUrl || "",
             orderCode: paymentResult.orderCode || "",
@@ -529,14 +519,81 @@ export default function OrderEventDetailScreen() {
     }
   };
 
+  // ✅ Now handle conditional rendering AFTER all hooks are declared
+  if (!isValidParams) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <MaterialIcons name="error" size={getResponsiveSize(48)} color="#EF5350" />
+        <Text className="text-xl font-bold">Thông tin không hợp lệ</Text>
+        <Text className="text-gray-600">Vui lòng quay lại và thử lại</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text>Quay lại</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!isUserReady) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" color="#E91E63" />
+        <Text className="text-xl font-bold">Đang kiểm tra xác thực...</Text>
+      </View>
+    );
+  }
+
+  if (loadingBooking) {
+    return (
+      <View className="flex-1 items-center justify-center">
+        <ActivityIndicator size="large" color="#E91E63" />
+        <Text className="text-xl font-bold">Đang tải thông tin booking...</Text>
+      </View>
+    );
+  }
+
+  const handleCancelBooking = async () => {
+    if (!params.bookingId || isCancelling) return;
+    
+    try {
+      setIsCancelling(true);
+      await updateBooking(params.bookingId, { status: 'Cancelled' });
+      console.log(`✅ Cancelled booking ${params.bookingId} when going back`);
+    } catch (error) {
+      console.error('❌ Error cancelling booking on back:', error);
+      // Không hiển thị alert để không làm gián đoạn navigation
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleGoBack = () => {
+      Alert.alert(
+        'Hủy đặt lịch',
+        'Bạn có muốn hủy đặt lịch này và quay lại không?',
+        [
+          {
+            text: 'Ở lại',
+            style: 'cancel',
+          },
+          {
+            text: 'Hủy đặt lịch',
+            style: 'destructive',
+            onPress: async () => {
+              await handleCancelBooking();
+              navigation.goBack();
+            },
+          },
+        ]
+      );
+    };
+
   return (
     <View className="flex-1 bg-gray-50">
-      <StatusBar barStyle="light-content" backgroundColor="#E91E63" />
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
 
-      {/* Header with gradient */}
-      <LinearGradient 
-        colors={["#E91E63", "#F06292"]} 
-        className="flex-row items-center justify-between"
+      {/* Header - Similar to OrderDetailScreen */}
+      <View
+        className="flex-row items-center justify-between bg-white border-b border-gray-100"
         style={{
           paddingHorizontal: getResponsiveSize(20),
           paddingTop: getResponsiveSize(50),
@@ -544,133 +601,35 @@ export default function OrderEventDetailScreen() {
         }}
       >
         <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          className="bg-white bg-opacity-20 rounded-xl"
+          onPress={handleGoBack}
+          className="bg-gray-100 rounded-lg"
           style={{ padding: getResponsiveSize(8) }}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
+          disabled={isCancelling}
         >
-          <AntDesign name="arrowleft" size={getResponsiveSize(24)} color="#fff" />
+          <AntDesign
+            name="arrowleft"
+            size={getResponsiveSize(24)}
+            color="#333"
+          />
         </TouchableOpacity>
-        <Text 
-          className="text-white font-bold"
+        <Text
+          className="font-bold text-gray-800"
           style={{ fontSize: getResponsiveSize(18) }}
         >
           Xác nhận tham gia sự kiện
         </Text>
         <View style={{ width: getResponsiveSize(40) }} />
-      </LinearGradient>
+      </View>
 
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingBottom: getResponsiveSize(120) }}
         showsVerticalScrollIndicator={false}
       >
-        {/* Event Hero Card */}
+        {/* Event Info Card */}
         <View
-          className="rounded-2xl overflow-hidden shadow-lg"
-          style={{
-            marginHorizontal: getResponsiveSize(20),
-            marginTop: getResponsiveSize(16),
-            elevation: 8,
-          }}
-        >
-          <LinearGradient
-            colors={["#E91E63", "#F06292", "#CE93D8"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ padding: getResponsiveSize(24) }}
-          >
-            <View className="items-center">
-              <View className="flex-row items-center bg-white bg-opacity-20 px-3 py-1.5 rounded-full mb-4">
-                <MaterialIcons name="event" size={getResponsiveSize(16)} color="#fff" />
-                <Text 
-                  className="text-white font-bold ml-1"
-                  style={{ fontSize: getResponsiveSize(12) }}
-                >
-                  SỰ KIỆN ĐẶC BIỆT
-                </Text>
-              </View>
-
-              <Text 
-                className="text-white font-bold text-center mb-5"
-                style={{ 
-                  fontSize: getResponsiveSize(24),
-                  lineHeight: getResponsiveSize(32) 
-                }}
-              >
-                {params.event.name}
-              </Text>
-
-              <View className="items-center mb-5 gap-2">
-                <View className="flex-row items-center bg-white bg-opacity-15 px-3 py-2 rounded-full min-w-50 justify-center">
-                  <Feather name="calendar" size={getResponsiveSize(16)} color="#fff" />
-                  <Text 
-                    className="text-white font-medium ml-2 text-center flex-1"
-                    style={{ fontSize: getResponsiveSize(14) }}
-                  >
-                    {formatDate(params.event.startDate)}
-                  </Text>
-                </View>
-
-                <View className="flex-row items-center bg-white bg-opacity-15 px-3 py-2 rounded-full min-w-50 justify-center">
-                  <Feather name="clock" size={getResponsiveSize(16)} color="#fff" />
-                  <Text 
-                    className="text-white font-medium ml-2 text-center flex-1"
-                    style={{ fontSize: getResponsiveSize(14) }}
-                  >
-                    {formatTime(params.event.startDate)} - {formatTime(params.event.endDate)}
-                  </Text>
-                </View>
-
-                {params.event.locationName && (
-                  <View className="flex-row items-center bg-white bg-opacity-15 px-3 py-2 rounded-full min-w-50 justify-center">
-                    <Feather name="map-pin" size={getResponsiveSize(16)} color="#fff" />
-                    <Text 
-                      className="text-white font-medium ml-2 text-center flex-1"
-                      style={{ fontSize: getResponsiveSize(14) }}
-                      numberOfLines={2}
-                    >
-                      {params.event.locationName}
-                    </Text>
-                  </View>
-                )}
-              </View>
-
-              {/* Price highlight */}
-              <View 
-                className="bg-white bg-opacity-20 rounded-2xl p-4 items-center w-full"
-              >
-                <Text 
-                  className="text-white font-medium mb-2"
-                  style={{ fontSize: getResponsiveSize(14) }}
-                >
-                  Giá tham gia
-                </Text>
-                <View className="flex-row items-center gap-2">
-                  <Text 
-                    className="text-white font-bold"
-                    style={{ fontSize: getResponsiveSize(20) }}
-                  >
-                    {formatCurrency(totalPrice)}
-                  </Text>
-                  {params.event.originalPrice && params.event.discountedPrice &&
-                    params.event.originalPrice > params.event.discountedPrice && (
-                      <Text 
-                        className="text-white text-opacity-70 line-through"
-                        style={{ fontSize: getResponsiveSize(16) }}
-                      >
-                        {formatCurrency(params.event.originalPrice)}
-                      </Text>
-                    )}
-                </View>
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-
-        {/* Photographer Card */}
-        <View
-          className="bg-white rounded-2xl shadow-sm"
+          className="bg-white rounded-xl shadow-sm"
           style={{
             marginHorizontal: getResponsiveSize(20),
             marginTop: getResponsiveSize(16),
@@ -678,20 +637,147 @@ export default function OrderEventDetailScreen() {
             elevation: 3,
           }}
         >
-          <View 
+          <View
             className="flex-row items-center"
             style={{ marginBottom: getResponsiveSize(16) }}
           >
-            <View 
-              className="bg-pink-600 rounded-lg"
+            <View
+              className="bg-pink-50 rounded-lg"
               style={{
                 padding: getResponsiveSize(8),
                 marginRight: getResponsiveSize(12),
               }}
             >
-              <MaterialCommunityIcons name="camera" size={getResponsiveSize(20)} color="#fff" />
+              <MaterialIcons
+                name="event"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
             </View>
-            <Text 
+            <Text
+              className="font-bold text-gray-800"
+              style={{ fontSize: getResponsiveSize(16) }}
+            >
+              Thông tin sự kiện
+            </Text>
+          </View>
+
+          <View
+            className="bg-pink-50 rounded-lg overflow-hidden"
+          >
+            <View style={{ padding: getResponsiveSize(16) }}>
+              <Text
+                className="font-bold text-gray-800 text-center"
+                style={{
+                  fontSize: getResponsiveSize(20),
+                  marginBottom: getResponsiveSize(12),
+                }}
+                numberOfLines={2}
+              >
+                {params.event.name}
+              </Text>
+
+              <View style={{ gap: getResponsiveSize(8) }}>
+                <View className="flex-row items-center justify-center">
+                  <Feather name="calendar" size={getResponsiveSize(16)} color="#666" />
+                  <Text
+                    className="text-gray-600 ml-2"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {formatDate(params.event.startDate)}
+                  </Text>
+                </View>
+
+                <View className="flex-row items-center justify-center">
+                  <Feather name="clock" size={getResponsiveSize(16)} color="#666" />
+                  <Text
+                    className="text-gray-600 ml-2"
+                    style={{ fontSize: getResponsiveSize(14) }}
+                  >
+                    {formatTime(params.event.startDate)} - {formatTime(params.event.endDate)}
+                  </Text>
+                </View>
+
+                {params.event.locationName && (
+                  <View className="flex-row items-center justify-center">
+                    <Feather name="map-pin" size={getResponsiveSize(16)} color="#666" />
+                    <Text
+                      className="text-gray-600 ml-2 text-center"
+                      style={{
+                        fontSize: getResponsiveSize(14),
+                        maxWidth: getResponsiveSize(250),
+                      }}
+                      numberOfLines={2}
+                    >
+                      {params.event.locationName}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Event Price */}
+                <View
+                  className="bg-white rounded-lg mt-3"
+                  style={{ padding: getResponsiveSize(12) }}
+                >
+                  <View className="flex-row items-center justify-between">
+                    <Text
+                      className="text-gray-600"
+                      style={{ fontSize: getResponsiveSize(14) }}
+                    >
+                      Phí tham gia sự kiện:
+                    </Text>
+                    <View className="flex-row items-center">
+                      <Text
+                        className="font-bold text-pink-600"
+                        style={{ fontSize: getResponsiveSize(16) }}
+                      >
+                        {formatCurrency(params.event.discountedPrice || params.event.originalPrice)}
+                      </Text>
+                      {params.event.originalPrice && params.event.discountedPrice &&
+                        params.event.originalPrice > params.event.discountedPrice && (
+                          <Text
+                            className="text-gray-400 line-through ml-2"
+                            style={{ fontSize: getResponsiveSize(12) }}
+                          >
+                            {formatCurrency(params.event.originalPrice)}
+                          </Text>
+                        )}
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
+          </View>
+        </View>
+
+        {/* Photographer Card - Same as OrderDetailScreen style */}
+        <View
+          className="bg-white rounded-xl shadow-sm"
+          style={{
+            marginHorizontal: getResponsiveSize(20),
+            marginTop: getResponsiveSize(16),
+            padding: getResponsiveSize(20),
+            elevation: 3,
+          }}
+        >
+          <View
+            className="flex-row items-center"
+            style={{ marginBottom: getResponsiveSize(16) }}
+          >
+            <View
+              className="bg-pink-50 rounded-lg"
+              style={{
+                padding: getResponsiveSize(8),
+                marginRight: getResponsiveSize(12),
+              }}
+            >
+              <Feather
+                name="user"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
+            </View>
+            <Text
               className="font-bold text-gray-800"
               style={{ fontSize: getResponsiveSize(16) }}
             >
@@ -700,95 +786,131 @@ export default function OrderEventDetailScreen() {
           </View>
 
           <View className="flex-row items-center">
-            <View 
-              className="relative"
-              style={{ marginRight: getResponsiveSize(16) }}
-            >
-              <Image
-                source={{
-                  uri: params.photographer.profileImage ||
-                    "https://via.placeholder.com/80x80/f0f0f0/999?text=P",
-                }}
-                className="bg-gray-100"
-                style={{
-                  width: getResponsiveSize(70),
-                  height: getResponsiveSize(70),
-                  borderRadius: getResponsiveSize(35),
-                }}
-                defaultSource={{
-                  uri: "https://via.placeholder.com/80x80/f0f0f0/999?text=P",
-                }}
-              />
-              <View 
-                className="absolute -bottom-0.5 -right-0.5 bg-white rounded-xl shadow-sm"
-                style={{ padding: getResponsiveSize(2) }}
-              >
-                <MaterialIcons name="verified" size={getResponsiveSize(16)} color="#4CAF50" />
-              </View>
-            </View>
-
+            <Image
+              source={{
+                uri: params.photographer.profileImage ||
+                  "https://via.placeholder.com/80x80/f0f0f0/999?text=P",
+              }}
+              className="bg-gray-100"
+              style={{
+                width: getResponsiveSize(60),
+                height: getResponsiveSize(60),
+                borderRadius: getResponsiveSize(30),
+                marginRight: getResponsiveSize(16),
+              }}
+              defaultSource={{
+                uri: "https://via.placeholder.com/80x80/f0f0f0/999?text=P",
+              }}
+            />
             <View className="flex-1">
-              <Text 
+              <Text
                 className="font-bold text-gray-800"
                 style={{
-                  fontSize: getResponsiveSize(18),
-                  marginBottom: getResponsiveSize(8),
+                  fontSize: getResponsiveSize(16),
+                  marginBottom: getResponsiveSize(4),
                 }}
                 numberOfLines={2}
               >
                 {params.photographer.fullName}
               </Text>
-
               {params.photographer.specialRate && (
-                <View 
-                  className="flex-row items-center"
-                  style={{ marginBottom: getResponsiveSize(8) }}
+                <Text
+                  className="font-semibold text-pink-600"
+                  style={{ fontSize: getResponsiveSize(14) }}
                 >
-                  <MaterialIcons name="star" size={getResponsiveSize(16)} color="#FFD700" />
-                  <Text 
-                    className="text-pink-600 font-semibold ml-1"
-                    style={{ fontSize: getResponsiveSize(14) }}
-                  >
-                    Giá đặc biệt: {formatCurrency(params.photographer.specialRate)}/giờ
-                  </Text>
-                </View>
+                  Giá đặc biệt: {formatCurrency(params.photographer.specialRate)}/giờ
+                </Text>
               )}
-
-              <View className="flex-row items-center">
-                <View className="flex-row items-center">
-                  <MaterialIcons name="timer" size={getResponsiveSize(14)} color="#666" />
-                  <Text 
-                    className="text-gray-600 ml-1"
-                    style={{ fontSize: getResponsiveSize(12) }}
-                  >
-                    {durationHours} giờ
-                  </Text>
-                </View>
-                <View 
-                  className="bg-gray-300"
-                  style={{
-                    width: 1,
-                    height: getResponsiveSize(12),
-                    marginHorizontal: getResponsiveSize(12),
-                  }}
-                />
-                <View className="flex-row items-center">
-                  <MaterialIcons name="event-available" size={getResponsiveSize(14)} color="#666" />
-                  <Text 
-                    className="text-gray-600 ml-1"
-                    style={{ fontSize: getResponsiveSize(12) }}
-                  >
-                    Đã phê duyệt
-                  </Text>
-                </View>
-              </View>
             </View>
           </View>
         </View>
 
-        {/* Payment Method Card */}
+        {/* Time Details Card */}
+        {params.bookingTimes && (
+          <View
+            className="bg-white rounded-xl shadow-sm"
+            style={{
+              marginHorizontal: getResponsiveSize(20),
+              marginTop: getResponsiveSize(16),
+              padding: getResponsiveSize(20),
+              elevation: 3,
+            }}
+          >
+            <View
+              className="flex-row items-center"
+              style={{ marginBottom: getResponsiveSize(16) }}
+            >
+              <View
+                className="bg-pink-50 rounded-lg"
+                style={{
+                  padding: getResponsiveSize(8),
+                  marginRight: getResponsiveSize(12),
+                }}
+              >
+                <Feather
+                  name="clock"
+                  size={getResponsiveSize(18)}
+                  color="#E91E63"
+                />
+              </View>
+              <Text
+                className="font-bold text-gray-800"
+                style={{ fontSize: getResponsiveSize(16) }}
+              >
+                Thời gian làm việc
+              </Text>
+            </View>
+
+            <View style={{ gap: getResponsiveSize(12) }}>
+              <View className="flex-row justify-between items-center">
+                <Text
+                  className="text-gray-600 font-medium"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Giờ bắt đầu:
+                </Text>
+                <Text
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  {params.bookingTimes.startTime}
+                </Text>
+              </View>
+              <View className="flex-row justify-between items-center">
+                <Text
+                  className="text-gray-600 font-medium"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Giờ kết thúc:
+                </Text>
+                <Text
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  {params.bookingTimes.endTime}
+                </Text>
+              </View>
+              <View className="flex-row justify-between items-center">
+                <Text
+                  className="text-gray-600 font-medium"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Thời lượng:
+                </Text>
+                <Text
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  {durationHours} giờ
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* Payment Method Card - Same style as OrderDetailScreen */}
         <View
-          className="bg-white rounded-2xl shadow-sm"
+          className="bg-white rounded-xl shadow-sm"
           style={{
             marginHorizontal: getResponsiveSize(20),
             marginTop: getResponsiveSize(16),
@@ -796,20 +918,24 @@ export default function OrderEventDetailScreen() {
             elevation: 3,
           }}
         >
-          <View 
+          <View
             className="flex-row items-center"
             style={{ marginBottom: getResponsiveSize(16) }}
           >
-            <View 
-              className="bg-pink-600 rounded-lg"
+            <View
+              className="bg-pink-50 rounded-lg"
               style={{
                 padding: getResponsiveSize(8),
                 marginRight: getResponsiveSize(12),
               }}
             >
-              <MaterialIcons name="payment" size={getResponsiveSize(20)} color="#fff" />
+              <MaterialIcons
+                name="payment"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
             </View>
-            <Text 
+            <Text
               className="font-bold text-gray-800"
               style={{ fontSize: getResponsiveSize(16) }}
             >
@@ -817,6 +943,7 @@ export default function OrderEventDetailScreen() {
             </Text>
           </View>
 
+          {/* Payment Method Options */}
           <View style={{ gap: getResponsiveSize(12) }}>
             {/* Bank QR Payment */}
             <TouchableOpacity
@@ -832,17 +959,17 @@ export default function OrderEventDetailScreen() {
                 className={`rounded-full items-center justify-center ${
                   selectedPaymentMethod === "bank_qr"
                     ? "bg-pink-600"
-                    : "bg-gray-200"
+                    : "bg-gray-100"
                 }`}
                 style={{
-                  width: getResponsiveSize(48),
-                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
                   marginRight: getResponsiveSize(12),
                 }}
               >
                 <MaterialCommunityIcons
                   name="qrcode-scan"
-                  size={getResponsiveSize(24)}
+                  size={getResponsiveSize(20)}
                   color={selectedPaymentMethod === "bank_qr" ? "#fff" : "#666"}
                 />
               </View>
@@ -854,16 +981,16 @@ export default function OrderEventDetailScreen() {
                       ? "text-pink-600"
                       : "text-gray-800"
                   }`}
-                  style={{ 
-                    fontSize: getResponsiveSize(16),
-                    marginBottom: getResponsiveSize(4),
-                  }}
+                  style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Quét mã ngân hàng
                 </Text>
-                <Text 
+                <Text
                   className="text-gray-600"
-                  style={{ fontSize: getResponsiveSize(13) }}
+                  style={{
+                    fontSize: getResponsiveSize(13),
+                    marginTop: getResponsiveSize(2),
+                  }}
                 >
                   Thanh toán qua QR code ngân hàng
                 </Text>
@@ -914,20 +1041,23 @@ export default function OrderEventDetailScreen() {
                     ? "bg-pink-600"
                     : !shouldFetchWallet || !isWalletBalanceSufficient
                       ? "bg-gray-300"
-                      : "bg-gray-200"
+                      : "bg-gray-100"
                 }`}
                 style={{
-                  width: getResponsiveSize(48),
-                  height: getResponsiveSize(48),
+                  width: getResponsiveSize(40),
+                  height: getResponsiveSize(40),
                   marginRight: getResponsiveSize(12),
                 }}
               >
                 <MaterialCommunityIcons
                   name="wallet"
-                  size={getResponsiveSize(24)}
+                  size={getResponsiveSize(20)}
                   color={
-                    selectedPaymentMethod === "snaplink_wallet" ? "#fff" :
-                    (!shouldFetchWallet || !isWalletBalanceSufficient) ? "#999" : "#666"
+                    selectedPaymentMethod === "snaplink_wallet"
+                      ? "#fff"
+                      : !shouldFetchWallet || !isWalletBalanceSufficient
+                        ? "#999"
+                        : "#666"
                   }
                 />
               </View>
@@ -941,36 +1071,44 @@ export default function OrderEventDetailScreen() {
                         ? "text-gray-400"
                         : "text-gray-800"
                   }`}
-                  style={{ 
-                    fontSize: getResponsiveSize(16),
-                    marginBottom: getResponsiveSize(4),
-                  }}
+                  style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Ví SnapLink
                 </Text>
                 
-                {/* Hiển thị số dư */}
                 {!shouldFetchWallet ? (
-                  <Text 
+                  <Text
                     className="text-gray-400"
-                    style={{ fontSize: getResponsiveSize(13) }}
+                    style={{ 
+                      fontSize: getResponsiveSize(13),
+                      marginTop: getResponsiveSize(2),
+                    }}
                   >
                     Cần đăng nhập
                   </Text>
                 ) : balanceLoading ? (
-                  <View className="flex-row items-center">
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
                     <ActivityIndicator size="small" color="#666" />
-                    <Text 
-                      className="text-gray-600 ml-2"
-                      style={{ fontSize: getResponsiveSize(13) }}
+                    <Text
+                      className="text-gray-600"
+                      style={{ 
+                        fontSize: getResponsiveSize(12),
+                        marginLeft: getResponsiveSize(8),
+                      }}
                     >
                       Đang tải...
                     </Text>
                   </View>
                 ) : (
                   <Text
-                    className={isWalletBalanceSufficient ? "text-green-600 font-medium" : "text-red-500 font-medium"}
-                    style={{ fontSize: getResponsiveSize(13) }}
+                    className={`${
+                      isWalletBalanceSufficient ? "text-green-600" : "text-red-500"
+                    }`}
+                    style={{
+                      fontSize: getResponsiveSize(13),
+                      marginTop: getResponsiveSize(2),
+                      fontWeight: '500'
+                    }}
                   >
                     Số dư: {formatCurrency(walletBalance?.balance || 0)}
                     {shouldFetchWallet && !isWalletBalanceSufficient && " (Không đủ)"}
@@ -1003,9 +1141,9 @@ export default function OrderEventDetailScreen() {
           </View>
         </View>
 
-        {/* Price Summary Card */}
+        {/* Price Breakdown Card */}
         <View
-          className="bg-white rounded-2xl shadow-sm"
+          className="bg-white rounded-xl shadow-sm"
           style={{
             marginHorizontal: getResponsiveSize(20),
             marginTop: getResponsiveSize(16),
@@ -1013,20 +1151,24 @@ export default function OrderEventDetailScreen() {
             elevation: 3,
           }}
         >
-          <View 
+          <View
             className="flex-row items-center"
             style={{ marginBottom: getResponsiveSize(16) }}
           >
-            <View 
-              className="bg-pink-600 rounded-lg"
+            <View
+              className="bg-pink-50 rounded-lg"
               style={{
                 padding: getResponsiveSize(8),
                 marginRight: getResponsiveSize(12),
               }}
             >
-              <MaterialIcons name="receipt" size={getResponsiveSize(20)} color="#fff" />
+              <MaterialIcons
+                name="receipt"
+                size={getResponsiveSize(18)}
+                color="#E91E63"
+              />
             </View>
-            <Text 
+            <Text
               className="font-bold text-gray-800"
               style={{ fontSize: getResponsiveSize(16) }}
             >
@@ -1035,31 +1177,51 @@ export default function OrderEventDetailScreen() {
           </View>
 
           <View style={{ gap: getResponsiveSize(12) }}>
+            {/* Event Fee */}
             <View className="flex-row justify-between items-center">
-              <Text 
+              <Text
                 className="text-gray-600 flex-1"
                 style={{ fontSize: getResponsiveSize(14) }}
               >
-                Phí tham gia sự kiện ({durationHours}h)
+                Phí tham gia sự kiện
               </Text>
-              <Text 
+              <Text
                 className="font-semibold text-gray-800"
                 style={{ fontSize: getResponsiveSize(14) }}
               >
-                {formatCurrency(totalPrice)}
+                {formatCurrency(params.event.discountedPrice || params.event.originalPrice)}
               </Text>
             </View>
 
+            {/* Photographer Fee */}
+            {params.photographer.specialRate && (
+              <View className="flex-row justify-between items-center">
+                <Text
+                  className="text-gray-600 flex-1"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  Phí Photographer ({durationHours}h)
+                </Text>
+                <Text
+                  className="font-semibold text-gray-800"
+                  style={{ fontSize: getResponsiveSize(14) }}
+                >
+                  {formatCurrency(params.photographer.specialRate * durationHours)}
+                </Text>
+              </View>
+            )}
+
+            {/* Discount */}
             {params.event.originalPrice && params.event.discountedPrice &&
               params.event.originalPrice > params.event.discountedPrice && (
                 <View className="flex-row justify-between items-center">
-                  <Text 
+                  <Text
                     className="text-green-600 flex-1"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
                     Giảm giá sự kiện
                   </Text>
-                  <Text 
+                  <Text
                     className="font-semibold text-green-600"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
@@ -1068,7 +1230,7 @@ export default function OrderEventDetailScreen() {
                 </View>
               )}
 
-            <View 
+            <View
               className="bg-gray-200"
               style={{
                 height: 1,
@@ -1076,14 +1238,14 @@ export default function OrderEventDetailScreen() {
               }}
             />
 
-            <View className="flex-row justify-between items-center pt-2">
-              <Text 
+            <View className="flex-row justify-between items-center">
+              <Text
                 className="font-bold text-gray-800"
                 style={{ fontSize: getResponsiveSize(16) }}
               >
                 Tổng cộng
               </Text>
-              <Text 
+              <Text
                 className="font-bold text-pink-600"
                 style={{ fontSize: getResponsiveSize(18) }}
               >
@@ -1092,109 +1254,28 @@ export default function OrderEventDetailScreen() {
             </View>
           </View>
         </View>
-
-        {/* Booking Info Card */}
-        {regularBooking && (
-          <View
-            className="bg-white rounded-2xl shadow-sm"
-            style={{
-              marginHorizontal: getResponsiveSize(20),
-              marginTop: getResponsiveSize(16),
-              padding: getResponsiveSize(20),
-              elevation: 3,
-            }}
-          >
-            <View 
-              className="flex-row items-center"
-              style={{ marginBottom: getResponsiveSize(16) }}
-            >
-              <View 
-                className="bg-pink-600 rounded-lg"
-                style={{
-                  padding: getResponsiveSize(8),
-                  marginRight: getResponsiveSize(12),
-                }}
-              >
-                <MaterialIcons name="info" size={getResponsiveSize(20)} color="#fff" />
-              </View>
-              <Text 
-                className="font-bold text-gray-800"
-                style={{ fontSize: getResponsiveSize(16) }}
-              >
-                Thông tin booking
-              </Text>
-            </View>
-
-            <View style={{ gap: getResponsiveSize(12) }}>
-              <View className="flex-row justify-between items-center">
-                <Text 
-                  className="text-gray-600"
-                  style={{ fontSize: getResponsiveSize(14) }}
-                >
-                  Booking ID:
-                </Text>
-                <Text 
-                  className="font-semibold text-gray-800"
-                  style={{ fontSize: getResponsiveSize(14) }}
-                >
-                  {regularBooking.bookingId}
-                </Text>
-              </View>
-              <View className="flex-row justify-between items-center">
-                <Text 
-                  className="text-gray-600"
-                  style={{ fontSize: getResponsiveSize(14) }}
-                >
-                  Trạng thái:
-                </Text>
-                <View className="bg-orange-50 px-2 py-1 rounded-md">
-                  <Text 
-                    className="text-orange-600 font-semibold"
-                    style={{ fontSize: getResponsiveSize(12) }}
-                  >
-                    {regularBooking.status}
-                  </Text>
-                </View>
-              </View>
-              <View className="flex-row justify-between items-center">
-                <Text 
-                  className="text-gray-600"
-                  style={{ fontSize: getResponsiveSize(14) }}
-                >
-                  Thời lượng:
-                </Text>
-                <Text 
-                  className="font-semibold text-gray-800"
-                  style={{ fontSize: getResponsiveSize(14) }}
-                >
-                  {durationHours} giờ
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
       </ScrollView>
 
-      {/* Bottom Payment Button */}
-      <View 
-        className="bg-white border-t border-gray-200 shadow-lg"
+      {/* Bottom Action Buttons - Similar to OrderDetailScreen */}
+      <View
+        className="bg-white border-t border-gray-100"
         style={{
           paddingHorizontal: getResponsiveSize(20),
           paddingVertical: getResponsiveSize(16),
-          elevation: 8,
+          paddingBottom: getResponsiveSize(30),
         }}
       >
-        <View 
+        <View
           className="flex-row justify-between items-center"
           style={{ marginBottom: getResponsiveSize(12) }}
         >
-          <Text 
+          <Text
             className="font-semibold text-gray-800"
             style={{ fontSize: getResponsiveSize(16) }}
           >
             Tổng thanh toán
           </Text>
-          <Text 
+          <Text
             className="font-bold text-pink-600"
             style={{ fontSize: getResponsiveSize(18) }}
           >
@@ -1205,28 +1286,33 @@ export default function OrderEventDetailScreen() {
         <TouchableOpacity
           onPress={handlePayment}
           activeOpacity={0.8}
-          className="rounded-xl overflow-hidden shadow-lg"
+          className="rounded-xl overflow-hidden"
           disabled={isProcessing}
-          style={{
-            elevation: isProcessing ? 0 : 4,
-          }}
         >
           <LinearGradient
             colors={isProcessing ? ["#d1d5db", "#d1d5db"] : ["#E91E63", "#F06292"]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            className="flex-row items-center justify-center"
             style={{
-              paddingVertical: getResponsiveSize(16),
-              paddingHorizontal: getResponsiveSize(20),
+              paddingVertical: getResponsiveSize(15),
+              paddingHorizontal: getResponsiveSize(16),
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
             {isProcessing ? (
               <>
-                <ActivityIndicator size="small" color="#666" style={{ marginRight: 8 }} />
-                <Text 
+                <ActivityIndicator
+                  size="small"
+                  color="#666"
+                  style={{ marginRight: getResponsiveSize(8) }}
+                />
+                <Text
                   className="text-gray-600 font-bold"
-                  style={{ fontSize: getResponsiveSize(16) }}
+                  style={{ fontSize: getResponsiveSize(15) }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit={true}
                 >
                   Đang xử lý...
                 </Text>
@@ -1235,15 +1321,17 @@ export default function OrderEventDetailScreen() {
               <>
                 <MaterialIcons
                   name="payment"
-                  size={getResponsiveSize(20)}
+                  size={getResponsiveSize(18)}
                   color="#fff"
-                  style={{ marginRight: 8 }}
+                  style={{ marginRight: getResponsiveSize(6) }}
                 />
-                <Text 
+                <Text
                   className="text-white font-bold"
-                  style={{ fontSize: getResponsiveSize(16) }}
+                  style={{ fontSize: getResponsiveSize(15) }}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit={true}
                 >
-                  Thanh toán {formatCurrency(totalPrice)}
+                  Tham gia sự kiện & Thanh toán
                 </Text>
               </>
             )}
@@ -1251,33 +1339,55 @@ export default function OrderEventDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Wallet Success Modal */}
+      {/* Wallet Success Modal - Same as OrderDetailScreen */}
       {showWalletSuccessModal && (
         <View style={StyleSheet.absoluteFill}>
-          <View className="flex-1 bg-black bg-opacity-60 justify-center items-center px-5">
-            <View 
-              className="bg-white rounded-2xl p-6 items-center w-full shadow-2xl"
-              style={{ 
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(0,0,0,0.6)",
+              justifyContent: "center",
+              alignItems: "center",
+              paddingHorizontal: getResponsiveSize(20),
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: getResponsiveSize(20),
+                padding: getResponsiveSize(24),
+                alignItems: "center",
+                width: "100%",
                 maxWidth: getResponsiveSize(360),
-                elevation: 20,
               }}
             >
               <View style={{ marginBottom: getResponsiveSize(20) }}>
-                <MaterialIcons name="check-circle" size={getResponsiveSize(80)} color="#4CAF50" />
+                <MaterialIcons
+                  name="check-circle"
+                  size={getResponsiveSize(80)}
+                  color="#4CAF50"
+                />
               </View>
 
-              <Text 
-                className="font-bold text-gray-800 text-center mb-3"
-                style={{ fontSize: getResponsiveSize(24) }}
+              <Text
+                style={{
+                  fontSize: getResponsiveSize(24),
+                  fontWeight: "bold",
+                  color: "#333",
+                  marginBottom: getResponsiveSize(12),
+                  textAlign: "center",
+                }}
               >
                 Tham gia sự kiện thành công!
               </Text>
 
-              <Text 
-                className="text-gray-600 text-center mb-6"
-                style={{ 
+              <Text
+                style={{
                   fontSize: getResponsiveSize(16),
+                  color: "#666",
+                  textAlign: "center",
                   lineHeight: getResponsiveSize(24),
+                  marginBottom: getResponsiveSize(24),
                 }}
               >
                 {totalPrice > 0
@@ -1286,56 +1396,71 @@ export default function OrderEventDetailScreen() {
                 }
               </Text>
 
-              <View 
-                className="bg-gray-50 rounded-xl p-4 w-full mb-6"
+              <View
+                style={{
+                  backgroundColor: "#f8f9fa",
+                  borderRadius: getResponsiveSize(12),
+                  padding: getResponsiveSize(16),
+                  width: "100%",
+                  marginBottom: getResponsiveSize(24),
+                }}
               >
-                <Text 
-                  className="font-bold text-gray-800 mb-3"
-                  style={{ fontSize: getResponsiveSize(16) }}
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(16),
+                    fontWeight: "bold",
+                    color: "#333",
+                    marginBottom: getResponsiveSize(12),
+                  }}
                 >
                   Chi tiết tham gia sự kiện:
                 </Text>
-                <Text 
-                  className="text-gray-600 mb-1.5"
-                  style={{ 
+                <Text
+                  style={{
                     fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    marginBottom: getResponsiveSize(6),
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
                   {params.event.name}
                 </Text>
-                <Text 
-                  className="text-gray-600 mb-1.5"
-                  style={{ 
+                <Text
+                  style={{
                     fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    marginBottom: getResponsiveSize(6),
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
                   {params.photographer.fullName}
                 </Text>
-                <Text 
-                  className="text-gray-600 mb-1.5"
-                  style={{ 
+                <Text
+                  style={{
                     fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    marginBottom: getResponsiveSize(6),
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
                   {formatDate(params.event.startDate)}
                 </Text>
-                <Text 
-                  className="text-gray-600 mb-1.5"
-                  style={{ 
+                <Text
+                  style={{
                     fontSize: getResponsiveSize(14),
+                    color: "#666",
+                    marginBottom: getResponsiveSize(6),
                     lineHeight: getResponsiveSize(20),
                   }}
                 >
                   {formatTime(params.event.startDate)} - {formatTime(params.event.endDate)}
                 </Text>
                 {params.event.locationName && (
-                  <Text 
-                    className="text-gray-600 mb-1.5"
-                    style={{ 
+                  <Text
+                    style={{
                       fontSize: getResponsiveSize(14),
+                      color: "#666",
+                      marginBottom: getResponsiveSize(6),
                       lineHeight: getResponsiveSize(20),
                     }}
                   >
@@ -1343,10 +1468,10 @@ export default function OrderEventDetailScreen() {
                   </Text>
                 )}
                 {totalPrice > 0 && (
-                  <Text 
-                    className="text-gray-600"
-                    style={{ 
+                  <Text
+                    style={{
                       fontSize: getResponsiveSize(14),
+                      color: "#666",
                       lineHeight: getResponsiveSize(20),
                     }}
                   >
@@ -1368,16 +1493,26 @@ export default function OrderEventDetailScreen() {
                     ],
                   });
                 }}
-                className="w-full rounded-xl overflow-hidden shadow-lg"
-                style={{ elevation: 4 }}
+                style={{
+                  width: "100%",
+                  borderRadius: getResponsiveSize(12),
+                  overflow: "hidden",
+                }}
               >
                 <LinearGradient
                   colors={["#4CAF50", "#66BB6A"]}
-                  className="py-4 items-center justify-center"
+                  style={{
+                    paddingVertical: getResponsiveSize(16),
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  <Text 
-                    className="text-white font-bold"
-                    style={{ fontSize: getResponsiveSize(16) }}
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: getResponsiveSize(16),
+                      fontWeight: "bold",
+                    }}
                   >
                     Hoàn tất
                   </Text>

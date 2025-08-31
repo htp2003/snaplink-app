@@ -1,5 +1,5 @@
-import { View, Text, Alert, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Image } from "react-native";
-import React, { useEffect, useState } from "react";
+import { View, Text, Alert, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Image  } from "react-native";
+import React, { useEffect, useState   } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
@@ -29,10 +29,159 @@ interface RouteParams {
   };
 }
 
+interface EventDay {
+  date: string;
+  displayText: string;
+  startTime: string;
+  endTime: string;
+  isToday: boolean;
+}
+
+// Thêm helper functions sau các imports
+const isMultiDayEvent = (startDate: string, endDate: string): boolean => {
+  console.log("🔍 isMultiDayEvent check:", { startDate, endDate });
+  
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  const startDay = start.toDateString();
+  const endDay = end.toDateString();
+  
+  console.log("🔍 Date strings:", { startDay, endDay });
+  
+  const result = startDay !== endDay;
+  console.log("🔍 isMultiDayEvent result:", result);
+  
+  return result;
+};
+
+// SỬA CÁC LỖI TYPESCRIPT:
+
+const generateEventDays = (startDate: string, endDate: string): EventDay[] => {
+  console.log("🌍 generateEventDays input:", { startDate, endDate });
+  
+  // CÁCH 1: Tránh timezone bằng cách extract ngày từ string
+  const startDateOnly = startDate.split('T')[0]; // "2025-09-01"
+  const endDateOnly = endDate.split('T')[0];     // "2025-09-03"
+  
+  console.log("📅 Extracted dates:", { startDateOnly, endDateOnly });
+  
+  // CÁCH 2: Parse thời gian từ string gốc để tránh timezone
+  const startTime = new Date(startDate).toLocaleTimeString('vi-VN', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false,
+    timeZone: 'Asia/Ho_Chi_Minh'
+  });
+  
+  const endTime = new Date(endDate).toLocaleTimeString('vi-VN', { 
+    hour: '2-digit', 
+    minute: '2-digit', 
+    hour12: false,
+    timeZone: 'Asia/Ho_Chi_Minh'
+  });
+  
+  console.log("⏰ Extracted times:", { startTime, endTime });
+  
+  const days: EventDay[] = [];
+  const today = new Date().toISOString().split('T')[0];
+  
+  // Kiểm tra single day event
+  if (startDateOnly === endDateOnly) {
+    console.log("📅 Single day event detected");
+    
+    const [year, month, day] = startDateOnly.split('-').map(Number);
+    const displayText = `${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`;
+    
+    const result = [{
+      date: startDateOnly,
+      displayText: displayText,
+      startTime: startTime,
+      endTime: endTime,
+      isToday: startDateOnly === today
+    }];
+    
+    console.log("✅ Single day result:", result);
+    return result;
+  }
+  
+  // ✅ FIXED: Multi-day event - Tránh Date object hoàn toàn
+  console.log("📅 Multi-day event detected");
+  
+  // Parse ngày bắt đầu và kết thúc từ string
+  const [startYear, startMonth, startDay] = startDateOnly.split('-').map(Number);
+  const [endYear, endMonth, endDay] = endDateOnly.split('-').map(Number);
+  
+  console.log("📊 Date components:", {
+    start: { startYear, startMonth, startDay },
+    end: { endYear, endMonth, endDay }
+  });
+  
+  // ✅ FIX 1: Đổi tên biến để tránh duplicate identifier
+  // Tạo Date object an toàn với local timezone
+  let currentDate = new Date(startYear, startMonth - 1, startDay); // month is 0-indexed
+  const endDateObj = new Date(endYear, endMonth - 1, endDay); // ← SỬA: Đổi tên từ endDate thành endDateObj
+  
+  console.log("📆 Date objects:", { currentDate, endDateObj });
+  
+  // ✅ FIX 2: So sánh Date với Date, không phải Date với string
+  while (currentDate <= endDateObj) { // ← SỬA: So sánh currentDate với endDateObj
+    // ✅ FIXED: Dùng getDate(), getMonth(), getFullYear() thay vì toISOString()
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1; // Convert back to 1-indexed
+    const currentDay = currentDate.getDate();
+    
+    const currentDateString = `${currentYear}-${currentMonth.toString().padStart(2, '0')}-${currentDay.toString().padStart(2, '0')}`;
+    const displayText = `${currentDay.toString().padStart(2, '0')}-${currentMonth.toString().padStart(2, '0')}`;
+    
+    const isFirstDay = currentDateString === startDateOnly;
+    const isLastDay = currentDateString === endDateOnly;
+    
+    let dayStartTime = "00:00";
+    let dayEndTime = "23:59";
+    
+    if (isFirstDay) {
+      dayStartTime = startTime;
+    }
+    if (isLastDay) {
+      dayEndTime = endTime;
+    }
+    
+    console.log(`📅 Processing day: ${currentDateString}`, {
+      displayText,
+      isFirstDay,
+      isLastDay,
+      dayStartTime,
+      dayEndTime
+    });
+    
+    days.push({
+      date: currentDateString,
+      displayText: displayText,
+      startTime: dayStartTime,
+      endTime: dayEndTime,
+      isToday: currentDateString === today
+    });
+    
+    // Chuyển sang ngày tiếp theo
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  console.log("✅ Multi-day result:", days);
+  return days;
+};
+
 export default function BookingEventScreen() {
   const navigation = useNavigation<RootStackNavigationProp>();
   const route = useRoute();
   const { event, preSelectedPhotographer } = route.params as RouteParams;
+
+  console.log("📥 BookingEvent received params:", {
+    event,
+    preSelectedPhotographer,
+    eventStartDate: event.startDate,
+    eventEndDate: event.endDate,
+  });
 
   // Auth hook
   const { user, isAuthenticated } = useAuth();
@@ -40,7 +189,7 @@ export default function BookingEventScreen() {
   // Availability hook for API calls
   const {
     getAvailableTimesForDate,
-    getEndTimesForStartTime, // ✅ ADD: Method to get end times
+    getEndTimesForStartTime, 
     loadingSlots,
     error: availabilityError,
   } = useAvailability();
@@ -48,6 +197,13 @@ export default function BookingEventScreen() {
   // Event hooks
   const { bookEvent, loading: bookingLoading } = useEventBooking();
   const { photographers, loading: photographersLoading } = useApprovedPhotographers(event.eventId);
+
+  // Multi-day event states
+  const [eventDays] = useState<EventDay[]>(() => generateEventDays(event.startDate, event.endDate));
+  const [selectedEventDay, setSelectedEventDay] = useState<EventDay | null>(
+    eventDays.length === 1 ? eventDays[0] : null
+  );
+  const [isMultiDay] = useState<boolean>(() => isMultiDayEvent(event.startDate, event.endDate));
 
   // Form State
   const [selectedStartTime, setSelectedStartTime] = useState<string>("");
@@ -62,6 +218,8 @@ export default function BookingEventScreen() {
 
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
+
+  
 
   // Check authentication
   useEffect(() => {
@@ -87,7 +245,7 @@ export default function BookingEventScreen() {
   // ✅ FIXED: Load available times and filter by event time range
   useEffect(() => {
     const loadAvailableTimesForEvent = async () => {
-      if (!selectedPhotographer?.photographerId || !event) {
+      if (!selectedPhotographer?.photographerId || !selectedEventDay) {
         setAvailableTimes([]);
         setEventFilteredTimes([]);
         return;
@@ -97,79 +255,52 @@ export default function BookingEventScreen() {
         console.log("🎪 Loading available times for EVENT photographer:", {
           photographerId: selectedPhotographer.photographerId,
           eventName: event.name,
-          eventTimeRange: `${formatTime(event.startDate)} - ${formatTime(event.endDate)}`
+          selectedDay: selectedEventDay.date,
+          timeRange: `${selectedEventDay.startTime} - ${selectedEventDay.endTime}`
         });
 
-        // Get event date (events have fixed date)
-        const eventDate = new Date(event.startDate);
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateString = `${year}-${month}-${day}`;
-
-        console.log("📅 Event date string:", dateString);
-
-        // ✅ Call API to get ALL available times for photographer
+        // Gọi API với ngày đã chọn
         const allAvailableTimes = await getAvailableTimesForDate(
-          selectedPhotographer.photographerId, 
-          dateString
+          selectedPhotographer.photographerId,
+          selectedEventDay.date
         );
 
-        console.log("📋 All available times from API:", allAvailableTimes);
+        console.log("🔍 Raw API Response:", JSON.stringify(allAvailableTimes, null, 2));
 
-        // ✅ FIXED: Parse event time range correctly
-        const eventStartTime = formatTime(event.startDate); // "07:30"
-        const eventEndTime = formatTime(event.endDate);     // "23:50"
-        
-        console.log("🎯 Event time boundaries:", {
-          eventStartTime,
-          eventEndTime,
-          eventStartHour: parseInt(eventStartTime.split(':')[0]),
-          eventEndHour: parseInt(eventEndTime.split(':')[0])
+        // Filter theo time range của ngày đã chọn
+        const dayStartTime = selectedEventDay.startTime;
+        const dayEndTime = selectedEventDay.endTime;
+
+        console.log("🎯 Day time boundaries:", {
+          dayStartTime,
+          dayEndTime,
         });
 
-        // ✅ FIXED: Filter times that fall within event time range
-        const eventStartHour = parseInt(eventStartTime.split(':')[0]);
-        const eventStartMinute = parseInt(eventStartTime.split(':')[1]);
-        const eventEndHour = parseInt(eventEndTime.split(':')[0]);
-        const eventEndMinute = parseInt(eventEndTime.split(':')[1]);
+        // Parse time ranges
+        const [dayStartHour, dayStartMinute] = dayStartTime.split(':').map(Number);
+        const [dayEndHour, dayEndMinute] = dayEndTime.split(':').map(Number);
 
-        const eventAvailableTimes = allAvailableTimes.filter(time => {
-          const timeHour = parseInt(time.split(':')[0]);
-          const timeMinute = parseInt(time.split(':')[1]);
-          
-          // Convert to minutes for easier comparison
+        const filteredTimes = allAvailableTimes.filter(time => {
+          const [timeHour, timeMinute] = time.split(':').map(Number);
+
           const timeInMinutes = timeHour * 60 + timeMinute;
-          const eventStartInMinutes = eventStartHour * 60 + eventStartMinute;
-          const eventEndInMinutes = eventEndHour * 60 + eventEndMinute;
-          
-          // ✅ Time must be >= event start and < event end
-          const isWithinEventTime = timeInMinutes >= eventStartInMinutes && timeInMinutes < eventEndInMinutes;
-          
-          console.log(`⏰ Checking time ${time}:`, {
-            timeInMinutes,
-            eventStartInMinutes,
-            eventEndInMinutes,
-            isWithinEventTime
-          });
-          
-          return isWithinEventTime;
+          const dayStartInMinutes = dayStartHour * 60 + dayStartMinute;
+          const dayEndInMinutes = dayEndHour * 60 + dayEndMinute;
+
+          return timeInMinutes >= dayStartInMinutes && timeInMinutes < dayEndInMinutes;
         });
 
-        console.log("✅ Filtered available times for event:", {
-          allTimes: allAvailableTimes,
-          eventTimeRange: `${eventStartTime} - ${eventEndTime}`,
-          filteredTimes: eventAvailableTimes,
-          removedTimes: allAvailableTimes.filter(t => !eventAvailableTimes.includes(t)),
-          isEmpty: eventAvailableTimes.length === 0
+        console.log("✅ Filtered times for selected day:", {
+          selectedDay: selectedEventDay.displayText,
+          timeRange: `${dayStartTime} - ${dayEndTime}`,
+          filteredTimes,
         });
 
         setAvailableTimes(allAvailableTimes);
-        setEventFilteredTimes(eventAvailableTimes);
+        setEventFilteredTimes(filteredTimes);
 
-        // ✅ Reset selected times if they're no longer available
-        if (selectedStartTime && !eventAvailableTimes.includes(selectedStartTime)) {
-          console.log("🔄 Resetting selected start time - no longer available");
+        // Reset selected times nếu không còn available
+        if (selectedStartTime && !filteredTimes.includes(selectedStartTime)) {
           setSelectedStartTime("");
           setSelectedEndTime("");
         }
@@ -182,7 +313,7 @@ export default function BookingEventScreen() {
     };
 
     loadAvailableTimesForEvent();
-  }, [selectedPhotographer?.photographerId, event, getAvailableTimesForDate]);
+  }, [selectedPhotographer?.photographerId, selectedEventDay, getAvailableTimesForDate]);
 
   // Helper functions
   const formatDate = (dateString: string) => {
@@ -256,7 +387,7 @@ export default function BookingEventScreen() {
           const timeHour = parseInt(time.split(':')[0]);
           const timeMinute = parseInt(time.split(':')[1]);
           const timeInMinutes = timeHour * 60 + timeMinute;
-          
+
           // ✅ End time must be <= event end time
           return timeInMinutes <= eventEndInMinutes;
         });
@@ -315,35 +446,40 @@ export default function BookingEventScreen() {
   // Create unified datetime for API
   const createEventDateTime = (timeString: string): string => {
     const [hours, minutes] = timeString.split(':').map(Number);
-    
-    // Create date in local timezone
-    const eventDate = new Date(event.startDate);
-    
+
+    // Sử dụng selectedEventDay thay vì event.startDate
+    if (!selectedEventDay) {
+      console.error("No selected event day");
+      return "";
+    }
+
+    // Tạo date từ selectedEventDay.date
+    const selectedDate = new Date(selectedEventDay.date + 'T00:00:00');
+
     // Format as YYYY-MM-DDTHH:MM:SS in local time
     const pad = (n: number) => n.toString().padStart(2, '0');
     const localDate = new Date(
-      eventDate.getFullYear(),
-      eventDate.getMonth(),
-      eventDate.getDate(),
+      selectedDate.getFullYear(),
+      selectedDate.getMonth(),
+      selectedDate.getDate(),
       hours,
       minutes,
       0
     );
-  
+
     // Format as YYYY-MM-DDTHH:MM:SS (local time, no timezone)
-    const localDateTimeString = 
+    const localDateTimeString =
       `${localDate.getFullYear()}-` +
       `${pad(localDate.getMonth() + 1)}-` +
       `${pad(localDate.getDate())}T` +
       `${pad(localDate.getHours())}:` +
       `${pad(localDate.getMinutes())}:` +
       `${pad(localDate.getSeconds())}`;
-  
-    console.log('Ngày sự kiện gốc:', event.startDate);
-    console.log('Thời gian đã chọn:', timeString);
-    console.log('Kết quả sau khi tạo (local):', localDate.toString());
-    console.log('Kết quả gửi lên API:', localDateTimeString);
-    
+
+    console.log('Selected event day:', selectedEventDay.date);
+    console.log('Selected time:', timeString);
+    console.log('Final datetime for API:', localDateTimeString);
+
     return localDateTimeString;
   };
 
@@ -360,10 +496,10 @@ export default function BookingEventScreen() {
     if (selectedStartTime && selectedEndTime) {
       const [startHour, startMinute] = selectedStartTime.split(":").map(Number);
       const [endHour, endMinute] = selectedEndTime.split(":").map(Number);
-      
+
       const startTimeInMinutes = startHour * 60 + startMinute;
       const endTimeInMinutes = endHour * 60 + endMinute;
-      
+
       console.log("🔍 Time validation:", {
         selectedStartTime,
         selectedEndTime,
@@ -371,11 +507,11 @@ export default function BookingEventScreen() {
         endTimeInMinutes,
         isValid: endTimeInMinutes > startTimeInMinutes,
       });
-      
+
       if (endTimeInMinutes <= startTimeInMinutes) {
         errors.push("End time must be after start time");
       }
-      
+
       // ✅ Additional validation: Check if end time is in valid options
       if (!endTimeOptions.includes(selectedEndTime)) {
         errors.push("Selected end time is not available");
@@ -450,7 +586,7 @@ export default function BookingEventScreen() {
 
       // Extract booking ID from response
       const actualBookingId = bookingResponse.eventBookingId;
-      const regularBookingId = (bookingResponse as any).bookingId; 
+      const regularBookingId = (bookingResponse as any).bookingId;
 
       if (!actualBookingId) {
         console.error("❌ No booking ID in response:", bookingResponse);
@@ -461,26 +597,26 @@ export default function BookingEventScreen() {
 
       // Show success message
       Alert.alert(
-        "Đặt lịch thành công!", 
+        "Đặt lịch thành công!",
         "Bạn đã đăng ký tham gia sự kiện thành công. Tiếp tục để chọn phương thức thanh toán.",
         [
           {
             text: "Tiếp tục",
             onPress: () => {
               const finalCalculatedPrice = calculatePrice();
-          
+
               const navigationParams = {
-                bookingId: regularBookingId, 
+                bookingId: regularBookingId,
                 eventBookingId: actualBookingId,
-                eventPrice: finalCalculatedPrice,  
-                eventBookingResponse: {  
-                  bookingId: regularBookingId,          
+                eventPrice: finalCalculatedPrice,
+                eventBookingResponse: {
+                  bookingId: regularBookingId,
                 },
                 photographer: {
                   eventPhotographerId: selectedPhotographer.eventPhotographerId,
-                  fullName: selectedPhotographer.photographer?.fullName || 
-                           selectedPhotographer.photographerName || 
-                           "Event Photographer",
+                  fullName: selectedPhotographer.photographer?.fullName ||
+                    selectedPhotographer.photographerName ||
+                    "Event Photographer",
                   profileImage: selectedPhotographer.photographer?.profileImage,
                   specialRate: selectedPhotographer.specialRate || 0,
                 },
@@ -495,8 +631,8 @@ export default function BookingEventScreen() {
                   description: event.description,
                 },
                 bookingTimes: {
-                  startTime: selectedStartTime,    
-                  endTime: selectedEndTime,        
+                  startTime: selectedStartTime,
+                  endTime: selectedEndTime,
                   startDatetime: createEventDateTime(selectedStartTime),
                   endDatetime: createEventDateTime(selectedEndTime),
                 },
@@ -533,15 +669,15 @@ export default function BookingEventScreen() {
     }
   };
 
-  // ✅ UPDATED: Validate form using proper state
   const isFormValid =
     selectedStartTime &&
     selectedEndTime &&
     selectedPhotographer &&
+    selectedEventDay &&
     !isProcessing &&
     !bookingLoading &&
     eventFilteredTimes.length > 0 &&
-    endTimeOptions.includes(selectedEndTime); // ✅ Check end time is valid 
+    endTimeOptions.includes(selectedEndTime);
 
 
   return (
@@ -611,7 +747,7 @@ export default function BookingEventScreen() {
           >
             {event.name}
           </Text>
-          <View 
+          <View
             key="event-date-info"
             style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}
           >
@@ -626,7 +762,7 @@ export default function BookingEventScreen() {
               {formatDate(event.startDate)}
             </Text>
           </View>
-          <View 
+          <View
             key="event-time-info"
             style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}
           >
@@ -642,7 +778,7 @@ export default function BookingEventScreen() {
             </Text>
           </View>
           {event.locationName && (
-            <View 
+            <View
               key="event-location-info"
               style={{ flexDirection: "row", alignItems: "center" }}
             >
@@ -659,7 +795,7 @@ export default function BookingEventScreen() {
             </View>
           )}
           {(event.discountedPrice || event.originalPrice) && (
-            <View 
+            <View
               key="event-price-info"
               style={{ flexDirection: "row", alignItems: "center", marginTop: getResponsiveSize(8) }}
             >
@@ -696,110 +832,84 @@ export default function BookingEventScreen() {
       >
         <View style={{ padding: getResponsiveSize(20) }}>
 
-          {/* Step 1: Photographer Selection */}
-          <View
-            key="photographer-selection-section"
-            style={{
-              backgroundColor: "#fff",
-              borderRadius: getResponsiveSize(16),
-              padding: getResponsiveSize(20),
-              marginBottom: getResponsiveSize(15),
-              elevation: 2,
-            }}
-          >
+          {/* Step 0: Day Selection - Chỉ hiện khi multi-day event */}
+          {isMultiDay && (
             <View
+              key="day-selection-section"
               style={{
-                flexDirection: "row",
-                alignItems: "center",
+                backgroundColor: "#fff",
+                borderRadius: getResponsiveSize(16),
+                padding: getResponsiveSize(20),
                 marginBottom: getResponsiveSize(15),
+                elevation: 2,
               }}
             >
               <View
                 style={{
-                  backgroundColor: selectedPhotographer ? "#4CAF50" : "#E91E63",
-                  borderRadius: getResponsiveSize(20),
-                  width: getResponsiveSize(24),
-                  height: getResponsiveSize(24),
+                  flexDirection: "row",
                   alignItems: "center",
-                  justifyContent: "center",
-                  marginRight: getResponsiveSize(10),
+                  marginBottom: getResponsiveSize(15),
                 }}
               >
-                {selectedPhotographer ? (
-                  <Feather name="check" size={getResponsiveSize(14)} color="#fff" />
-                ) : (
-                  <Text
-                    style={{
-                      color: "#fff",
-                      fontSize: getResponsiveSize(12),
-                      fontWeight: "bold",
-                    }}
-                  >
-                    1
-                  </Text>
-                )}
-              </View>
-              <Text
-                style={{
-                  fontSize: getResponsiveSize(16),
-                  fontWeight: "bold",
-                  color: "#333",
-                }}
-              >
-                Chọn Photographer
-              </Text>
-              {photographersLoading && (
-                <ActivityIndicator
-                  size="small"
-                  color="#E91E63"
-                  style={{ marginLeft: getResponsiveSize(10) }}
-                />
-              )}
-            </View>
-
-            {photographersLoading ? (
-              <View 
-                key="photographers-loading"
-                style={{ alignItems: "center", paddingVertical: getResponsiveSize(20) }}
-              >
-                <ActivityIndicator size="large" color="#E91E63" />
-                <Text style={{ color: "#666", marginTop: getResponsiveSize(8) }}>
-                  Đang tải danh sách photographer...
+                <View
+                  style={{
+                    backgroundColor: selectedEventDay ? "#4CAF50" : "#E91E63",
+                    borderRadius: getResponsiveSize(20),
+                    width: getResponsiveSize(24),
+                    height: getResponsiveSize(24),
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: getResponsiveSize(10),
+                  }}
+                >
+                  {selectedEventDay ? (
+                    <Feather name="check" size={getResponsiveSize(14)} color="#fff" />
+                  ) : (
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: getResponsiveSize(12),
+                        fontWeight: "bold",
+                      }}
+                    >
+                      1
+                    </Text>
+                  )}
+                </View>
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(16),
+                    fontWeight: "bold",
+                    color: "#333",
+                  }}
+                >
+                  Chọn ngày tham gia
                 </Text>
               </View>
-            ) : photographers.length > 0 ? (
-              <View key="photographers-list" style={{ gap: getResponsiveSize(12) }}>
-                {photographers.map((photographer) => (
+
+              <View style={{ gap: getResponsiveSize(12) }}>
+                {eventDays.map((day, index) => (
                   <TouchableOpacity
-                    key={`photographer-${photographer.eventPhotographerId}-${photographer.photographerId}`}
-                    onPress={() => handlePhotographerSelect(photographer)}
+                    key={`event-day-${day.date}-${index}`}
+                    onPress={() => {
+                      setSelectedEventDay(day);
+                      // Reset photographer và time khi đổi ngày
+                      setSelectedPhotographer(null);
+                      setSelectedStartTime("");
+                      setSelectedEndTime("");
+                      setEndTimeOptions([]);
+                    }}
                     style={{
                       backgroundColor:
-                        selectedPhotographer?.eventPhotographerId === photographer.eventPhotographerId
-                          ? "#FFF0F5"
-                          : "#f8f9fa",
+                        selectedEventDay?.date === day.date ? "#FFF0F5" : "#f8f9fa",
                       borderRadius: getResponsiveSize(12),
                       padding: getResponsiveSize(15),
                       borderWidth: 2,
                       borderColor:
-                        selectedPhotographer?.eventPhotographerId === photographer.eventPhotographerId
-                          ? "#E91E63"
-                          : "#e0e0e0",
+                        selectedEventDay?.date === day.date ? "#E91E63" : "#e0e0e0",
                     }}
                   >
-                    <View style={{ flexDirection: "row", alignItems: "center" }}>
-                      <Image
-                        source={{
-                          uri: photographer.photographer?.profileImage ||
-                            "https://via.placeholder.com/50x50/f0f0f0/999?text=P"
-                        }}
-                        style={{
-                          width: getResponsiveSize(50),
-                          height: getResponsiveSize(50),
-                          borderRadius: getResponsiveSize(25),
-                          marginRight: getResponsiveSize(12),
-                        }}
-                      />
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                       <View style={{ flex: 1 }}>
                         <Text
                           style={{
@@ -809,29 +919,34 @@ export default function BookingEventScreen() {
                             marginBottom: getResponsiveSize(4),
                           }}
                         >
-                          {photographer.photographer?.fullName || "Unknown Photographer"}
+                          {day.displayText}
                         </Text>
-                        {photographer.photographer?.rating && (
-                          <View style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}>
-                            <Text style={{ color: "#FFA500", marginRight: getResponsiveSize(4) }}>⭐</Text>
-                            <Text style={{ fontSize: getResponsiveSize(14), color: "#666" }}>
-                              {photographer.photographer.rating}
-                            </Text>
-                          </View>
-                        )}
-                        {photographer.specialRate && (
+                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                          <Feather name="clock" size={getResponsiveSize(14)} color="#666" />
                           <Text
                             style={{
                               fontSize: getResponsiveSize(14),
-                              fontWeight: "600",
-                              color: "#E91E63",
+                              color: "#666",
+                              marginLeft: getResponsiveSize(6),
                             }}
                           >
-                            {formatCurrency(photographer.specialRate)}/giờ
+                            {day.startTime} - {day.endTime}
+                          </Text>
+                        </View>
+                        {day.isToday && (
+                          <Text
+                            style={{
+                              fontSize: getResponsiveSize(12),
+                              color: "#4CAF50",
+                              fontWeight: "600",
+                              marginTop: getResponsiveSize(4),
+                            }}
+                          >
+                            Hôm nay
                           </Text>
                         )}
                       </View>
-                      {selectedPhotographer?.eventPhotographerId === photographer.eventPhotographerId && (
+                      {selectedEventDay?.date === day.date && (
                         <View
                           style={{
                             backgroundColor: "#E91E63",
@@ -846,24 +961,180 @@ export default function BookingEventScreen() {
                   </TouchableOpacity>
                 ))}
               </View>
-            ) : (
+            </View>
+          )}
+
+          {/* Step 1 (single-day) hoặc Step 2 (multi-day): Photographer Selection */}
+          {(!isMultiDay || selectedEventDay) && (
+            <View
+              key="photographer-selection-section"
+              style={{
+                backgroundColor: "#fff",
+                borderRadius: getResponsiveSize(16),
+                padding: getResponsiveSize(20),
+                marginBottom: getResponsiveSize(15),
+                elevation: 2,
+              }}
+            >
               <View
-                key="no-photographers"
                 style={{
-                  backgroundColor: "#FFF3F3",
-                  borderRadius: getResponsiveSize(12),
-                  padding: getResponsiveSize(15),
+                  flexDirection: "row",
                   alignItems: "center",
+                  marginBottom: getResponsiveSize(15),
                 }}
               >
-                <Text style={{ color: "#C62828", fontSize: getResponsiveSize(14) }}>
-                  Chưa có photographer nào được duyệt cho sự kiện này
+                <View
+                  style={{
+                    backgroundColor: selectedPhotographer ? "#4CAF50" : "#E91E63",
+                    borderRadius: getResponsiveSize(20),
+                    width: getResponsiveSize(24),
+                    height: getResponsiveSize(24),
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: getResponsiveSize(10),
+                  }}
+                >
+                  {selectedPhotographer ? (
+                    <Feather name="check" size={getResponsiveSize(14)} color="#fff" />
+                  ) : (
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: getResponsiveSize(12),
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {isMultiDay ? "2" : "1"}
+                    </Text>
+                  )}
+                </View>
+                <Text
+                  style={{
+                    fontSize: getResponsiveSize(16),
+                    fontWeight: "bold",
+                    color: "#333",
+                  }}
+                >
+                  Chọn Photographer
                 </Text>
+                {photographersLoading && (
+                  <ActivityIndicator
+                    size="small"
+                    color="#E91E63"
+                    style={{ marginLeft: getResponsiveSize(10) }}
+                  />
+                )}
               </View>
-            )}
-          </View>
 
-          {/* Step 2: Time Selection - Only show if photographer is selected */}
+              {/* Rest của photographer selection code giữ nguyên từ đây */}
+              {photographersLoading ? (
+                <View
+                  key="photographers-loading"
+                  style={{ alignItems: "center", paddingVertical: getResponsiveSize(20) }}
+                >
+                  <ActivityIndicator size="large" color="#E91E63" />
+                  <Text style={{ color: "#666", marginTop: getResponsiveSize(8) }}>
+                    Đang tải danh sách photographer...
+                  </Text>
+                </View>
+              ) : photographers.length > 0 ? (
+                <View key="photographers-list" style={{ gap: getResponsiveSize(12) }}>
+                  {photographers.map((photographer) => (
+                    <TouchableOpacity
+                      key={`photographer-${photographer.eventPhotographerId}-${photographer.photographerId}`}
+                      onPress={() => handlePhotographerSelect(photographer)}
+                      style={{
+                        backgroundColor:
+                          selectedPhotographer?.eventPhotographerId === photographer.eventPhotographerId
+                            ? "#FFF0F5"
+                            : "#f8f9fa",
+                        borderRadius: getResponsiveSize(12),
+                        padding: getResponsiveSize(15),
+                        borderWidth: 2,
+                        borderColor:
+                          selectedPhotographer?.eventPhotographerId === photographer.eventPhotographerId
+                            ? "#E91E63"
+                            : "#e0e0e0",
+                      }}
+                    >
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Image
+                          source={{
+                            uri: photographer.photographer?.profileImage ||
+                              "https://via.placeholder.com/50x50/f0f0f0/999?text=P"
+                          }}
+                          style={{
+                            width: getResponsiveSize(50),
+                            height: getResponsiveSize(50),
+                            borderRadius: getResponsiveSize(25),
+                            marginRight: getResponsiveSize(12),
+                          }}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text
+                            style={{
+                              fontSize: getResponsiveSize(16),
+                              fontWeight: "bold",
+                              color: "#333",
+                              marginBottom: getResponsiveSize(4),
+                            }}
+                          >
+                            {photographer.photographer?.fullName || "Unknown Photographer"}
+                          </Text>
+                          {photographer.photographer?.rating && (
+                            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: getResponsiveSize(4) }}>
+                              <Text style={{ color: "#FFA500", marginRight: getResponsiveSize(4) }}>⭐</Text>
+                              <Text style={{ fontSize: getResponsiveSize(14), color: "#666" }}>
+                                {photographer.photographer.rating}
+                              </Text>
+                            </View>
+                          )}
+                          {photographer.specialRate && (
+                            <Text
+                              style={{
+                                fontSize: getResponsiveSize(14),
+                                fontWeight: "600",
+                                color: "#E91E63",
+                              }}
+                            >
+                              {formatCurrency(photographer.specialRate)}/giờ
+                            </Text>
+                          )}
+                        </View>
+                        {selectedPhotographer?.eventPhotographerId === photographer.eventPhotographerId && (
+                          <View
+                            style={{
+                              backgroundColor: "#E91E63",
+                              borderRadius: getResponsiveSize(10),
+                              padding: getResponsiveSize(4),
+                            }}
+                          >
+                            <Feather name="check" size={getResponsiveSize(16)} color="#fff" />
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : (
+                <View
+                  key="no-photographers"
+                  style={{
+                    backgroundColor: "#FFF3F3",
+                    borderRadius: getResponsiveSize(12),
+                    padding: getResponsiveSize(15),
+                    alignItems: "center",
+                  }}
+                >
+                  <Text style={{ color: "#C62828", fontSize: getResponsiveSize(14) }}>
+                    Chưa có photographer nào được duyệt cho sự kiện này
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Step 2 (single-day) hoặc Step 3 (multi-day): Time Selection */}
           {selectedPhotographer && (
             <View
               key="time-selection-section"
@@ -903,7 +1174,7 @@ export default function BookingEventScreen() {
                         fontWeight: "bold",
                       }}
                     >
-                      2
+                      {isMultiDay ? "3" : "2"}
                     </Text>
                   )}
                 </View>
@@ -923,7 +1194,7 @@ export default function BookingEventScreen() {
                     style={{ marginLeft: getResponsiveSize(10) }}
                   />
                 )}
-                
+
               </View>
 
               {/* Photographer available time info */}
@@ -943,7 +1214,10 @@ export default function BookingEventScreen() {
                     fontWeight: "600",
                   }}
                 >
-                  🎪 Sự kiện diễn ra: {formatTime(event.startDate)} - {formatTime(event.endDate)}
+                  {isMultiDay
+                    ? `${selectedEventDay?.displayText}: ${selectedEventDay?.startTime} - ${selectedEventDay?.endTime}`
+                    : `Sự kiện diễn ra: ${formatTime(event.startDate)} - ${formatTime(event.endDate)}`
+                  }
                 </Text>
                 <Text
                   style={{
@@ -952,9 +1226,10 @@ export default function BookingEventScreen() {
                     marginTop: getResponsiveSize(4),
                   }}
                 >
-                  📸 {selectedPhotographer.photographer?.fullName} có {eventFilteredTimes.length} khung giờ rảnh trong thời gian sự kiện
+                  {selectedPhotographer.photographer?.fullName} có {eventFilteredTimes.length} khung giờ rảnh trong thời gian này
                 </Text>
               </View>
+
               {!loadingSlots && availableTimes.length === 0 && (
                 <View
                   key="no-availability-warning"
@@ -1047,9 +1322,9 @@ export default function BookingEventScreen() {
                   >
                     Giờ kết thúc
                   </Text>
-                  <ScrollView 
+                  <ScrollView
                     key="end-time-scroll"
-                    horizontal 
+                    horizontal
                     showsHorizontalScrollIndicator={false}
                   >
                     {getEndTimeOptions().map((time, index) => (
@@ -1108,7 +1383,7 @@ export default function BookingEventScreen() {
             </View>
           )}
 
-          {/* Step 3: Special Requests - Only show if time is selected */}
+          {/* Step 3 (single-day) hoặc Step 4 (multi-day): Special Requests */}
           {selectedPhotographer && selectedStartTime && selectedEndTime && (
             <View
               key="special-requests-section"
@@ -1148,7 +1423,7 @@ export default function BookingEventScreen() {
                         fontWeight: "bold",
                       }}
                     >
-                      3
+                      {isMultiDay ? "4" : "3"}
                     </Text>
                   )}
                 </View>
@@ -1254,7 +1529,7 @@ export default function BookingEventScreen() {
 
               <View style={{ gap: getResponsiveSize(12) }}>
                 {/* Photographer Info */}
-                <View 
+                <View
                   key="summary-photographer"
                   style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
                 >
@@ -1267,7 +1542,7 @@ export default function BookingEventScreen() {
                 </View>
 
                 {/* Duration */}
-                <View 
+                <View
                   key="summary-duration"
                   style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
                 >
@@ -1275,13 +1550,13 @@ export default function BookingEventScreen() {
                     Thời gian:
                   </Text>
                   <Text style={{ fontSize: getResponsiveSize(14), fontWeight: "600", color: "#333" }}>
-                  {selectedStartTime} - {selectedEndTime} ({calculateDuration() % 1 === 0 ? calculateDuration() : calculateDuration().toFixed(1)}h)
+                    {selectedStartTime} - {selectedEndTime} ({calculateDuration() % 1 === 0 ? calculateDuration() : calculateDuration().toFixed(1)}h)
                   </Text>
                 </View>
 
                 {/* Event Price */}
                 {(event.discountedPrice || event.originalPrice) && (
-                  <View 
+                  <View
                     key="summary-event-price"
                     style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
                   >
@@ -1295,7 +1570,7 @@ export default function BookingEventScreen() {
                 )}
 
                 {/* Photographer Rate */}
-                <View 
+                <View
                   key="summary-photographer-rate"
                   style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
                 >
@@ -1308,7 +1583,7 @@ export default function BookingEventScreen() {
                 </View>
 
                 {/* Rate per hour info */}
-                <View 
+                <View
                   key="summary-hourly-rate"
                   style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
                 >
@@ -1322,7 +1597,7 @@ export default function BookingEventScreen() {
 
                 {/* Discount info - nếu có giảm giá */}
                 {event.originalPrice && event.discountedPrice && event.originalPrice > event.discountedPrice && (
-                  <View 
+                  <View
                     key="summary-discount"
                     style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
                   >
@@ -1346,7 +1621,7 @@ export default function BookingEventScreen() {
                 />
 
                 {/* Total */}
-                <View 
+                <View
                   key="summary-total"
                   style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
                 >
@@ -1464,11 +1739,13 @@ export default function BookingEventScreen() {
                 marginTop: getResponsiveSize(8),
               }}
             >
-              {!selectedPhotographer
-                ? "Vui lòng chọn photographer"
-                : !selectedStartTime || !selectedEndTime
-                  ? "Vui lòng chọn thời gian"
-                  : "Hoàn thành thông tin để tiếp tục"}
+              {isMultiDay && !selectedEventDay
+                ? "Vui lòng chọn ngày tham gia"
+                : !selectedPhotographer
+                  ? "Vui lòng chọn photographer"
+                  : !selectedStartTime || !selectedEndTime
+                    ? "Vui lòng chọn thời gian"
+                    : "Hoàn thành thông tin để tiếp tục"}
             </Text>
           )}
         </View>

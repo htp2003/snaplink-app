@@ -59,7 +59,6 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
   const { bookEvent, loading: bookingLoading } = useEventBooking();
 
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPhotographer, setSelectedPhotographer] = useState<any>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [hasTrackedView, setHasTrackedView] = useState(false);
 
@@ -224,12 +223,20 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
       return;
     }
 
-    if (!selectedPhotographer) {
-      Alert.alert('Chọn photographer', 'Vui lòng chọn photographer để tiếp tục');
-      return;
-    }
-
     if (!event) return;
+
+    console.log("🚀 Navigating to BookingEvent with data:", {
+      event: {
+        eventId: event.eventId,
+        name: event.name,
+        startDate: event.startDate, // ← Kiểm tra giá trị này
+        endDate: event.endDate,     // ← Kiểm tra giá trị này
+        locationName: event.location?.name,
+        discountedPrice: event.discountedPrice,
+        originalPrice: event.originalPrice,
+        description: event.description,
+      },
+    });
 
     navigation.navigate('BookingEvent', {
       event: {
@@ -242,13 +249,6 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
         originalPrice: event.originalPrice,
         description: event.description,
       },
-      preSelectedPhotographer: {
-        eventPhotographerId: selectedPhotographer.eventPhotographerId,
-        photographerId: selectedPhotographer.photographerId,
-        photographerName: selectedPhotographer.photographer?.fullName || 'Event Photographer',
-        profileImage: selectedPhotographer.photographer?.profileImage,
-        specialRate: selectedPhotographer.specialRate,
-      }
     });
   };
 
@@ -871,97 +871,69 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
                 </View>
               </View>
 
-              {/* Photographers Section */}
-              {photographers.length > 0 && (
-                <View
-                  className="pb-6 border-b border-stone-200"
-                  style={{ marginBottom: getResponsiveSize(24) }}
-                >
-                  <View className="flex-row items-center justify-between mb-4">
-                    <View className="flex-row items-center">
-                      <Ionicons name="camera-outline" size={getResponsiveSize(24)} color="#57534e" />
-                      <Text
-                        className="text-stone-900 font-semibold ml-4"
-                        style={{ fontSize: getResponsiveSize(20) }}
-                      >
-                        Thợ ảnh tham gia ({photographers.length})
-                      </Text>
-                    </View>
-                    <TouchableOpacity>
-                      <Text className="text-blue-500 text-sm font-semibold">
-                        Xem tất cả
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
+              {/* Photographers Status */}
+              <View
+                className="pb-6 border-b border-stone-200"
+                style={{ marginBottom: getResponsiveSize(24) }}
+              >
+                <View className="flex-row items-center mb-4">
+                  <Ionicons name="camera-outline" size={getResponsiveSize(24)} color="#57534e" />
+                  <Text
+                    className="text-stone-900 font-semibold ml-4"
+                    style={{ fontSize: getResponsiveSize(20) }}
+                  >
+                    Thợ ảnh tham gia
+                  </Text>
+                </View>
 
-                  <View className="flex-row flex-wrap gap-3">
-                    {photographers.slice(0, 4).map((photographer) => (
-                      <TouchableOpacity
-                        key={photographer.eventPhotographerId}
-                        onPress={() => setSelectedPhotographer(photographer)}
-                        className={`bg-white border rounded-xl p-4 items-center flex-1 min-w-[45%] ${selectedPhotographer?.eventPhotographerId ===
-                            photographer.eventPhotographerId
-                            ? "border-amber-500 bg-amber-50"
-                            : "border-stone-200"
-                          }`}
+                {photographersLoading ? (
+                  <View className="bg-stone-50 rounded-xl p-6 items-center">
+                    <ActivityIndicator size="small" color="#f59e0b" />
+                    <Text className="text-stone-600 mt-2">Đang kiểm tra thợ ảnh...</Text>
+                  </View>
+                ) : photographers.length > 0 ? (
+                  <View className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+                    <View className="flex-row items-center mb-2">
+                      <View
+                        className="bg-emerald-100 rounded-full items-center justify-center mr-3"
                         style={{
-                          shadowColor: '#000',
-                          shadowOffset: { width: 0, height: 1 },
-                          shadowOpacity: 0.1,
-                          shadowRadius: 2,
-                          elevation: 2,
+                          width: getResponsiveSize(32),
+                          height: getResponsiveSize(32),
                         }}
                       >
-                        {photographer.photographer?.profileImage ? (
-                          <Image
-                            source={{ uri: photographer.photographer.profileImage }}
-                            style={{
-                              width: getResponsiveSize(48),
-                              height: getResponsiveSize(48),
-                              borderRadius: getResponsiveSize(24),
-                              marginBottom: getResponsiveSize(8)
-                            }}
-                          />
-                        ) : (
-                          <View
-                            className="bg-stone-200 rounded-full items-center justify-center mb-2"
-                            style={{
-                              width: getResponsiveSize(48),
-                              height: getResponsiveSize(48),
-                            }}
-                          >
-                            <Ionicons name="person" size={getResponsiveSize(24)} color="#9ca3af" />
-                          </View>
-                        )}
-                        <Text
-                          className="text-stone-900 font-semibold text-center mb-1"
-                          style={{ fontSize: getResponsiveSize(13) }}
-                          numberOfLines={2}
-                        >
-                          {photographer.photographer?.fullName}
-                        </Text>
-                        <View className="flex-row items-center">
-                          <Ionicons name="star" size={getResponsiveSize(12)} color="#f59e0b" />
-                          <Text
-                            className="text-stone-600 ml-1"
-                            style={{ fontSize: getResponsiveSize(11) }}
-                          >
-                            {photographer.photographer?.rating || "4.8"}
-                          </Text>
-                        </View>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-
-                  {!selectedPhotographer && (
-                    <View className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-200">
-                      <Text className="text-amber-700 text-sm text-center">
-                        💡 Chọn một photographer để tiếp tục đăng ký
+                        <Ionicons name="checkmark" size={getResponsiveSize(18)} color="#10b981" />
+                      </View>
+                      <Text className="text-emerald-800 font-semibold flex-1">
+                        Có {photographers.length} thợ ảnh sẵn sàng
                       </Text>
                     </View>
-                  )}
-                </View>
-              )}
+                    <Text className="text-emerald-700 text-sm">
+                      Bạn sẽ chọn thợ ảnh trong bước tiếp theo
+                    </Text>
+                  </View>
+                ) : (
+                  <View className="bg-red-50 rounded-xl p-4 border border-red-200">
+                    <View className="flex-row items-center mb-2">
+                      <View
+                        className="bg-red-100 rounded-full items-center justify-center mr-3"
+                        style={{
+                          width: getResponsiveSize(32),
+                          height: getResponsiveSize(32),
+                        }}
+                      >
+                        <Ionicons name="close" size={getResponsiveSize(18)} color="#ef4444" />
+                      </View>
+                      <Text className="text-red-800 font-semibold flex-1">
+                        Chưa có thợ ảnh tham gia
+                      </Text>
+                    </View>
+                    <Text className="text-red-700 text-sm">
+                      Sự kiện này chưa có thợ ảnh. Vui lòng quay lại sau.
+                    </Text>
+                  </View>
+                )}
+              </View>
+
             </View>
           </View>
 
@@ -1012,9 +984,15 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
             <TouchableOpacity
               onPress={handleJoinEvent}
               disabled={
-                bookingLoading || slotsRemaining === 0 || !selectedPhotographer
+                loading ||
+                slotsRemaining === 0 ||
+                photographers.length === 0 ||  
+                photographersLoading  
               }
-              className={`rounded-2xl items-center justify-center ${bookingLoading || slotsRemaining === 0 || !selectedPhotographer
+              className={`rounded-2xl items-center justify-center ${loading ||
+                  slotsRemaining === 0 ||
+                  photographers.length === 0 ||
+                  photographersLoading
                   ? "bg-stone-300"
                   : "bg-amber-500"
                 }`}
@@ -1028,7 +1006,7 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
               }}
             >
               <View className="flex-row items-center">
-                {bookingLoading ? (
+                {loading ? (
                   <ActivityIndicator size="small" color="white" style={{ marginRight: 8 }} />
                 ) : (
                   <Ionicons
@@ -1042,11 +1020,15 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
                   className="text-white font-bold"
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
-                  {bookingLoading
-                    ? "Đang đăng ký..."
+                  {loading
+                    ? "Đang tải..."
                     : slotsRemaining === 0
                       ? "Hết chỗ"
-                      : "Tham gia ngay"}
+                      : photographers.length === 0
+                        ? "Chưa có thợ ảnh"
+                        : photographersLoading
+                          ? "Đang kiểm tra..."
+                          : "Tham gia ngay"}
                 </Text>
               </View>
             </TouchableOpacity>

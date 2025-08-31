@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth, User } from './useAuth';
 import { usePhotographerProfile } from './usePhotographerProfile';
+import { Photographer} from 'src/types';
+import { PhotographerProfile } from 'src/services/photographerService';
 
 interface PhotographerAuthData {
   userId: number | null;
@@ -12,6 +14,7 @@ interface PhotographerAuthData {
   isLoading: boolean;
   error: string | null;
   hasPhotographerProfile: boolean;
+  photographer: PhotographerProfile| null;
 }
 
 /**
@@ -112,6 +115,7 @@ export const usePhotographerAuth = (): PhotographerAuthData => {
     user,
     isPhotographer,
     isLoading,
+    photographer,
     error,
     hasPhotographerProfile,
   };

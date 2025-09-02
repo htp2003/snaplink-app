@@ -1,5 +1,5 @@
-import { View, Text, Alert, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Image  } from "react-native";
-import React, { useEffect, useState   } from "react";
+import { View, Text, Alert, TouchableOpacity, ScrollView, ActivityIndicator, TextInput, Image } from "react-native";
+import React, { useEffect, useState } from "react";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { RootStackNavigationProp } from "../../navigation/types";
 import { useAuth } from "../../hooks/useAuth";
@@ -40,18 +40,18 @@ interface EventDay {
 // Thêm helper functions sau các imports
 const isMultiDayEvent = (startDate: string, endDate: string): boolean => {
   console.log("🔍 isMultiDayEvent check:", { startDate, endDate });
-  
+
   const start = new Date(startDate);
   const end = new Date(endDate);
-  
+
   const startDay = start.toDateString();
   const endDay = end.toDateString();
-  
+
   console.log("🔍 Date strings:", { startDay, endDay });
-  
+
   const result = startDay !== endDay;
   console.log("🔍 isMultiDayEvent result:", result);
-  
+
   return result;
 };
 
@@ -59,115 +59,96 @@ const isMultiDayEvent = (startDate: string, endDate: string): boolean => {
 
 const generateEventDays = (startDate: string, endDate: string): EventDay[] => {
   console.log("🌍 generateEventDays input:", { startDate, endDate });
-  
-  // CÁCH 1: Tránh timezone bằng cách extract ngày từ string
-  const startDateOnly = startDate.split('T')[0]; // "2025-09-01"
-  const endDateOnly = endDate.split('T')[0];     // "2025-09-03"
-  
-  console.log("📅 Extracted dates:", { startDateOnly, endDateOnly });
-  
-  // CÁCH 2: Parse thời gian từ string gốc để tránh timezone
-  const startTime = new Date(startDate).toLocaleTimeString('vi-VN', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
+
+  const startDateOnly = startDate.split('T')[0];
+  const endDateOnly = endDate.split('T')[0];
+
+  // LẤY NGÀY HÔM NAY THEO MÚI GIỜ VIỆT NAM
+  const todayVN = new Date().toLocaleString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).split(',')[0];
+
+  console.log("📅 Today VN:", todayVN);
+
+  // ✅ PARSE THỜI GIAN SỰ KIỆN CHÍNH
+  const eventStartTime = new Date(startDate).toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
     timeZone: 'Asia/Ho_Chi_Minh'
   });
-  
-  const endTime = new Date(endDate).toLocaleTimeString('vi-VN', { 
-    hour: '2-digit', 
-    minute: '2-digit', 
+
+  const eventEndTime = new Date(endDate).toLocaleTimeString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
     hour12: false,
     timeZone: 'Asia/Ho_Chi_Minh'
   });
-  
-  console.log("⏰ Extracted times:", { startTime, endTime });
-  
+
+  console.log("🎯 Event time range:", { eventStartTime, eventEndTime });
+
   const days: EventDay[] = [];
-  const today = new Date().toISOString().split('T')[0];
-  
-  // Kiểm tra single day event
+
+  // Single day event
   if (startDateOnly === endDateOnly) {
-    console.log("📅 Single day event detected");
-    
+    if (startDateOnly < todayVN) {
+      console.log("⚠️ Single day event has passed");
+      return [];
+    }
+
     const [year, month, day] = startDateOnly.split('-').map(Number);
     const displayText = `${day.toString().padStart(2, '0')}-${month.toString().padStart(2, '0')}`;
-    
-    const result = [{
+
+    return [{
       date: startDateOnly,
       displayText: displayText,
-      startTime: startTime,
-      endTime: endTime,
-      isToday: startDateOnly === today
+      startTime: eventStartTime, // ✅ DÙNG THỜI GIAN SỰ KIỆN
+      endTime: eventEndTime,     // ✅ DÙNG THỜI GIAN SỰ KIỆN
+      isToday: startDateOnly === todayVN
     }];
-    
-    console.log("✅ Single day result:", result);
-    return result;
   }
-  
-  // ✅ FIXED: Multi-day event - Tránh Date object hoàn toàn
-  console.log("📅 Multi-day event detected");
-  
-  // Parse ngày bắt đầu và kết thúc từ string
+
+  // Multi-day event
   const [startYear, startMonth, startDay] = startDateOnly.split('-').map(Number);
   const [endYear, endMonth, endDay] = endDateOnly.split('-').map(Number);
-  
-  console.log("📊 Date components:", {
-    start: { startYear, startMonth, startDay },
-    end: { endYear, endMonth, endDay }
-  });
-  
-  // ✅ FIX 1: Đổi tên biến để tránh duplicate identifier
-  // Tạo Date object an toàn với local timezone
-  let currentDate = new Date(startYear, startMonth - 1, startDay); // month is 0-indexed
-  const endDateObj = new Date(endYear, endMonth - 1, endDay); // ← SỬA: Đổi tên từ endDate thành endDateObj
-  
-  console.log("📆 Date objects:", { currentDate, endDateObj });
-  
-  // ✅ FIX 2: So sánh Date với Date, không phải Date với string
-  while (currentDate <= endDateObj) { // ← SỬA: So sánh currentDate với endDateObj
-    // ✅ FIXED: Dùng getDate(), getMonth(), getFullYear() thay vì toISOString()
+
+  let currentDate = new Date(startYear, startMonth - 1, startDay);
+  const endDateObj = new Date(endYear, endMonth - 1, endDay);
+
+  while (currentDate <= endDateObj) {
     const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // Convert back to 1-indexed
+    const currentMonth = currentDate.getMonth() + 1;
     const currentDay = currentDate.getDate();
-    
+
     const currentDateString = `${currentYear}-${currentMonth.toString().padStart(2, '0')}-${currentDay.toString().padStart(2, '0')}`;
-    const displayText = `${currentDay.toString().padStart(2, '0')}-${currentMonth.toString().padStart(2, '0')}`;
-    
-    const isFirstDay = currentDateString === startDateOnly;
-    const isLastDay = currentDateString === endDateOnly;
-    
-    let dayStartTime = "00:00";
-    let dayEndTime = "23:59";
-    
-    if (isFirstDay) {
-      dayStartTime = startTime;
+
+    if (currentDateString >= todayVN) {
+      const displayText = `${currentDay.toString().padStart(2, '0')}-${currentMonth.toString().padStart(2, '0')}`;
+
+      // ✅ SỬA: TẤT CẢ NGÀY TRONG SỰ KIỆN NHIỀU NGÀY ĐỀU CÓ CÙNG THỜI GIAN
+      const dayStartTime = eventStartTime; // 06:00
+      const dayEndTime = eventEndTime;     // 20:00
+
+      console.log(`📅 Adding event day: ${currentDateString}`, {
+        displayText,
+        dayStartTime,
+        dayEndTime,
+        isToday: currentDateString === todayVN
+      });
+
+      days.push({
+        date: currentDateString,
+        displayText: displayText,
+        startTime: dayStartTime, // ✅ LUÔN LÀ 06:00
+        endTime: dayEndTime,     // ✅ LUÔN LÀ 20:00
+        isToday: currentDateString === todayVN
+      });
+    } else {
+      console.log(`⏭️ Skipping past date: ${currentDateString} (before ${todayVN})`);
     }
-    if (isLastDay) {
-      dayEndTime = endTime;
-    }
-    
-    console.log(`📅 Processing day: ${currentDateString}`, {
-      displayText,
-      isFirstDay,
-      isLastDay,
-      dayStartTime,
-      dayEndTime
-    });
-    
-    days.push({
-      date: currentDateString,
-      displayText: displayText,
-      startTime: dayStartTime,
-      endTime: dayEndTime,
-      isToday: currentDateString === today
-    });
-    
-    // Chuyển sang ngày tiếp theo
+
     currentDate.setDate(currentDate.getDate() + 1);
   }
-  
-  console.log("✅ Multi-day result:", days);
+
+  console.log("✅ Generated event days with correct times:", days);
   return days;
 };
 
@@ -189,7 +170,7 @@ export default function BookingEventScreen() {
   // Availability hook for API calls
   const {
     getAvailableTimesForDate,
-    getEndTimesForStartTime, 
+    getEndTimesForStartTime,
     loadingSlots,
     error: availabilityError,
   } = useAvailability();
@@ -219,7 +200,7 @@ export default function BookingEventScreen() {
   // Loading states
   const [isProcessing, setIsProcessing] = useState(false);
 
-  
+
 
   // Check authentication
   useEffect(() => {
@@ -243,6 +224,7 @@ export default function BookingEventScreen() {
   }, [isAuthenticated, navigation]);
 
   // ✅ FIXED: Load available times and filter by event time range
+  // Trong useEffect load available times, sau khi filter theo event time range:
   useEffect(() => {
     const loadAvailableTimesForEvent = async () => {
       if (!selectedPhotographer?.photographerId || !selectedEventDay) {
@@ -254,53 +236,110 @@ export default function BookingEventScreen() {
       try {
         console.log("🎪 Loading available times for EVENT photographer:", {
           photographerId: selectedPhotographer.photographerId,
-          eventName: event.name,
           selectedDay: selectedEventDay.date,
           timeRange: `${selectedEventDay.startTime} - ${selectedEventDay.endTime}`
         });
 
-        // Gọi API với ngày đã chọn
         const allAvailableTimes = await getAvailableTimesForDate(
           selectedPhotographer.photographerId,
           selectedEventDay.date
         );
 
-        console.log("🔍 Raw API Response:", JSON.stringify(allAvailableTimes, null, 2));
+        console.log("📋 Raw API Response:", allAvailableTimes);
 
-        // Filter theo time range của ngày đã chọn
+        // Filter theo time range của ngày
         const dayStartTime = selectedEventDay.startTime;
         const dayEndTime = selectedEventDay.endTime;
-
-        console.log("🎯 Day time boundaries:", {
-          dayStartTime,
-          dayEndTime,
-        });
-
-        // Parse time ranges
         const [dayStartHour, dayStartMinute] = dayStartTime.split(':').map(Number);
         const [dayEndHour, dayEndMinute] = dayEndTime.split(':').map(Number);
 
-        const filteredTimes = allAvailableTimes.filter(time => {
+        let filteredTimes = allAvailableTimes.filter(time => {
           const [timeHour, timeMinute] = time.split(':').map(Number);
-
           const timeInMinutes = timeHour * 60 + timeMinute;
           const dayStartInMinutes = dayStartHour * 60 + dayStartMinute;
           const dayEndInMinutes = dayEndHour * 60 + dayEndMinute;
-
           return timeInMinutes >= dayStartInMinutes && timeInMinutes < dayEndInMinutes;
         });
 
-        console.log("✅ Filtered times for selected day:", {
-          selectedDay: selectedEventDay.displayText,
-          timeRange: `${dayStartTime} - ${dayEndTime}`,
-          filteredTimes,
+        console.log("🎯 After event time range filter:", filteredTimes);
+
+        // KIỂM TRA HÔM NAY THEO MÚI GIỜ VIỆT NAM
+        const nowVN = new Date().toLocaleString("en-CA", { timeZone: "Asia/Ho_Chi_Minh" });
+        const todayVN = nowVN.split(',')[0]; // "2025-09-02"
+
+        console.log("📅 Vietnam timezone check:", {
+          nowVN,
+          todayVN,
+          selectedDateString: selectedEventDay.date,
+          isToday: selectedEventDay.date === todayVN
         });
+
+        // CHỈ FILTER NẾU LÀ HÔM NAY THEO GIỜ VN
+        if (selectedEventDay.date === todayVN) {
+          console.log("🕐 This is TODAY in Vietnam - filtering past times");
+
+          // ✅ SỬA: Lấy giờ hiện tại theo múi giờ VN đúng cách
+          const now = new Date();
+          const vnFormatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'Asia/Ho_Chi_Minh',
+            hour: 'numeric',
+            minute: 'numeric',
+            hour12: false
+          });
+
+          const vnTimeParts = vnFormatter.formatToParts(now);
+          const currentHour = parseInt(vnTimeParts.find(part => part.type === 'hour')?.value || '0');
+          const currentMinute = parseInt(vnTimeParts.find(part => part.type === 'minute')?.value || '0');
+
+          const currentTimeInMinutes = currentHour * 60 + currentMinute;
+          // ✅ BỎ BUFFER: Chỉ filter theo thời gian hiện tại
+          const minimumTimeInMinutes = currentTimeInMinutes;
+
+          console.log("⏰ Vietnam current time info:", {
+            vnTimeParts,
+            currentHour,
+            currentMinute,
+            currentTime: `${currentHour}:${String(currentMinute).padStart(2, '0')}`,
+            currentTimeInMinutes,
+            minimumTimeInMinutes,
+            minimumBookingTime: `${Math.floor(minimumTimeInMinutes / 60)}:${String(minimumTimeInMinutes % 60).padStart(2, '0')}`
+          });
+
+          const beforeFilterCount = filteredTimes.length;
+          const beforeFilterTimes = [...filteredTimes];
+
+          filteredTimes = filteredTimes.filter(time => {
+            const [timeHour, timeMinute] = time.split(':').map(Number);
+            const timeInMinutes = timeHour * 60 + timeMinute;
+            // ✅ THAY ĐỔI: >= thành > để chỉ giữ những giờ sau thời điểm hiện tại
+            const isValid = timeInMinutes > minimumTimeInMinutes;
+
+            if (!isValid) {
+              console.log(`❌ Filtering out past/current time: ${time} (${timeInMinutes} <= ${minimumTimeInMinutes})`);
+            } else {
+              console.log(`✅ Keeping future time: ${time} (${timeInMinutes} > ${minimumTimeInMinutes})`);
+            }
+
+            return isValid;
+          });
+
+          console.log("⏰ Final time filtering result:", {
+            beforeFilter: beforeFilterCount,
+            afterFilter: filteredTimes.length,
+            beforeFilterTimes,
+            afterFilterTimes: filteredTimes,
+            filteredOutTimes: beforeFilterTimes.filter(t => !filteredTimes.includes(t))
+          });
+        } else {
+          console.log("📅 Not today in Vietnam - no time filtering needed");
+        }
 
         setAvailableTimes(allAvailableTimes);
         setEventFilteredTimes(filteredTimes);
 
         // Reset selected times nếu không còn available
         if (selectedStartTime && !filteredTimes.includes(selectedStartTime)) {
+          console.log("🔄 Resetting selected start time - no longer valid");
           setSelectedStartTime("");
           setSelectedEndTime("");
         }
@@ -350,10 +389,10 @@ export default function BookingEventScreen() {
     return endTimeOptions;
   };
 
-  // ✅ NEW: Load end times when start time is selected
+  // ✅ SỬA: Load end times theo selectedEventDay
   useEffect(() => {
     const loadEndTimes = async () => {
-      if (!selectedStartTime || !selectedPhotographer?.photographerId || !event) {
+      if (!selectedStartTime || !selectedPhotographer?.photographerId || !selectedEventDay) { // ✅ THÊM selectedEventDay
         setEndTimeOptions([]);
         return;
       }
@@ -361,53 +400,51 @@ export default function BookingEventScreen() {
       try {
         console.log("🕒 Loading end times for selected start time:", selectedStartTime);
 
-        // Get event date
-        const eventDate = new Date(event.startDate);
-        const year = eventDate.getFullYear();
-        const month = String(eventDate.getMonth() + 1).padStart(2, '0');
-        const day = String(eventDate.getDate()).padStart(2, '0');
-        const dateString = `${year}-${month}-${day}`;
+        // ✅ SỬA: Dùng selectedEventDay.date thay vì event.startDate
+        const dateString = selectedEventDay.date;
 
-        // ✅ Get end times from API (this will respect booked slots)
+        console.log("📅 Using selected event day for end times:", {
+          selectedEventDay: selectedEventDay.date,
+          selectedStartTime,
+        });
+
+        // ✅ Get end times from API 
         const apiEndTimes = await getEndTimesForStartTime(
           selectedPhotographer.photographerId,
-          dateString,
+          dateString, // ✅ SỬA: Dùng selectedEventDay.date
           selectedStartTime
         );
 
         console.log("📋 End times from API:", apiEndTimes);
 
-        // ✅ Filter by event time range
-        const eventEndTime = formatTime(event.endDate);
-        const eventEndHour = parseInt(eventEndTime.split(':')[0]);
-        const eventEndMinute = parseInt(eventEndTime.split(':')[1]);
-        const eventEndInMinutes = eventEndHour * 60 + eventEndMinute;
+        // ✅ Filter by event time range cho ngày đã chọn
+        const dayEndTime = selectedEventDay.endTime; // ✅ SỬA: Dùng endTime của ngày đã chọn
+        const dayEndHour = parseInt(dayEndTime.split(':')[0]);
+        const dayEndMinute = parseInt(dayEndTime.split(':')[1]);
+        const dayEndInMinutes = dayEndHour * 60 + dayEndMinute;
 
         const eventFilteredEndTimes = apiEndTimes.filter(time => {
           const timeHour = parseInt(time.split(':')[0]);
           const timeMinute = parseInt(time.split(':')[1]);
           const timeInMinutes = timeHour * 60 + timeMinute;
 
-          // ✅ End time must be <= event end time
-          return timeInMinutes <= eventEndInMinutes;
+          // ✅ End time must be <= selected day end time
+          return timeInMinutes <= dayEndInMinutes;
         });
 
-        console.log("✅ Filtered end times for event:", {
+        console.log("✅ Filtered end times for selected day:", {
           selectedStartTime,
+          selectedDay: selectedEventDay.date,
+          dayEndTime,
           apiEndTimes,
-          eventEndTime,
           eventFilteredEndTimes,
-          finalEndTimeOptions: eventFilteredEndTimes,
         });
 
         setEndTimeOptions(eventFilteredEndTimes);
 
         // ✅ Reset selected end time if it's no longer valid
         if (selectedEndTime && !eventFilteredEndTimes.includes(selectedEndTime)) {
-          console.log("🔄 Resetting selected end time - no longer valid:", {
-            selectedEndTime,
-            availableOptions: eventFilteredEndTimes,
-          });
+          console.log("🔄 Resetting selected end time - no longer valid");
           setSelectedEndTime("");
         }
 
@@ -418,7 +455,7 @@ export default function BookingEventScreen() {
     };
 
     loadEndTimes();
-  }, [selectedStartTime, selectedPhotographer?.photographerId, event, getEndTimesForStartTime]);
+  }, [selectedStartTime, selectedPhotographer?.photographerId, selectedEventDay, getEndTimesForStartTime]); // ✅ THÊM selectedEventDay vào dependency
 
   const calculateDuration = () => {
     if (!selectedStartTime || !selectedEndTime) return 0;
@@ -759,7 +796,10 @@ export default function BookingEventScreen() {
                 marginLeft: getResponsiveSize(6),
               }}
             >
-              {formatDate(event.startDate)}
+              {isMultiDay
+                ? `${formatDate(event.startDate)} - ${formatDate(event.endDate)}`
+                : formatDate(event.startDate)
+              }
             </Text>
           </View>
           <View
@@ -1280,7 +1320,8 @@ export default function BookingEventScreen() {
                 showsHorizontalScrollIndicator={false}
                 style={{ marginBottom: getResponsiveSize(15) }}
               >
-                {availableTimes.map((time, index) => (
+                {/* ✅ SỬA: Dùng eventFilteredTimes thay vì availableTimes */}
+                {eventFilteredTimes.map((time, index) => (
                   <TouchableOpacity
                     key={`start-time-${time}-${index}`}
                     onPress={() => handleStartTimeSelect(time)}

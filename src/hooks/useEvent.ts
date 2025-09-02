@@ -190,9 +190,12 @@ export const useEventDetail = (eventId: number | null) => {
     setError(null);
     
     try {
-      const response = await eventService.getEventDetail(eventId);
+      const response = await eventService.getEventByEventId(eventId);
+      
+      console.log("🔍 Event detail nè:", response); 
       
       if (response.error === 0) {
+        console.log("✅ Event data nè:", response.data); 
         setEvent(response.data);
       } else {
         setError(response.message);

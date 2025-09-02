@@ -9,6 +9,7 @@ import {
   EventBookingRequest
 } from '../types/event';
 import { photographerEventService } from '../services/photographerEventService';
+import { eventService } from 'src/services/eventService';
 
 // Hook for discovering events (active, upcoming, featured)
 export const useEventDiscovery = () => {
@@ -152,34 +153,51 @@ export const useEventSearch = () => {
 
 // Hook for event details
 export const useEventDetail = (eventId: number | null) => {
+  console.log("🚀 useEventDetail called with eventId:", eventId);
+  
   const [event, setEvent] = useState<LocationEvent | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchEventDetail = useCallback(async () => {
-    if (!eventId) return;
+    console.log("🔄 fetchEventDetail starting with eventId:", eventId);
+    
+    if (!eventId) {
+      console.log("❌ No eventId, returning early");
+      return;
+    }
     
     setLoading(true);
     setError(null);
+    console.log("⏳ Setting loading to true");
     
     try {
-      const response = await photographerEventService.getEventDetail(eventId);
+      console.log("📡 Calling eventService.getEventByEventId with:", eventId);
+      const response = await eventService.getEventByEventId(eventId);
+      console.log("📥 API response:", response);
       
       if (response.error === 0) {
+        console.log("✅ Setting event data:", response.data);
         setEvent(response.data);
       } else {
+        console.log("❌ API returned error:", response.message);
         setError(response.message);
       }
     } catch (err) {
+      console.log("💥 Exception caught:", err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
+      console.log("🏁 Setting loading to false");
       setLoading(false);
     }
   }, [eventId]);
 
   useEffect(() => {
+    console.log("🔄 useEffect triggered, calling fetchEventDetail");
     fetchEventDetail();
   }, [fetchEventDetail]);
+
+  console.log("📊 useEventDetail returning:", { event: !!event, loading, error });
 
   return {
     event,

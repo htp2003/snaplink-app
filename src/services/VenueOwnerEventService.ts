@@ -15,6 +15,7 @@ import {
   EventStatus,
   ApplicationStatus,
   ApprovedEventPhotographer,
+  NormalizedEventBooking,
 } from "../types/VenueOwnerEvent";
 
 const API_BASE_URL =
@@ -461,7 +462,7 @@ class VenueOwnerEventService {
   /**
    * Get event bookings
    */
-  async getEventBookings(eventId: number): Promise<EventBooking[]> {
+  async getEventBookings(eventId: number): Promise<NormalizedEventBooking[]> {
     try {
       console.log("📅 Getting bookings for event:", eventId);
 
@@ -483,16 +484,95 @@ class VenueOwnerEventService {
       }
 
       const result = await response.json();
-      console.log("✅ Bookings retrieved:", result);
+      console.log("✅ Raw bookings retrieved:", result);
 
       // Handle response format
-      if (Array.isArray(result)) {
-        return result;
-      } else if (result && result.data && Array.isArray(result.data)) {
-        return result.data;
+      let rawBookings: EventBooking[] = [];
+      if (result && result.data && Array.isArray(result.data)) {
+        rawBookings = result.data;
+      } else if (Array.isArray(result)) {
+        rawBookings = result;
+      } else {
+        console.log("⚠️ Unexpected response format, returning empty array");
+        return [];
       }
 
-      return [];
+      console.log("🔄 Normalizing booking data...");
+
+      // Normalize the booking data to match component expectations
+      const normalizedBookings: NormalizedEventBooking[] = rawBookings.map(
+        (eventBooking) => {
+          const booking = eventBooking.booking;
+          const user = booking.user;
+          const photographer = booking.photographer;
+
+          return {
+            eventBookingId: eventBooking.eventBookingId,
+            eventId: eventBooking.eventId,
+            bookingId: eventBooking.bookingId,
+            eventPhotographerId: eventBooking.eventPhotographerId,
+            userId: booking.userId,
+            photographerId: booking.photographerId,
+            startDatetime: booking.startDatetime,
+            endDatetime: booking.endDatetime,
+            status: booking.status,
+            specialRequests: booking.specialRequests || undefined,
+            totalAmount: booking.totalPrice,
+            eventPrice: eventBooking.eventPrice,
+            createdAt: booking.createdAt,
+            updatedAt: booking.updatedAt,
+
+            // Normalized customer data
+            customer: {
+              userId: user.userId,
+              fullName: user.fullName,
+              userName: user.userName,
+              email: user.email,
+              phoneNumber: user.phoneNumber,
+              profileImage: user.profileImage,
+            },
+
+            // Normalized photographer data
+            photographer: {
+              photographerId: photographer.photographerId,
+              userId: photographer.userId,
+              fullName: photographer.fullName,
+              userName: photographer.userName,
+              email: photographer.email,
+              phoneNumber: photographer.phoneNumber,
+              profileImage: photographer.profileImage,
+              rating: photographer.rating,
+              ratingCount: photographer.ratingCount,
+              yearsExperience: photographer.yearsExperience,
+              hourlyRate: photographer.hourlyRate,
+              bio: photographer.bio,
+            },
+
+            // Event info
+            event: {
+              eventId: eventBooking.event.eventId,
+              name: eventBooking.event.name,
+              locationId: eventBooking.event.locationId,
+            },
+          };
+        }
+      );
+
+      console.log(`✅ Bookings normalized: ${normalizedBookings.length} items`);
+
+      // Log first booking for debugging
+      if (normalizedBookings.length > 0) {
+        console.log("🔍 First normalized booking:", {
+          id: normalizedBookings[0].eventBookingId,
+          customer: normalizedBookings[0].customer.fullName,
+          photographer: normalizedBookings[0].photographer.fullName,
+          status: normalizedBookings[0].status,
+          totalAmount: normalizedBookings[0].totalAmount,
+          startDatetime: normalizedBookings[0].startDatetime,
+        });
+      }
+
+      return normalizedBookings;
     } catch (error) {
       console.error("❌ Get event bookings error:", error);
       throw error;

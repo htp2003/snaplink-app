@@ -15,6 +15,7 @@ import {
   EventFilters,
   EventPhotographer,
   ApprovedEventPhotographer,
+  NormalizedEventBooking,
 } from "../types/VenueOwnerEvent";
 
 export function useVenueOwnerEvent() {
@@ -499,13 +500,30 @@ export function useVenueOwnerEvent() {
    * Get event bookings
    */
   const getEventBookings = useCallback(
-    async (eventId: number): Promise<EventBooking[]> => {
+    async (eventId: number): Promise<NormalizedEventBooking[]> => {
       setLoading(true);
       setError(null);
 
       try {
+        console.log("📅 Fetching bookings for event:", eventId);
+
+        // Use updated service method that returns normalized data
         const result = await venueOwnerEventService.getEventBookings(eventId);
-        console.log("✅ Bookings retrieved:", result.length);
+
+        console.log("✅ Normalized bookings retrieved:", result.length);
+
+        // Log first booking for debugging
+        if (result.length > 0) {
+          console.log("🔍 First booking sample:", {
+            id: result[0].eventBookingId,
+            customer: result[0].customer.fullName,
+            photographer: result[0].photographer.fullName,
+            status: result[0].status,
+            totalAmount: result[0].totalAmount,
+            startDatetime: result[0].startDatetime,
+          });
+        }
+
         setBookings(result);
         return result;
       } catch (err) {

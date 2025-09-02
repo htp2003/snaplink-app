@@ -23,6 +23,15 @@ import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
 import { venueOwnerProfileService } from "../../services/venueOwnerProfileService";
 import { UpdateEventRequest } from "../../types/VenueOwnerEvent";
 import { VenueLocation } from "../../types/venueLocation";
+import { TimePickerModal } from "../../components/TimePickerModal";
+import {
+  formatDisplayDateTime,
+  formatDisplayDateOnly,
+  formatDisplayTimeOnly,
+  getTimeFromDate,
+  setTimeToDate,
+  formatDateTimeForAPI,
+} from "../../utils/dateUtils";
 
 interface FormData {
   locationId: number | null;
@@ -44,6 +53,7 @@ interface EventEditScreenProps {
     };
   };
 }
+
 const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
   navigation,
   route,
@@ -87,7 +97,10 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
   const [isStartDatePickerVisible, setStartDatePickerVisibility] =
     useState(false);
   const [isEndDatePickerVisible, setEndDatePickerVisibility] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isStartTimePickerVisible, setStartTimePickerVisibility] =
+    useState(false);
+  const [isEndTimePickerVisible, setEndTimePickerVisibility] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [userLocations, setUserLocations] = useState<VenueLocation[]>([]);
   const [uploading, setUploading] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -116,6 +129,34 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
       console.error("❌ Error extracting user ID from JWT:", error);
       return null;
     }
+  };
+
+  // Helper functions to determine event state
+  const getEventState = () => {
+    if (!selectedEvent) return null;
+
+    const now = new Date();
+    const startDate = new Date(selectedEvent.startDate);
+    const endDate = new Date(selectedEvent.endDate);
+
+    if (now < startDate) return "upcoming"; // Chưa bắt đầu
+    if (now >= startDate && now <= endDate) return "ongoing"; // Đang diễn ra
+    return "ended"; // Đã kết thúc
+  };
+
+  const canEditStartTime = () => {
+    const eventState = getEventState();
+    return eventState === "upcoming"; // Chỉ edit được khi chưa bắt đầu
+  };
+
+  const canEditEndTime = () => {
+    const eventState = getEventState();
+    return eventState === "upcoming" || eventState === "ongoing"; // Edit được khi chưa kết thúc
+  };
+
+  const getSelectedLocationInfo = () => {
+    if (!formData.locationId) return null;
+    return userLocations.find((l) => l.locationId === formData.locationId);
   };
 
   // Load event data and user locations
@@ -186,106 +227,233 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
         new Date(selectedEvent.endDate).getTime() ||
       formData.discountedPrice !==
         (selectedEvent.discountedPrice?.toString() || "") ||
-      formData.originalPrice !==
-        (selectedEvent.originalPrice?.toString() || "") ||
       formData.maxPhotographers !== selectedEvent.maxPhotographers.toString() ||
       formData.maxBookingsPerSlot !==
         selectedEvent.maxBookingsPerSlot.toString();
 
     setHasUnsavedChanges(hasChanges);
   };
-  // Form validation
-  const validateForm = (): boolean => {
+
+  // Improved validation function với logic thời gian phù hợp
+  const validateFormData = () => {
     const newErrors: Record<string, string> = {};
 
+    // Name validation
     if (!formData.name.trim()) {
-      newErrors.name = "Vui lòng nhập tên sự kiện";
+      newErrors.name = "Tên sự kiện không được để trống";
     } else if (formData.name.trim().length < 3) {
       newErrors.name = "Tên sự kiện phải có ít nhất 3 ký tự";
     } else if (formData.name.trim().length > 255) {
       newErrors.name = "Tên sự kiện không được quá 255 ký tự";
     }
 
-    if (formData.description.trim().length > 1000) {
+    // Description validation
+    if (formData.description.length > 1000) {
       newErrors.description = "Mô tả không được quá 1000 ký tự";
     }
 
-    if (formData.startDate >= formData.endDate) {
+    // Date validation với logic phù hợp cho edit
+    const now = new Date();
+    const eventState = getEventState();
+    const originalStartDate = selectedEvent
+      ? new Date(selectedEvent.startDate)
+      : null;
+    const originalEndDate = selectedEvent
+      ? new Date(selectedEvent.endDate)
+      : null;
+
+    // Chỉ validate start time nếu có thể edit và đã thay đổi
+    if (canEditStartTime() && originalStartDate) {
+      const hasStartTimeChanged =
+        formData.startDate.getTime() !== originalStartDate.getTime();
+
+      if (
+        hasStartTimeChanged &&
+        formData.startDate < new Date(now.getTime() - 60000)
+      ) {
+        newErrors.startDate = "Thời gian bắt đầu mới không thể trong quá khứ";
+      }
+    }
+
+    // Validate end time
+    if (canEditEndTime() && originalEndDate) {
+      const hasEndTimeChanged =
+        formData.endDate.getTime() !== originalEndDate.getTime();
+
+      if (hasEndTimeChanged && formData.endDate < now) {
+        newErrors.endDate = "Thời gian kết thúc mới không thể trong quá khứ";
+      }
+    }
+
+    // Start phải nhỏ hơn end
+    if (formData.endDate <= formData.startDate) {
       newErrors.endDate = "Thời gian kết thúc phải sau thời gian bắt đầu";
     }
 
-    if (formData.discountedPrice) {
-      const discountedPrice = parseFloat(formData.discountedPrice);
-      if (isNaN(discountedPrice) || discountedPrice <= 0) {
-        newErrors.discountedPrice = "Giá khuyến mãi phải là số dương";
+    // Duration check (không quá 30 ngày)
+    if (formData.startDate && formData.endDate) {
+      const durationDays =
+        (formData.endDate.getTime() - formData.startDate.getTime()) /
+        (1000 * 60 * 60 * 24);
+      if (durationDays > 30) {
+        newErrors.endDate = "Sự kiện không thể kéo dài quá 30 ngày";
       }
     }
 
-    if (formData.originalPrice) {
-      const originalPrice = parseFloat(formData.originalPrice);
-      if (isNaN(originalPrice) || originalPrice <= 0) {
-        newErrors.originalPrice = "Giá gốc phải là số dương";
+    // Price validation - originalPrice là read-only, chỉ validate discountedPrice
+    if (formData.discountedPrice) {
+      const discountedPrice = parseFloat(formData.discountedPrice);
+      if (isNaN(discountedPrice) || discountedPrice < 0) {
+        newErrors.discountedPrice = "Giá khuyến mãi phải là số dương";
+      } else if (discountedPrice > 100000000) {
+        newErrors.discountedPrice =
+          "Giá khuyến mãi quá cao (tối đa 100 triệu VND)";
       }
 
-      if (formData.discountedPrice) {
-        const discountedPrice = parseFloat(formData.discountedPrice);
-        if (
-          !isNaN(discountedPrice) &&
-          !isNaN(originalPrice) &&
-          discountedPrice >= originalPrice
-        ) {
+      // So sánh với giá gốc
+      if (formData.originalPrice) {
+        const originalPrice = parseFloat(formData.originalPrice);
+        if (!isNaN(originalPrice) && discountedPrice >= originalPrice) {
           newErrors.discountedPrice = "Giá khuyến mãi phải nhỏ hơn giá gốc";
         }
       }
     }
 
+    // Capacity validation
     const maxPhotographers = parseInt(formData.maxPhotographers);
     if (
       isNaN(maxPhotographers) ||
       maxPhotographers < 1 ||
-      maxPhotographers > 100
+      maxPhotographers > 1000
     ) {
-      newErrors.maxPhotographers = "Số nhiếp ảnh gia tối đa phải từ 1-100";
+      newErrors.maxPhotographers = "Số nhiếp ảnh gia phải từ 1-1000";
     }
 
     const maxBookingsPerSlot = parseInt(formData.maxBookingsPerSlot);
     if (
       isNaN(maxBookingsPerSlot) ||
       maxBookingsPerSlot < 1 ||
-      maxBookingsPerSlot > 50
+      maxBookingsPerSlot > 100
     ) {
-      newErrors.maxBookingsPerSlot = "Số booking tối đa phải từ 1-50";
+      newErrors.maxBookingsPerSlot = "Số booking/slot phải từ 1-100";
     }
 
-    setErrors(newErrors);
+    setFormErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Form handlers
+  // Form handlers with real-time validation
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }));
+
+    // Clear error for this field when user is typing
+    if (formErrors[field]) {
+      setFormErrors((prev) => ({ ...prev, [field]: "" }));
     }
   };
 
-  // Date picker handlers
-  const showStartDatePicker = () => setStartDatePickerVisibility(true);
-  const hideStartDatePicker = () => setStartDatePickerVisibility(false);
+  // Input handlers with validation - tương tự CreateEvent
+  const handleNameChange = (text: string) => {
+    if (text.length <= 255) {
+      updateFormData("name", text);
+    }
+  };
+
+  const handleDescriptionChange = (text: string) => {
+    if (text.length <= 1000) {
+      updateFormData("description", text);
+    }
+  };
+
+  const handlePriceChange = (text: string) => {
+    // Chỉ cho phép số và dấu thập phân cho discountedPrice
+    const cleaned = text.replace(/[^\d.]/g, "");
+
+    // Chỉ 1 dấu thập phân
+    const parts = cleaned.split(".");
+    let formatted = parts[0];
+    if (parts.length > 1) {
+      formatted += "." + parts[1].substring(0, 2);
+    }
+
+    // Giới hạn 100 triệu
+    const num = parseFloat(formatted);
+    if (num > 100000000) {
+      formatted = "100000000";
+    }
+
+    updateFormData("discountedPrice", formatted);
+  };
+
+  const handleIntegerChange =
+    (field: "maxPhotographers" | "maxBookingsPerSlot") => (text: string) => {
+      const cleaned = text.replace(/[^\d]/g, "");
+      const maxValue = field === "maxPhotographers" ? 1000 : 100;
+
+      if (cleaned && parseInt(cleaned) > maxValue) {
+        updateFormData(field, maxValue.toString());
+      } else {
+        updateFormData(field, cleaned);
+      }
+    };
+
+  // Date picker handlers with improved logic
   const handleStartDateConfirm = (date: Date) => {
-    updateFormData("startDate", date);
-    if (date >= formData.endDate) {
-      const newEndDate = new Date(date.getTime() + 24 * 60 * 60 * 1000);
-      updateFormData("endDate", newEndDate);
+    const currentTime = getTimeFromDate(formData.startDate);
+    const newStartDate = setTimeToDate(
+      date,
+      currentTime.hour,
+      currentTime.minute
+    );
+    updateFormData("startDate", newStartDate);
+
+    // Nếu start date >= end date, tự động set end date về ngày hôm sau
+    if (newStartDate >= formData.endDate) {
+      const newEndDate = new Date(date);
+      newEndDate.setDate(newEndDate.getDate() + 1);
+      const currentEndTime = getTimeFromDate(formData.endDate);
+      const finalEndDate = setTimeToDate(
+        newEndDate,
+        currentEndTime.hour,
+        currentEndTime.minute
+      );
+      updateFormData("endDate", finalEndDate);
     }
-    hideStartDatePicker();
+
+    setStartDatePickerVisibility(false);
   };
 
-  const showEndDatePicker = () => setEndDatePickerVisibility(true);
-  const hideEndDatePicker = () => setEndDatePickerVisibility(false);
   const handleEndDateConfirm = (date: Date) => {
-    updateFormData("endDate", date);
-    hideEndDatePicker();
+    const currentTime = getTimeFromDate(formData.endDate);
+    const newEndDate = setTimeToDate(
+      date,
+      currentTime.hour,
+      currentTime.minute
+    );
+    updateFormData("endDate", newEndDate);
+    setEndDatePickerVisibility(false);
+  };
+
+  const handleStartTimeConfirm = (selectedTime: Date) => {
+    const currentDate = new Date(formData.startDate);
+    const newStartDate = setTimeToDate(
+      currentDate,
+      selectedTime.getHours(),
+      selectedTime.getMinutes()
+    );
+    updateFormData("startDate", newStartDate);
+    setStartTimePickerVisibility(false);
+  };
+
+  const handleEndTimeConfirm = (selectedTime: Date) => {
+    const currentDate = new Date(formData.endDate);
+    const newEndDate = setTimeToDate(
+      currentDate,
+      selectedTime.getHours(),
+      selectedTime.getMinutes()
+    );
+    updateFormData("endDate", newEndDate);
+    setEndTimePickerVisibility(false);
   };
 
   // Image management
@@ -378,10 +546,11 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
       eventName: selectedEvent?.name,
     });
   };
+
   // Submit handlers
   const handleUpdateEvent = async () => {
     try {
-      if (!validateForm()) {
+      if (!validateFormData()) {
         Alert.alert("Lỗi", "Vui lòng kiểm tra lại thông tin");
         return;
       }
@@ -390,6 +559,11 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
         Alert.alert("Lỗi", "Không tìm thấy thông tin sự kiện");
         return;
       }
+
+      const { startDate, endDate } = {
+        startDate: formatDateTimeForAPI(formData.startDate),
+        endDate: formatDateTimeForAPI(formData.endDate),
+      };
 
       const updateData: UpdateEventRequest = {};
 
@@ -404,12 +578,12 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
         formData.startDate.getTime() !==
         new Date(selectedEvent.startDate).getTime()
       ) {
-        updateData.startDate = formData.startDate.toISOString();
+        updateData.startDate = startDate;
       }
       if (
         formData.endDate.getTime() !== new Date(selectedEvent.endDate).getTime()
       ) {
-        updateData.endDate = formData.endDate.toISOString();
+        updateData.endDate = endDate;
       }
       if (
         formData.discountedPrice !==
@@ -419,14 +593,7 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
           ? parseFloat(formData.discountedPrice)
           : undefined;
       }
-      if (
-        formData.originalPrice !==
-        (selectedEvent.originalPrice?.toString() || "")
-      ) {
-        updateData.originalPrice = formData.originalPrice
-          ? parseFloat(formData.originalPrice)
-          : undefined;
-      }
+      // Note: originalPrice không được update vì là read-only
       if (
         formData.maxPhotographers !== selectedEvent.maxPhotographers.toString()
       ) {
@@ -445,7 +612,7 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
         return;
       }
 
-      console.log("🔄 Updating event with data:", updateData);
+      console.log("📄 Updating event with data:", updateData);
 
       const updatedEvent = await updateEvent(eventId, updateData);
       if (!updatedEvent) {
@@ -489,18 +656,9 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
     }
   };
 
-  // Helper functions
-  const formatDateTime = (date: Date) => {
-    return date.toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   const isLoading = eventLoading || uploading || locationsLoading;
+  const hasErrors = Object.keys(formErrors).length > 0;
+
   // Loading state
   if (eventLoading && !selectedEvent) {
     return (
@@ -565,6 +723,7 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
       </SafeAreaView>
     );
   }
+
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
       {/* Header */}
@@ -591,9 +750,11 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
 
             <TouchableOpacity
               onPress={handleUpdateEvent}
-              disabled={isLoading || !hasUnsavedChanges}
+              disabled={isLoading || !hasUnsavedChanges || hasErrors}
               className={`px-4 py-2 rounded-lg ${
-                isLoading || !hasUnsavedChanges ? "bg-gray-300" : "bg-blue-500"
+                isLoading || !hasUnsavedChanges || hasErrors
+                  ? "bg-gray-300"
+                  : "bg-blue-500"
               }`}
             >
               {isLoading ? (
@@ -601,7 +762,9 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
               ) : (
                 <Text
                   className={`font-semibold ${
-                    !hasUnsavedChanges ? "text-gray-500" : "text-white"
+                    !hasUnsavedChanges || hasErrors
+                      ? "text-gray-500"
+                      : "text-white"
                   }`}
                 >
                   Lưu
@@ -655,48 +818,50 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
             </Text>
           </View>
 
-          {/* Event Name */}
+          {/* Event Name with validation */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
               Tên sự kiện *
             </Text>
             <TextInput
               value={formData.name}
-              onChangeText={(text) => updateFormData("name", text)}
+              onChangeText={handleNameChange}
               placeholder="Nhập tên sự kiện..."
               className={`border rounded-lg p-3 text-gray-900 ${
-                errors.name ? "border-red-300" : "border-gray-300"
+                formErrors.name ? "border-red-300" : "border-gray-300"
               }`}
               maxLength={255}
             />
-            {errors.name && (
-              <Text className="text-red-500 text-sm mt-1">{errors.name}</Text>
+            {formErrors.name && (
+              <Text className="text-red-500 text-sm mt-1">
+                {formErrors.name}
+              </Text>
             )}
             <Text className="text-gray-500 text-xs mt-1">
               {formData.name.length}/255 ký tự
             </Text>
           </View>
 
-          {/* Description */}
+          {/* Description with validation */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
               Mô tả sự kiện
             </Text>
             <TextInput
               value={formData.description}
-              onChangeText={(text) => updateFormData("description", text)}
+              onChangeText={handleDescriptionChange}
               placeholder="Mô tả chi tiết về sự kiện..."
               multiline
               numberOfLines={4}
               textAlignVertical="top"
               className={`border rounded-lg p-3 text-gray-900 ${
-                errors.description ? "border-red-300" : "border-gray-300"
+                formErrors.description ? "border-red-300" : "border-gray-300"
               }`}
               maxLength={1000}
             />
-            {errors.description && (
+            {formErrors.description && (
               <Text className="text-red-500 text-sm mt-1">
-                {errors.description}
+                {formErrors.description}
               </Text>
             )}
             <Text className="text-gray-500 text-xs mt-1">
@@ -704,115 +869,372 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
             </Text>
           </View>
         </View>
-        {/* Date & Time */}
-        <View className="bg-white rounded-lg p-4 mb-4">
-          <Text className="text-lg font-semibold text-gray-900 mb-4">
-            Thời gian
-          </Text>
 
-          {/* Start Date */}
+        {/* Date & Time with improved logic based on event state */}
+        <View className="bg-white rounded-lg p-4 mb-4">
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-lg font-semibold text-gray-900">
+              Thời gian
+            </Text>
+            {(() => {
+              const eventState = getEventState();
+              const getStateColor = () => {
+                switch (eventState) {
+                  case "upcoming":
+                    return "bg-blue-100 text-blue-800";
+                  case "ongoing":
+                    return "bg-green-100 text-green-800";
+                  case "ended":
+                    return "bg-gray-100 text-gray-800";
+                  default:
+                    return "bg-gray-100 text-gray-800";
+                }
+              };
+
+              const getStateText = () => {
+                switch (eventState) {
+                  case "upcoming":
+                    return "Chưa bắt đầu";
+                  case "ongoing":
+                    return "Đang diễn ra";
+                  case "ended":
+                    return "Đã kết thúc";
+                  default:
+                    return "Không xác định";
+                }
+              };
+
+              return (
+                <View className={`px-3 py-1 rounded-full ${getStateColor()}`}>
+                  <Text className="text-xs font-medium">{getStateText()}</Text>
+                </View>
+              );
+            })()}
+          </View>
+
+          {/* Start Date & Time với conditional editing */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
-              Ngày bắt đầu *
+              Ngày và giờ bắt đầu *
+              {!canEditStartTime() && (
+                <Text className="text-xs text-orange-600 ml-2">
+                  (Không thể chỉnh sửa)
+                </Text>
+              )}
             </Text>
-            <TouchableOpacity
-              onPress={showStartDatePicker}
-              className={`border rounded-lg p-3 flex-row items-center ${
-                errors.startDate ? "border-red-300" : "border-gray-300"
-              }`}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900">
-                {formatDateTime(formData.startDate)}
-              </Text>
-            </TouchableOpacity>
-            {errors.startDate && (
+
+            {canEditStartTime() ? (
+              <>
+                {/* Date Selection */}
+                <TouchableOpacity
+                  onPress={() => setStartDatePickerVisibility(true)}
+                  className={`border rounded-lg p-3 flex-row items-center mb-2 ${
+                    formErrors.startDate ? "border-red-300" : "border-gray-300"
+                  }`}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-900 flex-1">
+                    {formatDisplayDateOnly(formData.startDate)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+
+                {/* Time Selection */}
+                <TouchableOpacity
+                  onPress={() => setStartTimePickerVisibility(true)}
+                  className={`border rounded-lg p-3 flex-row items-center ${
+                    formErrors.startDate ? "border-red-300" : "border-gray-300"
+                  }`}
+                >
+                  <Ionicons name="time-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-900 flex-1">
+                    {formatDisplayTimeOnly(formData.startDate)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </>
+            ) : (
+              // Read-only display for ongoing/ended events
+              <View className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-600 flex-1">
+                    {formatDisplayDateOnly(formData.startDate)}
+                  </Text>
+                  <Ionicons name="lock-closed" size={16} color="#6B7280" />
+                </View>
+                <View className="flex-row items-center">
+                  <Ionicons name="time-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-600 flex-1">
+                    {formatDisplayTimeOnly(formData.startDate)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {formErrors.startDate && (
               <Text className="text-red-500 text-sm mt-1">
-                {errors.startDate}
+                {formErrors.startDate}
               </Text>
             )}
           </View>
 
-          {/* End Date */}
+          {/* End Date & Time với conditional editing */}
           <View className="mb-4">
             <Text className="text-sm font-medium text-gray-700 mb-2">
-              Ngày kết thúc *
+              Ngày và giờ kết thúc *
+              {!canEditEndTime() && (
+                <Text className="text-xs text-orange-600 ml-2">
+                  (Không thể chỉnh sửa)
+                </Text>
+              )}
             </Text>
-            <TouchableOpacity
-              onPress={showEndDatePicker}
-              className={`border rounded-lg p-3 flex-row items-center ${
-                errors.endDate ? "border-red-300" : "border-gray-300"
-              }`}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900">
-                {formatDateTime(formData.endDate)}
-              </Text>
-            </TouchableOpacity>
-            {errors.endDate && (
+
+            {canEditEndTime() ? (
+              <>
+                {/* Date Selection */}
+                <TouchableOpacity
+                  onPress={() => setEndDatePickerVisibility(true)}
+                  className={`border rounded-lg p-3 flex-row items-center mb-2 ${
+                    formErrors.endDate ? "border-red-300" : "border-gray-300"
+                  }`}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-900 flex-1">
+                    {formatDisplayDateOnly(formData.endDate)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+
+                {/* Time Selection */}
+                <TouchableOpacity
+                  onPress={() => setEndTimePickerVisibility(true)}
+                  className={`border rounded-lg p-3 flex-row items-center ${
+                    formErrors.endDate ? "border-red-300" : "border-gray-300"
+                  }`}
+                >
+                  <Ionicons name="time-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-900 flex-1">
+                    {formatDisplayTimeOnly(formData.endDate)}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </>
+            ) : (
+              // Read-only display for ended events
+              <View className="border border-gray-200 rounded-lg p-3 bg-gray-50">
+                <View className="flex-row items-center mb-2">
+                  <Ionicons name="calendar-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-600 flex-1">
+                    {formatDisplayDateOnly(formData.endDate)}
+                  </Text>
+                  <Ionicons name="lock-closed" size={16} color="#6B7280" />
+                </View>
+                <View className="flex-row items-center">
+                  <Ionicons name="time-outline" size={20} color="#6B7280" />
+                  <Text className="ml-2 text-gray-600 flex-1">
+                    {formatDisplayTimeOnly(formData.endDate)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {formErrors.endDate && (
               <Text className="text-red-500 text-sm mt-1">
-                {errors.endDate}
+                {formErrors.endDate}
               </Text>
             )}
+          </View>
+
+          {/* Summary với event state info */}
+          <View className="bg-gray-50 p-3 rounded-lg">
+            <Text className="text-sm text-gray-600 mb-1">
+              📅 Tóm tắt thời gian:
+            </Text>
+            <Text className="text-sm font-medium text-gray-800">
+              Từ {formatDisplayDateTime(formData.startDate)}
+            </Text>
+            <Text className="text-sm font-medium text-gray-800">
+              Đến {formatDisplayDateTime(formData.endDate)}
+            </Text>
+            {(() => {
+              const eventState = getEventState();
+              if (eventState === "ongoing") {
+                return (
+                  <Text className="text-xs text-green-600 mt-1">
+                    ℹ️ Sự kiện đang diễn ra - chỉ có thể chỉnh sửa thời gian kết
+                    thúc
+                  </Text>
+                );
+              } else if (eventState === "ended") {
+                return (
+                  <Text className="text-xs text-gray-500 mt-1">
+                    ℹ️ Sự kiện đã kết thúc - không thể chỉnh sửa thời gian
+                  </Text>
+                );
+              }
+              return null;
+            })()}
           </View>
         </View>
 
-        {/* Pricing */}
+        {/* Improved Pricing Section với read-only original price */}
         <View className="bg-white rounded-lg p-4 mb-4">
           <Text className="text-lg font-semibold text-gray-900 mb-4">
             Giá cả
           </Text>
 
+          {/* Show location hourly rate info if available */}
+          {(() => {
+            const selectedLocation = getSelectedLocationInfo();
+            if (selectedLocation?.hourlyRate) {
+              return (
+                <View className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <View className="flex-row items-center">
+                    <Ionicons
+                      name="information-circle"
+                      size={16}
+                      color="#3B82F6"
+                    />
+                    <Text className="ml-2 text-sm text-blue-800">
+                      Giá thuê địa điểm:{" "}
+                      {selectedLocation.hourlyRate.toLocaleString("vi-VN")}{" "}
+                      VND/giờ
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-blue-600 mt-1">
+                    Giá gốc được tự động lấy từ giá thuê địa điểm
+                  </Text>
+                </View>
+              );
+            }
+            return null;
+          })()}
+
           <View className="flex-row space-x-3">
-            {/* Original Price */}
+            {/* Original Price - Read Only như trong CreateEvent */}
             <View className="flex-1">
               <Text className="text-sm font-medium text-gray-700 mb-2">
-                Giá gốc (VNĐ)
+                Giá gốc (VND)
               </Text>
-              <TextInput
-                value={formData.originalPrice}
-                onChangeText={(text) => updateFormData("originalPrice", text)}
-                placeholder="0"
-                keyboardType="numeric"
-                className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.originalPrice ? "border-red-300" : "border-gray-300"
-                }`}
-              />
-              {errors.originalPrice && (
-                <Text className="text-red-500 text-xs mt-1">
-                  {errors.originalPrice}
+              <View className="border rounded-lg p-3 bg-gray-100 flex-row items-center justify-between">
+                <Text className="text-gray-900 font-medium">
+                  {formData.originalPrice
+                    ? `${parseFloat(formData.originalPrice).toLocaleString(
+                        "vi-VN"
+                      )} VND`
+                    : "Chưa có giá"}
                 </Text>
-              )}
+                <Ionicons name="lock-closed" size={16} color="#6B7280" />
+              </View>
+              <Text className="text-gray-500 text-xs mt-1">
+                Giá tự động lấy từ giá thuê địa điểm
+              </Text>
             </View>
 
-            {/* Discounted Price */}
+            {/* Discounted Price - có thể edit */}
             <View className="flex-1">
               <Text className="text-sm font-medium text-gray-700 mb-2">
-                Giá khuyến mãi (VNĐ)
+                Giá khuyến mãi (VND)
               </Text>
               <TextInput
                 value={formData.discountedPrice}
-                onChangeText={(text) => updateFormData("discountedPrice", text)}
-                placeholder="0"
+                onChangeText={handlePriceChange}
+                placeholder={
+                  formData.originalPrice || "Để trống nếu không có KM"
+                }
                 keyboardType="numeric"
                 className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.discountedPrice ? "border-red-300" : "border-gray-300"
+                  formErrors.discountedPrice
+                    ? "border-red-300"
+                    : "border-gray-300"
                 }`}
               />
-              {errors.discountedPrice && (
+              {formErrors.discountedPrice && (
                 <Text className="text-red-500 text-xs mt-1">
-                  {errors.discountedPrice}
+                  {formErrors.discountedPrice}
                 </Text>
               )}
+              <Text className="text-gray-500 text-xs mt-1">
+                Phải nhỏ hơn giá gốc
+              </Text>
             </View>
           </View>
 
+          {/* Price Summary */}
+          {(formData.originalPrice || formData.discountedPrice) && (
+            <View className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <Text className="text-sm font-medium text-gray-700 mb-2">
+                💰 Tóm tắt giá:
+              </Text>
+
+              {formData.originalPrice && (
+                <View className="flex-row justify-between items-center mb-1">
+                  <Text className="text-sm text-gray-600">Giá gốc:</Text>
+                  <Text className="text-sm font-medium text-gray-800">
+                    {parseFloat(formData.originalPrice).toLocaleString("vi-VN")}{" "}
+                    VND
+                  </Text>
+                </View>
+              )}
+
+              {formData.discountedPrice ? (
+                <View>
+                  <View className="flex-row justify-between items-center mb-1">
+                    <Text className="text-sm text-gray-600">
+                      Giá khuyến mãi:
+                    </Text>
+                    <Text className="text-sm font-medium text-green-600">
+                      {parseFloat(formData.discountedPrice).toLocaleString(
+                        "vi-VN"
+                      )}{" "}
+                      VND
+                    </Text>
+                  </View>
+                  {formData.originalPrice && (
+                    <View className="flex-row justify-between items-center">
+                      <Text className="text-sm text-gray-600">Tiết kiệm:</Text>
+                      <Text className="text-sm font-medium text-red-600">
+                        -
+                        {(
+                          parseFloat(formData.originalPrice) -
+                          parseFloat(formData.discountedPrice)
+                        ).toLocaleString("vi-VN")}{" "}
+                        VND (
+                        {Math.round(
+                          ((parseFloat(formData.originalPrice) -
+                            parseFloat(formData.discountedPrice)) /
+                            parseFloat(formData.originalPrice)) *
+                            100
+                        )}
+                        %)
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ) : (
+                formData.originalPrice && (
+                  <View className="flex-row justify-between items-center">
+                    <Text className="text-sm text-gray-600">Giá sự kiện:</Text>
+                    <Text className="text-sm font-medium text-blue-600">
+                      {parseFloat(formData.originalPrice).toLocaleString(
+                        "vi-VN"
+                      )}{" "}
+                      VND
+                    </Text>
+                  </View>
+                )
+              )}
+            </View>
+          )}
+
           <Text className="text-gray-500 text-xs mt-2">
-            💡 Để trống nếu không có khuyến mãi
+            💡 Nếu không nhập giá khuyến mãi, hệ thống sẽ sử dụng giá gốc làm
+            giá sự kiện
           </Text>
         </View>
 
-        {/* Capacity */}
+        {/* Capacity with improved validation */}
         <View className="bg-white rounded-lg p-4 mb-4">
           <Text className="text-lg font-semibold text-gray-900 mb-4">
             Sức chứa
@@ -826,20 +1248,23 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
               </Text>
               <TextInput
                 value={formData.maxPhotographers}
-                onChangeText={(text) =>
-                  updateFormData("maxPhotographers", text)
-                }
+                onChangeText={handleIntegerChange("maxPhotographers")}
                 placeholder="5"
                 keyboardType="numeric"
                 className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.maxPhotographers ? "border-red-300" : "border-gray-300"
+                  formErrors.maxPhotographers
+                    ? "border-red-300"
+                    : "border-gray-300"
                 }`}
               />
-              {errors.maxPhotographers && (
+              {formErrors.maxPhotographers && (
                 <Text className="text-red-500 text-xs mt-1">
-                  {errors.maxPhotographers}
+                  {formErrors.maxPhotographers}
                 </Text>
               )}
+              <Text className="text-gray-500 text-xs mt-1">
+                Từ 1-1000 người
+              </Text>
             </View>
 
             {/* Max Bookings Per Slot */}
@@ -849,25 +1274,27 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
               </Text>
               <TextInput
                 value={formData.maxBookingsPerSlot}
-                onChangeText={(text) =>
-                  updateFormData("maxBookingsPerSlot", text)
-                }
+                onChangeText={handleIntegerChange("maxBookingsPerSlot")}
                 placeholder="3"
                 keyboardType="numeric"
                 className={`border rounded-lg p-3 text-gray-900 ${
-                  errors.maxBookingsPerSlot
+                  formErrors.maxBookingsPerSlot
                     ? "border-red-300"
                     : "border-gray-300"
                 }`}
               />
-              {errors.maxBookingsPerSlot && (
+              {formErrors.maxBookingsPerSlot && (
                 <Text className="text-red-500 text-xs mt-1">
-                  {errors.maxBookingsPerSlot}
+                  {formErrors.maxBookingsPerSlot}
                 </Text>
               )}
+              <Text className="text-gray-500 text-xs mt-1">
+                Từ 1-100 booking
+              </Text>
             </View>
           </View>
         </View>
+
         {/* Images Management */}
         <View className="bg-white rounded-lg p-4 mb-4">
           <View className="flex-row items-center justify-between mb-4">
@@ -983,6 +1410,7 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
             </View>
           </View>
         </View>
+
         {/* Danger Zone (if event has applications/bookings) */}
         {(selectedEvent.approvedPhotographersCount > 0 ||
           selectedEvent.totalBookingsCount > 0) && (
@@ -1091,9 +1519,9 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
       {/* Date Time Pickers */}
       <DateTimePickerModal
         isVisible={isStartDatePickerVisible}
-        mode="datetime"
+        mode="date"
         onConfirm={handleStartDateConfirm}
-        onCancel={hideStartDatePicker}
+        onCancel={() => setStartDatePickerVisibility(false)}
         minimumDate={new Date()}
         date={formData.startDate}
         locale="vi_VN"
@@ -1103,14 +1531,31 @@ const VenueOwnerEditEventScreen: React.FC<EventEditScreenProps> = ({
 
       <DateTimePickerModal
         isVisible={isEndDatePickerVisible}
-        mode="datetime"
+        mode="date"
         onConfirm={handleEndDateConfirm}
-        onCancel={hideEndDatePicker}
+        onCancel={() => setEndDatePickerVisibility(false)}
         minimumDate={formData.startDate}
         date={formData.endDate}
         locale="vi_VN"
         confirmTextIOS="Xác nhận"
         cancelTextIOS="Hủy"
+      />
+
+      {/* Time Pickers */}
+      <TimePickerModal
+        isVisible={isStartTimePickerVisible}
+        onConfirm={handleStartTimeConfirm}
+        onCancel={() => setStartTimePickerVisibility(false)}
+        initialDate={formData.startDate}
+        title="Chọn giờ bắt đầu"
+      />
+
+      <TimePickerModal
+        isVisible={isEndTimePickerVisible}
+        onConfirm={handleEndTimeConfirm}
+        onCancel={() => setEndTimePickerVisibility(false)}
+        initialDate={formData.endDate}
+        title="Chọn giờ kết thúc"
       />
     </SafeAreaView>
   );

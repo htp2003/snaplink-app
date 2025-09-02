@@ -15,7 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useVenueOwnerEvent } from "../../hooks/useVenueOwnerEvent";
-import { EventBooking } from "../../types/VenueOwnerEvent";
+import { NormalizedEventBooking } from "../../types/VenueOwnerEvent";
 
 interface BookingsScreenProps {
   navigation: any;
@@ -45,19 +45,22 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
   const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>("all");
   const [sortOption, setSortOption] = useState<SortOption>("date");
   const [showSortModal, setShowSortModal] = useState(false);
-  const [selectedBooking, setSelectedBooking] = useState<EventBooking | null>(
-    null
-  );
+  const [selectedBooking, setSelectedBooking] =
+    useState<NormalizedEventBooking | null>(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
 
   // Load data on mount
   useEffect(() => {
+    console.log("🎯 Loading bookings for eventId:", eventId);
     loadBookings();
   }, [eventId]);
 
   const loadBookings = async () => {
     try {
-      await getEventBookings(eventId);
+      console.log("📅 Fetching bookings for event:", eventId);
+      const result = await getEventBookings(eventId);
+      console.log("✅ Bookings loaded:", result.length, "bookings");
+      console.log("📋 First booking data:", JSON.stringify(result[0], null, 2));
     } catch (error) {
       console.error("❌ Load bookings error:", error);
     }
@@ -153,14 +156,19 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
   };
 
   // Handle booking detail
-  const handleBookingPress = (booking: EventBooking) => {
+  const handleBookingPress = (booking: NormalizedEventBooking) => {
+    console.log("📱 Booking pressed:", booking);
     setSelectedBooking(booking);
     setShowBookingModal(true);
   };
 
   // Helper functions
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
+    if (!dateString) return "Invalid Date";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Invalid Date";
+
+    return date.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -168,7 +176,11 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
   };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("vi-VN", {
+    if (!dateString) return "Invalid Date";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Invalid Date";
+
+    return date.toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -178,13 +190,19 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString("vi-VN", {
+    if (!dateString) return "Invalid Date";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "Invalid Date";
+
+    return date.toLocaleTimeString("vi-VN", {
       hour: "2-digit",
       minute: "2-digit",
     });
   };
 
   const formatCurrency = (amount: number) => {
+    if (!amount || isNaN(amount)) return "0 đ";
+
     return new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
@@ -192,6 +210,8 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
   };
 
   const getStatusColor = (status: string) => {
+    if (!status) return "bg-gray-100 text-gray-800";
+
     switch (status?.toLowerCase()) {
       case "confirmed":
         return "bg-green-100 text-green-800";
@@ -207,6 +227,8 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
   };
 
   const getStatusLabel = (status: string) => {
+    if (!status) return "Không xác định";
+
     switch (status?.toLowerCase()) {
       case "confirmed":
         return "Đã xác nhận";
@@ -222,8 +244,13 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
   };
 
   const getDuration = (startTime: string, endTime: string) => {
+    if (!startTime || !endTime) return "N/A";
+
     const start = new Date(startTime);
     const end = new Date(endTime);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return "N/A";
+
     const diffMs = end.getTime() - start.getTime();
     const diffHours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10;
     return `${diffHours}h`;
@@ -256,6 +283,22 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
       </SafeAreaView>
     );
   }
+
+  // Debug info
+  console.log("🔍 Current bookings state:", {
+    count: bookings.length,
+    filtered: filteredBookings.length,
+    firstBooking: bookings[0]
+      ? {
+          id: bookings[0].eventBookingId,
+          customer: bookings[0].customer,
+          photographer: bookings[0].photographer,
+          status: bookings[0].status,
+          startTime: bookings[0].startDatetime,
+          totalAmount: bookings[0].totalAmount,
+        }
+      : null,
+  });
 
   return (
     <SafeAreaView className="flex-1 bg-gray-50">
@@ -393,159 +436,195 @@ const VenueOwnerEventBookingsScreen: React.FC<BookingsScreenProps> = ({
           </View>
         ) : (
           <View className="p-4 space-y-4">
-            {filteredBookings.map((booking) => (
-              <TouchableOpacity
-                key={booking.eventBookingId}
-                onPress={() => handleBookingPress(booking)}
-                className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden"
-              >
-                <View className="p-4">
-                  {/* Booking Header */}
-                  <View className="flex-row items-start justify-between mb-3">
-                    <View className="flex-row items-center flex-1 mr-4">
-                      {/* Customer Info */}
-                      <Image
-                        source={{
-                          uri:
-                            booking.customer?.profileImage ||
-                            "https://via.placeholder.com/50",
-                        }}
-                        className="w-12 h-12 rounded-full"
+            {filteredBookings.map((booking) => {
+              // Data is already normalized, so we can access directly
+              const customerName =
+                booking.customer.fullName ||
+                booking.customer.userName ||
+                "Khách hàng";
+              const customerPhone =
+                booking.customer.phoneNumber || "Chưa có SĐT";
+              const customerImage =
+                booking.customer.profileImage ||
+                "https://via.placeholder.com/50";
+
+              const photographerName =
+                booking.photographer.fullName ||
+                booking.photographer.userName ||
+                "Nhiếp ảnh gia";
+              const photographerRating = booking.photographer.rating || 0;
+              const photographerImage =
+                booking.photographer.profileImage ||
+                "https://via.placeholder.com/50";
+
+              const bookingStatus = booking.status || "unknown";
+              const totalAmount = booking.totalAmount || 0;
+              const startDateTime = booking.startDatetime || "";
+              const endDateTime = booking.endDatetime || "";
+
+              return (
+                <TouchableOpacity
+                  key={booking.eventBookingId}
+                  onPress={() => handleBookingPress(booking)}
+                  className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden"
+                >
+                  <View className="p-4">
+                    {/* Booking Header */}
+                    <View className="flex-row items-start justify-between mb-3">
+                      <View className="flex-row items-center flex-1 mr-4">
+                        {/* Customer Info */}
+                        <Image
+                          source={{ uri: customerImage }}
+                          className="w-12 h-12 rounded-full"
+                        />
+                        <View className="ml-3 flex-1">
+                          <Text className="text-lg font-semibold text-gray-900">
+                            {customerName}
+                          </Text>
+                          <Text className="text-gray-500">{customerPhone}</Text>
+                        </View>
+                      </View>
+
+                      {/* Status Badge */}
+                      <View
+                        className={`px-3 py-1 rounded-full ${getStatusColor(
+                          bookingStatus
+                        )}`}
+                      >
+                        <Text className="text-sm font-medium">
+                          {getStatusLabel(bookingStatus)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Photographer Info */}
+                    <View className="flex-row items-center mb-3 bg-gray-50 p-3 rounded-lg">
+                      <Ionicons
+                        name="camera-outline"
+                        size={16}
+                        color="#6B7280"
                       />
-                      <View className="ml-3 flex-1">
-                        <Text className="text-lg font-semibold text-gray-900">
-                          {booking.customer?.fullName || "Khách hàng"}
-                        </Text>
-                        <Text className="text-gray-500">
-                          {booking.customer?.phoneNumber || "Chưa có SĐT"}
-                        </Text>
-                      </View>
+                      <Text className="ml-2 text-gray-700 font-medium">
+                        {photographerName}
+                      </Text>
+                      {photographerRating > 0 && (
+                        <View className="flex-row items-center ml-auto">
+                          <Ionicons name="star" size={14} color="#F59E0B" />
+                          <Text className="ml-1 text-sm text-gray-600">
+                            {photographerRating.toFixed(1)}
+                          </Text>
+                        </View>
+                      )}
                     </View>
 
-                    {/* Status Badge */}
-                    <View
-                      className={`px-3 py-1 rounded-full ${getStatusColor(
-                        booking.status
-                      )}`}
-                    >
-                      <Text className="text-sm font-medium">
-                        {getStatusLabel(booking.status)}
-                      </Text>
+                    {/* Booking Details */}
+                    <View className="space-y-2">
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                          <Ionicons
+                            name="calendar-outline"
+                            size={16}
+                            color="#6B7280"
+                          />
+                          <Text className="ml-2 text-gray-600">
+                            {formatDate(startDateTime)}
+                          </Text>
+                        </View>
+                        <Text className="text-gray-600">
+                          {formatTime(startDateTime)} -{" "}
+                          {formatTime(endDateTime)}
+                        </Text>
+                      </View>
+
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                          <Ionicons
+                            name="time-outline"
+                            size={16}
+                            color="#6B7280"
+                          />
+                          <Text className="ml-2 text-gray-600">Thời lượng</Text>
+                        </View>
+                        <Text className="text-gray-600">
+                          {getDuration(startDateTime, endDateTime)}
+                        </Text>
+                      </View>
+
+                      <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                          <Ionicons
+                            name="cash-outline"
+                            size={16}
+                            color="#6B7280"
+                          />
+                          <Text className="ml-2 text-gray-600">Tổng tiền</Text>
+                        </View>
+                        <Text className="text-lg font-semibold text-green-600">
+                          {formatCurrency(totalAmount)}
+                        </Text>
+                      </View>
+
+                      {booking.specialRequests && (
+                        <View className="bg-blue-50 p-3 rounded-lg mt-2">
+                          <Text className="text-blue-800 font-medium mb-1">
+                            Yêu cầu đặc biệt:
+                          </Text>
+                          <Text className="text-blue-700">
+                            {booking.specialRequests}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Booking Actions */}
+                    <View className="flex-row space-x-3 mt-4">
+                      <TouchableOpacity
+                        onPress={() => {
+                          // Navigate to customer profile
+                          if (booking.userId) {
+                            navigation.navigate("ViewProfileUserScreen", {
+                              userId: booking.userId,
+                            });
+                          } else {
+                            Alert.alert(
+                              "Thông báo",
+                              "Không thể xem thông tin khách hàng"
+                            );
+                          }
+                        }}
+                        className="flex-1 bg-blue-50 py-2 rounded-lg"
+                      >
+                        <Text className="text-blue-700 font-medium text-center">
+                          Xem khách hàng
+                        </Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        onPress={() => {
+                          // Navigate to photographer profile
+                          if (booking.eventPhotographerId) {
+                            navigation.navigate("PhotographerCardDetail", {
+                              photographerId:
+                                booking.eventPhotographerId.toString(),
+                            });
+                          } else {
+                            Alert.alert(
+                              "Thông báo",
+                              "Không thể xem thông tin nhiếp ảnh gia"
+                            );
+                          }
+                        }}
+                        className="flex-1 bg-purple-50 py-2 rounded-lg"
+                      >
+                        <Text className="text-purple-700 font-medium text-center">
+                          Xem nhiếp ảnh gia
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
-
-                  {/* Photographer Info */}
-                  <View className="flex-row items-center mb-3 bg-gray-50 p-3 rounded-lg">
-                    <Ionicons name="camera-outline" size={16} color="#6B7280" />
-                    <Text className="ml-2 text-gray-700 font-medium">
-                      {booking.photographer?.fullName || "Nhiếp ảnh gia"}
-                    </Text>
-                    {booking.photographer?.rating && (
-                      <View className="flex-row items-center ml-auto">
-                        <Ionicons name="star" size={14} color="#F59E0B" />
-                        <Text className="ml-1 text-sm text-gray-600">
-                          {booking.photographer.rating.toFixed(1)}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Booking Details */}
-                  <View className="space-y-2">
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="calendar-outline"
-                          size={16}
-                          color="#6B7280"
-                        />
-                        <Text className="ml-2 text-gray-600">
-                          {formatDate(booking.startDatetime)}
-                        </Text>
-                      </View>
-                      <Text className="text-gray-600">
-                        {formatTime(booking.startDatetime)} -{" "}
-                        {formatTime(booking.endDatetime)}
-                      </Text>
-                    </View>
-
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="time-outline"
-                          size={16}
-                          color="#6B7280"
-                        />
-                        <Text className="ml-2 text-gray-600">Thời lượng</Text>
-                      </View>
-                      <Text className="text-gray-600">
-                        {getDuration(
-                          booking.startDatetime,
-                          booking.endDatetime
-                        )}
-                      </Text>
-                    </View>
-
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="cash-outline"
-                          size={16}
-                          color="#6B7280"
-                        />
-                        <Text className="ml-2 text-gray-600">Tổng tiền</Text>
-                      </View>
-                      <Text className="text-lg font-semibold text-green-600">
-                        {formatCurrency(booking.totalAmount || 0)}
-                      </Text>
-                    </View>
-
-                    {booking.specialRequests && (
-                      <View className="bg-blue-50 p-3 rounded-lg mt-2">
-                        <Text className="text-blue-800 font-medium mb-1">
-                          Yêu cầu đặc biệt:
-                        </Text>
-                        <Text className="text-blue-700">
-                          {booking.specialRequests}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Booking Actions */}
-                  <View className="flex-row space-x-3 mt-4">
-                    <TouchableOpacity
-                      onPress={() => {
-                        // Navigate to customer profile
-                        navigation.navigate("ViewProfileUserScreen", {
-                          userId: booking.userId,
-                        });
-                      }}
-                      className="flex-1 bg-blue-50 py-2 rounded-lg"
-                    >
-                      <Text className="text-blue-700 font-medium text-center">
-                        Xem khách hàng
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      onPress={() => {
-                        // Navigate to photographer profile
-                        navigation.navigate("PhotographerCardDetail", {
-                          photographerId:
-                            booking.eventPhotographerId.toString(),
-                        });
-                      }}
-                      className="flex-1 bg-purple-50 py-2 rounded-lg"
-                    >
-                      <Text className="text-purple-700 font-medium text-center">
-                        Xem nhiếp ảnh gia
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 

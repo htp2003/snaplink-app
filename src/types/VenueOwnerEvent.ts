@@ -107,25 +107,155 @@ export interface EventApplication {
 export interface EventBooking {
   eventBookingId: number;
   eventId: number;
+  bookingId: number;
+  eventPhotographerId: number;
+  eventPrice: number;
+  createdAt: string;
+
+  // Nested booking data (this contains the actual booking info)
+  booking: {
+    bookingId: number;
+    userId: number;
+    photographerId: number;
+    locationId: number;
+    startDatetime: string;
+    endDatetime: string;
+    status: string;
+    specialRequests?: string;
+    totalPrice: number;
+    createdAt: string;
+    updatedAt: string;
+
+    // User data (customer)
+    user: {
+      userId: number;
+      userName: string;
+      email: string;
+      fullName: string;
+      phoneNumber?: string;
+      profileImage?: string;
+      status: string;
+      roles: any[];
+    };
+
+    // Photographer data
+    photographer: {
+      photographerId: number;
+      userId: number;
+      yearsExperience?: number;
+      equipment?: string;
+      hourlyRate?: number;
+      availabilityStatus?: string;
+      rating?: number;
+      ratingSum?: number;
+      ratingCount?: number;
+      featuredStatus?: boolean;
+      verificationStatus?: string;
+      address?: string;
+      googleMapsAddress?: string;
+      latitude?: number;
+      longitude?: number;
+      userName: string;
+      email: string;
+      phoneNumber?: string;
+      fullName: string;
+      profileImage?: string;
+      bio?: string;
+      createAt: string;
+      updateAt: string;
+      status: string;
+      styles: any[];
+    };
+
+    location?: any;
+  };
+
+  // Event photographer data
+  eventPhotographer: {
+    eventPhotographerId: number;
+    eventId: number;
+    photographerId: number;
+    status: string;
+    appliedAt: string;
+    approvedAt?: string;
+    rejectionReason?: string;
+    specialRate?: number;
+    photographer: any; // Same as booking.photographer
+    event: any;
+  };
+
+  // Event data
+  event: {
+    eventId: number;
+    locationId: number;
+    name: string;
+    description?: string;
+    startDate: string;
+    endDate: string;
+    discountedPrice?: number;
+    originalPrice?: number;
+    maxPhotographers: number;
+    maxBookingsPerSlot: number;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    location?: any;
+    images: any[];
+    primaryImage?: any;
+    approvedPhotographersCount: number;
+    totalBookingsCount: number;
+    isActive: boolean;
+    isUpcoming: boolean;
+  };
+}
+
+export interface NormalizedEventBooking {
+  eventBookingId: number;
+  eventId: number;
+  bookingId: number;
   eventPhotographerId: number;
   userId: number;
+  photographerId: number;
   startDatetime: string;
   endDatetime: string;
+  status: string;
   specialRequests?: string;
-  status: EventBookingStatus;
-  totalAmount?: number;
+  totalAmount: number;
+  eventPrice: number;
   createdAt: string;
   updatedAt: string;
 
-  // Nested data
-  event?: VenueOwnerEvent;
-  photographer?: EventPhotographer;
-  customer?: {
+  // Normalized customer data
+  customer: {
     userId: number;
     fullName: string;
-    profileImage?: string;
+    userName: string;
+    email: string;
     phoneNumber?: string;
-    email?: string;
+    profileImage?: string;
+  };
+
+  // Normalized photographer data
+  photographer: {
+    photographerId: number;
+    userId: number;
+    fullName: string;
+    userName: string;
+    email: string;
+    phoneNumber?: string;
+    profileImage?: string;
+    rating?: number;
+    ratingCount?: number;
+    yearsExperience?: number;
+    hourlyRate?: number;
+    bio?: string;
+  };
+
+  // Event info
+  event: {
+    eventId: number;
+    name: string;
+    locationId: number;
   };
 }
 

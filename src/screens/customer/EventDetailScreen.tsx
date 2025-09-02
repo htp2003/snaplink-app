@@ -35,7 +35,7 @@ import {
 } from "../../hooks/usePhotographerEvent";
 import { useAuth } from "../../hooks/useAuth";
 import { getResponsiveSize } from '../../utils/responsive';
-import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
+
 
 const { width, height } = Dimensions.get("window");
 
@@ -51,8 +51,14 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
   const route = useRoute<EventDetailScreenRouteProp>();
   const { eventId } = route.params;
 
+  console.log("📱 EventDetailScreen eventId:", eventId); // Thêm dòng này
+  console.log("📱 EventDetailScreen eventId type:", typeof eventId); // Và dòng này
+
   const { user } = useAuth();
-  const { event, loading, error, refetch } = useEventDetail(parseInt(eventId));
+  const parsedEventId = eventId ? parseInt(eventId.toString()) : null;
+  console.log("🔢 Parsed eventId:", parsedEventId);
+  
+  const { event, loading, error } = useEventDetail(parsedEventId);
   const { photographers, loading: photographersLoading } =
     useApprovedPhotographers(event ? event.eventId : null);
 
@@ -70,7 +76,6 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
   // Refresh handler
   const onRefresh = async () => {
     setRefreshing(true);
-    await refetch();
     setRefreshing(false);
   };
 
@@ -97,27 +102,26 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
       return `${price.toLocaleString('vi-VN')}₫`;
     }
   };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-
-    if (date.toDateString() === today.toDateString()) {
-      return "HÔM NAY";
-    } else if (date.toDateString() === tomorrow.toDateString()) {
-      return "NGÀY MAI";
+  const formatDate = (): string => {
+    if (!event) return "";
+    
+    const startDate = new Date(event.startDate);
+    const endDate = new Date(event.endDate);
+    
+    // Kiểm tra nếu cùng ngày (chỉ so sánh ngày/tháng/năm, bỏ qua giờ)
+    const isSameDay = startDate.toDateString() === endDate.toDateString();
+    
+    if (isSameDay) {
+      // Cùng ngày - chỉ hiển thị 1 ngày đầy đủ
+      return `${startDate.getDate()} tháng ${startDate.getMonth() + 1} năm ${startDate.getFullYear()}`;
     } else {
-      return date
-        .toLocaleDateString("vi-VN", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-        })
-        .toUpperCase();
+      // Khác ngày - hiển thị từ ngày này đến ngày kia đầy đủ
+      const startFormatted = `${startDate.getDate()} tháng ${startDate.getMonth() + 1} năm ${startDate.getFullYear()}`;
+      const endFormatted = `${endDate.getDate()} tháng ${endDate.getMonth() + 1} năm ${endDate.getFullYear()}`;
+      
+      return `${startFormatted} - ${endFormatted}`;
     }
-  };
+  }
 
   const formatTime = (dateString: string): string => {
     const date = new Date(dateString);
@@ -326,6 +330,14 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
   const currentPrice = getCurrentPrice();
   const originalPrice = getOriginalPrice();
   const showDiscount = hasDiscount();
+
+
+  console.log("📊 Checkkkkk:", {
+    totalBookingsCount: event.totalBookingsCount,
+    maxBookingsPerSlot: event.maxBookingsPerSlot,
+    type_total: typeof event.totalBookingsCount,
+    type_max: typeof event.maxBookingsPerSlot
+  });
 
   return (
     <View className="flex-1 bg-white">
@@ -553,7 +565,7 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
                   className="text-amber-500 font-semibold text-center mb-2"
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
-                  {formatDate(event.startDate)} • {formatTimeRange()}
+               {formatDate()} • {formatTimeRange()}
                 </Text>
 
                 <TouchableOpacity
@@ -627,7 +639,7 @@ const EventDetailScreen: React.FC<EventDetailScreenProps> = () => {
                     className="text-stone-900 font-bold"
                     style={{ fontSize: getResponsiveSize(18) }}
                   >
-                    {event.totalBookingsCount}/{event.maxBookingsPerSlot}
+                  {(event.totalBookingsCount ?? 0)}/{(event.maxBookingsPerSlot ?? 0)}
                   </Text>
                   <Text
                     className="text-stone-600"

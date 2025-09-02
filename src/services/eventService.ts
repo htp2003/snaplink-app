@@ -201,8 +201,9 @@ class EventService {
 
   // ========== 2. EVENT DETAIL ==========
   
-  async getEventDetail(eventId: number): Promise<ApiResponse<LocationEvent>> {
-    return this.fetchWithAuth<LocationEvent>(`/api/LocationEvent/${eventId}/detail`);
+  async getEventByEventId(eventId: number): Promise<ApiResponse<LocationEvent>> {
+    const result = this.fetchWithAuth<LocationEvent>(`/api/LocationEvent/${eventId}`);
+    return result;
   }
 
   async searchEvents(searchTerm: string): Promise<ApiResponse<LocationEvent[]>> {

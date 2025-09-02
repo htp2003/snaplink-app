@@ -103,13 +103,13 @@ export default function OrderEventDetailScreen() {
   } = useWallet();
 
   // Booking và Payment hooks
-    const {
-      getBookingById,
-      confirmBooking,
-      confirming,
-      updateBooking, 
-      updating, 
-    } = useBooking();
+  const {
+    getBookingById,
+    confirmBooking,
+    confirming,
+    updateBooking,
+    updating,
+  } = useBooking();
   const {
     createEventPayment,
     creatingPayment,
@@ -123,11 +123,11 @@ export default function OrderEventDetailScreen() {
   const [regularBooking, setRegularBooking] = useState<any>(null);
   const [loadingBooking, setLoadingBooking] = useState(true);
 
-   const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // ✅ Derived values using useMemo to prevent unnecessary re-calculations
   const shouldFetchWallet = useMemo(() => isAuthenticated && user?.id, [isAuthenticated, user?.id]);
-  
+
   const isValidParams = useMemo(() => {
     return params && params.event && params.photographer;
   }, [params]);
@@ -181,7 +181,7 @@ export default function OrderEventDetailScreen() {
   useEffect(() => {
     const loadRegularBooking = async () => {
       if (!isValidParams) return;
-      
+
       const bookingId = params?.eventBookingResponse?.bookingId;
 
       if (bookingId) {
@@ -389,7 +389,7 @@ export default function OrderEventDetailScreen() {
     // Kiểm tra số dư ví trước khi xử lý thanh toán
     if (selectedPaymentMethod === "snaplink_wallet" && !isWalletBalanceSufficient) {
       Alert.alert(
-        "Số dư không đủ", 
+        "Số dư không đủ",
         `Số dư ví hiện tại: ${formatCurrency(walletBalance?.balance || 0)}\nSố tiền cần thanh toán: ${formatCurrency(totalPrice)}\n\nVui lòng nạp thêm tiền hoặc chọn phương thức thanh toán khác.`,
         [
           {
@@ -397,7 +397,7 @@ export default function OrderEventDetailScreen() {
             onPress: () => navigation.navigate("WalletScreen")
           },
           {
-            text: "Chọn phương thức khác", 
+            text: "Chọn phương thức khác",
             onPress: () => setSelectedPaymentMethod("bank_qr")
           }
         ]
@@ -553,7 +553,7 @@ export default function OrderEventDetailScreen() {
 
   const handleCancelBooking = async () => {
     if (!params.bookingId || isCancelling) return;
-    
+
     try {
       setIsCancelling(true);
       await updateBooking(params.bookingId, { status: 'Cancelled' });
@@ -567,25 +567,25 @@ export default function OrderEventDetailScreen() {
   };
 
   const handleGoBack = () => {
-      Alert.alert(
-        'Hủy đặt lịch',
-        'Bạn có muốn hủy đặt lịch này và quay lại không?',
-        [
-          {
-            text: 'Ở lại',
-            style: 'cancel',
+    Alert.alert(
+      'Hủy đặt lịch',
+      'Bạn có muốn hủy đặt lịch này và quay lại không?',
+      [
+        {
+          text: 'Ở lại',
+          style: 'cancel',
+        },
+        {
+          text: 'Hủy đặt lịch',
+          style: 'destructive',
+          onPress: async () => {
+            await handleCancelBooking();
+            navigation.goBack();
           },
-          {
-            text: 'Hủy đặt lịch',
-            style: 'destructive',
-            onPress: async () => {
-              await handleCancelBooking();
-              navigation.goBack();
-            },
-          },
-        ]
-      );
-    };
+        },
+      ]
+    );
+  };
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -684,7 +684,11 @@ export default function OrderEventDetailScreen() {
                     className="text-gray-600 ml-2"
                     style={{ fontSize: getResponsiveSize(14) }}
                   >
-                    {formatDate(params.event.startDate)}
+                    {formatDate(
+                      params.bookingTimes?.startDatetime || 
+                      params.event.startDate  
+                    )}
+
                   </Text>
                 </View>
 
@@ -948,19 +952,17 @@ export default function OrderEventDetailScreen() {
             {/* Bank QR Payment */}
             <TouchableOpacity
               onPress={() => setSelectedPaymentMethod("bank_qr")}
-              className={`flex-row items-center rounded-xl border-2 ${
-                selectedPaymentMethod === "bank_qr"
+              className={`flex-row items-center rounded-xl border-2 ${selectedPaymentMethod === "bank_qr"
                   ? "bg-pink-50 border-pink-600"
                   : "bg-gray-50 border-gray-200"
-              }`}
+                }`}
               style={{ padding: getResponsiveSize(16) }}
             >
               <View
-                className={`rounded-full items-center justify-center ${
-                  selectedPaymentMethod === "bank_qr"
+                className={`rounded-full items-center justify-center ${selectedPaymentMethod === "bank_qr"
                     ? "bg-pink-600"
                     : "bg-gray-100"
-                }`}
+                  }`}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -976,11 +978,10 @@ export default function OrderEventDetailScreen() {
 
               <View className="flex-1">
                 <Text
-                  className={`font-bold ${
-                    selectedPaymentMethod === "bank_qr"
+                  className={`font-bold ${selectedPaymentMethod === "bank_qr"
                       ? "text-pink-600"
                       : "text-gray-800"
-                  }`}
+                    }`}
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Quét mã ngân hàng
@@ -997,11 +998,10 @@ export default function OrderEventDetailScreen() {
               </View>
 
               <View
-                className={`rounded-full border-2 items-center justify-center ${
-                  selectedPaymentMethod === "bank_qr"
+                className={`rounded-full border-2 items-center justify-center ${selectedPaymentMethod === "bank_qr"
                     ? "border-pink-600"
                     : "border-gray-300"
-                }`}
+                  }`}
                 style={{
                   width: getResponsiveSize(20),
                   height: getResponsiveSize(20),
@@ -1022,27 +1022,25 @@ export default function OrderEventDetailScreen() {
             {/* SnapLink Wallet Payment */}
             <TouchableOpacity
               onPress={() => shouldFetchWallet && isWalletBalanceSufficient && setSelectedPaymentMethod("snaplink_wallet")}
-              className={`flex-row items-center rounded-xl border-2 ${
-                selectedPaymentMethod === "snaplink_wallet"
+              className={`flex-row items-center rounded-xl border-2 ${selectedPaymentMethod === "snaplink_wallet"
                   ? "bg-pink-50 border-pink-600"
-                  : !shouldFetchWallet || !isWalletBalanceSufficient 
+                  : !shouldFetchWallet || !isWalletBalanceSufficient
                     ? "bg-gray-100 border-gray-200"
                     : "bg-gray-50 border-gray-200"
-              }`}
-              style={{ 
+                }`}
+              style={{
                 padding: getResponsiveSize(16),
                 opacity: shouldFetchWallet && isWalletBalanceSufficient ? 1 : 0.6
               }}
               disabled={!shouldFetchWallet || !isWalletBalanceSufficient}
             >
               <View
-                className={`rounded-full items-center justify-center ${
-                  selectedPaymentMethod === "snaplink_wallet"
+                className={`rounded-full items-center justify-center ${selectedPaymentMethod === "snaplink_wallet"
                     ? "bg-pink-600"
                     : !shouldFetchWallet || !isWalletBalanceSufficient
                       ? "bg-gray-300"
                       : "bg-gray-100"
-                }`}
+                  }`}
                 style={{
                   width: getResponsiveSize(40),
                   height: getResponsiveSize(40),
@@ -1064,22 +1062,21 @@ export default function OrderEventDetailScreen() {
 
               <View className="flex-1">
                 <Text
-                  className={`font-bold ${
-                    selectedPaymentMethod === "snaplink_wallet"
+                  className={`font-bold ${selectedPaymentMethod === "snaplink_wallet"
                       ? "text-pink-600"
                       : !shouldFetchWallet || !isWalletBalanceSufficient
                         ? "text-gray-400"
                         : "text-gray-800"
-                  }`}
+                    }`}
                   style={{ fontSize: getResponsiveSize(16) }}
                 >
                   Ví SnapLink
                 </Text>
-                
+
                 {!shouldFetchWallet ? (
                   <Text
                     className="text-gray-400"
-                    style={{ 
+                    style={{
                       fontSize: getResponsiveSize(13),
                       marginTop: getResponsiveSize(2),
                     }}
@@ -1091,7 +1088,7 @@ export default function OrderEventDetailScreen() {
                     <ActivityIndicator size="small" color="#666" />
                     <Text
                       className="text-gray-600"
-                      style={{ 
+                      style={{
                         fontSize: getResponsiveSize(12),
                         marginLeft: getResponsiveSize(8),
                       }}
@@ -1101,9 +1098,8 @@ export default function OrderEventDetailScreen() {
                   </View>
                 ) : (
                   <Text
-                    className={`${
-                      isWalletBalanceSufficient ? "text-green-600" : "text-red-500"
-                    }`}
+                    className={`${isWalletBalanceSufficient ? "text-green-600" : "text-red-500"
+                      }`}
                     style={{
                       fontSize: getResponsiveSize(13),
                       marginTop: getResponsiveSize(2),
@@ -1117,11 +1113,10 @@ export default function OrderEventDetailScreen() {
               </View>
 
               <View
-                className={`rounded-full border-2 items-center justify-center ${
-                  selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && isWalletBalanceSufficient
+                className={`rounded-full border-2 items-center justify-center ${selectedPaymentMethod === "snaplink_wallet" && shouldFetchWallet && isWalletBalanceSufficient
                     ? "border-pink-600"
                     : "border-gray-300"
-                }`}
+                  }`}
                 style={{
                   width: getResponsiveSize(20),
                   height: getResponsiveSize(20),

@@ -135,6 +135,15 @@ const BookingDetailScreen = () => {
     setDeliveryLoading(false);
   };
 
+  const isBeforeBookingTime = () => {
+    if (!booking?.startDatetime) return false;
+    
+    const bookingStartTime = new Date(booking.startDatetime);
+    const currentTime = new Date();
+    
+    return currentTime < bookingStartTime;
+  };
+
   const fetchUserComplaint = async () => {
     if (!bookingId) return;
 
@@ -468,17 +477,16 @@ const BookingDetailScreen = () => {
   const canShowComplaint = () => {
     const statusStr = booking?.status.toString().toLowerCase();
     const isUnderReview = statusStr === 'under_review' || statusStr === 'under review';
+    
     return (
       booking &&
-      photoDelivery &&
       !isUnderReview &&
       !userComplaint &&
-      // 🆕 UPDATED: Only show complaint for active bookings, not completed
+      // ✅ Cho phép báo cáo trong các trạng thái này
       (booking.status === BookingStatus.CONFIRMED ||
-        booking.status === BookingStatus.IN_PROGRESS)
-      // 🆕 TODO: Add check for existing complaints
-      // !booking.hasComplaint && // Add this field if available from API
-      // booking.status !== BookingStatus.COMPLETED // Don't allow complaint after completion
+        booking.status === BookingStatus.IN_PROGRESS ||
+        booking.status === BookingStatus.PENDING) // Thêm PENDING để báo cáo khi thợ không confirm
+      // ✅ Bỏ điều kiện photoDelivery - user có thể báo cáo bất cứ lúc nào
     );
   };
 
@@ -510,39 +518,87 @@ const BookingDetailScreen = () => {
   const renderPhotoDeliverySection = () => {
     if (deliveryLoading) {
       return (
-        <View className="flex-row items-center py-5">
-          <ActivityIndicator size="small" color="#FF385C" />
-          <Text className="ml-3 text-gray-600">Đang tải thông tin ảnh...</Text>
-        </View>
+        <>
+          <View className="flex-row items-center py-5">
+            <ActivityIndicator size="small" color="#FF385C" />
+            <Text className="ml-3 text-gray-600">Đang tải thông tin ảnh...</Text>
+          </View>
+          
+          {/* Show complaint button even when loading */}
+          {renderComplaintStatus()}
+          {canShowComplaint() && (
+            <TouchableOpacity
+              className="bg-orange-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
+              onPress={handleShowComplaint}
+            >
+              <Ionicons name="flag-outline" size={24} color="#FFFFFF" />
+              <Text className="text-white text-base font-semibold ml-2">
+                Báo cáo sự cố dịch vụ
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
       );
     }
 
     // ✅ Show error state only for real errors
     if (deliveryHasError && deliveryError) {
       return (
-        <View className="items-center py-10">
-          <Ionicons name="alert-circle-outline" size={48} color="#F44336" />
-          <Text className="text-lg text-red-500 mt-4 text-center">{deliveryError}</Text>
-          <TouchableOpacity
-            className="bg-red-500 px-4 py-2 rounded-lg mt-3"
-            onPress={fetchPhotoDelivery}
-          >
-            <Text className="text-white text-sm font-medium">Thử lại</Text>
-          </TouchableOpacity>
-        </View>
+        <>
+          <View className="items-center py-10">
+            <Ionicons name="alert-circle-outline" size={48} color="#F44336" />
+            <Text className="text-lg text-red-500 mt-4 text-center">{deliveryError}</Text>
+            <TouchableOpacity
+              className="bg-red-500 px-4 py-2 rounded-lg mt-3"
+              onPress={fetchPhotoDelivery}
+            >
+              <Text className="text-white text-sm font-medium">Thử lại</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Show complaint button even when error */}
+          {renderComplaintStatus()}
+          {canShowComplaint() && (
+            <TouchableOpacity
+              className="bg-orange-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
+              onPress={handleShowComplaint}
+            >
+              <Ionicons name="flag-outline" size={24} color="#FFFFFF" />
+              <Text className="text-white text-base font-semibold ml-2">
+                Báo cáo sự cố dịch vụ
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
       );
     }
 
     // ✅ Show empty state when no photo delivery (normal case)
     if (!photoDelivery) {
       return (
-        <View className="items-center py-10">
-          <Ionicons name="camera-outline" size={48} color="#C0C0C0" />
-          <Text className="text-lg text-gray-400 mt-4">Chưa có ảnh</Text>
-          <Text className="text-sm text-gray-400 mt-2 text-center">
-            Photographer sẽ upload ảnh sau khi hoàn thành chụp
-          </Text>
-        </View>
+        <>
+          <View className="items-center py-10">
+            <Ionicons name="camera-outline" size={48} color="#C0C0C0" />
+            <Text className="text-lg text-gray-400 mt-4">Chưa có ảnh</Text>
+            <Text className="text-sm text-gray-400 mt-2 text-center">
+              Photographer sẽ upload ảnh sau khi hoàn thành chụp
+            </Text>
+          </View>
+          
+          {/* Show complaint button even when no photo delivery */}
+          {renderComplaintStatus()}
+          {canShowComplaint() && (
+            <TouchableOpacity
+              className="bg-orange-500 flex-row items-center justify-center py-3 rounded-lg mt-3"
+              onPress={handleShowComplaint}
+            >
+              <Ionicons name="flag-outline" size={24} color="#FFFFFF" />
+              <Text className="text-white text-base font-semibold ml-2">
+                Báo cáo sự cố dịch vụ
+              </Text>
+            </TouchableOpacity>
+          )}
+        </>
       );
     }
 
@@ -1087,6 +1143,8 @@ const BookingDetailScreen = () => {
           reportedUserId={photographerUserId}
           reportedUserName={booking.photographer.fullName}
           onComplaintSubmitted={handleComplaintSubmitted}
+          isBeforeBookingTime={isBeforeBookingTime()}
+          bookingStartTime={booking.startDatetime}
         />
       )}
 

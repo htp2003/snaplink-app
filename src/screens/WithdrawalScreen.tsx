@@ -269,12 +269,6 @@ export default function WithdrawalScreen({ navigation }: Props) {
             <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#10B981', marginBottom: 8 }}>
               {formatCurrency(balance.availableBalance)}
             </Text>
-            <Text style={{ color: '#666666', fontSize: 12 }}>
-              Số tiền tối thiểu: {formatCurrency(limits.minAmount)}
-            </Text>
-            <Text style={{ color: '#666666', fontSize: 12 }}>
-              Số tiền tối đa: {formatCurrency(limits.maxAmount)}
-            </Text>
           </View>
 
           {/* Amount Input */}

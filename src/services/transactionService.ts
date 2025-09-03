@@ -253,7 +253,7 @@ class TransactionService {
       ...transaction,
       // Map API fields to display fields
       id: transaction.transactionId,
-      description: transaction.note || 'Giao dịch',
+      description: this.formatTransactionNote(transaction), // Sử dụng formatted note
       transactionDate: transaction.createdAt,
       // Add display properties
       displayType: formatInfo.displayType,
@@ -316,6 +316,99 @@ private getTransactionDirection(transaction: Transaction): 'income' | 'withdrawa
       return transaction.toUserName;
     }
     return undefined;
+  }
+
+  private formatTransactionNote(transaction: Transaction): string {
+    const { type, note } = transaction;
+  
+    switch (type.toLowerCase()) {
+      case 'escrowhold':
+        // Extract booking ID từ note nếu có
+        const escrowBookingMatch = note?.match(/booking (\d+)/i);
+        if (escrowBookingMatch) {
+          const bookingId = escrowBookingMatch[1];
+          return `Thanh toán đơn hàng #${bookingId}`;
+        }
+        return 'Thanh toán đơn hàng';
+  
+      case 'withdrawal':
+        // Extract withdrawal request ID và bank info từ note
+        const withdrawalMatch = note?.match(/Withdrawal request (\d+)/i);
+        const bankMatch = note?.match(/Bank: ([^,]+)/i);
+        
+        if (withdrawalMatch) {
+          const requestId = withdrawalMatch[1];
+          if (bankMatch) {
+            const bankName = bankMatch[1];
+            return `Rút tiền về ${bankName}`;
+          }
+          return `Rút tiền thành công`;
+        }
+        return 'Rút tiền';
+  
+      case 'payment':
+        const paymentBookingMatch = note?.match(/booking (\d+)/i);
+        if (paymentBookingMatch) {
+          const bookingId = paymentBookingMatch[1];
+          return `Thanh toán dịch vụ #${bookingId}`;
+        }
+        return 'Thanh toán dịch vụ';
+  
+      // Thêm các cases khác tùy theo business logic của bạn
+
+      case 'refund':
+        // For refund transactions
+        const refundBookingMatch = note?.match(/booking (\d+)/i);
+        if (refundBookingMatch) {
+          const bookingId = refundBookingMatch[1];
+          return `Hoàn tiền đơn hàng #${bookingId}`;
+        }
+        return 'Hoàn tiền';
+
+      case 'topup':
+        return 'Nạp tiền vào ví';
+
+      case 'transfer':
+        return 'Chuyển tiền';
+
+      case 'commission':
+        return 'Hoa hồng từ dịch vụ';
+
+        case 'escrowrelease':
+        const releaseBookingMatch = note?.match(/booking (\d+)/i);
+        if (releaseBookingMatch) {
+          const bookingId = releaseBookingMatch[1];
+          return `Nhận thanh toán #${bookingId}`;
+        }
+        return 'Nhận thanh toán';
+
+        case 'escrowrefund':
+        // For escrow refund transactions
+        const escrowRefundBookingMatch = note?.match(/booking (\d+)/i);
+        if (escrowRefundBookingMatch) {
+          const bookingId = escrowRefundBookingMatch[1];
+          return `Hoàn tiền đơn hàng #${bookingId}`;
+        }
+        return 'Hoàn tiền từ escrow';
+
+      case 'photographerfee':
+        const feeBookingMatch = note?.match(/booking (\d+)/i);
+        if (feeBookingMatch) {
+          const bookingId = feeBookingMatch[1];
+          return `Thu nhập từ dịch vụ #${bookingId}`;
+        }
+        return 'Thu nhập từ dịch vụ';
+
+      case 'deposit':
+        const depositBookingMatch = note?.match(/booking (\d+)/i);
+        if (depositBookingMatch) {
+          const bookingId = depositBookingMatch[1];
+          return `Đặt cọc đơn hàng #${bookingId}`;
+        }
+        return 'Đặt cọc';
+      default:
+        return note || 'Giao dịch';
+    }
   }
 
   private getStatusColors(status: string): {

@@ -1,4 +1,4 @@
-// MessagesScreen.tsx - Enhanced with SignalR
+// MessagesScreen.tsx - FIXED: Di chuyển tất cả hooks lên đầu
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
@@ -16,7 +16,7 @@ import {
 import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useChat } from "../../hooks/useChat";
-import { signalRManager } from "../../services/signalRManager"; // NEW: Import SignalR manager
+import { signalRManager } from "../../services/signalRManager";
 import { getResponsiveSize } from "../../utils/responsive";
 import { useAuth } from "../../hooks/useAuth";
 import { RootStackParamList } from "../../navigation/types";
@@ -34,9 +34,10 @@ type MessagesScreenNavigationProp = NativeStackNavigationProp<
 >;
 
 export default function MessagesScreen() {
+  // ✅ BƯỚC 1: Di chuyển TẤT CẢ hooks lên đầu component
   const navigation = useNavigation<MessagesScreenNavigationProp>();
-
-  // ===== AUTH CONTEXT =====
+  
+  // ✅ Auth hooks
   const {
     user,
     isAuthenticated,
@@ -45,13 +46,13 @@ export default function MessagesScreen() {
   } = useAuth();
   const userId = getCurrentUserId() || 0;
 
-  // ===== NEW SIGNALR STATES =====
+  // ✅ SignalR states
   const [isSignalRConnected, setIsSignalRConnected] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState("Disconnected");
   const [realtimeMessageCount, setRealtimeMessageCount] = useState(0);
   const isSignalRInitialized = useRef(false);
 
-  // ===== EXISTING HOOKS =====
+  // ✅ Chat hooks
   const {
     conversations,
     searchResults,
@@ -67,17 +68,17 @@ export default function MessagesScreen() {
     createDirectConversation,
     getTotalUnreadCount,
     clearError,
-    setConversations, // NEW: Needed for real-time updates
+    setConversations,
   } = useChat({
     userId: userId,
     autoRefresh: true,
     refreshInterval: 30000,
   });
 
-  // ===== LOCAL STATES =====
+  // ✅ Local states
   const [refreshing, setRefreshing] = useState(false);
 
-  // ===== SIGNALR SETUP =====
+  // ✅ All useEffect hooks
   useEffect(() => {
     const initializeSignalR = async () => {
       if (!userId || !isAuthenticated || isSignalRInitialized.current) {
@@ -85,11 +86,8 @@ export default function MessagesScreen() {
       }
 
       const success = await signalRManager.initialize(userId, {
-        // Handler khi nhận tin nhắn mới
         onMessageReceived: (message: MessageResponse) => {
           setRealtimeMessageCount((prev) => prev + 1);
-
-          // Cập nhật conversations list với tin nhắn mới
           setConversations((prevConversations) => {
             return prevConversations.map((conv) => {
               if (conv.conversationId === message.conversationId) {
@@ -116,9 +114,7 @@ export default function MessagesScreen() {
           });
         },
 
-        // Handler khi có conversation mới
         onNewConversation: (conversation: ConversationResponse) => {
-          // Add new conversation to list
           setConversations((prevConversations) => {
             const newConv = {
               conversationId: conversation.conversationId,
@@ -139,8 +135,7 @@ export default function MessagesScreen() {
                     messageType: conversation.lastMessage.messageType as any,
                     status: conversation.lastMessage.status as any,
                     senderName: conversation.lastMessage.senderName,
-                    senderProfileImage:
-                      conversation.lastMessage.senderProfileImage,
+                    senderProfileImage: conversation.lastMessage.senderProfileImage,
                   }
                 : undefined,
               unreadCount: conversation.unreadCount || 0,
@@ -148,7 +143,6 @@ export default function MessagesScreen() {
               isOnline: false,
             };
 
-            // Check if conversation already exists
             const exists = prevConversations.some(
               (c) => c.conversationId === newConv.conversationId
             );
@@ -158,7 +152,6 @@ export default function MessagesScreen() {
           });
         },
 
-        // Handler khi conversation được update
         onConversationUpdated: (conversation: ConversationResponse) => {
           setConversations((prevConversations) => {
             return prevConversations.map((conv) => {
@@ -177,16 +170,13 @@ export default function MessagesScreen() {
           });
         },
 
-        // Handler khi connection status thay đổi
         onConnectionStatusChanged: (connected: boolean) => {
           setIsSignalRConnected(connected);
           setConnectionStatus(connected ? "Connected" : "Disconnected");
         },
 
-        // Handler khi message status thay đổi
         onMessageStatusChanged: (messageId: number, status: string) => {
-          console.log("🔥 Message Status Changed:", messageId, status);
-          // Update message status trong conversations nếu cần
+          console.log("📥 Message Status Changed:", messageId, status);
         },
       });
 
@@ -214,56 +204,15 @@ export default function MessagesScreen() {
     };
   }, [userId, isAuthenticated, setConversations]);
 
-  // ===== EXISTING AUTH CHECKS =====
-  if (authLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-white items-center justify-center">
-        <ActivityIndicator size="large" color="#007AFF" />
-        <Text
-          className="text-gray-500 mt-4"
-          style={{ fontSize: getResponsiveSize(16) }}
-        >
-          Loading user info...
-        </Text>
-      </SafeAreaView>
-    );
-  }
-
-  if (!isAuthenticated || !userId) {
-    return (
-      <SafeAreaView className="flex-1 bg-white items-center justify-center">
-        <Text
-          className="text-xl font-bold text-black mb-4"
-          style={{ fontSize: getResponsiveSize(20) }}
-        >
-          Please login to continue
-        </Text>
-        <TouchableOpacity
-          className="bg-blue-500 px-6 py-3 rounded-2xl"
-          onPress={() => navigation.navigate("Login")}
-        >
-          <Text
-            className="text-white font-semibold"
-            style={{ fontSize: getResponsiveSize(16) }}
-          >
-            Go to Login
-          </Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  // ===== EXISTING EFFECTS =====
+  // ✅ useFocusEffect hook
   useFocusEffect(
     useCallback(() => {
       refreshConversations();
-
-      // Reset realtime message count when screen is focused
       setRealtimeMessageCount(0);
     }, [refreshConversations])
   );
 
-  // ===== EXISTING HANDLERS =====
+  // ✅ All useCallback hooks
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await refreshConversations();
@@ -281,51 +230,48 @@ export default function MessagesScreen() {
     clearSearch();
   }, [clearSearch]);
 
- const handleConversationPress = useCallback(
-  async (conversation: Conversation) => {
-    console.log("🔍 Conversation data:", JSON.stringify(conversation, null, 2));
-    
-    // ✅ TÌM OTHER PARTICIPANT từ participants array
-    let otherParticipant = conversation.otherParticipant;
-    
-    if (!otherParticipant && conversation.participants?.length > 0) {
-      // Tìm participant khác current user
-      otherParticipant = conversation.participants.find(
-        (p) => p.userId !== getCurrentUserId());
-    }
-    
-    if (!otherParticipant) {
-      console.warn("❌ No other participant found in conversation:", conversation);
-      Alert.alert(
-        "Error", 
-        "Cannot open this conversation. Missing participant information."
-      );
-      return;
-    }
-
-    // Join conversation for real-time updates
-    if (isSignalRConnected) {
-      try {
-        await signalRManager.joinConversation(conversation.conversationId);
-      } catch (error) {
-        console.warn("⚠️ Failed to join conversation for real-time:", error);
+  const handleConversationPress = useCallback(
+    async (conversation: Conversation) => {
+      console.log("🔍 Conversation data:", JSON.stringify(conversation, null, 2));
+      
+      let otherParticipant = conversation.otherParticipant;
+      
+      if (!otherParticipant && conversation.participants?.length > 0) {
+        otherParticipant = conversation.participants.find(
+          (p) => p.userId !== getCurrentUserId()
+        );
       }
-    }
+      
+      if (!otherParticipant) {
+        console.warn("❌ No other participant found in conversation:", conversation);
+        Alert.alert(
+          "Error", 
+          "Cannot open this conversation. Missing participant information."
+        );
+        return;
+      }
 
-    // ✅ NAVIGATE với fallback data
-    navigation.navigate("ChatScreen", {
-      conversationId: conversation.conversationId,
-      title: conversation.title || otherParticipant.userFullName || otherParticipant.userName || "Chat",
-      otherUser: {
-        userId: otherParticipant.userId,
-        userName: otherParticipant.userName || "User",
-        userFullName: otherParticipant.userFullName || otherParticipant.userName || "User",
-        userProfileImage: otherParticipant.userProfileImage,
-      },
-    });
-  },
-  [navigation, isSignalRConnected, getCurrentUserId] // ✅ THÊM currentUserId dependency
-);
+      if (isSignalRConnected) {
+        try {
+          await signalRManager.joinConversation(conversation.conversationId);
+        } catch (error) {
+          console.warn("⚠️ Failed to join conversation for real-time:", error);
+        }
+      }
+
+      navigation.navigate("ChatScreen", {
+        conversationId: conversation.conversationId,
+        title: conversation.title || otherParticipant.userFullName || otherParticipant.userName || "Chat",
+        otherUser: {
+          userId: otherParticipant.userId,
+          userName: otherParticipant.userName || "User",
+          userFullName: otherParticipant.userFullName || otherParticipant.userName || "User",
+          userProfileImage: otherParticipant.userProfileImage,
+        },
+      });
+    },
+    [navigation, isSignalRConnected, getCurrentUserId]
+  );
 
   const handlePhotographerPress = useCallback(
     async (photographer: PhotographerSearchResult) => {
@@ -334,7 +280,6 @@ export default function MessagesScreen() {
           photographer.hasExistingConversation &&
           photographer.existingConversationId
         ) {
-          // Join existing conversation for real-time updates
           if (isSignalRConnected) {
             await signalRManager.joinConversation(
               photographer.existingConversationId
@@ -358,7 +303,6 @@ export default function MessagesScreen() {
           );
 
           if (conversation) {
-            // Join new conversation for real-time updates
             if (isSignalRConnected) {
               await signalRManager.joinConversation(
                 conversation.conversationId
@@ -397,7 +341,7 @@ export default function MessagesScreen() {
   const handleErrorDismiss = useCallback(() => {
     clearError();
   }, [clearError]);
-  // ===== EXISTING RENDER METHODS (unchanged) =====
+
   const renderConversationItem = useCallback(
     ({ item }: { item: Conversation }) => {
       const otherParticipant = item.otherParticipant;
@@ -413,7 +357,6 @@ export default function MessagesScreen() {
           activeOpacity={0.7}
         >
           <View className="flex-row items-center">
-            {/* Avatar */}
             <View className="relative mr-3">
               <Image
                 source={{
@@ -437,13 +380,11 @@ export default function MessagesScreen() {
                   </Text>
                 </View>
               )}
-              {/* Enhanced online indicator with SignalR status */}
               {(item.isOnline || isSignalRConnected) && (
                 <View className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
               )}
             </View>
 
-            {/* Message Info */}
             <View className="flex-1">
               <View className="flex-row items-center justify-between mb-1">
                 <Text
@@ -462,7 +403,6 @@ export default function MessagesScreen() {
                   >
                     {timeAgo}
                   </Text>
-                  {/* NEW: Real-time indicator */}
                   {isSignalRConnected && (
                     <View className="w-2 h-2 bg-green-500 rounded-full ml-2" />
                   )}
@@ -482,7 +422,6 @@ export default function MessagesScreen() {
               </Text>
             </View>
 
-            {/* Group Indicator */}
             {item.type === ConversationType.GROUP && (
               <View className="ml-2">
                 <Text style={{ fontSize: getResponsiveSize(16) }}>👥</Text>
@@ -504,7 +443,6 @@ export default function MessagesScreen() {
           activeOpacity={0.7}
         >
           <View className="flex-row items-center">
-            {/* Avatar */}
             <View className="relative mr-3">
               <Image
                 source={{
@@ -531,7 +469,6 @@ export default function MessagesScreen() {
               )}
             </View>
 
-            {/* Photographer Info */}
             <View className="flex-1">
               <View className="flex-row items-center justify-between mb-1">
                 <Text
@@ -562,7 +499,6 @@ export default function MessagesScreen() {
               </Text>
             </View>
 
-            {/* Existing Chat Indicator */}
             {item.hasExistingConversation && (
               <View className="ml-2">
                 <Text style={{ fontSize: getResponsiveSize(16) }}>💬</Text>
@@ -681,7 +617,49 @@ export default function MessagesScreen() {
     );
   }, [error, searchError, handleErrorDismiss]);
 
-  // ===== MAIN RENDER =====
+  // ✅ BƯỚC 2: Sử dụng conditional rendering thay vì early return
+  
+  // Loading state
+  if (authLoading) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text
+          className="text-gray-500 mt-4"
+          style={{ fontSize: getResponsiveSize(16) }}
+        >
+          Loading user info...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  // Not authenticated state  
+  if (!isAuthenticated || !userId) {
+    return (
+      <SafeAreaView className="flex-1 bg-white items-center justify-center">
+        <Text
+          className="text-xl font-bold text-black mb-4"
+          style={{ fontSize: getResponsiveSize(20) }}
+        >
+          Please login to continue
+        </Text>
+        <TouchableOpacity
+          className="bg-blue-500 px-6 py-3 rounded-2xl"
+          onPress={() => navigation.navigate("Login")}
+        >
+          <Text
+            className="text-white font-semibold"
+            style={{ fontSize: getResponsiveSize(16) }}
+          >
+            Go to Login
+          </Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  // ✅ BƯỚC 3: Main render - Tất cả hooks đã được gọi ở trên
   const totalUnreadCount = getTotalUnreadCount();
   const flatListData = isSearchMode
     ? [
@@ -699,7 +677,7 @@ export default function MessagesScreen() {
   return (
     <SafeAreaView className="flex-1 bg-white">
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      {/* Header - Enhanced with connection status */}
+      {/* Header */}
       <View
         className="flex-row items-center justify-between border-b border-gray-100"
         style={{
@@ -788,7 +766,7 @@ export default function MessagesScreen() {
                 className="text-gray-400"
                 style={{ fontSize: getResponsiveSize(14) }}
               >
-                ✕
+                ❌
               </Text>
             </TouchableOpacity>
           )}

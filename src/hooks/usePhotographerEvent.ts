@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
-import { 
-  LocationEvent, 
-  EventApplication, 
+import { useState, useEffect, useCallback } from "react";
+import {
+  LocationEvent,
+  EventApplication,
   EventApplicationRequest,
   EventPhotographer,
   EventStatistics,
   EventBooking,
-  EventBookingRequest
-} from '../types/event';
-import { photographerEventService } from '../services/photographerEventService';
-import { eventService } from 'src/services/eventService';
+  EventBookingRequest,
+} from "../types/event";
+import { photographerEventService } from "../services/photographerEventService";
+import { eventService } from "src/services/eventService";
 
 // Hook for discovering events (active, upcoming, featured)
 export const useEventDiscovery = () => {
@@ -19,64 +19,55 @@ export const useEventDiscovery = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-const fetchAllEvents = useCallback(async () => {
+  const fetchAllEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
     try {
-      console.log('Fetching all events...');
+    console.log('🔍 Fetching all events...');
+    
+    const allEventsResponse = await photographerEventService.getAllEvents();
+    console.log('📥 Raw API response:', allEventsResponse);
+    
+    if (allEventsResponse.error === 0) {
+      const events = allEventsResponse.data || [];
+      console.log('📊 Total events received:', events.length);
       
-      // Sử dụng getAllEvents thay vì 3 API calls riêng lẻ
-      const allEventsResponse = await photographerEventService.getAllEvents();
+      // Log tất cả events và status
+      events.forEach((event, index) => {
+        console.log(`Event ${index + 1}: ${event.name} - Status: ${event.status}`);
+      });
       
-      if (allEventsResponse.error === 0) {
-        const events = allEventsResponse.data || [];
-        
-        // Filter events by status locally
-        const active = events.filter(event => event.status === 'Active');
-        const upcoming = events.filter(event => {
-          const eventDate = new Date(event.startDate);
-          const now = new Date();
-          return event.status === 'Open' && eventDate > now;
-        });
-        
-        // Featured events logic - có thể dựa vào featuredStatus hoặc criteria khác
-        const featured = events.filter(event => {
-          // Option 1: Nếu API có field featuredStatus
-          // return event.featuredStatus === true;
-          
-          // Option 2: Logic tự định nghĩa "featured"
-          const hasDiscount = event.discountedPrice && 
-            event.originalPrice && 
-            event.discountedPrice < event.originalPrice;
-          
-          const highBookingRate = event.totalBookingsCount > 0 && 
-            event.maxBookingsPerSlot > 0 &&
-            (event.totalBookingsCount / event.maxBookingsPerSlot) > 0.5;
-          
-          return hasDiscount || highBookingRate || event.status === 'Active';
-        });
-        
-        setActiveEvents(active);
-        setUpcomingEvents(upcoming);
-        setFeaturedEvents(featured.slice(0, 10)); // Limit featured to top 10
-        
-        console.log('Events categorized:', {
-          total: events.length,
-          active: active.length,
-          upcoming: upcoming.length,
-          featured: featured.length
-        });
-        
-      } else {
-        setError(allEventsResponse.message || 'Failed to load events');
-      }
-    } catch (err) {
-      console.error('Error fetching events:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
+      // Filter và log kết quả
+      const active = events.filter(event => event.status === 'Active');
+      const open = events.filter(event => event.status === 'Open');
+      const upcoming = events.filter(event => {
+        const eventDate = new Date(event.startDate);
+        const now = new Date();
+        return event.status === 'Open' && eventDate > now;
+      });
+      
+      console.log('📈 Filtered results:', {
+        total: events.length,
+        active: active.length,
+        open: open.length,
+        upcoming: upcoming.length
+      });
+      
+      // Thay đổi logic để hiển thị Open events
+      setActiveEvents(active);
+      setUpcomingEvents(open); // ✅ Hiển thị tất cả Open events
+      setFeaturedEvents([...active, ...open].slice(0, 10));
+      
+    } else {
+      console.error('❌ API error:', allEventsResponse.message);
+      setError(allEventsResponse.message || 'Failed to load events');
     }
+  } catch (err) {
+    console.error('💥 Exception:', err);
+    setError(err instanceof Error ? err.message : 'An error occurred');
+  } finally {
+    setLoading(false);
+  }
   }, []);
 
   useEffect(() => {
@@ -89,7 +80,7 @@ const fetchAllEvents = useCallback(async () => {
     featuredEvents,
     loading,
     error,
-    refetch: fetchAllEvents
+    refetch: fetchAllEvents,
   };
 };
 
@@ -107,75 +98,82 @@ export const useEventSearch = () => {
 
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await photographerEventService.searchEvents(searchTerm);
-      
+
       if (response.error === 0) {
         setEvents(response.data);
       } else {
         setError(response.message);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const searchNearbyEvents = useCallback(async (latitude: number, longitude: number, radiusKm: number = 10) => {
-    setLoading(true);
-    setError(null);
-    
-    try {
-      const response = await photographerEventService.getNearbyEvents(latitude, longitude, radiusKm);
-      
-      if (response.error === 0) {
-        setEvents(response.data);
-      } else {
-        setError(response.message);
+  const searchNearbyEvents = useCallback(
+    async (latitude: number, longitude: number, radiusKm: number = 10) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await photographerEventService.getNearbyEvents(
+          latitude,
+          longitude,
+          radiusKm
+        );
+
+        if (response.error === 0) {
+          setEvents(response.data);
+        } else {
+          setError(response.message);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   return {
     events,
     loading,
     error,
     searchEvents,
-    searchNearbyEvents
+    searchNearbyEvents,
   };
 };
 
 // Hook for event details
 export const useEventDetail = (eventId: number | null) => {
   console.log("🚀 useEventDetail called with eventId:", eventId);
-  
+
   const [event, setEvent] = useState<LocationEvent | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchEventDetail = useCallback(async () => {
     console.log("🔄 fetchEventDetail starting with eventId:", eventId);
-    
+
     if (!eventId) {
       console.log("❌ No eventId, returning early");
       return;
     }
-    
+
     setLoading(true);
     setError(null);
     console.log("⏳ Setting loading to true");
-    
+
     try {
       console.log("📡 Calling eventService.getEventByEventId with:", eventId);
       const response = await eventService.getEventByEventId(eventId);
       console.log("📥 API response:", response);
-      
+
       if (response.error === 0) {
         console.log("✅ Setting event data:", response.data);
         setEvent(response.data);
@@ -185,7 +183,7 @@ export const useEventDetail = (eventId: number | null) => {
       }
     } catch (err) {
       console.log("💥 Exception caught:", err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       console.log("🏁 Setting loading to false");
       setLoading(false);
@@ -197,13 +195,17 @@ export const useEventDetail = (eventId: number | null) => {
     fetchEventDetail();
   }, [fetchEventDetail]);
 
-  console.log("📊 useEventDetail returning:", { event: !!event, loading, error });
+  console.log("📊 useEventDetail returning:", {
+    event: !!event,
+    loading,
+    error,
+  });
 
   return {
     event,
     loading,
     error,
-    refetch: fetchEventDetail
+    refetch: fetchEventDetail,
   };
 };
 
@@ -215,26 +217,29 @@ export const usePhotographerApplications = (photographerId: number | null) => {
 
   const fetchApplications = useCallback(async () => {
     if (!photographerId) {
-      console.log('No photographerId provided');
+      console.log("No photographerId provided");
       return;
     }
-    
-    console.log('Fetching applications for photographer:', photographerId);
+
+    console.log("Fetching applications for photographer:", photographerId);
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await photographerEventService.getPhotographerApplications(photographerId);
-      console.log('Applications response:', response);
-      
+      const response =
+        await photographerEventService.getPhotographerApplications(
+          photographerId
+        );
+      console.log("Applications response:", response);
+
       if (response.error === 0) {
         setApplications(response.data || []);
       } else {
         setError(response.message);
       }
     } catch (err) {
-      console.error('Error fetching applications:', err);
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      console.error("Error fetching applications:", err);
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -248,7 +253,7 @@ export const usePhotographerApplications = (photographerId: number | null) => {
     applications,
     loading,
     error,
-    refetch: fetchApplications
+    refetch: fetchApplications,
   };
 };
 
@@ -257,13 +262,15 @@ export const useApplicationActions = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const applyToEvent = async (request: EventApplicationRequest): Promise<boolean> => {
+  const applyToEvent = async (
+    request: EventApplicationRequest
+  ): Promise<boolean> => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await photographerEventService.applyToEvent(request);
-      
+
       if (response.error === 0) {
         return true;
       } else {
@@ -271,20 +278,26 @@ export const useApplicationActions = () => {
         return false;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const withdrawApplication = async (eventId: number, photographerId: number): Promise<boolean> => {
+  const withdrawApplication = async (
+    eventId: number,
+    photographerId: number
+  ): Promise<boolean> => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await photographerEventService.withdrawApplication(eventId, photographerId);
-      
+      const response = await photographerEventService.withdrawApplication(
+        eventId,
+        photographerId
+      );
+
       if (response.error === 0) {
         return true;
       } else {
@@ -292,27 +305,39 @@ export const useApplicationActions = () => {
         return false;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
       return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const checkApplicationEligibility = async (eventId: number, photographerId: number): Promise<boolean> => {
+  const checkApplicationEligibility = async (
+    eventId: number,
+    photographerId: number
+  ): Promise<boolean> => {
     try {
-      return await photographerEventService.canApplyToEvent(eventId, photographerId);
+      return await photographerEventService.canApplyToEvent(
+        eventId,
+        photographerId
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
       return false;
     }
   };
 
-  const getApplicationStatus = async (eventId: number, photographerId: number): Promise<string | null> => {
+  const getApplicationStatus = async (
+    eventId: number,
+    photographerId: number
+  ): Promise<string | null> => {
     try {
-      return await photographerEventService.getApplicationStatus(eventId, photographerId);
+      return await photographerEventService.getApplicationStatus(
+        eventId,
+        photographerId
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
       return null;
     }
   };
@@ -323,7 +348,7 @@ export const useApplicationActions = () => {
     checkApplicationEligibility,
     getApplicationStatus,
     loading,
-    error
+    error,
   };
 };
 
@@ -335,20 +360,22 @@ export const useApprovedPhotographers = (eventId: number | null) => {
 
   const fetchApprovedPhotographers = useCallback(async () => {
     if (!eventId) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await photographerEventService.getApprovedPhotographers(eventId);
-      
+      const response = await photographerEventService.getApprovedPhotographers(
+        eventId
+      );
+
       if (response.error === 0) {
         setPhotographers(response.data);
       } else {
         setError(response.message);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
     }
@@ -362,7 +389,7 @@ export const useApprovedPhotographers = (eventId: number | null) => {
     photographers,
     loading,
     error,
-    refetch: fetchApprovedPhotographers
+    refetch: fetchApprovedPhotographers,
   };
 };
 
@@ -371,13 +398,15 @@ export const useEventBooking = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const bookEvent = async (request: EventBookingRequest): Promise<any | null> => {
+  const bookEvent = async (
+    request: EventBookingRequest
+  ): Promise<any | null> => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const response = await photographerEventService.bookEvent(request);
-      
+
       if (response.error === 0) {
         console.log("✅ Event booking successful:", response.data);
         return response.data; // ✅ Return the actual booking data
@@ -387,7 +416,8 @@ export const useEventBooking = () => {
         return null;
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Booking failed';
+      const errorMessage =
+        err instanceof Error ? err.message : "Booking failed";
       setError(errorMessage);
       console.error("❌ Event booking error:", err);
       return null;
@@ -399,10 +429,12 @@ export const useEventBooking = () => {
   const cancelBooking = async (eventBookingId: number): Promise<boolean> => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await photographerEventService.cancelEventBooking(eventBookingId);
-      
+      const response = await photographerEventService.cancelEventBooking(
+        eventBookingId
+      );
+
       if (response.error === 0) {
         return true;
       } else {
@@ -410,7 +442,7 @@ export const useEventBooking = () => {
         return false;
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Cancellation failed');
+      setError(err instanceof Error ? err.message : "Cancellation failed");
       return false;
     } finally {
       setLoading(false);
@@ -421,7 +453,7 @@ export const useEventBooking = () => {
     bookEvent,
     cancelBooking,
     loading,
-    error
+    error,
   };
 };
 
@@ -434,20 +466,22 @@ export const useUserEventBookings = (userId: number | null) => {
 
   const fetchUserBookings = useCallback(async () => {
     if (!userId) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await photographerEventService.getUserEventBookings(userId);
-      
+      const response = await photographerEventService.getUserEventBookings(
+        userId
+      );
+
       if (response.error === 0) {
         setBookings(response.data || []);
       } else {
         setError(response.message);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load bookings');
+      setError(err instanceof Error ? err.message : "Failed to load bookings");
     } finally {
       setLoading(false);
     }
@@ -461,7 +495,7 @@ export const useUserEventBookings = (userId: number | null) => {
     bookings,
     loading,
     error,
-    refetch: fetchUserBookings
+    refetch: fetchUserBookings,
   };
 };
 
@@ -476,26 +510,26 @@ export const useHotEvents = () => {
   const fetchHotEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const [hotResponse, trendingResponse] = await Promise.all([
         photographerEventService.getHotEvents(),
-        photographerEventService.getTrendingEvents()
+        photographerEventService.getTrendingEvents(),
       ]);
-      
+
       if (hotResponse.error === 0) {
         setHotEvents(hotResponse.data || []);
       }
-      
+
       if (trendingResponse.error === 0) {
         setTrendingEvents(trendingResponse.data || []);
       }
-      
+
       if (hotResponse.error !== 0 && trendingResponse.error !== 0) {
-        setError('Failed to load hot events');
+        setError("Failed to load hot events");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load events');
+      setError(err instanceof Error ? err.message : "Failed to load events");
     } finally {
       setLoading(false);
     }
@@ -510,7 +544,7 @@ export const useHotEvents = () => {
     trendingEvents,
     loading,
     error,
-    refetch: fetchHotEvents
+    refetch: fetchHotEvents,
   };
 };
 
@@ -523,20 +557,24 @@ export const useEventStatistics = (eventId: number | null) => {
 
   const fetchStatistics = useCallback(async () => {
     if (!eventId) return;
-    
+
     setLoading(true);
     setError(null);
-    
+
     try {
-      const response = await photographerEventService.getEventStatistics(eventId);
-      
+      const response = await photographerEventService.getEventStatistics(
+        eventId
+      );
+
       if (response.error === 0) {
         setStatistics(response.data);
       } else {
         setError(response.message);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load statistics');
+      setError(
+        err instanceof Error ? err.message : "Failed to load statistics"
+      );
     } finally {
       setLoading(false);
     }
@@ -550,7 +588,7 @@ export const useEventStatistics = (eventId: number | null) => {
     statistics,
     loading,
     error,
-    refetch: fetchStatistics
+    refetch: fetchStatistics,
   };
 };
 
@@ -567,15 +605,16 @@ export const useCustomerEventDiscovery = () => {
   const fetchAllCustomerEvents = useCallback(async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const [allResponse, hotResponse, featuredResponse, upcomingResponse] = await Promise.all([
-        photographerEventService.getAllEvents(),
-        photographerEventService.getHotEvents(),
-        photographerEventService.getFeaturedEvents(),
-        photographerEventService.getUpcomingEvents()
-      ]);
-      
+      const [allResponse, hotResponse, featuredResponse, upcomingResponse] =
+        await Promise.all([
+          photographerEventService.getAllEvents(),
+          photographerEventService.getHotEvents(),
+          photographerEventService.getFeaturedEvents(),
+          photographerEventService.getUpcomingEvents(),
+        ]);
+
       if (allResponse.error === 0) {
         setAllEvents(allResponse.data || []);
       }
@@ -588,9 +627,8 @@ export const useCustomerEventDiscovery = () => {
       if (upcomingResponse.error === 0) {
         setUpcomingEvents(upcomingResponse.data || []);
       }
-      
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load events');
+      setError(err instanceof Error ? err.message : "Failed to load events");
     } finally {
       setLoading(false);
     }
@@ -607,6 +645,6 @@ export const useCustomerEventDiscovery = () => {
     upcomingEvents,
     loading,
     error,
-    refetch: fetchAllCustomerEvents
+    refetch: fetchAllCustomerEvents,
   };
 };

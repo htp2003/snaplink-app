@@ -62,7 +62,7 @@ const ProfileUserScreen = () => {
       ) {
         // If we have authUser data, use it as fallback
         if (authUser) {
-          
+
           setUserProfile(authUser);
           setLoading(false);
           return;
@@ -83,7 +83,7 @@ const ProfileUserScreen = () => {
 
         // If API fails but we have authUser, use it as fallback
         if (authUser) {
-          
+
           setUserProfile(authUser);
           setError(null);
         } else {
@@ -109,11 +109,11 @@ const ProfileUserScreen = () => {
         onPress: async () => {
           try {
             setIsLoggingOut(true);
-            
+
 
             await logout();
 
-            
+
 
             // Navigate to login screen or reset navigation stack
             navigation.reset({
@@ -277,7 +277,7 @@ const ProfileUserScreen = () => {
   );
 
   const menuItems = [
-    
+
     {
       icon: "shield-outline",
       title: "Tài khoản và bảo mật",
@@ -288,33 +288,6 @@ const ProfileUserScreen = () => {
           Alert.alert("Lỗi", "Không tìm thấy ID người dùng");
         }
       },
-    },
-    {
-    icon: "wallet-outline", 
-    title: "Ví của bạn",
-    onPress: () => {
-      navigation.navigate("WalletScreen");
-    },
-  },
-    {
-      icon: "hand-left-outline",
-      title: "Quyền riêng tư",
-      // onPress: () => navigation.navigate('Privacy')
-    },
-    {
-      icon: "people-outline",
-      title: "Giới thiệu host",
-      // onPress: () => navigation.navigate('BecomeHost')
-    },
-    {
-      icon: "business-outline",
-      title: "Tìm đồng chủ nhà",
-      // onPress: () => navigation.navigate('FindCoHost')
-    },
-    {
-      icon: "document-text-outline",
-      title: "Pháp lý",
-      // onPress: () => navigation.navigate('Legal')
     },
     {
       icon: "log-out-outline",
@@ -692,7 +665,7 @@ const ProfileUserScreen = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* Kết nối */}
+            {/* Ví */}
             <TouchableOpacity
               style={{
                 flex: 0.48,
@@ -706,7 +679,9 @@ const ProfileUserScreen = () => {
                 shadowRadius: 4,
                 elevation: 3,
               }}
-              onPress={handleFavoritedPress}
+              onPress={() => {
+                navigation.navigate("WalletScreen");
+              }}
             >
               <View
                 style={{
@@ -717,49 +692,11 @@ const ProfileUserScreen = () => {
                   alignItems: "center",
                 }}
               >
-                <View style={{ flexDirection: "row" }}>
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: "#4A90E2",
-                      marginRight: -5,
-                    }}
-                  />
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: "#F5A623",
-                      marginRight: -5,
-                    }}
-                  />
-                  <View
-                    style={{
-                      width: 20,
-                      height: 20,
-                      borderRadius: 10,
-                      backgroundColor: "#7ED321",
-                    }}
-                  />
-                </View>
-              </View>
-              <View
-                style={{
-                  backgroundColor: "#6B73FF",
-                  paddingHorizontal: 8,
-                  paddingVertical: 2,
-                  borderRadius: 12,
-                  marginBottom: 8,
-                }}
-              >
-                <Text
-                  style={{ color: "#FFFFFF", fontSize: 10, fontWeight: "bold" }}
-                >
-                  MỚI
-                </Text>
+                <Ionicons
+                  name="wallet"
+                  size={32}
+                  color="#FF385C"
+                />
               </View>
               <Text
                 style={{
@@ -769,62 +706,9 @@ const ProfileUserScreen = () => {
                   textAlign: "center",
                 }}
               >
-                Kết nối
+                Ví của bạn
               </Text>
             </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Host Invitation Card */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 30 }}>
-          <View
-            style={{
-              backgroundColor: "#FFFFFF",
-              borderRadius: 12,
-              padding: 20,
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.1,
-              shadowRadius: 4,
-              elevation: 3,
-            }}
-          >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: "#FF385C",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginRight: 16,
-                }}
-              >
-                <Ionicons name="home" size={20} color="#FFFFFF" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={{
-                    fontSize: 18,
-                    fontWeight: "600",
-                    color: "#000000",
-                    marginBottom: 4,
-                  }}
-                >
-                  Trở thành host
-                </Text>
-                <Text
-                  style={{
-                    fontSize: 14,
-                    color: "#666666",
-                    lineHeight: 20,
-                  }}
-                >
-                  Bắt đầu đón tiếp khách và kiếm thêm thu nhập thật dễ dàng.
-                </Text>
-              </View>
-            </View>
           </View>
         </View>
 
@@ -843,25 +727,6 @@ const ProfileUserScreen = () => {
           }}
         >
           {menuItems.map((item, index) => renderMenuItem(item, index))}
-        </View>
-
-        {/* Version Info */}
-        <View
-          style={{
-            alignItems: "center",
-            paddingVertical: 30,
-            paddingHorizontal: 20,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 12,
-              color: "#999999",
-              textAlign: "center",
-            }}
-          >
-            Phiên bản 1.0.0 (Build 100)
-          </Text>
         </View>
       </ScrollView>
 

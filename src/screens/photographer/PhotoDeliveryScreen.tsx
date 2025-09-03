@@ -460,7 +460,7 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
             color: '#000000',
             marginBottom: 16,
           }}>
-            Phương thức giao hàng
+            Phương thức giao ảnh
           </Text>
           
           {renderDeliveryMethodOption(
@@ -487,7 +487,7 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
               color: '#000000',
               marginBottom: 16,
             }}>
-              Thông tin Google Drive
+              Thông tin Hình Ảnh
             </Text>
 
             {/* Drive Link */}
@@ -498,7 +498,7 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
                 color: '#374151',
                 marginBottom: 8,
               }}>
-                Link Google Drive *
+                Link Hình Ảnh
               </Text>
               <TextInput
                 style={{
@@ -526,7 +526,7 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
             </View>
 
             {/* Folder Name */}
-            <View style={{ marginBottom: 16 }}>
+            {/* <View style={{ marginBottom: 16 }}>
               <Text style={{
                 fontSize: 16,
                 fontWeight: '600',
@@ -552,10 +552,10 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
                 onChangeText={setDriveFolderName}
                 autoCorrect={false}
               />
-            </View>
+            </View> */}
 
             {/* Photo Count */}
-            <View style={{ marginBottom: 16 }}>
+            {/* <View style={{ marginBottom: 16 }}>
               <Text style={{
                 fontSize: 16,
                 fontWeight: '600',
@@ -589,7 +589,7 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
               }}>
                 Tối đa 1000 ảnh
               </Text>
-            </View>
+            </View> */}
           </View>
         )}
 

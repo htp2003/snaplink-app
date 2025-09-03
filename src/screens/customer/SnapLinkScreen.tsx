@@ -481,9 +481,6 @@ export default function SnapLinkAIEditor(): JSX.Element {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
         <Text style={styles.headerTitle}>AI Image Editor</Text>
         {(selectedImage || editedImage) && (
           <TouchableOpacity style={styles.clearButton} onPress={clearAll}>
@@ -535,18 +532,6 @@ export default function SnapLinkAIEditor(): JSX.Element {
               <Text style={styles.resizeStatusText}>Đang tối ưu ảnh...</Text>
             </View>
           )}
-
-          {originalImageSize && resizedImageSize && (
-            <View style={styles.imageSizeInfo}>
-              <Text style={styles.imageSizeTitle}>Thông tin ảnh:</Text>
-              <Text style={styles.imageSizeText}>
-                Kích thước hiện tại: {resizedImageSize.width} × {resizedImageSize.height}px
-              </Text>
-              <Text style={styles.imageSizeText}>
-                Chất lượng: {Math.round(RESIZE_CONFIG.quality * 100)}%
-              </Text>
-            </View>
-          )}
         </View>
 
         {/* Prompt Input */}
@@ -586,7 +571,7 @@ export default function SnapLinkAIEditor(): JSX.Element {
         {isLoading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.loadingText}>AI đang xử lý ảnh... (~10 giây)</Text>
+            <Text style={styles.loadingText}>AI đang xử lý ảnh...</Text>
             <Text style={styles.loadingSubText}>Vui lòng chờ trong giây lát</Text>
           </View>
         )}

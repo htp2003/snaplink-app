@@ -100,27 +100,6 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
         Alert.alert('Lỗi', 'Link Google Drive không hợp lệ. Vui lòng nhập link bắt đầu bằng http:// hoặc https://');
         return false;
       }
-
-      if (!driveFolderName.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập tên thư mục');
-        return false;
-      }
-
-      if (!photoCount.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập số lượng ảnh');
-        return false;
-      }
-
-      const count = parseInt(photoCount);
-      if (isNaN(count) || count <= 0) {
-        Alert.alert('Lỗi', 'Số lượng ảnh phải là số dương');
-        return false;
-      }
-
-      if (count > 1000) {
-        Alert.alert('Lỗi', 'Số lượng ảnh không được vượt quá 1000');
-        return false;
-      }
     }
     return true;
   };
@@ -465,15 +444,15 @@ export default function PhotoDeliveryScreen({ navigation, route }: Props) {
           
           {renderDeliveryMethodOption(
             'CustomerDevice',
-            'Giao trực tiếp cho khách',
+            'Chụp ảnh bằng điện thoại của khách',
             'Giao ảnh trực tiếp tại hiện trường, khách hàng tự lưu trữ',
             'person-outline'
           )}
           
           {renderDeliveryMethodOption(
             'PhotographerDevice',
-            'Gửi qua Google Drive',
-            'Upload ảnh lên Google Drive và chia sẻ link với khách hàng',
+            'Chụp ảnh bằng điện thoại của thợ chụp ảnh di động',
+            'Upload ảnh lên và chia sẻ link với khách hàng',
             'cloud-upload-outline'
           )}
         </View>

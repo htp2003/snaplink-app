@@ -30,7 +30,7 @@ export default function CustomerHomeScreen() {
     (): CategoryItem[] => [
       { id: "locations", icon: "location", label: "Địa điểm" },
       { id: "photographers", icon: "camera", label: "Thợ chụp ảnh" },
-      { id: "events", icon: "time-outline", label: "Sự kiện" },
+      { id: "events", icon: "calendar", label: "Sự kiện" },
     ],
     []
   );

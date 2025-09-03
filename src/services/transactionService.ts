@@ -365,6 +365,18 @@ private getTransactionDirection(transaction: Transaction): 'income' | 'withdrawa
         }
         return 'Hoàn tiền';
 
+      case 'deposit':
+        // For wallet top-up transactions
+        if (note?.toLowerCase().includes('top up')) {
+          return 'Nạp tiền vào ví';
+        }
+        const depositBookingMatch = note?.match(/booking (\d+)/i);
+        if (depositBookingMatch) {
+          const bookingId = depositBookingMatch[1];
+          return `Đặt cọc đơn hàng #${bookingId}`;
+        }
+        return 'Nạp tiền vào ví';
+
       case 'topup':
         return 'Nạp tiền vào ví';
 
@@ -399,13 +411,6 @@ private getTransactionDirection(transaction: Transaction): 'income' | 'withdrawa
         }
         return 'Thu nhập từ dịch vụ';
 
-      case 'deposit':
-        const depositBookingMatch = note?.match(/booking (\d+)/i);
-        if (depositBookingMatch) {
-          const bookingId = depositBookingMatch[1];
-          return `Đặt cọc đơn hàng #${bookingId}`;
-        }
-        return 'Đặt cọc';
       default:
         return note || 'Giao dịch';
     }

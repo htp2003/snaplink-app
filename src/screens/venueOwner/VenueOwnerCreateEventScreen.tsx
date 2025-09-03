@@ -438,8 +438,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
       const finalDiscountedPrice = formData.discountedPrice
         ? parseFloat(formData.discountedPrice)
         : formData.originalPrice
-        ? parseFloat(formData.originalPrice)
-        : undefined;
+          ? parseFloat(formData.originalPrice)
+          : undefined;
 
       const eventData: CreateEventRequest = {
         locationId: formData.locationId!,
@@ -547,9 +547,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
           <TouchableOpacity
             onPress={handleCreateEvent}
             disabled={isLoading || hasErrors}
-            className={`px-4 py-2 rounded-lg ${
-              isLoading || hasErrors ? "bg-gray-300" : "bg-blue-500"
-            }`}
+            className={`px-4 py-2 rounded-lg ${isLoading || hasErrors ? "bg-gray-300" : "bg-blue-500"
+              }`}
           >
             {isLoading ? (
               <ActivityIndicator size="small" color="white" />
@@ -575,9 +574,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             <TouchableOpacity
               onPress={() => setShowLocationPicker(true)}
               disabled={isLoading}
-              className={`border rounded-lg p-3 flex-row items-center justify-between ${
-                formErrors.locationId ? "border-red-300" : "border-gray-300"
-              } ${isLoading ? "opacity-50" : ""}`}
+              className={`border rounded-lg p-3 flex-row items-center justify-between ${formErrors.locationId ? "border-red-300" : "border-gray-300"
+                } ${isLoading ? "opacity-50" : ""}`}
             >
               <View className="flex-row items-center flex-1">
                 {isLoading ? (
@@ -590,9 +588,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                   />
                 )}
                 <Text
-                  className={`ml-2 ${
-                    formData.locationId ? "text-gray-900" : "text-gray-500"
-                  }`}
+                  className={`ml-2 ${formData.locationId ? "text-gray-900" : "text-gray-500"
+                    }`}
                   numberOfLines={1}
                 >
                   {isLoading ? "Đang tải..." : getSelectedLocationName()}
@@ -662,9 +659,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               value={formData.name}
               onChangeText={handleNameChange}
               placeholder="Nhập tên sự kiện..."
-              className={`border rounded-lg p-3 text-gray-900 ${
-                formErrors.name ? "border-red-300" : "border-gray-300"
-              }`}
+              className={`border rounded-lg p-3 text-gray-900 ${formErrors.name ? "border-red-300" : "border-gray-300"
+                }`}
               maxLength={255}
             />
             {formErrors.name && (
@@ -689,9 +685,8 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
               multiline
               numberOfLines={4}
               textAlignVertical="top"
-              className={`border rounded-lg p-3 text-gray-900 ${
-                formErrors.description ? "border-red-300" : "border-gray-300"
-              }`}
+              className={`border rounded-lg p-3 text-gray-900 ${formErrors.description ? "border-red-300" : "border-gray-300"
+                }`}
               maxLength={1000}
             />
             {formErrors.description && (
@@ -705,106 +700,127 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
           </View>
         </View>
 
-        {/* Date & Time */}
+        {/* Date & Time - Improved Layout */}
         <View className="bg-white rounded-lg p-4 mb-4">
           <Text className="text-lg font-semibold text-gray-900 mb-4">
             Thời gian
           </Text>
 
-          {/* Start Date & Time */}
+          {/* Date Selection Row - Start and End Date side by side */}
           <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Ngày và giờ bắt đầu *
+            <Text className="text-sm font-medium text-gray-700 mb-3">
+              Chọn ngày *
             </Text>
 
-            {/* Date Selection */}
-            <TouchableOpacity
-              onPress={() => setStartDatePickerVisibility(true)}
-              className={`border rounded-lg p-3 flex-row items-center mb-2 ${
-                formErrors.startDate ? "border-red-300" : "border-gray-300"
-              }`}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900 flex-1">
-                {formatDisplayDateOnly(formData.startDate)}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
+            <View className="flex-row space-x-3">
+              {/* Start Date */}
+              <View className="flex-1">
+                <Text className="text-xs text-gray-500 mb-2">Ngày bắt đầu</Text>
+                <TouchableOpacity
+                  onPress={() => setStartDatePickerVisibility(true)}
+                  className={`border rounded-lg p-3 flex-row items-center justify-between ${formErrors.startDate ? "border-red-300" : "border-gray-300"
+                    }`}
+                >
+                  <View className="flex-row items-center flex-1">
+                    <Ionicons name="calendar-outline" size={18} color="#6B7280" />
+                    <Text className="ml-2 text-gray-900 text-sm" numberOfLines={1}>
+                      {formatDisplayDateOnly(formData.startDate)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
 
-            {/* Time Selection */}
-            <TouchableOpacity
-              onPress={() => setStartTimePickerVisibility(true)}
-              className={`border rounded-lg p-3 flex-row items-center ${
-                formErrors.startDate ? "border-red-300" : "border-gray-300"
-              }`}
-            >
-              <Ionicons name="time-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900 flex-1">
-                {formatDisplayTimeOnly(formData.startDate)}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
+              {/* Date Separator */}
+              <View className="justify-center items-center pt-6">
+                <View className="w-4 h-px bg-gray-300" />
+              </View>
 
-            {formErrors.startDate && (
-              <Text className="text-red-500 text-sm mt-1">
-                {formErrors.startDate}
-              </Text>
+              {/* End Date */}
+              <View className="flex-1">
+                <Text className="text-xs text-gray-500 mb-2">Ngày kết thúc</Text>
+                <TouchableOpacity
+                  onPress={() => setEndDatePickerVisibility(true)}
+                  className={`border rounded-lg p-3 flex-row items-center justify-between ${formErrors.endDate ? "border-red-300" : "border-gray-300"
+                    }`}
+                >
+                  <View className="flex-row items-center flex-1">
+                    <Ionicons name="calendar-outline" size={18} color="#6B7280" />
+                    <Text className="ml-2 text-gray-900 text-sm" numberOfLines={1}>
+                      {formatDisplayDateOnly(formData.endDate)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Date Errors */}
+            {(formErrors.startDate || formErrors.endDate) && (
+              <View className="mt-2">
+                {formErrors.startDate && (
+                  <Text className="text-red-500 text-xs">
+                    {formErrors.startDate}
+                  </Text>
+                )}
+                {formErrors.endDate && (
+                  <Text className="text-red-500 text-xs">
+                    {formErrors.endDate}
+                  </Text>
+                )}
+              </View>
             )}
           </View>
 
-          {/* End Date & Time */}
+          {/* Time Selection Row - Start and End Time side by side */}
           <View className="mb-4">
-            <Text className="text-sm font-medium text-gray-700 mb-2">
-              Ngày và giờ kết thúc *
+            <Text className="text-sm font-medium text-gray-700 mb-3">
+              Chọn giờ *
             </Text>
 
-            {/* Date Selection */}
-            <TouchableOpacity
-              onPress={() => setEndDatePickerVisibility(true)}
-              className={`border rounded-lg p-3 flex-row items-center mb-2 ${
-                formErrors.endDate ? "border-red-300" : "border-gray-300"
-              }`}
-            >
-              <Ionicons name="calendar-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900 flex-1">
-                {formatDisplayDateOnly(formData.endDate)}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
+            <View className="flex-row space-x-3">
+              {/* Start Time */}
+              <View className="flex-1">
+                <Text className="text-xs text-gray-500 mb-2">Giờ bắt đầu</Text>
+                <TouchableOpacity
+                  onPress={() => setStartTimePickerVisibility(true)}
+                  className="border border-gray-300 rounded-lg p-3 flex-row items-center justify-between"
+                >
+                  <View className="flex-row items-center flex-1">
+                    <Ionicons name="time-outline" size={18} color="#6B7280" />
+                    <Text className="ml-2 text-gray-900 text-sm">
+                      {formatDisplayTimeOnly(formData.startDate)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
 
-            {/* Time Selection */}
-            <TouchableOpacity
-              onPress={() => setEndTimePickerVisibility(true)}
-              className={`border rounded-lg p-3 flex-row items-center ${
-                formErrors.endDate ? "border-red-300" : "border-gray-300"
-              }`}
-            >
-              <Ionicons name="time-outline" size={20} color="#6B7280" />
-              <Text className="ml-2 text-gray-900 flex-1">
-                {formatDisplayTimeOnly(formData.endDate)}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color="#6B7280" />
-            </TouchableOpacity>
+              {/* Time Separator */}
+              <View className="justify-center items-center pt-6">
+                <View className="w-4 h-px bg-gray-300" />
+              </View>
 
-            {formErrors.endDate && (
-              <Text className="text-red-500 text-sm mt-1">
-                {formErrors.endDate}
-              </Text>
-            )}
+              {/* End Time */}
+              <View className="flex-1">
+                <Text className="text-xs text-gray-500 mb-2">Giờ kết thúc</Text>
+                <TouchableOpacity
+                  onPress={() => setEndTimePickerVisibility(true)}
+                  className="border border-gray-300 rounded-lg p-3 flex-row items-center justify-between"
+                >
+                  <View className="flex-row items-center flex-1">
+                    <Ionicons name="time-outline" size={18} color="#6B7280" />
+                    <Text className="ml-2 text-gray-900 text-sm">
+                      {formatDisplayTimeOnly(formData.endDate)}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-down" size={16} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
 
-          {/* Summary */}
-          <View className="bg-gray-50 p-3 rounded-lg">
-            <Text className="text-sm text-gray-600 mb-1">
-              📅 Tóm tắt thời gian:
-            </Text>
-            <Text className="text-sm font-medium text-gray-800">
-              Từ {formatDisplayDateTime(formData.startDate)}
-            </Text>
-            <Text className="text-sm font-medium text-gray-800">
-              Đến {formatDisplayDateTime(formData.endDate)}
-            </Text>
-          </View>
+
         </View>
 
         {/* Improved Pricing Section */}
@@ -851,18 +867,18 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                 <Text className="text-gray-900 font-medium">
                   {formData.originalPrice
                     ? `${parseFloat(formData.originalPrice).toLocaleString(
-                        "vi-VN"
-                      )} VND`
+                      "vi-VN"
+                    )} VND`
                     : formData.locationId
-                    ? (() => {
+                      ? (() => {
                         const selectedLocation = getSelectedLocationInfo();
                         return selectedLocation?.hourlyRate
                           ? `${selectedLocation.hourlyRate.toLocaleString(
-                              "vi-VN"
-                            )} VND`
+                            "vi-VN"
+                          )} VND`
                           : "Chưa có giá";
                       })()
-                    : "Chưa chọn địa điểm"}
+                      : "Chưa chọn địa điểm"}
                 </Text>
                 <Ionicons name="lock-closed" size={16} color="#6B7280" />
               </View>
@@ -883,11 +899,10 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                   formData.originalPrice || "Để trống nếu không có KM"
                 }
                 keyboardType="numeric"
-                className={`border rounded-lg p-3 text-gray-900 ${
-                  formErrors.discountedPrice
-                    ? "border-red-300"
-                    : "border-gray-300"
-                }`}
+                className={`border rounded-lg p-3 text-gray-900 ${formErrors.discountedPrice
+                  ? "border-red-300"
+                  : "border-gray-300"
+                  }`}
               />
               {formErrors.discountedPrice && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -944,7 +959,7 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                           ((parseFloat(formData.originalPrice) -
                             parseFloat(formData.discountedPrice)) /
                             parseFloat(formData.originalPrice)) *
-                            100
+                          100
                         )}
                         %)
                       </Text>
@@ -990,11 +1005,10 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                 onChangeText={handleIntegerChange("maxPhotographers")}
                 placeholder="5"
                 keyboardType="numeric"
-                className={`border rounded-lg p-3 text-gray-900 ${
-                  formErrors.maxPhotographers
-                    ? "border-red-300"
-                    : "border-gray-300"
-                }`}
+                className={`border rounded-lg p-3 text-gray-900 ${formErrors.maxPhotographers
+                  ? "border-red-300"
+                  : "border-gray-300"
+                  }`}
               />
               {formErrors.maxPhotographers && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1016,11 +1030,10 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                 onChangeText={handleIntegerChange("maxBookingsPerSlot")}
                 placeholder="3"
                 keyboardType="numeric"
-                className={`border rounded-lg p-3 text-gray-900 ${
-                  formErrors.maxBookingsPerSlot
-                    ? "border-red-300"
-                    : "border-gray-300"
-                }`}
+                className={`border rounded-lg p-3 text-gray-900 ${formErrors.maxBookingsPerSlot
+                  ? "border-red-300"
+                  : "border-gray-300"
+                  }`}
               />
               {formErrors.maxBookingsPerSlot && (
                 <Text className="text-red-500 text-xs mt-1">
@@ -1043,14 +1056,12 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
             <TouchableOpacity
               onPress={showImageOptions}
               disabled={images.length >= 10}
-              className={`px-3 py-2 rounded-lg ${
-                images.length >= 10 ? "bg-gray-300" : "bg-blue-500"
-              }`}
+              className={`px-3 py-2 rounded-lg ${images.length >= 10 ? "bg-gray-300" : "bg-blue-500"
+                }`}
             >
               <Text
-                className={`text-sm font-medium ${
-                  images.length >= 10 ? "text-gray-500" : "text-white"
-                }`}
+                className={`text-sm font-medium ${images.length >= 10 ? "text-gray-500" : "text-white"
+                  }`}
               >
                 Thêm ảnh
               </Text>
@@ -1159,13 +1170,12 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                   return (
                     <TouchableOpacity
                       key={location.locationId}
-                      className={`p-4 rounded-lg mb-2 ${
-                        isSelected
-                          ? "bg-blue-50 border border-blue-200"
-                          : canCreateEvent
+                      className={`p-4 rounded-lg mb-2 ${isSelected
+                        ? "bg-blue-50 border border-blue-200"
+                        : canCreateEvent
                           ? "bg-gray-50 border border-gray-200"
                           : "bg-red-50 border border-red-200"
-                      } ${!canCreateEvent ? "opacity-70" : ""}`}
+                        } ${!canCreateEvent ? "opacity-70" : ""}`}
                       onPress={() => handleLocationSelect(location)}
                     >
                       <View className="flex-row items-center justify-between">
@@ -1177,20 +1187,19 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                               isSelected
                                 ? "#3B82F6"
                                 : canCreateEvent
-                                ? "#6B7280"
-                                : "#EF4444"
+                                  ? "#6B7280"
+                                  : "#EF4444"
                             }
                           />
                           <View className="ml-3 flex-1">
                             <View className="flex-row items-center">
                               <Text
-                                className={`font-medium ${
-                                  isSelected
-                                    ? "text-blue-600"
-                                    : canCreateEvent
+                                className={`font-medium ${isSelected
+                                  ? "text-blue-600"
+                                  : canCreateEvent
                                     ? "text-gray-700"
                                     : "text-red-600"
-                                }`}
+                                  }`}
                                 numberOfLines={1}
                               >
                                 {location.name}
@@ -1272,30 +1281,30 @@ const VenueOwnerCreateEventScreen = ({ navigation, route }: any) => {
                 {/* Add subscription call-to-action */}
                 {userLocations.filter((loc) => loc.canCreateEvent).length ===
                   0 && (
-                  <View className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <View className="flex-row items-center mb-2">
-                      <Ionicons name="warning" size={20} color="#F59E0B" />
-                      <Text className="ml-2 text-yellow-800 font-medium">
-                        Cần đăng ký gói subscription
+                    <View className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <View className="flex-row items-center mb-2">
+                        <Ionicons name="warning" size={20} color="#F59E0B" />
+                        <Text className="ml-2 text-yellow-800 font-medium">
+                          Cần đăng ký gói subscription
+                        </Text>
+                      </View>
+                      <Text className="text-yellow-700 text-sm mb-3">
+                        Không có địa điểm nào có gói active để tạo sự kiện. Vui
+                        lòng đăng ký gói subscription trước.
                       </Text>
+                      <TouchableOpacity
+                        className="bg-yellow-500 px-4 py-2 rounded-lg"
+                        onPress={() => {
+                          setShowLocationPicker(false);
+                          navigation.navigate("VenueOwnerSubscription");
+                        }}
+                      >
+                        <Text className="text-white font-semibold text-center">
+                          Đăng ký gói ngay
+                        </Text>
+                      </TouchableOpacity>
                     </View>
-                    <Text className="text-yellow-700 text-sm mb-3">
-                      Không có địa điểm nào có gói active để tạo sự kiện. Vui
-                      lòng đăng ký gói subscription trước.
-                    </Text>
-                    <TouchableOpacity
-                      className="bg-yellow-500 px-4 py-2 rounded-lg"
-                      onPress={() => {
-                        setShowLocationPicker(false);
-                        navigation.navigate("VenueOwnerSubscription");
-                      }}
-                    >
-                      <Text className="text-white font-semibold text-center">
-                        Đăng ký gói ngay
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
+                  )}
               </ScrollView>
             ) : (
               <View className="items-center py-8">

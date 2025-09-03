@@ -11,6 +11,8 @@ import {
   Modal,
   Pressable,
   Alert,
+  Image,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,6 +22,8 @@ import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
 import { VenueOwnerEvent, EventStatus } from "../../types/VenueOwnerEvent";
 import { VenueLocation } from "../../types/venueLocation";
 import { venueOwnerProfileService } from "../../services/venueOwnerProfileService";
+
+const { width: screenWidth } = Dimensions.get('window');
 
 interface LocationFilter {
   locationId: number | null;
@@ -104,7 +108,7 @@ export default function VenueOwnerEventsScreen() {
 
       const userIdStr =
         payloadObj[
-          "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
         ];
       const userId = parseInt(userIdStr, 10);
 
@@ -118,7 +122,7 @@ export default function VenueOwnerEventsScreen() {
 
   const loadEventData = async () => {
     try {
-      console.log("🗏️ Loading event data for venue owner...");
+      console.log("🏗️ Loading event data for venue owner...");
 
       const currentUserId = await getCurrentUserId();
       if (!currentUserId) {
@@ -399,6 +403,17 @@ export default function VenueOwnerEventsScreen() {
     setShowStatusModal(false);
   };
 
+  // Get event cover image or fallback
+  const getEventCoverImage = (event: VenueOwnerEvent): string => {
+    // If event has primaryImage, use it
+    if (event.primaryImage?.url) {
+      return event.primaryImage.url;
+    }
+
+    // Fallback to a default event image or location image
+    return "https://images.unsplash.com/photo-1511578314322-379afb476865?w=400&h=250&fit=crop&q=80";
+  };
+
   const filteredEvents = getFilteredEvents();
   const locationEventCounts = getLocationEventCounts();
 
@@ -447,6 +462,8 @@ export default function VenueOwnerEventsScreen() {
     <SafeAreaView className="flex-1 bg-gray-50">
       <ScrollView
         className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 32 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -456,7 +473,7 @@ export default function VenueOwnerEventsScreen() {
         }
       >
         {/* Header */}
-        <View className="bg-white px-4 py-6">
+        <View className="bg-white px-4 py-6 border-b border-gray-100">
           <View className="flex-row justify-between items-center">
             <View>
               <Text className="text-2xl font-bold text-gray-900">Sự kiện</Text>
@@ -465,7 +482,7 @@ export default function VenueOwnerEventsScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              className="bg-blue-500 p-3 rounded-full"
+              className="bg-blue-500 p-3 rounded-full shadow-sm"
               onPress={handleCreateEvent}
             >
               <Ionicons name="add" size={24} color="white" />
@@ -475,24 +492,30 @@ export default function VenueOwnerEventsScreen() {
           {/* Dashboard Summary */}
           {dashboardData && (
             <View className="mt-6">
-              <View className="flex-row space-x-4">
-                <View className="flex-1 bg-blue-50 p-4 rounded-lg">
-                  <Text className="text-blue-800 font-semibold text-lg">
+              <View className="flex-row space-x-3">
+                <View className="flex-1 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <Text className="text-blue-800 font-bold text-xl">
                     {dashboardData.summary.totalEvents}
                   </Text>
-                  <Text className="text-blue-600 text-sm">Tổng sự kiện</Text>
+                  <Text className="text-blue-600 text-sm font-medium mt-1">
+                    Tổng sự kiện
+                  </Text>
                 </View>
-                <View className="flex-1 bg-green-50 p-4 rounded-lg">
-                  <Text className="text-green-800 font-semibold text-lg">
+                <View className="flex-1 bg-green-50 p-4 rounded-xl border border-green-100">
+                  <Text className="text-green-800 font-bold text-xl">
                     {dashboardData.summary.activeEvents}
                   </Text>
-                  <Text className="text-green-600 text-sm">Đang hoạt động</Text>
+                  <Text className="text-green-600 text-sm font-medium mt-1">
+                    Đang hoạt động
+                  </Text>
                 </View>
-                <View className="flex-1 bg-orange-50 p-4 rounded-lg">
-                  <Text className="text-orange-800 font-semibold text-lg">
+                <View className="flex-1 bg-orange-50 p-4 rounded-xl border border-orange-100">
+                  <Text className="text-orange-800 font-bold text-base" numberOfLines={1}>
                     {formatCurrency(dashboardData.summary.totalRevenue)}
                   </Text>
-                  <Text className="text-orange-600 text-sm">Doanh thu</Text>
+                  <Text className="text-orange-600 text-sm font-medium mt-1">
+                    Doanh thu
+                  </Text>
                 </View>
               </View>
             </View>
@@ -501,16 +524,16 @@ export default function VenueOwnerEventsScreen() {
 
         {/* Locations Overview */}
         {userLocations.length > 1 && (
-          <View className="px-4 mt-4">
+          <View className="px-4 mt-6">
             <Text className="text-lg font-semibold text-gray-900 mb-3">
               Tổng quan địa điểm
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View className="flex-row space-x-3">
+              <View className="flex-row space-x-4">
                 {locationEventCounts.map((location) => (
                   <TouchableOpacity
                     key={location.locationId}
-                    className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 min-w-40"
+                    className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 min-w-[160px]"
                     onPress={() =>
                       handleLocationFilter({
                         locationId: location.locationId,
@@ -519,20 +542,20 @@ export default function VenueOwnerEventsScreen() {
                     }
                   >
                     <Text
-                      className="font-medium text-gray-900 text-sm"
+                      className="font-semibold text-gray-900 text-sm"
                       numberOfLines={2}
                     >
                       {location.name}
                     </Text>
-                    <View className="flex-row justify-between items-center mt-2">
+                    <View className="flex-row justify-between items-center mt-3">
                       <View>
-                        <Text className="text-blue-600 font-semibold">
+                        <Text className="text-blue-600 font-bold text-lg">
                           {location.eventCount}
                         </Text>
                         <Text className="text-xs text-gray-500">Sự kiện</Text>
                       </View>
                       <View>
-                        <Text className="text-green-600 font-semibold">
+                        <Text className="text-green-600 font-bold text-lg">
                           {location.activeEventCount}
                         </Text>
                         <Text className="text-xs text-gray-500">Hoạt động</Text>
@@ -550,7 +573,7 @@ export default function VenueOwnerEventsScreen() {
           <View className="flex-row space-x-3">
             {/* Location Filter */}
             <TouchableOpacity
-              className="flex-1 bg-white px-4 py-3 rounded-lg border border-gray-200 flex-row items-center justify-between"
+              className="flex-1 bg-white px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between shadow-sm"
               onPress={() => setShowLocationModal(true)}
             >
               <View className="flex-row items-center flex-1">
@@ -564,7 +587,7 @@ export default function VenueOwnerEventsScreen() {
 
             {/* Status Filter */}
             <TouchableOpacity
-              className="flex-1 bg-white px-4 py-3 rounded-lg border border-gray-200 flex-row items-center justify-between"
+              className="flex-1 bg-white px-4 py-3 rounded-xl border border-gray-200 flex-row items-center justify-between shadow-sm"
               onPress={() => setShowStatusModal(true)}
             >
               <View className="flex-row items-center flex-1">
@@ -578,54 +601,54 @@ export default function VenueOwnerEventsScreen() {
           </View>
 
           {/* Active Filters Display & Past Events Toggle */}
-          <View className="mt-3">
+          <View className="mt-4">
             {/* Active Filters */}
             {(selectedLocationFilter.locationId ||
               selectedStatusFilter.status) && (
-              <View className="flex-row items-center mb-3">
-                <Text className="text-sm text-gray-500 mr-2">
-                  Bộ lọc hiện tại:
-                </Text>
-                <View className="flex-row space-x-2">
-                  {selectedLocationFilter.locationId && (
-                    <TouchableOpacity
-                      className="bg-blue-100 px-3 py-1 rounded-full flex-row items-center"
-                      onPress={() =>
-                        handleLocationFilter({
-                          locationId: null,
-                          locationName: "Tất cả địa điểm",
-                        })
-                      }
-                    >
-                      <Text className="text-blue-800 text-xs mr-1">
-                        {selectedLocationFilter.locationName}
-                      </Text>
-                      <Ionicons name="close" size={12} color="#1E40AF" />
-                    </TouchableOpacity>
-                  )}
-                  {selectedStatusFilter.status && (
-                    <TouchableOpacity
-                      className="bg-purple-100 px-3 py-1 rounded-full flex-row items-center"
-                      onPress={() =>
-                        handleStatusFilter({
-                          status: null,
-                          statusName: "Tất cả trạng thái",
-                        })
-                      }
-                    >
-                      <Text className="text-purple-800 text-xs mr-1">
-                        {selectedStatusFilter.statusName}
-                      </Text>
-                      <Ionicons name="close" size={12} color="#7C3AED" />
-                    </TouchableOpacity>
-                  )}
+                <View className="flex-row items-center mb-3">
+                  <Text className="text-sm text-gray-500 mr-2">
+                    Bộ lọc hiện tại:
+                  </Text>
+                  <View className="flex-row space-x-2">
+                    {selectedLocationFilter.locationId && (
+                      <TouchableOpacity
+                        className="bg-blue-100 px-3 py-1 rounded-full flex-row items-center"
+                        onPress={() =>
+                          handleLocationFilter({
+                            locationId: null,
+                            locationName: "Tất cả địa điểm",
+                          })
+                        }
+                      >
+                        <Text className="text-blue-800 text-xs mr-1">
+                          {selectedLocationFilter.locationName}
+                        </Text>
+                        <Ionicons name="close" size={12} color="#1E40AF" />
+                      </TouchableOpacity>
+                    )}
+                    {selectedStatusFilter.status && (
+                      <TouchableOpacity
+                        className="bg-purple-100 px-3 py-1 rounded-full flex-row items-center"
+                        onPress={() =>
+                          handleStatusFilter({
+                            status: null,
+                            statusName: "Tất cả trạng thái",
+                          })
+                        }
+                      >
+                        <Text className="text-purple-800 text-xs mr-1">
+                          {selectedStatusFilter.statusName}
+                        </Text>
+                        <Ionicons name="close" size={12} color="#7C3AED" />
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-              </View>
-            )}
+              )}
 
             {/* Past Events Toggle */}
             {pastEventsCount > 0 && (
-              <View className="flex-row justify-between items-center bg-white px-4 py-3 rounded-lg border border-gray-200">
+              <View className="flex-row justify-between items-center bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm">
                 <View>
                   <Text className="text-sm text-gray-700 font-medium">
                     Hiển thị sự kiện cũ
@@ -635,18 +658,13 @@ export default function VenueOwnerEventsScreen() {
                   </Text>
                 </View>
                 <TouchableOpacity
-                  className={`w-12 h-6 rounded-full p-1 ${
-                    showPastEvents ? "bg-blue-500" : "bg-gray-300"
-                  }`}
+                  className={`w-12 h-6 rounded-full p-1 ${showPastEvents ? "bg-blue-500" : "bg-gray-300"
+                    }`}
                   onPress={() => setShowPastEvents(!showPastEvents)}
                 >
                   <View
-                    className={`w-4 h-4 rounded-full bg-white ${
-                      showPastEvents ? "ml-6" : "ml-0"
-                    }`}
-                    style={{
-                      transform: [{ translateX: showPastEvents ? 0 : 0 }],
-                    }}
+                    className={`w-4 h-4 rounded-full bg-white transform transition-transform ${showPastEvents ? "translate-x-6" : "translate-x-0"
+                      }`}
                   />
                 </TouchableOpacity>
               </View>
@@ -655,7 +673,7 @@ export default function VenueOwnerEventsScreen() {
         </View>
 
         {/* Events List */}
-        <View className="px-4 mt-4">
+        <View className="px-4 mt-6">
           <View className="flex-row justify-between items-center mb-4">
             <Text className="text-lg font-semibold text-gray-900">
               Sự kiện ({filteredEvents.length})
@@ -663,125 +681,120 @@ export default function VenueOwnerEventsScreen() {
           </View>
 
           {filteredEvents.length > 0 ? (
-            <View className="space-y-4 mb-6">
+            <View className="space-y-4">
               {filteredEvents.map((event) => {
                 const statusStyle = getEventStatusColor(event.status);
                 const isPastEvent = isEventInPast(event);
+                const coverImage = getEventCoverImage(event);
 
                 return (
                   <TouchableOpacity
                     key={event.eventId}
-                    className={`bg-white rounded-lg shadow-sm border border-gray-100 p-4 ${
-                      isPastEvent ? "opacity-75" : ""
-                    }`}
+                    className={`bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden ${isPastEvent ? "opacity-75" : ""
+                      }`}
                     onPress={() => handleEventPress(event)}
+                    style={{ marginBottom: 16 }}
                   >
-                    <View className="flex-row justify-between items-start mb-3">
-                      <View className="flex-1 mr-2">
-                        <View className="flex-row items-center">
-                          <Text className="text-lg font-semibold text-gray-900 flex-1">
-                            {event.name}
-                          </Text>
-                          {isPastEvent && (
-                            <View className="bg-gray-100 px-2 py-1 rounded-full ml-2">
-                              <Text className="text-xs text-gray-600 font-medium">
-                                Đã kết thúc
-                              </Text>
-                            </View>
-                          )}
+                    {/* Event Cover Image */}
+                    <View className="relative">
+                      <Image
+                        source={{ uri: coverImage }}
+                        className="w-full h-48 bg-gray-200"
+                        resizeMode="cover"
+                      />
+
+                      {/* Status Badge */}
+                      <View className="absolute top-3 right-3">
+                        <View className={`px-3 py-1.5 rounded-full ${statusStyle.bg}`}>
+                          <View className="flex-row items-center">
+                            <View className={`w-2 h-2 rounded-full mr-2 ${statusStyle.dot}`} />
+                            <Text className={`text-xs font-medium ${statusStyle.text}`}>
+                              {getEventStatusText(event.status)}
+                            </Text>
+                          </View>
                         </View>
-                        {/* Location Name */}
-                        <View className="flex-row items-center mt-1">
-                          <Ionicons
-                            name="location-outline"
-                            size={14}
-                            color="#6B7280"
-                          />
-                          <Text className="ml-1 text-sm text-gray-500 font-medium">
+                      </View>
+
+                      {/* Past Event Indicator */}
+                      {isPastEvent && (
+                        <View className="absolute top-3 left-3">
+                          <View className="bg-gray-900/80 px-3 py-1.5 rounded-full">
+                            <Text className="text-xs text-white font-medium">
+                              Đã kết thúc
+                            </Text>
+                          </View>
+                        </View>
+                      )}
+
+                      {/* Gradient Overlay */}
+                      <View className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-black/60 to-transparent" />
+                    </View>
+
+                    {/* Event Content */}
+                    <View className="p-4">
+                      {/* Event Title & Location */}
+                      <View className="mb-3">
+                        <Text className="text-lg font-bold text-gray-900 mb-1" numberOfLines={2}>
+                          {event.name}
+                        </Text>
+                        <View className="flex-row items-center">
+                          <Ionicons name="location-outline" size={14} color="#6B7280" />
+                          <Text className="ml-1 text-sm text-gray-500 font-medium" numberOfLines={1}>
                             {getLocationName(event.locationId)}
                           </Text>
                         </View>
                       </View>
-                      <View
-                        className={`px-3 py-1 rounded-full ${statusStyle.bg}`}
-                      >
-                        <View className="flex-row items-center">
-                          <View
-                            className={`w-2 h-2 rounded-full mr-2 ${statusStyle.dot}`}
-                          />
-                          <Text
-                            className={`text-xs font-medium ${statusStyle.text}`}
-                          >
-                            {getEventStatusText(event.status)}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
 
-                    {event.description && (
-                      <Text className="text-gray-600 mb-3">
-                        {event.description}
-                      </Text>
-                    )}
-
-                    <View className="flex-row items-center justify-between mb-2">
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="calendar-outline"
-                          size={16}
-                          color="#6B7280"
-                        />
-                        <Text className="ml-2 text-sm text-gray-500">
-                          {formatDate(event.startDate)} -{" "}
-                          {formatDate(event.endDate)}
+                      {/* Description - Only show first line */}
+                      {event.description && (
+                        <Text className="text-gray-600 text-sm mb-3" numberOfLines={1}>
+                          {event.description}
                         </Text>
-                      </View>
-
-                      {event.discountedPrice && event.originalPrice && (
-                        <View className="flex-row items-center">
-                          <Text className="text-xs text-gray-400 line-through mr-2">
-                            {formatCurrency(event.originalPrice)}
-                          </Text>
-                          <Text className="text-sm font-medium text-red-600">
-                            {formatCurrency(event.discountedPrice)}
-                          </Text>
-                        </View>
                       )}
-                    </View>
 
-                    {/* Event Stats */}
-                    <View className="flex-row justify-between items-center pt-3 border-t border-gray-100">
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="people-outline"
-                          size={16}
-                          color="#6B7280"
-                        />
-                        <Text className="ml-1 text-sm text-gray-500">
-                          {event.approvedPhotographersCount || 0} nhiếp ảnh gia
-                        </Text>
+                      {/* Date & Price */}
+                      <View className="flex-row items-center justify-between mb-3">
+                        <View className="flex-row items-center">
+                          <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                          <Text className="ml-2 text-sm text-gray-500 font-medium">
+                            {formatDate(event.startDate)} - {formatDate(event.endDate)}
+                          </Text>
+                        </View>
+
+                        {event.discountedPrice && event.originalPrice && (
+                          <View className="flex-row items-center">
+                            <Text className="text-xs text-gray-400 line-through mr-2">
+                              {formatCurrency(event.originalPrice)}
+                            </Text>
+                            <Text className="text-sm font-bold text-red-600">
+                              {formatCurrency(event.discountedPrice)}
+                            </Text>
+                          </View>
+                        )}
                       </View>
 
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="calendar-outline"
-                          size={16}
-                          color="#6B7280"
-                        />
-                        <Text className="ml-1 text-sm text-gray-500">
-                          {event.totalBookingsCount || 0} booking
-                        </Text>
-                      </View>
+                      {/* Event Stats */}
+                      <View className="flex-row justify-between items-center pt-3 border-t border-gray-100">
+                        <View className="flex-row items-center">
+                          <Ionicons name="people-outline" size={16} color="#6B7280" />
+                          <Text className="ml-1 text-sm text-gray-500 font-medium">
+                            {event.approvedPhotographersCount || 0} nhiếp ảnh gia
+                          </Text>
+                        </View>
 
-                      <View className="flex-row items-center">
-                        <Ionicons
-                          name="eye-outline"
-                          size={16}
-                          color="#6B7280"
-                        />
-                        <Text className="ml-1 text-sm text-gray-500">
-                          {event.totalApplicationsCount || 0} đăng ký
-                        </Text>
+                        <View className="flex-row items-center">
+                          <Ionicons name="calendar-outline" size={16} color="#6B7280" />
+                          <Text className="ml-1 text-sm text-gray-500 font-medium">
+                            {event.totalBookingsCount || 0} booking
+                          </Text>
+                        </View>
+
+                        <View className="flex-row items-center">
+                          <Ionicons name="eye-outline" size={16} color="#6B7280" />
+                          <Text className="ml-1 text-sm text-gray-500 font-medium">
+                            {event.totalApplicationsCount || 0} đăng ký
+                          </Text>
+                        </View>
                       </View>
                     </View>
                   </TouchableOpacity>
@@ -789,31 +802,31 @@ export default function VenueOwnerEventsScreen() {
               })}
             </View>
           ) : (
-            <View className="bg-white p-8 rounded-lg shadow-sm border border-gray-100">
+            <View className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
               <View className="items-center">
-                <View className="bg-gray-100 p-4 rounded-full mb-4">
-                  <Ionicons name="calendar-outline" size={32} color="#6B7280" />
+                <View className="bg-gray-100 p-6 rounded-full mb-4">
+                  <Ionicons name="calendar-outline" size={40} color="#6B7280" />
                 </View>
-                <Text className="text-gray-900 font-medium mb-2">
+                <Text className="text-gray-900 font-semibold text-lg mb-2">
                   {selectedLocationFilter.locationId ||
-                  selectedStatusFilter.status
+                    selectedStatusFilter.status
                     ? "Không tìm thấy sự kiện phù hợp"
                     : "Chưa có sự kiện nào"}
                 </Text>
-                <Text className="text-gray-500 text-center mb-4">
+                <Text className="text-gray-500 text-center mb-6 leading-6">
                   {selectedLocationFilter.locationId ||
-                  selectedStatusFilter.status
+                    selectedStatusFilter.status
                     ? "Thử thay đổi bộ lọc để xem thêm sự kiện"
                     : "Tạo sự kiện để thu hút khách hàng đến địa điểm của bạn"}
                 </Text>
                 {!selectedLocationFilter.locationId &&
                   !selectedStatusFilter.status && (
                     <TouchableOpacity
-                      className="bg-blue-500 px-6 py-3 rounded-lg"
+                      className="bg-blue-500 px-6 py-3 rounded-xl shadow-sm"
                       onPress={handleCreateEvent}
                     >
                       <Text className="text-white font-semibold">
-                        Tạo sự kiện
+                        Tạo sự kiện đầu tiên
                       </Text>
                     </TouchableOpacity>
                   )}
@@ -833,56 +846,48 @@ export default function VenueOwnerEventsScreen() {
               </Text>
 
               <View className="space-y-3">
-                <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <View className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                   <View className="flex-row items-center">
                     <View className="bg-yellow-100 p-3 rounded-full mr-4">
-                      <Ionicons name="star-outline" size={20} color="#F59E0B" />
+                      <Ionicons name="star-outline" size={24} color="#F59E0B" />
                     </View>
                     <View className="flex-1">
-                      <Text className="text-gray-900 font-medium">
+                      <Text className="text-gray-900 font-semibold text-base">
                         Khuyến mãi cuối tuần
                       </Text>
-                      <Text className="text-gray-500 text-sm">
+                      <Text className="text-gray-500 text-sm mt-1">
                         Giảm giá đặc biệt cho các ngày cuối tuần
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <View className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                   <View className="flex-row items-center">
                     <View className="bg-pink-100 p-3 rounded-full mr-4">
-                      <Ionicons
-                        name="heart-outline"
-                        size={20}
-                        color="#EC4899"
-                      />
+                      <Ionicons name="heart-outline" size={24} color="#EC4899" />
                     </View>
                     <View className="flex-1">
-                      <Text className="text-gray-900 font-medium">
+                      <Text className="text-gray-900 font-semibold text-base">
                         Gói Valentine
                       </Text>
-                      <Text className="text-gray-500 text-sm">
+                      <Text className="text-gray-500 text-sm mt-1">
                         Ưu đãi đặc biệt cho các cặp đôi
                       </Text>
                     </View>
                   </View>
                 </View>
 
-                <View className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <View className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                   <View className="flex-row items-center">
                     <View className="bg-green-100 p-3 rounded-full mr-4">
-                      <Ionicons
-                        name="camera-outline"
-                        size={20}
-                        color="#10B981"
-                      />
+                      <Ionicons name="camera-outline" size={24} color="#10B981" />
                     </View>
                     <View className="flex-1">
-                      <Text className="text-gray-900 font-medium">
+                      <Text className="text-gray-900 font-semibold text-base">
                         Workshop chụp ảnh
                       </Text>
-                      <Text className="text-gray-500 text-sm">
+                      <Text className="text-gray-500 text-sm mt-1">
                         Tổ chức lớp học chụp ảnh tại địa điểm
                       </Text>
                     </View>
@@ -891,8 +896,6 @@ export default function VenueOwnerEventsScreen() {
               </View>
             </View>
           )}
-
-        <View className="h-6" />
       </ScrollView>
 
       {/* Location Filter Modal */}
@@ -918,11 +921,10 @@ export default function VenueOwnerEventsScreen() {
 
             <ScrollView showsVerticalScrollIndicator={false}>
               <TouchableOpacity
-                className={`p-4 rounded-lg mb-2 ${
-                  selectedLocationFilter.locationId === null
+                className={`p-4 rounded-xl mb-3 ${selectedLocationFilter.locationId === null
                     ? "bg-blue-50 border border-blue-200"
                     : "bg-gray-50"
-                }`}
+                  }`}
                 onPress={() =>
                   handleLocationFilter({
                     locationId: null,
@@ -942,11 +944,10 @@ export default function VenueOwnerEventsScreen() {
                       }
                     />
                     <Text
-                      className={`ml-3 font-medium ${
-                        selectedLocationFilter.locationId === null
+                      className={`ml-3 font-medium ${selectedLocationFilter.locationId === null
                           ? "text-blue-600"
                           : "text-gray-700"
-                      }`}
+                        }`}
                     >
                       Tất cả địa điểm
                     </Text>
@@ -970,11 +971,10 @@ export default function VenueOwnerEventsScreen() {
                 return (
                   <TouchableOpacity
                     key={location.locationId}
-                    className={`p-4 rounded-lg mb-2 ${
-                      isSelected
+                    className={`p-4 rounded-xl mb-3 ${isSelected
                         ? "bg-blue-50 border border-blue-200"
                         : "bg-gray-50"
-                    }`}
+                      }`}
                     onPress={() =>
                       handleLocationFilter({
                         locationId: location.locationId,
@@ -991,9 +991,8 @@ export default function VenueOwnerEventsScreen() {
                         />
                         <View className="ml-3 flex-1">
                           <Text
-                            className={`font-medium ${
-                              isSelected ? "text-blue-600" : "text-gray-700"
-                            }`}
+                            className={`font-medium ${isSelected ? "text-blue-600" : "text-gray-700"
+                              }`}
                             numberOfLines={1}
                           >
                             {location.name}
@@ -1013,11 +1012,7 @@ export default function VenueOwnerEventsScreen() {
                           </Text>
                         </View>
                         {isSelected && (
-                          <Ionicons
-                            name="checkmark"
-                            size={20}
-                            color="#3B82F6"
-                          />
+                          <Ionicons name="checkmark" size={20} color="#3B82F6" />
                         )}
                       </View>
                     </View>
@@ -1054,7 +1049,7 @@ export default function VenueOwnerEventsScreen() {
               {statusFilters.map((statusFilter) => {
                 const eventCount = statusFilter.status
                   ? events.filter((e) => e.status === statusFilter.status)
-                      .length
+                    .length
                   : events.length;
                 const isSelected =
                   selectedStatusFilter.status === statusFilter.status;
@@ -1062,11 +1057,10 @@ export default function VenueOwnerEventsScreen() {
                 return (
                   <TouchableOpacity
                     key={statusFilter.status || "all"}
-                    className={`p-4 rounded-lg mb-2 ${
-                      isSelected
+                    className={`p-4 rounded-xl mb-3 ${isSelected
                         ? "bg-blue-50 border border-blue-200"
                         : "bg-gray-50"
-                    }`}
+                      }`}
                     onPress={() => handleStatusFilter(statusFilter)}
                   >
                     <View className="flex-row items-center justify-between">
@@ -1081,9 +1075,8 @@ export default function VenueOwnerEventsScreen() {
                           color={isSelected ? "#3B82F6" : "#6B7280"}
                         />
                         <Text
-                          className={`ml-3 font-medium ${
-                            isSelected ? "text-blue-600" : "text-gray-700"
-                          }`}
+                          className={`ml-3 font-medium ${isSelected ? "text-blue-600" : "text-gray-700"
+                            }`}
                         >
                           {statusFilter.statusName}
                         </Text>
@@ -1095,11 +1088,7 @@ export default function VenueOwnerEventsScreen() {
                           </Text>
                         </View>
                         {isSelected && (
-                          <Ionicons
-                            name="checkmark"
-                            size={20}
-                            color="#3B82F6"
-                          />
+                          <Ionicons name="checkmark" size={20} color="#3B82F6" />
                         )}
                       </View>
                     </View>

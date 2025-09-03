@@ -29,7 +29,7 @@ export const formatDisplayDateOnly = (date: Date): string => {
 };
 
 export const formatDisplayTimeOnly = (date: Date): string => {
-  return date.toLocaleTimeString("vi-VN", {
+  return date.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,

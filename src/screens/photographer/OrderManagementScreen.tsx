@@ -115,7 +115,9 @@ export default function OrderManagementScreen({ navigation, route }: Props) {
     React.useCallback(() => {
       console.log("🔍 Screen focused, refreshing subscription status...");
       refreshSubscriptionStatus();
-    }, [refreshSubscriptionStatus])
+      refreshComplaints();
+      refreshBookings();
+    }, [refreshSubscriptionStatus, refreshComplaints, refreshBookings])
   );
 
   const formatDateTime = (date: string, time: string) => {

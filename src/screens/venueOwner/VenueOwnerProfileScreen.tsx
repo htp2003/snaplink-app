@@ -362,14 +362,14 @@ export default function VenueOwnerProfileScreen() {
                 Quản lý thông tin venue owner
               </Text>
             </View>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               onPress={() =>
                 Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
               }
               className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center"
             >
               <Ionicons name="settings-outline" size={20} color="#6B7280" />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
@@ -512,36 +512,6 @@ export default function VenueOwnerProfileScreen() {
             />
 
             <ActionCard
-              icon="location-outline"
-              title="Quản lý địa điểm"
-              subtitle="Thêm và chỉnh sửa venue"
-              onPress={() =>
-                Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
-              }
-              color="#3B82F6"
-            />
-
-            <ActionCard
-              icon="notifications-outline"
-              title="Cài đặt thông báo"
-              subtitle="Quản lý thông báo đặt chỗ"
-              onPress={() =>
-                Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
-              }
-              color="#F59E0B"
-            />
-
-            <ActionCard
-              icon="help-circle-outline"
-              title="Trợ giúp & Hỗ trợ"
-              subtitle="Liên hệ đội ngũ hỗ trợ"
-              onPress={() =>
-                Alert.alert("Thông báo", "Tính năng sẽ được cập nhật sớm")
-              }
-              color="#06B6D4"
-            />
-
-            <ActionCard
               icon="log-out-outline"
               title="Đăng xuất"
               subtitle="Thoát khỏi tài khoản"
@@ -569,9 +539,8 @@ export default function VenueOwnerProfileScreen() {
                 disabled={loading}
               >
                 <Text
-                  className={`font-medium ${
-                    loading ? "text-gray-400" : "text-blue-600"
-                  }`}
+                  className={`font-medium ${loading ? "text-gray-400" : "text-blue-600"
+                    }`}
                 >
                   {loading ? "Đang tạo..." : "Tạo"}
                 </Text>
@@ -670,9 +639,8 @@ export default function VenueOwnerProfileScreen() {
                 disabled={loading}
               >
                 <Text
-                  className={`font-medium ${
-                    loading ? "text-gray-400" : "text-blue-600"
-                  }`}
+                  className={`font-medium ${loading ? "text-gray-400" : "text-blue-600"
+                    }`}
                 >
                   {loading ? "Đang lưu..." : "Lưu"}
                 </Text>

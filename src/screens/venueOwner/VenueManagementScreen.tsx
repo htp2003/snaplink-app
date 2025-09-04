@@ -89,8 +89,8 @@ export default function VenueManagementScreen() {
   // Filter locations by actual locationOwnerId from profile
   const myLocations = locationOwnerId
     ? locations.filter(
-        (location) => location.locationOwnerId === locationOwnerId
-      )
+      (location) => location.locationOwnerId === locationOwnerId
+    )
     : [];
 
   // Get venue owner profile to extract locationOwnerId
@@ -620,29 +620,27 @@ export default function VenueManagementScreen() {
 
                           {/* Status Badge */}
                           <View
-                            className={`px-2 py-1 rounded-full ${
-                              location.availabilityStatus === "Available"
+                            className={`px-2 py-1 rounded-full ${location.availabilityStatus === "Available"
                                 ? "bg-green-100"
                                 : location.availabilityStatus === "Unavailable"
-                                ? "bg-red-100"
-                                : "bg-yellow-100"
-                            }`}
+                                  ? "bg-red-100"
+                                  : "bg-yellow-100"
+                              }`}
                           >
                             <Text
-                              className={`text-xs font-medium ${
-                                location.availabilityStatus === "Available"
+                              className={`text-xs font-medium ${location.availabilityStatus === "Available"
                                   ? "text-green-800"
                                   : location.availabilityStatus ===
                                     "Unavailable"
-                                  ? "text-red-800"
-                                  : "text-yellow-800"
-                              }`}
+                                    ? "text-red-800"
+                                    : "text-yellow-800"
+                                }`}
                             >
                               {location.availabilityStatus === "Available"
                                 ? "Sẵn sàng"
                                 : location.availabilityStatus === "Unavailable"
-                                ? "Không khả dụng"
-                                : "Chờ xử lý"}
+                                  ? "Không khả dụng"
+                                  : "Chờ xử lý"}
                             </Text>
                           </View>
                         </View>
@@ -706,7 +704,7 @@ export default function VenueManagementScreen() {
                                 color="#6B7280"
                               />
                             </TouchableOpacity>
-                            <TouchableOpacity
+                            {/* <TouchableOpacity
                               onPress={() => openEditModal(location)}
                               className="bg-blue-100 p-2 rounded-lg"
                             >
@@ -725,7 +723,7 @@ export default function VenueManagementScreen() {
                                 size={16}
                                 color="#EF4444"
                               />
-                            </TouchableOpacity>
+                            </TouchableOpacity> */}
                           </View>
                         </View>
                       </View>
@@ -944,17 +942,15 @@ export default function VenueManagementScreen() {
                     onPress={() =>
                       setFormData({ ...formData, indoor: !formData.indoor })
                     }
-                    className={`flex-1 p-6 rounded-2xl border-2 ${
-                      formData.indoor
+                    className={`flex-1 p-6 rounded-2xl border-2 ${formData.indoor
                         ? "border-blue-500 bg-blue-50"
                         : "border-gray-200 bg-white"
-                    }`}
+                      }`}
                   >
                     <View className="items-center">
                       <View
-                        className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${
-                          formData.indoor ? "bg-blue-500" : "bg-gray-200"
-                        }`}
+                        className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${formData.indoor ? "bg-blue-500" : "bg-gray-200"
+                          }`}
                       >
                         <Ionicons
                           name="home"
@@ -963,16 +959,14 @@ export default function VenueManagementScreen() {
                         />
                       </View>
                       <Text
-                        className={`font-semibold text-base ${
-                          formData.indoor ? "text-blue-600" : "text-gray-600"
-                        }`}
+                        className={`font-semibold text-base ${formData.indoor ? "text-blue-600" : "text-gray-600"
+                          }`}
                       >
                         Indoor
                       </Text>
                       <Text
-                        className={`text-sm text-center mt-1 ${
-                          formData.indoor ? "text-blue-500" : "text-gray-500"
-                        }`}
+                        className={`text-sm text-center mt-1 ${formData.indoor ? "text-blue-500" : "text-gray-500"
+                          }`}
                       >
                         Trong nhà
                       </Text>
@@ -983,17 +977,15 @@ export default function VenueManagementScreen() {
                     onPress={() =>
                       setFormData({ ...formData, outdoor: !formData.outdoor })
                     }
-                    className={`flex-1 p-6 rounded-2xl border-2 ${
-                      formData.outdoor
+                    className={`flex-1 p-6 rounded-2xl border-2 ${formData.outdoor
                         ? "border-amber-500 bg-amber-50"
                         : "border-gray-200 bg-white"
-                    }`}
+                      }`}
                   >
                     <View className="items-center">
                       <View
-                        className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${
-                          formData.outdoor ? "bg-amber-500" : "bg-gray-200"
-                        }`}
+                        className={`w-12 h-12 rounded-2xl items-center justify-center mb-3 ${formData.outdoor ? "bg-amber-500" : "bg-gray-200"
+                          }`}
                       >
                         <Ionicons
                           name="sunny"
@@ -1002,16 +994,14 @@ export default function VenueManagementScreen() {
                         />
                       </View>
                       <Text
-                        className={`font-semibold text-base ${
-                          formData.outdoor ? "text-amber-600" : "text-gray-600"
-                        }`}
+                        className={`font-semibold text-base ${formData.outdoor ? "text-amber-600" : "text-gray-600"
+                          }`}
                       >
                         Outdoor
                       </Text>
                       <Text
-                        className={`text-sm text-center mt-1 ${
-                          formData.outdoor ? "text-amber-500" : "text-gray-500"
-                        }`}
+                        className={`text-sm text-center mt-1 ${formData.outdoor ? "text-amber-500" : "text-gray-500"
+                          }`}
                       >
                         Ngoài trời
                       </Text>

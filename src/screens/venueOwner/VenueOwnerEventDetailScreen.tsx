@@ -369,12 +369,12 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
               <Ionicons name="flag" size={20} color="#10B981" />
             </TouchableOpacity>
 
-            <TouchableOpacity
+            {/* <TouchableOpacity
               onPress={handleDeleteEvent}
               className="p-2 bg-red-50 rounded-lg"
             >
               <Ionicons name="trash" size={20} color="#EF4444" />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
       </View>
@@ -425,9 +425,8 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
                 {images.map((_, index) => (
                   <View
                     key={index}
-                    className={`w-2 h-2 rounded-full mx-1 ${
-                      index === 0 ? "bg-white" : "bg-white/50"
-                    }`}
+                    className={`w-2 h-2 rounded-full mx-1 ${index === 0 ? "bg-white" : "bg-white/50"
+                      }`}
                   />
                 ))}
               </View>
@@ -479,23 +478,23 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
               {/* Additional time info if multi-day event */}
               {new Date(selectedEvent.startDate).toDateString() !==
                 new Date(selectedEvent.endDate).toDateString() && (
-                <View className="bg-blue-50 p-3 rounded-lg mb-3">
-                  <View className="space-y-2">
-                    <View className="flex-row justify-between">
-                      <Text className="text-sm text-blue-600">Bắt đầu:</Text>
-                      <Text className="text-sm font-medium text-blue-900">
-                        {formatDateTime(selectedEvent.startDate)}
-                      </Text>
-                    </View>
-                    <View className="flex-row justify-between">
-                      <Text className="text-sm text-blue-600">Kết thúc:</Text>
-                      <Text className="text-sm font-medium text-blue-900">
-                        {formatDateTime(selectedEvent.endDate)}
-                      </Text>
+                  <View className="bg-blue-50 p-3 rounded-lg mb-3">
+                    <View className="space-y-2">
+                      <View className="flex-row justify-between">
+                        <Text className="text-sm text-blue-600">Bắt đầu:</Text>
+                        <Text className="text-sm font-medium text-blue-900">
+                          {formatDateTime(selectedEvent.startDate)}
+                        </Text>
+                      </View>
+                      <View className="flex-row justify-between">
+                        <Text className="text-sm text-blue-600">Kết thúc:</Text>
+                        <Text className="text-sm font-medium text-blue-900">
+                          {formatDateTime(selectedEvent.endDate)}
+                        </Text>
+                      </View>
                     </View>
                   </View>
-                </View>
-              )}
+                )}
             </View>
 
             {/* Status Badge */}
@@ -541,7 +540,7 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
                             ((selectedEvent.originalPrice -
                               selectedEvent.discountedPrice) /
                               selectedEvent.originalPrice) *
-                              100
+                            100
                           )}
                           %
                         </Text>
@@ -796,11 +795,10 @@ const VenueOwnerEventDetailScreen: React.FC<EventDetailScreenProps> = ({
                   onPress={() =>
                     handleStatusChange(option.value as EventStatus)
                   }
-                  className={`p-4 rounded-lg ${
-                    selectedEvent.status === option.value
+                  className={`p-4 rounded-lg ${selectedEvent.status === option.value
                       ? "bg-blue-50 border border-blue-200"
                       : "bg-gray-50"
-                  }`}
+                    }`}
                 >
                   <View className="flex-row items-center justify-between">
                     <View className="flex-row items-center">

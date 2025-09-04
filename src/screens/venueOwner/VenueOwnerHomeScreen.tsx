@@ -15,9 +15,9 @@ import { useAuth } from "../../hooks/useAuth";
 import { useVenueOwnerProfile } from "../../hooks/useVenueOwnerProfile";
 import { useVenueOwnerLocation } from "../../hooks/useVenueOwnerLocation";
 import { useVenueWallet } from "../../hooks/useVenueWallet";
-import { useWithdrawalRequests } from "../../hooks/useWithdrawal"; // 🆕 NEW IMPORT
+import { useWithdrawalRequests } from "../../hooks/useWithdrawal";
 import VenueWalletTopUpModal from "../../components/VenueWalletTopUpModal";
-import VenueWithdrawalRequestCard from "../../components/VenueWithdrawalRequestCard"; // 🆕 NEW IMPORT
+import VenueWithdrawalRequestCard from "../../components/VenueWithdrawalRequestCard";
 import { RootStackNavigationProp } from "../../navigation/types";
 
 export default function VenueOwnerHomeScreen() {
@@ -138,8 +138,7 @@ export default function VenueOwnerHomeScreen() {
   const handleWithdrawalPress = (request: any) => {
     Alert.alert(
       "Chi tiết yêu cầu rút tiền",
-      `Số tiền: ${formatCurrency(request.amount)}\nNgân hàng: ${
-        request.bankName
+      `Số tiền: ${formatCurrency(request.amount)}\nNgân hàng: ${request.bankName
       }\nTrạng thái: ${request.requestStatus}`,
       [{ text: "Đóng" }]
     );
@@ -148,8 +147,8 @@ export default function VenueOwnerHomeScreen() {
   // Filter locations by actual locationOwnerId
   const myLocations = locationOwnerId
     ? locations.filter(
-        (location) => location.locationOwnerId === locationOwnerId
-      )
+      (location) => location.locationOwnerId === locationOwnerId
+    )
     : [];
 
   // Stats calculations
@@ -180,13 +179,7 @@ export default function VenueOwnerHomeScreen() {
                 {user?.fullName || "Venue Owner"}
               </Text>
             </View>
-            <TouchableOpacity className="p-2">
-              <Ionicons
-                name="notifications-outline"
-                size={24}
-                color="#6B7280"
-              />
-            </TouchableOpacity>
+
           </View>
         </View>
 
@@ -419,10 +412,10 @@ export default function VenueOwnerHomeScreen() {
                       {balanceStatus?.status === "excellent"
                         ? "Tuyệt vời"
                         : balanceStatus?.status === "good"
-                        ? "Ổn định"
-                        : balanceStatus?.status === "low"
-                        ? "Thấp"
-                        : "Rất thấp"}
+                          ? "Ổn định"
+                          : balanceStatus?.status === "low"
+                            ? "Thấp"
+                            : "Rất thấp"}
                     </Text>
                   </View>
                 </View>
@@ -610,11 +603,10 @@ export default function VenueOwnerHomeScreen() {
                         /giờ
                       </Text>
                       <View
-                        className={`w-2 h-2 rounded-full ${
-                          location.availabilityStatus === "Available"
+                        className={`w-2 h-2 rounded-full ${location.availabilityStatus === "Available"
                             ? "bg-green-500"
                             : "bg-yellow-500"
-                        }`}
+                          }`}
                       />
                     </View>
                   </View>
